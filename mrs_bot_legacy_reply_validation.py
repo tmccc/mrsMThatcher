@@ -1,8 +1,8 @@
 """Validate frozen reply drafts from retired conversational reply strategies.
 
-The fixed schema, strategy and hash definitions live here. Root constants remain
-aliases, and adapters supply their current references, helper callbacks and size
-limits on each call. Validation retains the historical bodies and native error
+The fixed schema, strategy and hash definitions are used directly here. Root
+constants remain compatibility aliases; adapters supply current ID/context
+validators and size limits on each call. Validation retains the historical bodies and native error
 boundaries; current draft validation, lifecycle recovery and outbound authority
 remain in their existing owners. This module imports only the standard library,
 constructs fixed strings/frozensets, performs no runtime I/O or configuration work,
@@ -261,7 +261,6 @@ def _legacy_multi_model_context_post_is_valid(
 def _legacy_multi_model_reply_context_is_valid(
     context: object,
     *,
-    _LEGACY_MULTI_MODEL_REPLY_CONTEXT_FIELDS: frozenset[str],
     valid_string_post_id: Callable,
     _legacy_multi_model_context_post_is_valid: Callable,
 ) -> bool:
@@ -322,12 +321,6 @@ def _legacy_tested_reply_draft_is_valid(
     *,
     context: dict,
     text: object,
-    _LEGACY_TESTED_REPLY_DRAFT_FIELDS: frozenset[str],
-    _LEGACY_TESTED_REPLY_DIRECT_REPAIR_FIELDS: frozenset[str],
-    _LEGACY_TESTED_REPLY_STRATEGY_VERSION: str,
-    _legacy_reply_utc_timestamp_is_valid: Callable,
-    _legacy_reply_value_sha256: Callable,
-    _legacy_reply_sha256_is_valid: Callable,
 ) -> bool:
     expected_fields = set(_LEGACY_TESTED_REPLY_DRAFT_FIELDS)
     if set(draft).intersection(_LEGACY_TESTED_REPLY_DIRECT_REPAIR_FIELDS):
@@ -424,8 +417,6 @@ def _legacy_ai_first_claim_is_valid(value: object, expected_index: int) -> bool:
 
 def _legacy_ai_first_sentence_assessment_is_valid(
     value: object,
-    *,
-    _LEGACY_AI_FIRST_WORLD_CLAIM_FIELDS: frozenset[str],
 ) -> bool:
     if not isinstance(value, dict) or set(value) != {
         "sentence_text",
@@ -451,8 +442,6 @@ def _legacy_ai_first_sentence_assessment_is_valid(
 
 def _legacy_ai_first_claim_audit_is_valid(
     value: object,
-    *,
-    _LEGACY_AI_FIRST_WORLD_CLAIM_FIELDS: frozenset[str],
 ) -> bool:
     if not isinstance(value, dict) or set(value) != {
         "sentence_text",
@@ -477,17 +466,6 @@ def _legacy_ai_first_reply_draft_is_valid(
     *,
     context: dict,
     text: object,
-    _LEGACY_AI_FIRST_REPLY_DRAFT_FIELDS: frozenset[str],
-    _LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION: str,
-    _LEGACY_AI_FIRST_REPLY_MODES: frozenset[str],
-    _LEGACY_AI_FIRST_REPLY_TONES: frozenset[str],
-    _legacy_reply_utc_timestamp_is_valid: Callable,
-    _legacy_reply_value_sha256: Callable,
-    _LEGACY_AI_FIRST_ANSWER_TYPES: frozenset[str],
-    _legacy_ai_first_claim_is_valid: Callable,
-    _legacy_reply_sha256_is_valid: Callable,
-    _legacy_ai_first_sentence_assessment_is_valid: Callable,
-    _legacy_ai_first_claim_audit_is_valid: Callable,
 ) -> bool:
     expected = set(_LEGACY_AI_FIRST_REPLY_DRAFT_FIELDS)
     if "retrieved_count" in draft:
@@ -713,22 +691,10 @@ def _legacy_single_sol_reply_draft_is_valid(
     *,
     context: dict,
     text: object,
-    _LEGACY_SINGLE_SOL_REPLY_DRAFT_FIELDS: frozenset[str],
-    _LEGACY_SINGLE_SOL_REPLY_STRATEGY_VERSION: str,
-    _LEGACY_SINGLE_SOL_PROMPT_SHA256: str,
-    _LEGACY_SINGLE_SOL_RESPONSE_SCHEMA_SHA256: str,
-    _LEGACY_SINGLE_SOL_SCHEMA4_PROMPT_SHA256: str,
-    _LEGACY_SINGLE_SOL_SCHEMA4_RESPONSE_SCHEMA_SHA256: str,
-    _LEGACY_SINGLE_SOL_REPLY_KINDS: frozenset[str],
-    _LEGACY_SINGLE_SOL_REASON_CODES: frozenset[str],
-    _legacy_reply_utc_timestamp_is_valid: Callable,
-    _legacy_reply_sha256_is_valid: Callable,
-    _legacy_reply_value_sha256: Callable,
     valid_string_post_id: Callable,
     bound_visible_conversation: Callable,
     MAX_TRUSTED_FACTS: int,
     MAX_SUPPLIED_IMAGES: int,
-    _LEGACY_SINGLE_SOL_IMAGE_MIME_TYPES: frozenset[str],
     SINGLE_CALL_MAX_IMAGE_BYTES: int,
 ) -> bool:
     schema_version = draft.get("draft_schema_version")
@@ -889,12 +855,7 @@ def _legacy_ai_reply_receipt_draft_is_valid(
     data: dict,
     text: object,
     *,
-    _LEGACY_TESTED_REPLY_STRATEGY_VERSION: str,
     _legacy_multi_model_reply_context_is_valid: Callable,
-    _legacy_tested_reply_draft_is_valid: Callable,
-    _LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION: str,
-    _legacy_ai_first_reply_draft_is_valid: Callable,
-    _LEGACY_SINGLE_SOL_REPLY_STRATEGY_VERSION: str,
     _legacy_single_sol_reply_draft_is_valid: Callable,
 ) -> bool:
     """Validate only frozen drafts already protected by reply lifecycle state."""

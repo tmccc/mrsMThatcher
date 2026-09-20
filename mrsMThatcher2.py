@@ -7618,7 +7618,6 @@ def _legacy_multi_model_reply_context_is_valid(context: object) -> bool:
     """Delegate frozen validation with current root dependencies."""
     return _legacy_reply_validation._legacy_multi_model_reply_context_is_valid(
         context,
-        _LEGACY_MULTI_MODEL_REPLY_CONTEXT_FIELDS=_LEGACY_MULTI_MODEL_REPLY_CONTEXT_FIELDS,
         valid_string_post_id=valid_string_post_id,
         _legacy_multi_model_context_post_is_valid=_legacy_multi_model_context_post_is_valid,
     )
@@ -7635,12 +7634,6 @@ def _legacy_tested_reply_draft_is_valid(
         draft,
         context=context,
         text=text,
-        _LEGACY_TESTED_REPLY_DRAFT_FIELDS=_LEGACY_TESTED_REPLY_DRAFT_FIELDS,
-        _LEGACY_TESTED_REPLY_DIRECT_REPAIR_FIELDS=_LEGACY_TESTED_REPLY_DIRECT_REPAIR_FIELDS,
-        _LEGACY_TESTED_REPLY_STRATEGY_VERSION=_LEGACY_TESTED_REPLY_STRATEGY_VERSION,
-        _legacy_reply_utc_timestamp_is_valid=_legacy_reply_utc_timestamp_is_valid,
-        _legacy_reply_value_sha256=_legacy_reply_value_sha256,
-        _legacy_reply_sha256_is_valid=_legacy_reply_sha256_is_valid,
     )
 
 
@@ -7651,7 +7644,6 @@ def _legacy_ai_first_sentence_assessment_is_valid(value: object) -> bool:
     """Delegate frozen validation with current root dependencies."""
     return _legacy_reply_validation._legacy_ai_first_sentence_assessment_is_valid(
         value,
-        _LEGACY_AI_FIRST_WORLD_CLAIM_FIELDS=_LEGACY_AI_FIRST_WORLD_CLAIM_FIELDS,
     )
 
 
@@ -7659,7 +7651,6 @@ def _legacy_ai_first_claim_audit_is_valid(value: object) -> bool:
     """Delegate frozen validation with current root dependencies."""
     return _legacy_reply_validation._legacy_ai_first_claim_audit_is_valid(
         value,
-        _LEGACY_AI_FIRST_WORLD_CLAIM_FIELDS=_LEGACY_AI_FIRST_WORLD_CLAIM_FIELDS,
     )
 
 
@@ -7674,17 +7665,6 @@ def _legacy_ai_first_reply_draft_is_valid(
         draft,
         context=context,
         text=text,
-        _LEGACY_AI_FIRST_REPLY_DRAFT_FIELDS=_LEGACY_AI_FIRST_REPLY_DRAFT_FIELDS,
-        _LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION=_LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION,
-        _LEGACY_AI_FIRST_REPLY_MODES=_LEGACY_AI_FIRST_REPLY_MODES,
-        _LEGACY_AI_FIRST_REPLY_TONES=_LEGACY_AI_FIRST_REPLY_TONES,
-        _legacy_reply_utc_timestamp_is_valid=_legacy_reply_utc_timestamp_is_valid,
-        _legacy_reply_value_sha256=_legacy_reply_value_sha256,
-        _LEGACY_AI_FIRST_ANSWER_TYPES=_LEGACY_AI_FIRST_ANSWER_TYPES,
-        _legacy_ai_first_claim_is_valid=_legacy_ai_first_claim_is_valid,
-        _legacy_reply_sha256_is_valid=_legacy_reply_sha256_is_valid,
-        _legacy_ai_first_sentence_assessment_is_valid=_legacy_ai_first_sentence_assessment_is_valid,
-        _legacy_ai_first_claim_audit_is_valid=_legacy_ai_first_claim_audit_is_valid,
     )
 
 
@@ -7700,22 +7680,10 @@ def _legacy_single_sol_reply_draft_is_valid(
         data, draft,
         context=context,
         text=text,
-        _LEGACY_SINGLE_SOL_REPLY_DRAFT_FIELDS=_LEGACY_SINGLE_SOL_REPLY_DRAFT_FIELDS,
-        _LEGACY_SINGLE_SOL_REPLY_STRATEGY_VERSION=_LEGACY_SINGLE_SOL_REPLY_STRATEGY_VERSION,
-        _LEGACY_SINGLE_SOL_PROMPT_SHA256=_LEGACY_SINGLE_SOL_PROMPT_SHA256,
-        _LEGACY_SINGLE_SOL_RESPONSE_SCHEMA_SHA256=_LEGACY_SINGLE_SOL_RESPONSE_SCHEMA_SHA256,
-        _LEGACY_SINGLE_SOL_SCHEMA4_PROMPT_SHA256=_LEGACY_SINGLE_SOL_SCHEMA4_PROMPT_SHA256,
-        _LEGACY_SINGLE_SOL_SCHEMA4_RESPONSE_SCHEMA_SHA256=_LEGACY_SINGLE_SOL_SCHEMA4_RESPONSE_SCHEMA_SHA256,
-        _LEGACY_SINGLE_SOL_REPLY_KINDS=_LEGACY_SINGLE_SOL_REPLY_KINDS,
-        _LEGACY_SINGLE_SOL_REASON_CODES=_LEGACY_SINGLE_SOL_REASON_CODES,
-        _legacy_reply_utc_timestamp_is_valid=_legacy_reply_utc_timestamp_is_valid,
-        _legacy_reply_sha256_is_valid=_legacy_reply_sha256_is_valid,
-        _legacy_reply_value_sha256=_legacy_reply_value_sha256,
         valid_string_post_id=valid_string_post_id,
         bound_visible_conversation=bound_visible_conversation,
         MAX_TRUSTED_FACTS=MAX_TRUSTED_FACTS,
         MAX_SUPPLIED_IMAGES=MAX_SUPPLIED_IMAGES,
-        _LEGACY_SINGLE_SOL_IMAGE_MIME_TYPES=_LEGACY_SINGLE_SOL_IMAGE_MIME_TYPES,
         SINGLE_CALL_MAX_IMAGE_BYTES=SINGLE_CALL_MAX_IMAGE_BYTES,
     )
 
@@ -7724,12 +7692,7 @@ def _legacy_ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
     """Delegate frozen validation with current root dependencies."""
     return _legacy_reply_validation._legacy_ai_reply_receipt_draft_is_valid(
         data, text,
-        _LEGACY_TESTED_REPLY_STRATEGY_VERSION=_LEGACY_TESTED_REPLY_STRATEGY_VERSION,
         _legacy_multi_model_reply_context_is_valid=_legacy_multi_model_reply_context_is_valid,
-        _legacy_tested_reply_draft_is_valid=_legacy_tested_reply_draft_is_valid,
-        _LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION=_LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION,
-        _legacy_ai_first_reply_draft_is_valid=_legacy_ai_first_reply_draft_is_valid,
-        _LEGACY_SINGLE_SOL_REPLY_STRATEGY_VERSION=_LEGACY_SINGLE_SOL_REPLY_STRATEGY_VERSION,
         _legacy_single_sol_reply_draft_is_valid=_legacy_single_sol_reply_draft_is_valid,
     )
 

@@ -77,7 +77,7 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
 
 
 @pytest.mark.parametrize("case_id", CASE_IDS)
-def test_dispatch_uses_current_family_callbacks_and_preserves_short_circuiting(case_id, monkeypatch):
+def test_dispatch_uses_owned_fixed_and_current_runtime_validators_in_order(case_id, monkeypatch):
     data = _legacy_case(case_id)["sending_receipt"]
     draft, context, text = data["ai_reply_draft"], data["reply_context"], data["reply_text"]
     events = Mock()
@@ -88,7 +88,8 @@ def test_dispatch_uses_current_family_callbacks_and_preserves_short_circuiting(c
     for family in ("tested", "ai_first", "single_sol"):
         callback = Mock(return_value=result)
         events.attach_mock(callback, family)
-        monkeypatch.setattr(bot, f"_legacy_{family}_reply_draft_is_valid", callback)
+        target = bot if family == "single_sol" else legacy
+        monkeypatch.setattr(target, f"_legacy_{family}_reply_draft_is_valid", callback)
     family = "tested" if case_id == "tested_reply_pipeline" else "ai_first" if case_id == "ai_first_reply_v3" else "single_sol"
     single = family == "single_sol"
     args = (data, draft) if single else (draft,)
@@ -109,7 +110,7 @@ def test_dispatch_uses_current_family_callbacks_and_preserves_short_circuiting(c
     assert events.mock_calls == []
 
 
-def test_context_uses_current_field_reference_and_nested_post_callback(monkeypatch):
+def test_context_uses_owned_schema_and_current_nested_post_callback(monkeypatch):
     context = _legacy_case("tested_reply_pipeline")["sending_receipt"]["reply_context"]
     quoted = {"post_id": "4000", "author_role": "user", "text": "Earlier contribution."}
     parent = {"post_id": "4001", "author_role": "account", "text": "Earlier reply."}
@@ -122,10 +123,10 @@ def test_context_uses_current_field_reference_and_nested_post_callback(monkeypat
     assert check.call_args_list[1].args[0] is parent
     check.reset_mock()
     original = legacy._LEGACY_MULTI_MODEL_REPLY_CONTEXT_FIELDS
-    monkeypatch.setattr(bot, "_LEGACY_MULTI_MODEL_REPLY_CONTEXT_FIELDS", original | {"extra_field"})
+    monkeypatch.setattr(legacy, "_LEGACY_MULTI_MODEL_REPLY_CONTEXT_FIELDS", original | {"extra_field"})
     assert bot._legacy_multi_model_reply_context_is_valid(context) is False
     check.assert_not_called()
-    assert legacy._LEGACY_MULTI_MODEL_REPLY_CONTEXT_FIELDS is original
+    assert bot._LEGACY_MULTI_MODEL_REPLY_CONTEXT_FIELDS is original
 
 
 @pytest.mark.parametrize("case_id", ["single_sol_schema_1", "single_sol_schema_2"])
