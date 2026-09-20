@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 import inspect
 from pathlib import Path
 import subprocess
@@ -344,3 +344,50 @@ def test_evaluation_owns_health_and_telemetry_and_fetches_evidence_per_call(monk
     assert all(entry.args[0] is state for entry in errors.call_args_list)
     assert all(entry.args == ("single_call_reply_decision",) for entry in events.call_args_list)
     forbidden.assert_not_called()
+
+
+@pytest.mark.parametrize("status,category,provider_status", [
+    ("no_reply", None, 429),
+    ("operational_failure", "local_validation", 429),
+    ("operational_failure", "provider_transport", 503),
+])
+def test_health_persistence_failure_keeps_identity_and_precedes_telemetry(
+    status, category, provider_status,
+):
+    result = bot.PipelineResult(
+        status=status, reason="fixture outcome", error_category=category,
+        provider_status_code=provider_status, provider_reset_epoch=2_000_000_123,
+        provider_retry_after_seconds=120, provider_request_attempt_count=2,
+    )
+    state, trace = {}, Mock()
+    failure = OSError("health persistence failed")
+    provider_error = bot.ApiError("provider health", service="openai")
+    trace.error.return_value = provider_error
+
+    def fail_accounting(actual_state, error, service):
+        assert actual_state is state and error is provider_error and service == "openai"
+        actual_state["health_update_attempted"] = True
+        raise failure
+
+    trace.account.side_effect = fail_accounting
+    owner = replace(
+        bot._reply_generation_owner(),
+        collect_reply_images=Mock(return_value=[]),
+        history_for_evaluation=Mock(return_value=([], [])),
+        require_remote_operation_unpaused=Mock(),
+        evidence_repository=Mock(return_value=object()),
+        run_pipeline=Mock(return_value=result),
+        provider_error=trace.error, record_api_error=trace.account,
+        log_event=trace.telemetry,
+    )
+    with pytest.raises(OSError) as caught:
+        owner.evaluate(pipeline_context(turns=1), state=state)
+    assert caught.value is failure
+    assert state == {"health_update_attempted": True}
+    assert [entry[0] for entry in trace.mock_calls] == ["error", "account"]
+    assert trace.error.call_args.kwargs == {
+        "category": "provider_http_429" if provider_status == 429 else category,
+        "status_code": provider_status, "reset_epoch": 2_000_000_123,
+        "retry_after_seconds": 120, "request_attempt_count": 2,
+    }
+    trace.telemetry.assert_not_called()

@@ -240,47 +240,8 @@ class ReplyGeneration:
             supplied_images=supplied_images,
             visual_description=context.get("visual_description"),
         )
-        if result.provider_status_code == 429 and result.status != "operational_failure":
-            self.record_api_error(
-                state,
-                self.provider_error(
-                    "single-call reply recovered after rate limit", category="provider_http_429",
-                    status_code=429, reset_epoch=result.provider_reset_epoch,
-                    retry_after_seconds=result.provider_retry_after_seconds,
-                    request_attempt_count=result.provider_request_attempt_count,
-                ),
-                "openai",
-            )
+        self._record_provider_health(state, result, lane=lane, target_id=target_id)
         if result.status == "operational_failure":
-            provider_health_failure = self.is_provider_health_failure(
-                result.error_category
-            )
-            prior_rate_limit = result.provider_status_code == 429
-            if provider_health_failure or prior_rate_limit:
-                self.record_api_error(
-                    state,
-                    self.provider_error(
-                        f"single-call reply provider failure: {result.reason}",
-                        category=(
-                            str(result.error_category)
-                            if provider_health_failure
-                            else "provider_http_429"
-                        ),
-                        status_code=result.provider_status_code,
-                        reset_epoch=result.provider_reset_epoch,
-                        retry_after_seconds=result.provider_retry_after_seconds,
-                        request_attempt_count=result.provider_request_attempt_count,
-                    ),
-                    "openai",
-                )
-            else:
-                self.log.warning(
-                    "Single-call reply operational failure did not affect OpenAI "
-                    "health target_id=%s lane=%s category=%s",
-                    target_id,
-                    lane,
-                    result.error_category or "uncategorised",
-                )
             self.record_result(result, lane=lane, target_id=target_id)
             return result
         self.record_result(result, lane=lane, target_id=target_id)
@@ -289,3 +250,42 @@ class ReplyGeneration:
         if result.status != "reply" or not isinstance(result.reply, self.reply_type):
             raise RuntimeError("single-call reply returned an impossible result")
         return result
+
+
+    def _record_provider_health(
+        self, state: dict, result: PipelineResult, *, lane: str, target_id: str,
+    ) -> None:
+        """Account for provider health before decision telemetry can fail."""
+        if result.provider_status_code == 429 and result.status != "operational_failure":
+            message = "single-call reply recovered after rate limit"
+            category = "provider_http_429"
+            status_code = 429
+        elif result.status == "operational_failure":
+            provider_health_failure = self.is_provider_health_failure(result.error_category)
+            prior_rate_limit = result.provider_status_code == 429
+            if not provider_health_failure and not prior_rate_limit:
+                self.log.warning(
+                    "Single-call reply operational failure did not affect OpenAI "
+                    "health target_id=%s lane=%s category=%s",
+                    target_id,
+                    lane,
+                    result.error_category or "uncategorised",
+                )
+                return
+            message = f"single-call reply provider failure: {result.reason}"
+            category = str(result.error_category) if provider_health_failure else "provider_http_429"
+            status_code = result.provider_status_code
+        else:
+            return
+        self.record_api_error(
+            state,
+            self.provider_error(
+                message,
+                category=category,
+                status_code=status_code,
+                reset_epoch=result.provider_reset_epoch,
+                retry_after_seconds=result.provider_retry_after_seconds,
+                request_attempt_count=result.provider_request_attempt_count,
+            ),
+            "openai",
+        )
