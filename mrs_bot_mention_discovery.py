@@ -1,21 +1,23 @@
 """Own durable mention discovery, queue access and watermark retirement.
 
-Four root adapters supply current callbacks, settings, clock, logger, modules
-and exception authorities on each call; dependency-free removal is a root alias.
-Original bodies retain queue recovery before provider work, bounded traversal,
-nested page/reset callbacks, durable commit boundaries and record references.
+MentionQueue owns pending access and retirement using current authority, sorting,
+logging and save boundaries. Its root adapters bind a fresh owner for each call;
+pure removal remains a root alias. Discovery retains bounded fetched-page
+traversal, page/reset callbacks and durable commit boundaries. Queue recovery
+precedes provider work and returned records preserve their references.
 
 Mention authority normalization, validation and reset primitives, the continuation
 exception, shared pagination/authentication, cache/persistence, terminal and
 quarantine evaluation and reply cycles remain in their existing locations.
-Runtime requests and saves use supplied callbacks. This owner retains no
-callbacks, configuration, clients or state and performs no import-time file,
-environment, provider, clock or RNG work or reverse application import.
+Runtime requests and saves use supplied callbacks; owners retain no caller state.
+Import performs no file, environment, provider, clock or RNG work or reverse
+application import.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
 from types import ModuleType
@@ -24,36 +26,6 @@ from mrs_bot_tweet_lookup_cache import normalise_tweet_text
 
 from mrs_bot_reply_evaluation_state import terminal_reply_evaluation
 from mrs_bot_reply_state import handled_reply_target_ids
-
-
-def pending_mention_candidates(
-    state: dict,
-    *,
-    STATE_FILE: Path,
-    save_state: Callable,
-    valid_tweets_sorted_by_id: Callable,
-    validate_pending_mention_candidate_authority: Callable,
-) -> list[dict]:
-    """Return the durable fetched-candidate queue, deduplicated by status ID."""
-    usable, changed = validate_pending_mention_candidate_authority(
-        state,
-        path=STATE_FILE,
-        recover_pending_identity=True,
-    )
-    if not usable:
-        raise RuntimeError(
-            "Mention pending-candidate authority cannot be recovered without "
-            "a bounded watermark"
-        )
-    if changed:
-        save_state(state, durable=True)
-    pending = state.get("mention_pending_candidates", {})
-    if not isinstance(pending, dict):
-        return []
-    return valid_tweets_sorted_by_id(
-        list(pending.values()),
-        context="durable pending mention",
-    )
 
 
 def remove_pending_mention_candidate(state: dict, mention_id: str) -> bool:
@@ -65,6 +37,68 @@ def remove_pending_mention_candidate(state: dict, mention_id: str) -> bool:
     pending.pop(str(mention_id), None)
     state["mention_pending_candidates"] = pending
     return True
+
+
+@dataclass(frozen=True)
+class MentionQueue:
+    """Read and retire durable queued mentions without retaining caller state."""
+
+    state_file: Path
+    validate_authority: Callable
+    save: Callable
+    sort_candidates: Callable
+    log: Logger
+
+    def pending(self, state: dict) -> list[dict]:
+        """Return the durable fetched-candidate queue, deduplicated by status ID."""
+        usable, changed = self.validate_authority(
+            state,
+            path=self.state_file,
+            recover_pending_identity=True,
+        )
+        if not usable:
+            raise RuntimeError(
+                "Mention pending-candidate authority cannot be recovered without "
+                "a bounded watermark"
+            )
+        if changed:
+            self.save(state, durable=True)
+        pending = state.get("mention_pending_candidates", {})
+        if not isinstance(pending, dict):
+            return []
+        return self.sort_candidates(
+            list(pending.values()),
+            context="durable pending mention",
+        )
+
+    def advance_watermark(self, state: dict, mention_id: str) -> None:
+        """Advance the durable mention watermark without moving it backwards."""
+        previous = state.get("last_seen_mention_id")
+        self.log.debug("Updating last_seen_mention_id. previous=%s new_candidate=%s", previous, mention_id)
+        if previous is None:
+            state["last_seen_mention_id"] = str(mention_id)
+            return
+        try:
+            state["last_seen_mention_id"] = str(max(int(previous), int(mention_id)))
+        except ValueError:
+            state["last_seen_mention_id"] = str(mention_id)
+        self.log.debug("last_seen_mention_id is now %s", state["last_seen_mention_id"])
+
+    def mark_seen(self, state: dict, candidate: dict) -> None:
+        """Retire a durably queued mention, with legacy watermark compatibility."""
+        if candidate.get("_source", "mention") == "mention" and remove_pending_mention_candidate(
+            state,
+            str(candidate.get("id", "")),
+        ):
+            return
+        if candidate.get("_pagination_truncated"):
+            self.log.warning(
+                "Not advancing mention watermark for %s because mention pagination was truncated",
+                candidate.get("id"),
+            )
+            return
+        if candidate.get("_source", "mention") == "mention":
+            self.advance_watermark(state, str(candidate.get("id", "")))
 
 
 def get_mentions(
@@ -88,10 +122,9 @@ def get_mentions(
     log_event: Callable,
     log_json_debug: Callable,
     now_epoch: Callable,
-    pending_mention_candidates: Callable,
+    mention_queue: MentionQueue,
     prune_completed_mention_quarantine_evaluations: Callable,
     save_state: Callable,
-    update_last_seen_mention_id: Callable,
     valid_tweets_sorted_by_id: Callable,
     x_paginated_get: Callable,
     x_request: Callable,
@@ -102,7 +135,7 @@ def get_mentions(
     committed.  The durable pending queue therefore owns candidates until the
     reply loop records each one as handled, including across process restarts.
     """
-    queued = pending_mention_candidates(state)
+    queued = mention_queue.pending(state)
     if queued:
         log.info("Using %d durably queued mention candidate(s) before further pagination", len(queued))
         for candidate in list(queued):
@@ -347,7 +380,7 @@ def get_mentions(
                 and reset_guard["head_traversal_started"]
             )
             if highest and (reset_guard is None or head_traversal_completed):
-                update_last_seen_mention_id(state, highest)
+                mention_queue.advance_watermark(state, highest)
             elif highest and reset_guard is not None:
                 log.warning(
                     "Deferring mention watermark advancement after a reset "
@@ -452,49 +485,7 @@ def get_mentions(
         ):
             break
 
-    mentions = pending_mention_candidates(state)
+    mentions = mention_queue.pending(state)
     log.info("Fetched and durably queued %d mention candidate(s)", len(mentions))
     log_json_debug("Mentions returned", mentions)
     return mentions
-
-
-def update_last_seen_mention_id(
-    state: dict,
-    mention_id: str,
-    *,
-    log: Logger,
-) -> None:
-    """Advance the durable mention watermark without moving it backwards."""
-    previous = state.get("last_seen_mention_id")
-    log.debug("Updating last_seen_mention_id. previous=%s new_candidate=%s", previous, mention_id)
-    if previous is None:
-        state["last_seen_mention_id"] = str(mention_id)
-        return
-    try:
-        state["last_seen_mention_id"] = str(max(int(previous), int(mention_id)))
-    except ValueError:
-        state["last_seen_mention_id"] = str(mention_id)
-    log.debug("last_seen_mention_id is now %s", state["last_seen_mention_id"])
-
-
-def mark_mention_seen_if_applicable(
-    state: dict,
-    candidate: dict,
-    *,
-    log: Logger,
-    update_last_seen_mention_id: Callable,
-) -> None:
-    """Retire a durably queued mention, with legacy watermark compatibility."""
-    if candidate.get("_source", "mention") == "mention" and remove_pending_mention_candidate(
-        state,
-        str(candidate.get("id", "")),
-    ):
-        return
-    if candidate.get("_pagination_truncated"):
-        log.warning(
-            "Not advancing mention watermark for %s because mention pagination was truncated",
-            candidate.get("id"),
-        )
-        return
-    if candidate.get("_source", "mention") == "mention":
-        update_last_seen_mention_id(state, str(candidate.get("id", "")))

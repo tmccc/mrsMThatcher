@@ -52,6 +52,7 @@ from mrs_bot_reply_preparation import (
 from mrs_bot_reply_state import handled_reply_target_ids, retire_ineligible_reply_draft
 
 if TYPE_CHECKING:
+    from mrs_bot_mention_discovery import MentionQueue
     from mrs_bot_author_quarantines import AuthorQuarantines
     from mrs_bot_daily_reply_accounting import DailyReplyAccounting
     from mrs_bot_reply_clarifications import ClarificationReplies
@@ -147,12 +148,11 @@ def maybe_reply_to_mentions(
     log: Logger,
     log_ai_reply_posting_outcome: Callable,
     log_event: Callable,
-    mark_mention_seen_if_applicable: Callable,
+    mention_queue: MentionQueue,
     maybe_mark_hot_post_reply_skipped: Callable,
     maybe_reply_to_mentions: Callable,
     mention_pagination_provenance_is_valid: Callable,
     now_epoch: Callable,
-    pending_mention_candidates: Callable,
     reply_evaluations: ReplyEvaluations,
     record_api_error: Callable,
     recovery_comparison_account_replies: Callable,
@@ -229,7 +229,7 @@ def maybe_reply_to_mentions(
         log.info("Skipping mention check: minimum interval between replies not reached")
         return NORMAL_CHECK_STATUS_SKIPPED_SPACING
 
-    started_with_pending_mentions = bool(pending_mention_candidates(state))
+    started_with_pending_mentions = bool(mention_queue.pending(state))
     try:
         mentions = get_mentions(state)
     except ApiError as e:
@@ -305,7 +305,7 @@ def maybe_reply_to_mentions(
             config=config,
             clarifications=clarifications,
             persistence=persistence, log=log, log_event=log_event,
-            mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
+            mention_queue=mention_queue,
             maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
             reply_evaluations=reply_evaluations,
             reply_target_is_directly_eligible=reply_target_is_directly_eligible,
@@ -332,7 +332,7 @@ def maybe_reply_to_mentions(
             cache_tweet=cache_tweet,
             accounting=accounting,
             is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying, log=log,
-            log_event=log_event, mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
+            log_event=log_event, mention_queue=mention_queue,
             maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
             reply_evaluations=reply_evaluations,
             persistence=persistence,
@@ -349,7 +349,7 @@ def maybe_reply_to_mentions(
             ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
             _record_single_call_result=_record_single_call_result,
             build_context_for_reply_ai=build_context_for_reply_ai, log=log, log_event=log_event,
-            mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
+            mention_queue=mention_queue,
             maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
             record_api_error=record_api_error,
             reply_evaluations=reply_evaluations,
@@ -380,7 +380,7 @@ def maybe_reply_to_mentions(
             outcome = _retire_or_defer_no_reply(
                 state, candidate, evaluation_result, current,
                 _is_terminal_candidate_local_failure=_is_terminal_candidate_local_failure, log=log,
-                log_event=log_event, mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
+                log_event=log_event, mention_queue=mention_queue,
                 maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
                 author_quarantines=author_quarantines,
                 reply_evaluations=reply_evaluations,
@@ -414,7 +414,7 @@ def maybe_reply_to_mentions(
             append_unique_durable=append_unique_durable,
             persistence=persistence, log=log,
             log_ai_reply_posting_outcome=log_ai_reply_posting_outcome, log_event=log_event,
-            mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
+            mention_queue=mention_queue,
             delivery=delivery,
             record_api_error=record_api_error,
             reply_evaluations=reply_evaluations,
@@ -436,7 +436,7 @@ def maybe_reply_to_mentions(
         persistence.save(state)
     if (
         started_with_pending_mentions
-        and not pending_mention_candidates(state)
+        and not mention_queue.pending(state)
         and state.get("mention_backlog")
         and progress.fresh_mention_ai_evaluations < config.maximum_fresh_evaluations
     ):
@@ -463,7 +463,7 @@ def _candidate_is_eligible(
     persistence: ReplyCyclePersistence,
     log: Logger,
     log_event: Callable,
-    mark_mention_seen_if_applicable: Callable,
+    mention_queue: MentionQueue,
     maybe_mark_hot_post_reply_skipped: Callable,
     reply_evaluations: ReplyEvaluations,
     reply_target_is_directly_eligible: Callable,
@@ -473,7 +473,7 @@ def _candidate_is_eligible(
         log.info("Skipping %s %s: already replied to", candidate.source, candidate.mention_id)
         maybe_mark_hot_post_reply_skipped(state, candidate.mention, reason="already_replied")
         log_event("candidate_skipped", lane=candidate.log_source, id=candidate.mention_id, reason="already_replied")
-        mark_mention_seen_if_applicable(state, candidate.mention)
+        mention_queue.mark_seen(state, candidate.mention)
         return False
 
     prior_evaluation = terminal_reply_evaluation(state, candidate.mention_id)
@@ -494,7 +494,7 @@ def _candidate_is_eligible(
             id=candidate.mention_id,
             reason=skip_reason,
         )
-        mark_mention_seen_if_applicable(state, candidate.mention)
+        mention_queue.mark_seen(state, candidate.mention)
         persistence.save(state)
         return False
 
@@ -502,7 +502,7 @@ def _candidate_is_eligible(
         log.info("Skipping %s %s: authored by our own account", candidate.source, candidate.mention_id)
         maybe_mark_hot_post_reply_skipped(state, candidate.mention, reason="own_account")
         log_event("candidate_skipped", lane=candidate.log_source, id=candidate.mention_id, reason="own_account")
-        mark_mention_seen_if_applicable(state, candidate.mention)
+        mention_queue.mark_seen(state, candidate.mention)
         return False
 
     if clarifications.thread_is_terminal(state, candidate.mention):
@@ -518,7 +518,7 @@ def _candidate_is_eligible(
             id=candidate.mention_id,
             reason="clarification_thread_terminal",
         )
-        mark_mention_seen_if_applicable(state, candidate.mention)
+        mention_queue.mark_seen(state, candidate.mention)
         persistence.save(state)
         return False
 
@@ -545,7 +545,7 @@ def _candidate_is_eligible(
             outcome="reply_not_permitted",
             reason=reason,
         )
-        mark_mention_seen_if_applicable(state, candidate.mention)
+        mention_queue.mark_seen(state, candidate.mention)
         if progress.quarantine_retirements_pending:
             progress.prune_quarantine_retirement_batch(state, reply_evaluations)
         persistence.save(state, durable=True)
@@ -568,7 +568,7 @@ def _author_allows_evaluation(
     is_probably_spam_or_not_worth_replying: Callable,
     log: Logger,
     log_event: Callable,
-    mark_mention_seen_if_applicable: Callable,
+    mention_queue: MentionQueue,
     maybe_mark_hot_post_reply_skipped: Callable,
     reply_evaluations: ReplyEvaluations,
     persistence: ReplyCyclePersistence,
@@ -604,7 +604,7 @@ def _author_allows_evaluation(
                 reason=reason,
                 author_id=candidate.author_id,
             )
-            mark_mention_seen_if_applicable(state, candidate.mention)
+            mention_queue.mark_seen(state, candidate.mention)
             if not completed_mention_watermark_covers_target(state, candidate.mention_id):
                 reply_evaluations.record(
                     state,
@@ -639,7 +639,7 @@ def _author_allows_evaluation(
             )
         maybe_mark_hot_post_reply_skipped(state, candidate.mention, reason="author_daily_cap")
         log_event("candidate_skipped", lane=candidate.log_source, id=candidate.mention_id, reason="author_daily_cap", author_id=candidate.author_id)
-        mark_mention_seen_if_applicable(state, candidate.mention)
+        mention_queue.mark_seen(state, candidate.mention)
         persistence.save(state)
         return False
 
@@ -647,7 +647,7 @@ def _author_allows_evaluation(
         log.info("Skipping %s %s: spam/not worth replying", candidate.source, candidate.mention_id)
         maybe_mark_hot_post_reply_skipped(state, candidate.mention, reason="spam_or_not_worth_replying")
         log_event("candidate_skipped", lane=candidate.log_source, id=candidate.mention_id, reason="spam_or_not_worth_replying")
-        mark_mention_seen_if_applicable(state, candidate.mention)
+        mention_queue.mark_seen(state, candidate.mention)
         persistence.save(state)
         return False
     return True
@@ -667,7 +667,7 @@ def _prepare_reply_context(
     build_context_for_reply_ai: Callable,
     log: Logger,
     log_event: Callable,
-    mark_mention_seen_if_applicable: Callable,
+    mention_queue: MentionQueue,
     maybe_mark_hot_post_reply_skipped: Callable,
     record_api_error: Callable,
     reply_evaluations: ReplyEvaluations,
@@ -726,7 +726,7 @@ def _prepare_reply_context(
             candidate.mention,
             reason="operational_context_failure",
         )
-        mark_mention_seen_if_applicable(state, candidate.mention)
+        mention_queue.mark_seen(state, candidate.mention)
         persistence.save(state, durable=True)
         return SkipReplyCandidate()
 
@@ -862,7 +862,7 @@ def _retire_or_defer_no_reply(
     _is_terminal_candidate_local_failure: Callable,
     log: Logger,
     log_event: Callable,
-    mark_mention_seen_if_applicable: Callable,
+    mention_queue: MentionQueue,
     maybe_mark_hot_post_reply_skipped: Callable,
     author_quarantines: AuthorQuarantines,
     reply_evaluations: ReplyEvaluations,
@@ -902,7 +902,7 @@ def _retire_or_defer_no_reply(
             reason=skip_reason,
             author_id=candidate.author_id,
         )
-        mark_mention_seen_if_applicable(state, candidate.mention)
+        mention_queue.mark_seen(state, candidate.mention)
         persistence.save(state, durable=True)
         return SkipReplyCandidate()
     if evaluation.status != "no_reply":
@@ -943,7 +943,7 @@ def _retire_or_defer_no_reply(
         candidate.mention,
         reason=f"editorial_no_reply:{reason_code}",
     )
-    mark_mention_seen_if_applicable(state, candidate.mention)
+    mention_queue.mark_seen(state, candidate.mention)
     persistence.save(state, durable=True)
     return SkipReplyCandidate()
 
@@ -1045,7 +1045,7 @@ def _retire_terminal_target(
     persistence: ReplyCyclePersistence,
     log_ai_reply_posting_outcome: Callable,
     log_event: Callable,
-    mark_mention_seen_if_applicable: Callable,
+    mention_queue: MentionQueue,
     reply_evaluations: ReplyEvaluations,
 ) -> None:
     """Record a terminal mention/hot-post outcome and durably retire its draft."""
@@ -1076,7 +1076,7 @@ def _retire_terminal_target(
         state.get("replied_to_ids", []),
         candidate.mention_id,
     )
-    mark_mention_seen_if_applicable(state, candidate.mention)
+    mention_queue.mark_seen(state, candidate.mention)
     persistence.save(state, durable=True)
 
 
@@ -1099,7 +1099,7 @@ def _deliver_reply(
     log: Logger,
     log_ai_reply_posting_outcome: Callable,
     log_event: Callable,
-    mark_mention_seen_if_applicable: Callable,
+    mention_queue: MentionQueue,
     delivery: ReplyCycleDelivery,
     record_api_error: Callable,
     reply_evaluations: ReplyEvaluations,
@@ -1126,7 +1126,7 @@ def _deliver_reply(
             persistence=persistence,
             log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
             log_event=log_event,
-            mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
+            mention_queue=mention_queue,
             reply_evaluations=reply_evaluations,
         )
 

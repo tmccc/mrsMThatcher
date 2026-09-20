@@ -119,7 +119,7 @@ def prepare_delivery(lane, outcome, *, save_failure=None, retirement_failure=Non
         dependencies.update(
             config=NormalReplyConfig(**settings, maximum_fresh_evaluations=3, incoming_max_chars=1000),
             append_unique_durable=trace.append,
-            mark_mention_seen_if_applicable=trace.mark_seen,
+            mention_queue=SimpleNamespace(mark_seen=trace.mark_seen),
         )
 
         def run():

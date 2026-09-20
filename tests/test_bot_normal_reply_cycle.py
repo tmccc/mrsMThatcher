@@ -12,6 +12,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_normal_reply_cycle as cycle
+import mrs_bot_mention_discovery as mention_discovery
 import mrs_bot_author_quarantines as quarantine_owner
 import mrs_bot_daily_reply_accounting as accounting_owner
 import mrs_bot_reply_context as context_owner
@@ -79,13 +80,14 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
     assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
     assert public["_fresh_mention_ai_evaluations"].default == 0
     assert public["_skip_hot_post_fetch"].default is False
-    assert len(parameters) == 49
-    assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 48
+    assert len(parameters) == 48
+    assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 47
     removed = {
         name for name in vars(interfaces) if name.startswith("NORMAL_CHECK_STATUS_")
     } | {
         "pending_ai_reply_draft_key", "completed_mention_watermark_covers_target",
         "terminal_reply_evaluation", "trim_context_text",
+        "pending_mention_candidates", "mark_mention_seen_if_applicable",
         "AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY",
         "active_author_evaluation_quarantine", "clarification_reply_context",
         "clarification_thread_is_terminal", "clear_author_evaluation_quarantine_history",
@@ -103,6 +105,7 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
         "reply_evaluations": "_reply_evaluation_owner",
         "clarifications": "_clarification_reply_owner",
         "accounting": "_daily_reply_accounting_owner",
+        "mention_queue": "_mention_queue_owner",
     }
     assert {"config", "persistence", "delivery", *owner_factories} <= dependencies
     state, result = {}, object()
@@ -347,6 +350,7 @@ def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_sa
         original = (
             bot._reply_draft_owner().clear if label == "clear"
             else bot._reply_evaluation_owner().record if label == "terminal"
+            else bot._mention_queue_owner().mark_seen if label == "seen"
             else getattr(bot, name)
         )
 
@@ -358,6 +362,8 @@ def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_sa
             patch_reply_draft_method(monkeypatch, "clear", observe)
         elif label == "terminal":
             patch_reply_owner_method(monkeypatch, evaluation_state.ReplyEvaluations, "record", observe)
+        elif label == "seen":
+            patch_reply_owner_method(monkeypatch, mention_discovery.MentionQueue, "mark_seen", observe)
         else:
             monkeypatch.setattr(bot, name, observe)
     monkeypatch.setattr(bot, "log_event", lambda event, **kwargs: trace.append((event, None)))

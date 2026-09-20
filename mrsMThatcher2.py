@@ -3850,15 +3850,20 @@ def reply_target_is_directly_eligible(tweet: dict) -> bool:
     )
 
 
-def pending_mention_candidates(state: dict) -> list[dict]:
-    """Delegate to the mention owner with current root dependencies."""
-    return _mention_discovery.pending_mention_candidates(
-        state,
-        STATE_FILE=STATE_FILE,
-        save_state=save_state,
-        valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
-        validate_pending_mention_candidate_authority=validate_pending_mention_candidate_authority,
+def _mention_queue_owner() -> _mention_discovery.MentionQueue:
+    """Bind current mention queue boundaries without reading state or files."""
+    return _mention_discovery.MentionQueue(
+        state_file=STATE_FILE,
+        validate_authority=validate_pending_mention_candidate_authority,
+        save=save_state,
+        sort_candidates=valid_tweets_sorted_by_id,
+        log=log,
     )
+
+
+def pending_mention_candidates(state: dict) -> list[dict]:
+    """Delegate to the mention queue with current root dependencies."""
+    return _mention_queue_owner().pending(state)
 
 
 remove_pending_mention_candidate = _mention_discovery.remove_pending_mention_candidate
@@ -3884,10 +3889,9 @@ def get_mentions(state: dict) -> list[dict]:
         log_event=log_event,
         log_json_debug=log_json_debug,
         now_epoch=now_epoch,
-        pending_mention_candidates=pending_mention_candidates,
+        mention_queue=_mention_queue_owner(),
         prune_completed_mention_quarantine_evaluations=prune_completed_mention_quarantine_evaluations,
         save_state=save_state,
-        update_last_seen_mention_id=update_last_seen_mention_id,
         valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
         x_paginated_get=x_paginated_get,
         x_request=x_request,
@@ -8470,22 +8474,13 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
 
 
 def update_last_seen_mention_id(state: dict, mention_id: str) -> None:
-    """Delegate to the mention owner with current root dependencies."""
-    return _mention_discovery.update_last_seen_mention_id(
-        state,
-        mention_id,
-        log=log,
-    )
+    """Delegate to the mention queue with current root dependencies."""
+    return _mention_queue_owner().advance_watermark(state, mention_id)
 
 
 def mark_mention_seen_if_applicable(state: dict, candidate: dict) -> None:
-    """Delegate to the mention owner with current root dependencies."""
-    return _mention_discovery.mark_mention_seen_if_applicable(
-        state,
-        candidate,
-        log=log,
-        update_last_seen_mention_id=update_last_seen_mention_id,
-    )
+    """Delegate to the mention queue with current root dependencies."""
+    return _mention_queue_owner().mark_seen(state, candidate)
 
 
 def reconcile_confirmed_reply_receipt(state: dict) -> bool:
@@ -8689,12 +8684,11 @@ def maybe_reply_to_mentions(
         log=log,
         log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
         log_event=log_event,
-        mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
+        mention_queue=_mention_queue_owner(),
         maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
         maybe_reply_to_mentions=maybe_reply_to_mentions,
         mention_pagination_provenance_is_valid=mention_pagination_provenance_is_valid,
         now_epoch=now_epoch,
-        pending_mention_candidates=pending_mention_candidates,
         reply_evaluations=_reply_evaluation_owner(),
         record_api_error=record_api_error,
         recovery_comparison_account_replies=_reply_history_owner().recovery_replies,

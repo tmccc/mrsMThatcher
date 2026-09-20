@@ -18,6 +18,7 @@ from tests.helpers.mention_fixtures import (
     mention_backlog,
 )
 from tests.helpers.bot_runtime import bot
+from tests.helpers.reply_fixtures import patch_reply_owner_method
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
@@ -59,10 +60,7 @@ assert 'requests' not in sys.modules
 
 
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
-    for name, count in (
-        ("pending_mention_candidates", 4), ("get_mentions", 25),
-        ("update_last_seen_mention_id", 1), ("mark_mention_seen_if_applicable", 2),
-    ):
+    for name, count in (("get_mentions", 24),):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
         dependencies = inspect.signature(getattr(discovery, name)).parameters.keys() - public.keys()
@@ -75,8 +73,13 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
             for _ in range(2):
                 current = {key: object() for key in dependencies}
                 for key, value in current.items():
-                    patch.setattr(bot, key, value)
+                    if key == "mention_queue":
+                        factory = Mock(return_value=value)
+                        patch.setattr(bot, "_mention_queue_owner", factory)
+                    else:
+                        patch.setattr(bot, key, value)
                 assert adapter(*args) is result
+                factory.assert_called_once_with()
                 actual_args, actual_kwargs = owner.call_args
                 assert len(actual_args) == len(args)
                 assert all(actual is expected for actual, expected in zip(actual_args, args))
@@ -88,6 +91,46 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
                 adapter(*args)
             assert caught.value is failure
     assert bot.remove_pending_mention_candidate is discovery.remove_pending_mention_candidate
+
+
+def test_queue_adapters_bind_fresh_current_owners_without_runtime_access(monkeypatch):
+    fields = {
+        "state_file": "STATE_FILE", "validate_authority": "validate_pending_mention_candidate_authority",
+        "save": "save_state", "sort_candidates": "valid_tweets_sorted_by_id", "log": "log",
+    }
+    for name, method in (
+        ("pending_mention_candidates", "pending"),
+        ("update_last_seen_mention_id", "advance_watermark"),
+        ("mark_mention_seen_if_applicable", "mark_seen"),
+    ):
+        adapter = getattr(bot, name)
+        parameters = inspect.signature(adapter).parameters
+        assert tuple(parameters) == (("state",) if method == "pending" else
+                                     ("state", "mention_id" if method == "advance_watermark" else "candidate"))
+        args = tuple(object() for _ in parameters)
+        result, captured = object(), []
+        callback = Mock(return_value=result)
+
+        def observe(owner, *actual_args):
+            captured.append(owner)
+            return callback(*actual_args)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(discovery.MentionQueue, method, observe)
+            for _ in range(2):
+                current = {field: Mock() for field in fields}
+                for field, root_name in fields.items():
+                    patch.setattr(bot, root_name, current[field])
+                assert adapter(*args) is result
+                assert all(actual is expected for actual, expected in zip(callback.call_args.args, args))
+                assert all(getattr(captured[-1], field) is value for field, value in current.items())
+                assert all(not value.mock_calls for value in current.values())
+            assert captured[0] is not captured[1]
+            failure = OSError("current queue operation failed")
+            callback.side_effect = failure
+            with pytest.raises(OSError) as caught:
+                adapter(*args)
+            assert caught.value is failure
 
 
 @pytest.mark.parametrize("save_fails", [False, True])
@@ -137,7 +180,7 @@ def test_queue_authority_and_current_queue_precede_clock_settings_and_provider_w
         bot.get_mentions({"last_seen_mention_id": "unbounded"})
     queue = [mention(101, 201)]
     current_queue = Mock(return_value=queue)
-    monkeypatch.setattr(bot, "pending_mention_candidates", current_queue)
+    patch_reply_owner_method(monkeypatch, discovery.MentionQueue, "pending", current_queue)
     state = {}
     assert bot.get_mentions(state) is queue
     current_queue.assert_called_once_with(state)
@@ -179,7 +222,10 @@ def test_real_pages_keep_media_cache_queue_references_and_final_commit_order(mon
         ("watermark", "update_last_seen_mention_id"),
         ("prune", "prune_completed_mention_quarantine_evaluations"), ("save", "save_state"),
     ):
-        original = getattr(bot, name)
+        original = (
+            bot._mention_queue_owner().advance_watermark
+            if label == "watermark" else getattr(bot, name)
+        )
 
         def observe(*args, _label=label, _callback=original, **kwargs):
             if _label != "prune" or args[0] is state:
@@ -195,7 +241,10 @@ def test_real_pages_keep_media_cache_queue_references_and_final_commit_order(mon
                 page_queues.append(state["mention_pending_candidates"])
             return _callback(*args, **kwargs)
 
-        monkeypatch.setattr(bot, name, observe)
+        if label == "watermark":
+            patch_reply_owner_method(monkeypatch, discovery.MentionQueue, "advance_watermark", observe)
+        else:
+            monkeypatch.setattr(bot, name, observe)
 
     result = bot.get_mentions(state)
     assert trace == [
@@ -267,7 +316,7 @@ def test_retirement_keeps_queue_copy_identity_and_remove_truncation_watermark_or
     trace = Mock()
     trace.remove.side_effect = bot.remove_pending_mention_candidate
     monkeypatch.setattr(discovery, "remove_pending_mention_candidate", trace.remove)
-    monkeypatch.setattr(bot, "update_last_seen_mention_id", trace.update)
+    patch_reply_owner_method(monkeypatch, discovery.MentionQueue, "advance_watermark", trace.update)
     monkeypatch.setattr(bot, "log", trace.log)
     bot.mark_mention_seen_if_applicable(state, {**first, "_pagination_truncated": True})
     assert trace.mock_calls == [call.remove(state, "105")]
