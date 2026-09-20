@@ -2,7 +2,9 @@
 
 Root adapters supply current receipt-value, clarification and accounting owners,
 helpers, settings, paths, logger and application exception classes on every call.
-Bodies preserve mutation, callback, reference and error order, including source
+ReplyCompletion owns durable commit and ordered cleanup for fresh, restarted and
+emergency completion, preserving their distinct error boundaries. Bodies retain
+mutation, callback, reference and error order, including source
 lineage before state application and durable state saving before journal
 retirement and receipt removal.
 
@@ -17,6 +19,7 @@ from __future__ import annotations
 import copy
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -26,6 +29,7 @@ if TYPE_CHECKING:
     from mrs_bot_reply_clarifications import ClarificationReplies
     from mrs_bot_daily_reply_accounting import DailyReplyAccounting
     from mrs_bot_reply_receipt_values import ReplyReceiptValues
+    from mrs_bot_state_generation import StateCommitProof
 
 
 def apply_confirmed_reply_receipt(
@@ -272,128 +276,129 @@ def _mention_pagination_to_preserve(
     return preserved
 
 
-def finalise_confirmed_reply(
-    state: dict,
-    receipt: dict,
-    *,
-    target_id: str,
-    quote_reply: bool,
-    CONFIRMED_REPLY_RECEIPT_FILE: Path,
-    ConfirmedReplyLocalPersistenceError: type[Exception],
-    apply_confirmed_reply_receipt: Callable,
-    save_state: Callable,
-    retire_lane_transport_journal_if_present: Callable,
-    remove_confirmed_reply_receipt: Callable,
-    log: logging.Logger,
-) -> str:
-    """Commit a new confirmation, then retire its exact recovery records.
+@dataclass(frozen=True)
+class ReplyCompletion:
+    """Commit confirmed state and retire exact recovery records in one shared order.
 
-    Application and durable-save errors retain their original types. Only
-    cleanup failures are wrapped after the confirmed state is durable. Restart
-    reconciliation has its own save-error policy and remains a separate entry.
+    Fresh completion and restart recovery retain their separate error policies.
+    Application, durable storage and receipt authorities remain explicit boundaries.
     """
-    own_reply_id = str(receipt["reply_post_id"])
-    apply_confirmed_reply_receipt(state, receipt)
-    log.info(
-        "Recorded and cached own quote-tweet auto-reply id=%s"
-        if quote_reply else "Recorded and cached own auto-reply id=%s",
-        own_reply_id,
-    )
-    from mrs_bot_state_generation import record_receipt_commit
-    record_receipt_commit(state, receipt)
-    commit_proof = save_state(state, durable=True)
-    try:
-        retire_lane_transport_journal_if_present(
-            commit_proof=commit_proof,
-            receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
-            receipt=receipt,
-            lane="conversational_reply",
-            post_id=own_reply_id,
-        )
-        remove_confirmed_reply_receipt(receipt, commit_proof=commit_proof)
-    except Exception as exc:
-        log.critical(
-            "Confirmed quote-tweet reply id=%s to target=%s was saved but receipt removal failed"
-            if quote_reply else
-            "Confirmed reply id=%s to target=%s was saved but receipt removal failed",
-            own_reply_id,
-            target_id,
-            exc_info=True,
-        )
-        description = "quote-tweet reply" if quote_reply else "reply"
-        raise ConfirmedReplyLocalPersistenceError(
-            f"Confirmed {description} {own_reply_id} to {target_id} but receipt removal failed"
-        ) from exc
-    return own_reply_id
 
+    receipt_path: Path
+    persistence_error: type[Exception]
+    apply_state: Callable
+    save_state: Callable
+    retire_journal: Callable
+    remove_receipt: Callable
+    log: logging.Logger
+    load_receipt: Callable
+    unresolved_sending_receipt: type[Exception]
+    invalid_receipt: type[Exception]
+    verify_lineage: Callable
 
-def reconcile_confirmed_reply_receipt(
-    state: dict,
-    *,
-    load_confirmed_reply_receipt: Callable,
-    UnresolvedSendingReplyReceipt: type[Exception],
-    InvalidConfirmedReplyReceipt: type[Exception],
-    CONFIRMED_REPLY_RECEIPT_FILE: Path,
-    verify_lane_transport_source_lineage_if_present: Callable,
-    log: logging.Logger,
-    apply_confirmed_reply_receipt: Callable,
-    save_state: Callable,
-    ConfirmedReplyLocalPersistenceError: type[Exception],
-    retire_lane_transport_journal_if_present: Callable,
-    remove_confirmed_reply_receipt: Callable,
-) -> bool:
-    """Reconcile a confirmed reply without duplicating the remote post."""
-    status, receipt = load_confirmed_reply_receipt()
-    if status == "absent":
-        return False
-    if status in {"sending", "legacy_sending"} and receipt is not None:
-        raise UnresolvedSendingReplyReceipt(
-            "A conversational reply was interrupted after its durable sending "
-            "receipt was written; manual reconciliation is required before any "
-            "remote write"
-        )
-    if status == "invalid" or receipt is None:
-        raise InvalidConfirmedReplyReceipt(
-            f"Invalid confirmed-reply receipt blocks auto-reply processing: {CONFIRMED_REPLY_RECEIPT_FILE}"
-        )
-
-    verify_lane_transport_source_lineage_if_present(
-        receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
-        receipt=receipt,
-        lane="conversational_reply",
-        post_id=str(receipt.get("reply_post_id") or ""),
-    )
-
-    log.warning(
-        "Reconciling confirmed reply receipt source=%s target_id=%s reply_post_id=%s",
-        receipt.get("candidate_source", "mention"),
-        receipt.get("target_id"),
-        receipt.get("reply_post_id"),
-    )
-    apply_confirmed_reply_receipt(state, receipt)
-    try:
+    def commit(self, state: dict, receipt: dict) -> StateCommitProof:
+        """Record this receipt in caller state and return its durable commit proof."""
         from mrs_bot_state_generation import record_receipt_commit
         record_receipt_commit(state, receipt)
-        commit_proof = save_state(state, durable=True)
-    except Exception as exc:
-        log.critical(
-            "Confirmed reply receipt was applied in memory but state save failed; receipt remains for retry",
-            exc_info=True,
-        )
-        raise ConfirmedReplyLocalPersistenceError("Confirmed reply receipt reconciliation state save failed") from exc
-    try:
-        retire_lane_transport_journal_if_present(
+        return self.save_state(state, durable=True)
+
+    def retire(
+        self, receipt: dict, *, post_id: str, commit_proof: StateCommitProof,
+        sending_disposition: str | None = None,
+    ) -> None:
+        """Retire the journal before the source receipt with the same commit proof."""
+        self.retire_journal(
             commit_proof=commit_proof,
-            receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
+            receipt_path=self.receipt_path,
             receipt=receipt,
             lane="conversational_reply",
-            post_id=str(receipt["reply_post_id"]),
+            post_id=post_id,
         )
-        remove_confirmed_reply_receipt(receipt, commit_proof=commit_proof)
-    except Exception as exc:
-        log.critical("Confirmed reply receipt state was saved but receipt removal failed", exc_info=True)
-        raise ConfirmedReplyLocalPersistenceError("Confirmed reply receipt removal failed") from exc
-    return True
+        if sending_disposition is None:
+            self.remove_receipt(receipt, commit_proof=commit_proof)
+        else:
+            self.remove_receipt(
+                receipt, sending_disposition=sending_disposition, commit_proof=commit_proof,
+            )
+
+    def finalise(
+        self, state: dict, receipt: dict, *, target_id: str, quote_reply: bool,
+    ) -> str:
+        """Commit a new confirmation, then retire its exact recovery records.
+
+        Application and durable-save errors retain their original types. Only
+        cleanup failures are wrapped after the confirmed state is durable. Restart
+        reconciliation has its own save-error policy and remains a separate entry.
+        """
+        own_reply_id = str(receipt["reply_post_id"])
+        self.apply_state(state, receipt)
+        self.log.info(
+            "Recorded and cached own quote-tweet auto-reply id=%s"
+            if quote_reply else "Recorded and cached own auto-reply id=%s",
+            own_reply_id,
+        )
+        commit_proof = self.commit(state, receipt)
+        try:
+            self.retire(receipt, post_id=own_reply_id, commit_proof=commit_proof)
+        except Exception as exc:
+            self.log.critical(
+                "Confirmed quote-tweet reply id=%s to target=%s was saved but receipt removal failed"
+                if quote_reply else
+                "Confirmed reply id=%s to target=%s was saved but receipt removal failed",
+                own_reply_id,
+                target_id,
+                exc_info=True,
+            )
+            description = "quote-tweet reply" if quote_reply else "reply"
+            raise self.persistence_error(
+                f"Confirmed {description} {own_reply_id} to {target_id} but receipt removal failed"
+            ) from exc
+        return own_reply_id
+
+    def reconcile(self, state: dict) -> bool:
+        """Reconcile a confirmed reply without duplicating the remote post."""
+        status, receipt = self.load_receipt()
+        if status == "absent":
+            return False
+        if status in {"sending", "legacy_sending"} and receipt is not None:
+            raise self.unresolved_sending_receipt(
+                "A conversational reply was interrupted after its durable sending "
+                "receipt was written; manual reconciliation is required before any "
+                "remote write"
+            )
+        if status == "invalid" or receipt is None:
+            raise self.invalid_receipt(
+                f"Invalid confirmed-reply receipt blocks auto-reply processing: {self.receipt_path}"
+            )
+
+        self.verify_lineage(
+            receipt_path=self.receipt_path,
+            receipt=receipt,
+            lane="conversational_reply",
+            post_id=str(receipt.get("reply_post_id") or ""),
+        )
+
+        self.log.warning(
+            "Reconciling confirmed reply receipt source=%s target_id=%s reply_post_id=%s",
+            receipt.get("candidate_source", "mention"),
+            receipt.get("target_id"),
+            receipt.get("reply_post_id"),
+        )
+        self.apply_state(state, receipt)
+        try:
+            commit_proof = self.commit(state, receipt)
+        except Exception as exc:
+            self.log.critical(
+                "Confirmed reply receipt was applied in memory but state save failed; receipt remains for retry",
+                exc_info=True,
+            )
+            raise self.persistence_error("Confirmed reply receipt reconciliation state save failed") from exc
+        try:
+            self.retire(receipt, post_id=str(receipt["reply_post_id"]), commit_proof=commit_proof)
+        except Exception as exc:
+            self.log.critical("Confirmed reply receipt state was saved but receipt removal failed", exc_info=True)
+            raise self.persistence_error("Confirmed reply receipt removal failed") from exc
+        return True
 
 
 def confirmed_reply_emergency_representation_is_complete(

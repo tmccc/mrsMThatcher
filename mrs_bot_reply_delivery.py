@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from mrs_bot_reply_cycle_interfaces import ReplyCycleDelivery, ReplyCyclePersistence
     from mrs_bot_reply_receipt_values import ReplyReceiptValues
+    from mrs_bot_reply_reconciliation import ReplyCompletion
 
 
 class ReplyDeliveryStop(Enum):
@@ -510,7 +511,7 @@ def post_conversational_reply_with_durable_identity(
     load_confirmed_reply_receipt: Callable,
     retain_sigint_deferral_without_durable_barrier: Callable,
     UnrecoverableConfirmedReplyPersistenceError: type[Exception],
-    retire_lane_transport_journal_if_present: Callable,
+    completion: ReplyCompletion,
 ) -> tuple[dict, dict]:
     """Create a conversational reply and durably bind its remote identity.
 
@@ -664,9 +665,7 @@ def post_conversational_reply_with_durable_identity(
                 )
             apply_confirmed_reply_receipt(state, receipt)
             try:
-                from mrs_bot_state_generation import record_receipt_commit
-                record_receipt_commit(state, receipt_template)
-                commit_proof = save_state(state, durable=True)
+                commit_proof = completion.commit(state, receipt_template)
             except StateBackupWriteError as exc:
                 commit_proof = getattr(exc, "commit_proof", None)
                 if commit_proof is None or not json_file_matches(STATE_FILE, state, commit_proof=commit_proof):
@@ -721,17 +720,9 @@ def post_conversational_reply_with_durable_identity(
             ) from (fallback_error or receipt_error)
 
         try:
-            retire_lane_transport_journal_if_present(
-                commit_proof=commit_proof,
-                receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
-                receipt=receipt_template,
-                lane="conversational_reply",
-                post_id=own_reply_id,
-            )
-            remove_confirmed_reply_receipt(
-                receipt_template,
-                sending_disposition="confirmed_state_fallback",
-                commit_proof=commit_proof,
+            completion.retire(
+                receipt_template, post_id=own_reply_id,
+                sending_disposition="confirmed_state_fallback", commit_proof=commit_proof,
             )
         except Exception as removal_error:
             end_confirmed_post_sigint_deferral(sigint_guard)

@@ -88,7 +88,7 @@ def test_value_adapters_bind_current_owner_and_preserve_dependencies_and_results
     public = inspect.signature(adapter).parameters
     dependencies = (
         inspect.signature(getattr(delivery, implementation_name)).parameters.keys()
-        - public.keys() - {"receipt_values", "legacy_recovery", "confirmed"}
+        - public.keys() - {"receipt_values", "legacy_recovery", "confirmed", "completion"}
     )
     args = tuple(object() for parameter in public.values()
                  if parameter.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD)
@@ -96,6 +96,8 @@ def test_value_adapters_bind_current_owner_and_preserve_dependencies_and_results
                if parameter.kind == inspect.Parameter.KEYWORD_ONLY}
     implementation = Mock(return_value=object())
     factory = Mock()
+    completion_factory = Mock()
+    monkeypatch.setattr(bot, "_reply_completion_owner", completion_factory)
     monkeypatch.setattr(delivery, implementation_name, implementation)
     monkeypatch.setattr(bot, "_reply_receipt_values_owner", factory)
     for _ in range(2):
@@ -115,6 +117,10 @@ def test_value_adapters_bind_current_owner_and_preserve_dependencies_and_results
         assert len(actual_args) == len(args)
         assert all(actual is expected for actual, expected in zip(actual_args, args))
         expected = {**options, **current, "receipt_values": owner}
+        if implementation_name == "post_conversational_reply_with_durable_identity":
+            expected["completion"] = completion_factory.return_value
+            completion_factory.assert_called_once_with()
+            completion_factory.reset_mock()
         if implementation_name == "promote_sending_reply_receipt":
             expected["legacy_recovery"] = legacy_recovery
         elif implementation_name == "write_reply_receipt":

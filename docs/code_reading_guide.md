@@ -52,6 +52,7 @@ need. A recovered draft can bypass model evaluation.
 | Terminal evaluation recording and replay-protection retention | `ReplyEvaluations` in [mrs_bot_reply_evaluation_state.py](../mrs_bot_reply_evaluation_state.py) |
 | Clarification eligibility and completed repair history | `ClarificationReplies` in [mrs_bot_reply_clarifications.py](../mrs_bot_reply_clarifications.py) |
 | Daily reply buckets, author counts and confirmation accounting | `DailyReplyAccounting` in [mrs_bot_daily_reply_accounting.py](../mrs_bot_daily_reply_accounting.py) |
+| Durable confirmation, journal retirement and receipt cleanup | `ReplyCompletion` in [mrs_bot_reply_reconciliation.py](../mrs_bot_reply_reconciliation.py) |
 | Save draft, prepare receipt, send and commit confirmation | [mrs_bot_reply_preparation.py](../mrs_bot_reply_preparation.py), [mrs_bot_reply_delivery.py](../mrs_bot_reply_delivery.py), [mrs_bot_reply_reconciliation.py](../mrs_bot_reply_reconciliation.py) |
 
 [mrs_bot_reply_cycle_interfaces.py](../mrs_bot_reply_cycle_interfaces.py) describes
@@ -92,6 +93,10 @@ source bytes and replacement authority remain in delivery. Root compatibility
 entry points and receipt-removal commit-proof checks are unchanged.
 Sending and confirmed receipt publication also share one operation, keeping
 retirement, namespace, validation and exclusive-create checks in that order.
+`ReplyCompletion` shares receipt-commit recording and durable saving, followed by
+journal retirement and receipt removal using the same commit proof. Fresh replies,
+restart reconciliation and emergency state fallback keep their distinct exception
+and signal-deferral policies around those owned operations.
 
 `TweetLookupCache` owns cache normalization, pruning, storage, verified fetches
 and the recent own-post index. Cached context preserves row identity on a hit;

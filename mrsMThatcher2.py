@@ -8412,22 +8412,26 @@ def mark_mention_seen_if_applicable(state: dict, candidate: dict) -> None:
     return _mention_queue_owner().mark_seen(state, candidate)
 
 
+def _reply_completion_owner() -> _reply_reconciliation.ReplyCompletion:
+    """Bind current completion authorities without reading state or receipt files."""
+    return _reply_reconciliation.ReplyCompletion(
+        receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
+        persistence_error=ConfirmedReplyLocalPersistenceError,
+        apply_state=apply_confirmed_reply_receipt,
+        save_state=save_state,
+        retire_journal=retire_lane_transport_journal_if_present,
+        remove_receipt=remove_confirmed_reply_receipt,
+        log=log,
+        load_receipt=load_confirmed_reply_receipt,
+        unresolved_sending_receipt=UnresolvedSendingReplyReceipt,
+        invalid_receipt=InvalidConfirmedReplyReceipt,
+        verify_lineage=verify_lane_transport_source_lineage_if_present,
+    )
+
+
 def reconcile_confirmed_reply_receipt(state: dict) -> bool:
     """Reconcile a confirmed reply without duplicating the remote post."""
-    return _reply_reconciliation.reconcile_confirmed_reply_receipt(
-        state,
-        load_confirmed_reply_receipt=load_confirmed_reply_receipt,
-        UnresolvedSendingReplyReceipt=UnresolvedSendingReplyReceipt,
-        InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
-        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
-        verify_lane_transport_source_lineage_if_present=verify_lane_transport_source_lineage_if_present,
-        log=log,
-        apply_confirmed_reply_receipt=apply_confirmed_reply_receipt,
-        save_state=save_state,
-        ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
-        retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
-        remove_confirmed_reply_receipt=remove_confirmed_reply_receipt,
-    )
+    return _reply_completion_owner().reconcile(state)
 
 
 def confirmed_reply_emergency_representation_is_complete(
@@ -8515,7 +8519,7 @@ def post_conversational_reply_with_durable_identity(
         load_confirmed_reply_receipt=load_confirmed_reply_receipt,
         retain_sigint_deferral_without_durable_barrier=retain_sigint_deferral_without_durable_barrier,
         UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
-        retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
+        completion=_reply_completion_owner(),
     )
 
 
@@ -8523,15 +8527,8 @@ def finalise_confirmed_reply(
     state: dict, receipt: dict, *, target_id: str, quote_reply: bool,
 ) -> str:
     """Commit a reply confirmation before either cycle reports successful posting."""
-    return _reply_reconciliation.finalise_confirmed_reply(
+    return _reply_completion_owner().finalise(
         state, receipt, target_id=target_id, quote_reply=quote_reply,
-        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
-        ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
-        apply_confirmed_reply_receipt=apply_confirmed_reply_receipt,
-        save_state=save_state,
-        retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
-        remove_confirmed_reply_receipt=remove_confirmed_reply_receipt,
-        log=log,
     )
 
 

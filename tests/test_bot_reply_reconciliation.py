@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import FrozenInstanceError
 import inspect
 from pathlib import Path
 import subprocess
@@ -8,8 +9,6 @@ import sys
 from unittest.mock import Mock, call
 
 import pytest
-
-from tests.helpers.adapter_assertions import assert_adapters_forward_current_dependencies
 
 import mrs_bot_reply_reconciliation as reconciliation
 import mrs_bot_reply_receipt_values as reply_receipt_values
@@ -39,7 +38,7 @@ def patch_accounting_method(monkeypatch, method, callback):
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, copy, io, logging, os, random, re, socket, sys
+import builtins, collections.abc, copy, dataclasses, io, logging, os, random, re, socket, sys
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -72,13 +71,59 @@ assert 'single_call_reply' not in sys.modules
     assert reconciliation.copy is bot.copy
 
 
-def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
-    names = (
-        "reconcile_confirmed_reply_receipt",
-    )
-    assert_adapters_forward_current_dependencies(
-        monkeypatch, bot=bot, implementation=reconciliation, names=names,
-    )
+COMPLETION_INPUTS = {
+    "receipt_path": "CONFIRMED_REPLY_RECEIPT_FILE", "persistence_error": "ConfirmedReplyLocalPersistenceError",
+    "apply_state": "apply_confirmed_reply_receipt", "save_state": "save_state",
+    "retire_journal": "retire_lane_transport_journal_if_present", "remove_receipt": "remove_confirmed_reply_receipt",
+    "log": "log", "load_receipt": "load_confirmed_reply_receipt",
+    "unresolved_sending_receipt": "UnresolvedSendingReplyReceipt", "invalid_receipt": "InvalidConfirmedReplyReceipt",
+    "verify_lineage": "verify_lane_transport_source_lineage_if_present",
+}
+
+
+def test_completion_owner_binds_current_authorities_without_runtime_access(monkeypatch):
+    owners = []
+    for _ in range(2):
+        current = {field: Mock() for field in COMPLETION_INPUTS}
+        for field, root_name in COMPLETION_INPUTS.items():
+            monkeypatch.setattr(bot, root_name, current[field])
+        owner = bot._reply_completion_owner()
+        assert isinstance(owner, reconciliation.ReplyCompletion)
+        for field, value in current.items():
+            assert getattr(owner, field) is value
+            value.assert_not_called()
+        owners.append(owner)
+    assert owners[0] is not owners[1]
+    assert all(getattr(owners[0], field) is not getattr(owners[1], field) for field in COMPLETION_INPUTS)
+    with pytest.raises(FrozenInstanceError):
+        owners[0].log = Mock()
+
+
+def test_completion_adapters_preserve_signatures_references_and_errors(monkeypatch):
+    for name, method in (("finalise_confirmed_reply", "finalise"), ("reconcile_confirmed_reply_receipt", "reconcile")):
+        adapter = getattr(bot, name)
+        public = inspect.signature(adapter)
+        owned = inspect.signature(getattr(reconciliation.ReplyCompletion, method))
+        assert list(public.parameters.values()) == list(owned.parameters.values())[1:]
+        assert public.return_annotation == owned.return_annotation
+        args = tuple(object() for p in public.parameters.values() if p.kind == p.POSITIONAL_OR_KEYWORD)
+        options = {name: object() for name, p in public.parameters.items() if p.kind == p.KEYWORD_ONLY}
+        owner = Mock(spec=reconciliation.ReplyCompletion)
+        factory = Mock(return_value=owner)
+        monkeypatch.setattr(bot, "_reply_completion_owner", factory)
+        callback = getattr(owner, method)
+        assert adapter(*args, **options) is callback.return_value
+        factory.assert_called_once_with()
+        actual_args, actual_options = callback.call_args
+        assert len(actual_args) == len(args)
+        assert all(actual is expected for actual, expected in zip(actual_args, args))
+        assert actual_options.keys() == options.keys()
+        assert all(actual_options[name] is value for name, value in options.items())
+        failure = TypeError("completion failed")
+        callback.side_effect = failure
+        with pytest.raises(TypeError) as caught:
+            adapter(*args, **options)
+        assert caught.value is failure
 
 
 def test_application_adapter_binds_current_owners_and_preserves_other_dependencies(monkeypatch):
