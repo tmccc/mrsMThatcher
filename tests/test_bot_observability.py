@@ -30,9 +30,9 @@ DEPENDENCIES = {'remove_managed_log_handlers': ['_MANAGED_LOG_HANDLER_ATTR'],
                    'sys'],
  'report_bot_health_progress': ['_BOT_HEALTH_REPORTER'],
  'redact_secret': [],
- 'log_json_debug': ['json', 'log', 're'],
+ 'log_json_debug': ['log'],
  'state_debug_summary': [],
- 'log_event': ['json', 'log'],
+ 'log_event': ['log'],
  '_log_descriptive_observability_failure': ['log'],
  'emit_account_root_posted': ['_log_descriptive_observability_failure',
                               'log_event'],
@@ -42,7 +42,7 @@ DEPENDENCIES = {'remove_managed_log_handlers': ['_MANAGED_LOG_HANDLER_ATTR'],
  'emit_historical_context_store_observation': ['_log_descriptive_observability_failure',
                                                'emit_historical_context_history_observation'],
  'print_rate_limit_headers': ['datetime', 'log'],
- '_log_validated_single_call_reply': ['hashlib', 'log']}
+ '_log_validated_single_call_reply': ['log']}
 SIGNATURES = {'remove_managed_log_handlers': "(logger: 'logging.Logger') -> 'None'",
  'mark_managed_log_handler': "(handler: 'logging.Handler', kind: 'str') -> "
                              "'logging.Handler'",
@@ -165,17 +165,16 @@ def test_event_adapter_transfers_the_same_collected_fields_with_colliding_keys(m
     event, result = object(), object()
     payload = {key: {"nested": []} for key in ("json", "log", "fields", "other")}
     for _ in range(2):
-        current_json, current_log = object(), object()
+        current_log = object()
 
-        def capture(value, *, fields, json, log):
+        def capture(value, *, fields, log):
             assert value is event
             assert fields is sys._getframe(1).f_locals["fields"]
             assert fields is not payload and list(fields) == list(payload)
             assert all(fields[key] is value for key, value in payload.items())
-            assert json is current_json and log is current_log
+            assert log is current_log
             return result
 
-        monkeypatch.setattr(bot, "json", current_json)
         monkeypatch.setattr(bot, "log", current_log)
         monkeypatch.setattr(bot, "_observability", SimpleNamespace(log_event=capture))
         assert bot.log_event(event, **payload) is result
@@ -203,20 +202,21 @@ def test_event_payload_update_serialization_fallback_and_final_log_scope(monkeyp
         return "serialized"
 
     observed.dumps.side_effect = dumps
-    bot._observability.log_event("original", fields=fields, json=observed, log=observed)
+    monkeypatch.setattr(bot._observability, "json", observed)
+    bot._observability.log_event("original", fields=fields, log=observed)
     assert [c[0] for c in observed.mock_calls] == ["dumps", "info"]
     observed.info.assert_called_once_with("EVENT %s", "serialized")
     observed.reset_mock()
     observed.dumps.side_effect = ValueError("serialization")
-    bot._observability.log_event("original", fields=fields, json=observed, log=observed)
+    bot._observability.log_event("original", fields=fields, log=observed)
     observed.info.assert_called_once_with("EVENT %s", repr(fields))
     observed.info.side_effect = failure = RuntimeError("logger")
     with pytest.raises(RuntimeError) as caught:
-        bot._observability.log_event("original", fields=fields, json=observed, log=observed)
+        bot._observability.log_event("original", fields=fields, log=observed)
     assert caught.value is failure
     observed.reset_mock()
     with pytest.raises(TypeError):
-        bot._observability.log_event("original", fields=42, json=observed, log=observed)
+        bot._observability.log_event("original", fields=42, log=observed)
     assert observed.mock_calls == []
 
 
@@ -373,8 +373,8 @@ def test_json_diagnostics_preserve_shared_values_cycles_depth_and_truncation(mon
     logger = Mock()
     dumps, sub = Mock(wraps=json.dumps), Mock(wraps=re.sub)
     monkeypatch.setattr(bot, "log", logger)
-    monkeypatch.setattr(bot, "json", SimpleNamespace(dumps=dumps))
-    monkeypatch.setattr(bot, "re", SimpleNamespace(sub=sub))
+    monkeypatch.setattr(bot._observability, "json", SimpleNamespace(dumps=dumps))
+    monkeypatch.setattr(bot._observability, "re", SimpleNamespace(sub=sub))
     shared = [{"safe": "é"}]
     cycle = {}
     cycle["cycle"] = cycle
@@ -402,7 +402,7 @@ def test_json_diagnostic_error_scopes_remain_native(monkeypatch, failure_at):
         dumps.side_effect = failure
     if failure_at == "logger":
         logger.debug.side_effect = failure
-    monkeypatch.setattr(bot, "json", SimpleNamespace(dumps=dumps))
+    monkeypatch.setattr(bot._observability, "json", SimpleNamespace(dumps=dumps))
     monkeypatch.setattr(bot, "log", logger)
     if failure_at == "serializer":
         bot.log_json_debug("label", {})
@@ -552,11 +552,11 @@ def test_rate_header_datetime_log_catch_and_fallback_log_error_remain_native(mon
     assert logger.warning.call_args == call("Rate Limit Resets At invalid epoch: %s", "123")
 
 
-def test_validated_reply_uses_strict_utf8_counts_current_hash_and_native_errors(monkeypatch):
+def test_validated_reply_uses_owned_hash_strict_utf8_counts_and_native_errors(monkeypatch):
     logger, sha = Mock(), Mock()
     sha.return_value.hexdigest.return_value = "digest"
     monkeypatch.setattr(bot, "log", logger)
-    monkeypatch.setattr(bot, "hashlib", SimpleNamespace(sha256=sha))
+    monkeypatch.setattr(bot._observability, "hashlib", SimpleNamespace(sha256=sha))
     bot._log_validated_single_call_reply(target_description="target", target_id=123, reply="é🙂")
     sha.assert_called_once_with("é🙂".encode("utf-8"))
     logger.info.assert_called_once_with(

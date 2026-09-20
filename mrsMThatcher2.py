@@ -1268,9 +1268,7 @@ def log_json_debug(label: str, obj: object, max_chars: int = 4000) -> None:
         label,
         obj,
         max_chars,
-        json=json,
         log=log,
-        re=re,
     )
 
 
@@ -1282,7 +1280,6 @@ def log_event(event: str, **fields: object) -> None:
     return _observability.log_event(
         event,
         fields=fields,
-        json=json,
         log=log,
     )
 
@@ -3552,7 +3549,6 @@ def _log_validated_single_call_reply(
         target_description=target_description,
         target_id=target_id,
         reply=reply,
-        hashlib=hashlib,
         log=log,
     )
 

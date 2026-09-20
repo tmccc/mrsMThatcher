@@ -1,11 +1,15 @@
 """Logging and descriptive observability for already authoritative bot outcomes.
 
-The root supplies current runtime dependencies explicitly on each call. This
-module performs no runtime work at import and retains no runtime authority.
+Fixed diagnostic encoding and redaction use local standard-library imports.
+The root supplies current runtime boundaries on each call; descriptive event
+callbacks remain late-bound. Import performs no runtime work.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -139,9 +143,7 @@ def log_json_debug(
     obj: object,
     max_chars: int = 4000,
     *,
-    json: Any,
     log: Any,
-    re: Any,
 ) -> None:
     """Log bounded JSON with recursively redacted credential-like values."""
 
@@ -219,7 +221,6 @@ def log_event(
     event: str,
     *,
     fields: object,
-    json: Any,
     log: Any,
 ) -> None:
     """Emit a stable one-line structured event for digest scripts."""
@@ -406,7 +407,6 @@ def _log_validated_single_call_reply(
     target_description: str,
     target_id: str,
     reply: object,
-    hashlib: Any,
     log: Any,
 ) -> None:
     """Log validated output metadata without retaining exact public prose."""
