@@ -10,8 +10,23 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_state_candidate_validation as validation
+import mrs_bot_state_value_normalisation as state_values
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
+
+
+VALUE_METHODS = {'normalise_string_list': 'strings', 'normalise_epoch_list': 'epochs', 'normalise_string_map': 'string_map', 'normalise_int_map': 'integer_map', 'normalise_record_map': 'record_map', 'normalise_optional_scalar': 'optional_scalar', 'normalise_optional_numeric_id': 'optional_id', 'normalise_state_int': 'integer', 'normalise_state_epoch': 'epoch'}
+
+
+def patch_normalization(monkeypatch, name, callback):
+    """Observe the normalization owner while leaving runtime callbacks current."""
+    if name in VALUE_METHODS:
+        monkeypatch.setattr(
+            state_values.StateValues, VALUE_METHODS[name],
+            lambda self, *args, **kwargs: callback(*args, **kwargs),
+        )
+    else:
+        monkeypatch.setattr(bot, name, callback)
 
 
 def test_import_needs_no_runtime_access():
@@ -54,7 +69,7 @@ def test_adapters_forward_current_dependencies_references_and_native_errors(monk
         ("validate_meme_schedule_state", 5),
         ("validate_meme_schedule_version_for_candidate", 3),
         ("require_compatible_state_reader", 2),
-        ("normalise_state_candidate", 25),
+        ("normalise_state_candidate", 17),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
@@ -68,13 +83,25 @@ def test_adapters_forward_current_dependencies_references_and_native_errors(monk
                 owner = Mock(return_value=result)
                 patch.setattr(bot, "_state_candidate_validation", SimpleNamespace(**{name: owner}))
                 current = {key: object() for key in dependencies}
+                factories = {"state_values": "_state_values_owner"}
                 for key, value in current.items():
-                    patch.setattr(bot, key, value)
+                    if key in factories:
+                        patch.setattr(bot, factories[key], Mock(return_value=value))
+                    else:
+                        patch.setattr(bot, key, value)
                 assert adapter(original, **options) is result
                 assert owner.call_args.args == (original,)
                 assert owner.call_args.args[0] is original
                 assert owner.call_args.kwargs.keys() == (options | current).keys()
-                assert all(owner.call_args.kwargs[key] is value for key, value in (options | current).items())
+                for key, value in (options | current).items():
+                    supplied = owner.call_args.kwargs[key]
+                    if key in factories:
+                        factory = getattr(bot, factories[key])
+                        factory.assert_not_called()
+                        assert supplied() is value
+                        factory.assert_called_once_with()
+                    else:
+                        assert supplied is value
             failure = TypeError("current owner failure")
             owner.side_effect = failure
             with pytest.raises(TypeError) as caught:
@@ -249,7 +276,7 @@ def test_candidate_keeps_group_order_callback_references_and_history_children(mo
         state[key] = object()
         callback = getattr(trace, name)
         callback.return_value = (returned, 2) if key == "quote_lookup_repeated_cursor_suppressions" else returned
-        monkeypatch.setattr(bot, name, callback)
+        patch_normalization(monkeypatch, name, callback)
     callbacks = {
         "require_compatible_state_reader": 6, "default_state": defaults,
         "prune_reply_evaluation_records": None,
@@ -259,7 +286,7 @@ def test_candidate_keeps_group_order_callback_references_and_history_children(mo
     }
     for name, returned in callbacks.items():
         getattr(trace, name).return_value = returned
-        monkeypatch.setattr(bot, name, getattr(trace, name))
+        patch_normalization(monkeypatch, name, getattr(trace, name))
     monkeypatch.setattr(bot, "STATE_MINIMUM_READER_VERSION", 7)
     events = [{"earlier": True}]
     result = bot.normalise_state_candidate(state, path=tmp_path, recovery_events=events)
@@ -296,7 +323,7 @@ def test_candidate_none_keeps_earlier_recovery_event_and_stops_before_authority(
     trace.cursors.return_value = ({}, 3)
     trace.scalar.return_value = None
     monkeypatch.setattr(bot, "normalise_quote_repeated_cursor_suppressions", trace.cursors)
-    monkeypatch.setattr(bot, "normalise_optional_scalar", trace.scalar)
+    patch_normalization(monkeypatch, "normalise_optional_scalar", trace.scalar)
     monkeypatch.setattr(bot, "prune_reply_evaluation_records", trace.prune)
     monkeypatch.setattr(bot, "validate_pending_mention_candidate_authority", trace.authority)
     cursor, scalar, events = object(), object(), []
@@ -344,7 +371,7 @@ def test_overflow_hash_and_reset_precede_pruning_and_authority_with_partial_even
     trace.sha256.return_value.hexdigest.return_value = "0123456789abcdefextra"
     monkeypatch.setattr(bot, "MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT", 1)
     monkeypatch.setattr(bot, "normalise_mention_backlog", trace.backlog)
-    monkeypatch.setattr(bot, "normalise_optional_numeric_id", trace.watermark)
+    patch_normalization(monkeypatch, "normalise_optional_numeric_id", trace.watermark)
     monkeypatch.setattr(validation, "hashlib", SimpleNamespace(sha256=trace.sha256))
     monkeypatch.setattr(bot, "validate_meme_schedule_version_for_candidate", trace.schedule)
     monkeypatch.setattr(bot, "prune_author_evaluation_quarantines", trace.final)
@@ -448,3 +475,90 @@ def test_commit_record_validation_keeps_native_mapping_error_before_defaults(mon
         bot.normalise_state_candidate({"_confirmed_receipt_commits": BrokenRecords()}, path=tmp_path)
     assert caught.value is failure
     defaults.assert_not_called()
+
+
+def test_candidate_resolves_value_owner_after_prior_callbacks_and_between_fields(monkeypatch, tmp_path):
+    calls = []
+    original_factory = bot._state_values_owner
+    root_factory = Mock(side_effect=AssertionError("factory captured before reader"))
+    monkeypatch.setattr(bot, "_state_values_owner", root_factory)
+    first_value, second_value = [], []
+    first_owner = SimpleNamespace()
+    second_owner = SimpleNamespace()
+    second_factory = Mock(return_value=second_owner)
+    first_factory = Mock(return_value=first_owner)
+
+    def reader(state, *, path):
+        calls.append("reader")
+        monkeypatch.setattr(bot, "_state_values_owner", first_factory)
+        return 1
+
+    def strings(value, *, key, path):
+        calls.append("strings")
+        assert value is first_value and key == "replied_to_ids" and path == tmp_path
+        monkeypatch.setattr(bot, "_state_values_owner", second_factory)
+        return value
+
+    def epochs(value, *, key, path):
+        calls.append("epochs")
+        assert value is second_value and key == "x_error_epochs" and path == tmp_path
+        # Current epoch/diagnostic policy is still composed at this operation.
+        assert original_factory().maximum_epoch == bot.MAX_REASONABLE_STATE_EPOCH
+        return value
+
+    first_owner.strings = strings
+    second_owner.epochs = epochs
+    monkeypatch.setattr(bot, "require_compatible_state_reader", reader)
+    result = bot.normalise_state_candidate(
+        {"replied_to_ids": first_value, "x_error_epochs": second_value}, path=tmp_path,
+    )
+    assert calls == ["reader", "strings", "epochs"]
+    root_factory.assert_not_called()
+    first_factory.assert_called_once_with()
+    second_factory.assert_called_once_with()
+    assert result["replied_to_ids"] is first_value
+    assert result["x_error_epochs"] is second_value
+
+
+def test_candidate_value_owner_failure_keeps_native_error_before_later_groups(monkeypatch, tmp_path):
+    failure = TypeError("current state value owner unavailable")
+    factory = Mock(side_effect=failure)
+    authority = Mock()
+    monkeypatch.setattr(bot, "_state_values_owner", factory)
+    monkeypatch.setattr(bot, "validate_pending_mention_candidate_authority", authority)
+    with pytest.raises(TypeError) as caught:
+        bot.normalise_state_candidate({"replied_to_ids": []}, path=tmp_path)
+    assert caught.value is failure
+    factory.assert_called_once_with()
+    authority.assert_not_called()
+
+
+@pytest.mark.parametrize("lookup_fails", [False, True])
+def test_value_lookup_precedes_owner_binding_and_preserves_lookup_errors(monkeypatch, tmp_path, lookup_fails):
+    failure = LookupError("state value unavailable")
+    initial = Mock(side_effect=AssertionError("value owner bound before argument lookup"))
+    normalise = Mock(side_effect=lambda value, **kwargs: value)
+    current = Mock(return_value=SimpleNamespace(strings=normalise))
+    source = []
+
+    class State(dict):
+        def __getitem__(self, key):
+            if key == "replied_to_ids":
+                if lookup_fails:
+                    raise failure
+                monkeypatch.setattr(bot, "_state_values_owner", current)
+            return super().__getitem__(key)
+
+    monkeypatch.setattr(bot, "_state_values_owner", initial)
+    state = State(replied_to_ids=source)
+    if lookup_fails:
+        with pytest.raises(LookupError) as caught:
+            bot.normalise_state_candidate(state, path=tmp_path)
+        assert caught.value is failure
+        current.assert_not_called()
+    else:
+        result = bot.normalise_state_candidate(state, path=tmp_path)
+        assert result["replied_to_ids"] is source
+        current.assert_called_once_with()
+        normalise.assert_called_once_with(source, key="replied_to_ids", path=tmp_path)
+    initial.assert_not_called()

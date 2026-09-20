@@ -4,8 +4,9 @@ Four explicit root adapters supply current settings, reader version,
 error class, logger and nested normalization, recovery and schedule callbacks
 on every call. Original bodies preserve reader and schedule error order, per-call
 key sets, shallow references, partial recovery events and pending-authority order.
-State loading, defaults/schema, persistence and the actual normalizers/recovery
-remain in existing locations. This owner retains no callbacks, configuration,
+StateValues supplies scalar/collection operations through a fresh owner lookup at
+each original normalization point. State loading, defaults/schema, persistence
+and higher-level recovery remain in existing locations. This owner retains no callbacks, configuration,
 paths or state and performs no import-time runtime work or reverse bot import.
 Fixed fingerprint hashing and receipt-commit grammar belong to their local owners.
 """
@@ -16,8 +17,12 @@ from collections.abc import Callable
 import hashlib
 from logging import Logger
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from mrs_bot_state_generation import receipt_commit_records_are_valid
+
+if TYPE_CHECKING:
+    from mrs_bot_state_value_normalisation import StateValues
 
 
 def validate_meme_schedule_state(
@@ -156,20 +161,12 @@ def normalise_state_candidate(
     default_state: Callable[..., dict],
     log: Logger,
     normalise_author_evaluation_quarantines: Callable[..., dict | None],
-    normalise_epoch_list: Callable[..., list[int] | None],
-    normalise_int_map: Callable[..., dict[str, int] | None],
     normalise_mention_backlog: Callable[..., dict | None],
     normalise_mention_backlog_reset_guard: Callable[..., dict[str, object] | None],
     normalise_mention_pagination: Callable[..., dict[str, str] | None],
-    normalise_optional_numeric_id: Callable[..., str | None],
-    normalise_optional_scalar: Callable[..., str | None],
     normalise_quote_repeated_cursor_suppressions: Callable[..., tuple[dict[str, dict[str, object]], int]],
-    normalise_record_map: Callable[..., dict[str, dict] | None],
-    normalise_state_epoch: Callable[..., int | None],
-    normalise_state_int: Callable[..., int | None],
-    normalise_string_list: Callable[..., list[str] | None],
-    normalise_string_map: Callable[..., dict[str, str] | None],
     normalise_tweet_cache: Callable[..., dict[str, dict] | None],
+    state_values: Callable[[], StateValues],
     prune_author_evaluation_quarantines: Callable[..., bool],
     prune_reply_evaluation_records: Callable[..., None],
     require_compatible_state_reader: Callable[..., int],
@@ -251,19 +248,22 @@ def normalise_state_candidate(
 
     for key in list_keys:
         if key in state:
-            value = normalise_string_list(state[key], key=key, path=path)
+            value = state[key]
+            value = state_values().strings(value, key=key, path=path)
             if value is None:
                 return None
             normalised[key] = value
     for key in epoch_list_keys:
         if key in state:
-            value = normalise_epoch_list(state[key], key=key, path=path)
+            value = state[key]
+            value = state_values().epochs(value, key=key, path=path)
             if value is None:
                 return None
             normalised[key] = value
     for key in string_map_keys:
         if key in state:
-            value = normalise_string_map(state[key], key=key, path=path)
+            value = state[key]
+            value = state_values().string_map(value, key=key, path=path)
             if value is None:
                 return None
             normalised[key] = value
@@ -279,13 +279,15 @@ def normalise_state_candidate(
             })
     for key in int_map_keys:
         if key in state:
-            value = normalise_int_map(state[key], key=key, path=path)
+            value = state[key]
+            value = state_values().integer_map(value, key=key, path=path)
             if value is None:
                 return None
             normalised[key] = value
     for key in record_map_keys:
         if key in state:
-            value = normalise_record_map(state[key], key=key, path=path)
+            value = state[key]
+            value = state_values().record_map(value, key=key, path=path)
             if value is None:
                 return None
             normalised[key] = value
@@ -300,13 +302,15 @@ def normalise_state_candidate(
             normalised["mention_pending_candidates"] = pending_value
     for key in optional_scalar_keys:
         if key in state:
-            value = normalise_optional_scalar(state[key], key=key, path=path)
+            value = state[key]
+            value = state_values().optional_scalar(value, key=key, path=path)
             if value is None:
                 return None
             normalised[key] = value or None
     for key in optional_numeric_id_keys:
         if key in state:
-            value = normalise_optional_numeric_id(state[key], key=key, path=path)
+            value = state[key]
+            value = state_values().optional_id(value, key=key, path=path)
             if value is None:
                 return None
             normalised[key] = value or None
@@ -398,14 +402,16 @@ def normalise_state_candidate(
     for key in int_keys:
         if key not in state:
             continue
-        value = normalise_state_int(state[key], key=key, path=path)
+        value = state[key]
+        value = state_values().integer(value, key=key, path=path)
         if value is None:
             return None
         normalised[key] = value
     for key in epoch_keys:
         if key not in state:
             continue
-        value = normalise_state_epoch(state[key], key=key, path=path)
+        value = state[key]
+        value = state_values().epoch(value, key=key, path=path)
         if value is None:
             return None
         normalised[key] = value
