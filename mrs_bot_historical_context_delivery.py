@@ -5,6 +5,7 @@ module performs no runtime work at import and retains no runtime authority.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Callable
 
 
@@ -421,8 +422,6 @@ def _record_or_verify_proved_context_failure(
     attempt_number: int,
     error,
     failed_epoch: int,
-    _record_context_outbox_failure: Any,
-    re: Any,
 ) -> str:
     """Preserve or verify one exact proved-non-success outbox outcome."""
 
@@ -486,7 +485,6 @@ def recover_interrupted_historical_context_attempt(
     recovered_epoch: int,
     receipt_was_observed: bool = False,
     HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE: Any,
-    _record_context_outbox_failure: Any,
     emit_historical_context_history_observation: Any,
     hashlib: Any,
     historical_context_reply_store: Any,

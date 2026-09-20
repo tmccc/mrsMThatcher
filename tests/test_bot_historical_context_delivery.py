@@ -50,9 +50,8 @@ DEPENDENCIES = {'maybe_post_historical_context_reply': ['HISTORICAL_CONTEXT_RESE
  'historical_context_outbox_store': ['HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE', 'TEST_MODE'],
  'canonical_context_obligation_quote_id': ['_HISTORICAL_CONTEXT_CORPUS_SNAPSHOT'],
  '_record_context_outbox_failure': [],
- '_record_or_verify_proved_context_failure': ['_record_context_outbox_failure', 're'],
+ '_record_or_verify_proved_context_failure': [],
  'recover_interrupted_historical_context_attempt': ['HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE',
-                                                    '_record_context_outbox_failure',
                                                     'emit_historical_context_history_observation',
                                                     'hashlib',
                                                     'historical_context_reply_store',
@@ -97,7 +96,7 @@ SIGNATURES = {'maybe_post_historical_context_reply': "(*, quote_hash: 'str', quo
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time, typing
+import builtins, collections.abc, re, io, logging, os, random, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -131,7 +130,7 @@ assert 'single_call_reply' not in sys.modules
 
 
 
-@pytest.mark.parametrize("name", [name for name, deps in DEPENDENCIES.items() if deps])
+@pytest.mark.parametrize("name", [name for name in DEPENDENCIES if name != "_record_context_outbox_failure"])
 def test_adapters_preserve_signatures_current_dependencies_references_and_errors(monkeypatch, name):
     adapter = getattr(bot, name)
     signature = inspect.signature(adapter)
@@ -438,7 +437,7 @@ def test_proved_failure_checks_exact_proof_before_current_recorder(monkeypatch, 
     store = SimpleNamespace(max_attempts=7, get=Mock(return_value={"context_reply": context}))
     result = object()
     record = Mock(return_value=result)
-    monkeypatch.setattr(bot, "_record_context_outbox_failure", record)
+    monkeypatch.setattr(owner, "_record_context_outbox_failure", record)
     options = dict(parent_post_id="123", attempt_number=7, error=error, failed_epoch=99)
     if case in {"hash", "ordinal", "error", "changed", "mismatch"}:
         message = ("lacks exact source proof" if case in {"hash", "ordinal", "error"}
@@ -501,7 +500,7 @@ def test_pre_remote_recovery_orders_durable_outbox_history_and_exact_receipt_ret
             return callback(*args, **kwargs)
         return observed
 
-    monkeypatch.setattr(bot, "_record_context_outbox_failure", wrap("outbox", bot._record_context_outbox_failure))
+    monkeypatch.setattr(owner, "_record_context_outbox_failure", wrap("outbox", bot._record_context_outbox_failure))
     monkeypatch.setattr(context_store, "ensure_proved_failure_history_from_outbox",
                         wrap("history", context_store.ensure_proved_failure_history_from_outbox))
     monkeypatch.setattr(context_store, "reconcile_receipt_disposition",

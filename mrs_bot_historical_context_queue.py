@@ -7,6 +7,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from mrs_bot_historical_context_delivery import (
+    _record_context_outbox_failure,
+    _record_or_verify_proved_context_failure,
+)
 from mrs_bot_receipt_retirement import confirmed_context_outbox_matches_receipt
 
 
@@ -104,8 +108,6 @@ def _process_due_historical_context_obligations(
     HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE: Any,
     _HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON: Any,
     _get_historical_context_outbox_unavailable_reason: Any,
-    _record_context_outbox_failure: Any,
-    _record_or_verify_proved_context_failure: Any,
     _set_historical_context_outbox_unavailable_reason: Any,
     api_error_is_reply_not_allowed: Any,
     historical_context_receipt_path_present_or_unsafe: Any,

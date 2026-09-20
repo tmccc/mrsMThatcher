@@ -27,8 +27,6 @@ DEPENDENCIES = {'enqueue_historical_context_obligation': ['_HISTORICAL_CONTEXT_R
                                                  'HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE',
                                                  '_HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON',
                                                  '_get_historical_context_outbox_unavailable_reason',
-                                                 '_record_context_outbox_failure',
-                                                 '_record_or_verify_proved_context_failure',
                                                  '_set_historical_context_outbox_unavailable_reason',
                                                  'api_error_is_reply_not_allowed',
                                                  'historical_context_receipt_path_present_or_unsafe',
@@ -69,7 +67,7 @@ SIGNATURES = {'enqueue_historical_context_obligation': "(receipt: 'dict') -> 'di
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, json, datetime, io, logging, os, random, socket, sys, time, typing, zoneinfo
+import builtins, collections.abc, re, json, datetime, io, logging, os, random, socket, sys, time, typing, zoneinfo
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -77,7 +75,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_historical_context_queue', 'mrs_bot_receipt_retirement', 'mrs_bot_durable_json_io'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_historical_context_queue', 'mrs_bot_historical_context_delivery', 'mrs_bot_receipt_retirement', 'mrs_bot_durable_json_io'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -461,7 +459,7 @@ def test_worker_callbacks_keep_each_claim_capture_and_original_arguments(monkeyp
 
     failure_recorder = Mock(return_value="context_reply_failed_terminal")
     monkeypatch.setattr(bot, "maybe_post_historical_context_reply", post)
-    monkeypatch.setattr(bot, "_record_context_outbox_failure", failure_recorder)
+    monkeypatch.setattr(owner, "_record_context_outbox_failure", failure_recorder)
     assert len(bot._process_due_historical_context_obligations(store=store, limit=2)) == 2
     failure_recorder.reset_mock()
     quiet_runtime.clock.return_value = 777

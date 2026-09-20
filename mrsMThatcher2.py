@@ -6005,8 +6005,6 @@ def _record_or_verify_proved_context_failure(
         attempt_number=attempt_number,
         error=error,
         failed_epoch=failed_epoch,
-        _record_context_outbox_failure=_record_context_outbox_failure,
-        re=re,
     )
 
 
@@ -6024,7 +6022,6 @@ def recover_interrupted_historical_context_attempt(
         recovered_epoch=recovered_epoch,
         receipt_was_observed=receipt_was_observed,
         HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE=HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-        _record_context_outbox_failure=_record_context_outbox_failure,
         emit_historical_context_history_observation=emit_historical_context_history_observation,
         hashlib=hashlib,
         historical_context_reply_store=historical_context_reply_store,
@@ -6055,8 +6052,6 @@ def _process_due_historical_context_obligations(
         HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE=HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
         _HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON=_HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON,
         _get_historical_context_outbox_unavailable_reason=_get_historical_context_outbox_unavailable_reason,
-        _record_context_outbox_failure=_record_context_outbox_failure,
-        _record_or_verify_proved_context_failure=_record_or_verify_proved_context_failure,
         _set_historical_context_outbox_unavailable_reason=_set_historical_context_outbox_unavailable_reason,
         api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
         historical_context_receipt_path_present_or_unsafe=historical_context_receipt_path_present_or_unsafe,

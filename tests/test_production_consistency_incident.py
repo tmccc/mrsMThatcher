@@ -1260,7 +1260,9 @@ def test_real_context_worker_wires_exact_source_before_remote_phase(
         "mark_remote_transaction_started",
         mark,
     )
-    monkeypatch.setattr(bot, "_record_context_outbox_failure", outcome)
+    monkeypatch.setattr(
+        bot._historical_context_queue, "_record_context_outbox_failure", outcome
+    )
     monkeypatch.setattr(
         context_formatter.HistoricalContextReplyStore,
         "record_failure",
@@ -3561,7 +3563,7 @@ def test_exact_failed_context_receipt_survives_outbox_recovery_failure(
     )
     real_record_failure = bot._record_context_outbox_failure
     monkeypatch.setattr(
-        bot,
+        bot._historical_context_delivery,
         "_record_context_outbox_failure",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             OSError("outbox directory fsync interrupted")
@@ -3576,7 +3578,11 @@ def test_exact_failed_context_receipt_survives_outbox_recovery_failure(
         "context_reply_attempting"
     )
 
-    monkeypatch.setattr(bot, "_record_context_outbox_failure", real_record_failure)
+    monkeypatch.setattr(
+        bot._historical_context_delivery,
+        "_record_context_outbox_failure",
+        real_record_failure,
+    )
     bot.reconcile_runtime_historical_context_state()
 
     assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
