@@ -55,6 +55,8 @@ if __package__ in {None, ""}:
 
 from mrs_bot_instance_lock_checks import (  # noqa: E402
     instance_lock_abstract_socket_name_for_identity,
+    ofd_lock_record as _ofd_lock_record,
+    _OFD_LOCK_FORMAT as OFD_LOCK_FORMAT,
 )
 from remote_media_upload_receipt import (  # noqa: E402
     DOCUMENT_KIND as MEDIA_RECEIPT_DOCUMENT_KIND,
@@ -115,7 +117,6 @@ SHA256_RE = re.compile(r"[0-9a-f]{64}")
 SAFE_BASENAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 LOCK_RECORD_RE = re.compile(rb"pid=([1-9][0-9]{0,18})\n")
 RENAME_NOREPLACE = 1
-OFD_LOCK_FORMAT = "hhqqi"
 
 
 class MarkerReconciliationError(RuntimeError):
@@ -287,17 +288,6 @@ def instance_lock_abstract_socket_name(project_root: Path) -> bytes:
     )
 
 
-def _ofd_lock_record(lock_type: int) -> bytes:
-    """Return one one-byte-range Linux open-file-description lock request."""
-
-    return struct.pack(
-        OFD_LOCK_FORMAT,
-        lock_type,
-        os.SEEK_SET,
-        0,
-        1,
-        0,
-    )
 
 
 def _descriptor_owns_exclusive_flock(

@@ -23,7 +23,7 @@ DEPENDENCIES = {'instance_lock_abstract_socket_name': ['BASE_DIR',
                                         'os',
                                         'stat'],
  'instance_lock_abstract_socket_name_for_identity': [],
- 'ofd_lock_record': ['_OFD_LOCK_FORMAT', 'os', 'struct'],
+ 'ofd_lock_record': [],
  'descriptor_owns_exclusive_flock': ['Path', 'os'],
  'test_mode_excludes_live_remote_writes': ['LIVE_ENDPOINT_TEST_OVERRIDE_PHRASE',
                                            'OPENAI_BASE',
@@ -40,16 +40,13 @@ DEPENDENCIES = {'instance_lock_abstract_socket_name': ['BASE_DIR',
                                             '_LOCK_FH',
                                             '_LOCK_SOCKET',
                                             '_LOCK_SOCKET_NAME',
-                                            '_OFD_LOCK_FORMAT',
                                             '_STATE_DIR_LOCK_FD',
                                             '_STATE_DIR_LOCK_IDENTITY',
                                             'descriptor_owns_exclusive_flock',
                                             'errno',
                                             'fcntl',
-                                            'ofd_lock_record',
                                             'os',
                                             'stat',
-                                            'struct',
                                             'test_mode_excludes_live_remote_writes'],
  'transaction_mutation_authority': ['issue_transaction_mutation_authority',
                                     'require_instance_lock_for_remote_write']}
@@ -201,9 +198,9 @@ def test_ofd_record_keeps_current_pack_arguments_and_native_errors(monkeypatch):
     assert struct.unpack("hhqqi", bot.ofd_lock_record(fcntl.F_WRLCK)) == (fcntl.F_WRLCK, os.SEEK_SET, 0, 1, 0)
     record, layout, lock_type, seek = object(), object(), object(), object()
     pack = Mock(return_value=record)
-    monkeypatch.setattr(bot, "struct", SimpleNamespace(pack=pack))
-    monkeypatch.setattr(bot, "_OFD_LOCK_FORMAT", layout)
-    monkeypatch.setattr(bot, "os", SimpleNamespace(SEEK_SET=seek))
+    monkeypatch.setattr(bot._instance_lock_checks, "struct", SimpleNamespace(pack=pack))
+    monkeypatch.setattr(bot._instance_lock_checks, "_OFD_LOCK_FORMAT", layout)
+    monkeypatch.setattr(bot._instance_lock_checks, "os", SimpleNamespace(SEEK_SET=seek))
     assert bot.ofd_lock_record(lock_type) is record
     pack.assert_called_once_with(layout, lock_type, seek, 0, 1, 0)
     failure = struct.error("native pack")
@@ -369,7 +366,12 @@ def _lock_trace(monkeypatch):
         test_mode_excludes_live_remote_writes=trace.bypass,
     )
     for name, value in values.items():
-        monkeypatch.setattr(bot, name, value)
+        target = (
+            bot._instance_lock_checks
+            if name in {"_OFD_LOCK_FORMAT", "ofd_lock_record", "struct"}
+            else bot
+        )
+        monkeypatch.setattr(target, name, value)
     return SimpleNamespace(trace=trace, directory=directory, regular=regular, base=base, lock_path=lock_path, own_query=own_query)
 
 
@@ -548,3 +550,14 @@ def test_daemon_and_offline_tool_share_exact_socket_identity_without_root_bounce
     monkeypatch.setattr(bot, "instance_lock_abstract_socket_name_for_identity", Mock(side_effect=AssertionError("socket identity bounced through root")))
     assert bot.instance_lock_abstract_socket_name(tmp_path) == expected
     assert reconcile.instance_lock_abstract_socket_name(tmp_path) == expected
+
+
+def test_daemon_and_offline_reconciliation_share_exact_ofd_record_grammar():
+    from tools import reconcile_remote_write_safety_marker as reconcile
+
+    owner = bot._instance_lock_checks
+    assert reconcile._ofd_lock_record is owner.ofd_lock_record
+    assert reconcile.OFD_LOCK_FORMAT is bot._OFD_LOCK_FORMAT is owner._OFD_LOCK_FORMAT
+    for lock_type in (fcntl.F_WRLCK, fcntl.F_RDLCK, fcntl.F_UNLCK):
+        expected = struct.pack("hhqqi", lock_type, os.SEEK_SET, 0, 1, 0)
+        assert bot.ofd_lock_record(lock_type) == reconcile._ofd_lock_record(lock_type) == expected

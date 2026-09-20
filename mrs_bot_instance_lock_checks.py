@@ -7,8 +7,13 @@ This module performs no runtime work at import and retains no runtime authority.
 from __future__ import annotations
 
 import hashlib
+import os
+import struct
 
 from typing import Any
+
+
+_OFD_LOCK_FORMAT = "hhqqi"
 
 
 def instance_lock_abstract_socket_name(
@@ -44,10 +49,6 @@ def instance_lock_abstract_socket_name_for_identity(
 
 def ofd_lock_record(
     lock_type: int,
-    *,
-    _OFD_LOCK_FORMAT: Any,
-    os: Any,
-    struct: Any,
 ) -> bytes:
     """Return one one-byte-range Linux OFD lock request."""
     return struct.pack(
@@ -142,16 +143,13 @@ def require_instance_lock_for_remote_write(
     _LOCK_FH: Any,
     _LOCK_SOCKET: Any,
     _LOCK_SOCKET_NAME: Any,
-    _OFD_LOCK_FORMAT: Any,
     _STATE_DIR_LOCK_FD: Any,
     _STATE_DIR_LOCK_IDENTITY: Any,
     descriptor_owns_exclusive_flock: Any,
     errno: Any,
     fcntl: Any,
-    ofd_lock_record: Any,
     os: Any,
     stat: Any,
-    struct: Any,
     test_mode_excludes_live_remote_writes: Any,
 ) -> None:
     """Prove exact OFD, pathname and abstract-singleton process ownership.

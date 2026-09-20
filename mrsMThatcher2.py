@@ -806,7 +806,7 @@ _STATE_DIR_LOCK_FD: int | None = None
 _STATE_DIR_LOCK_IDENTITY: tuple[int, int] | None = None
 _LOCK_SOCKET: socket.socket | None = None
 _LOCK_SOCKET_NAME: bytes | None = None
-_OFD_LOCK_FORMAT = "hhqqi"
+_OFD_LOCK_FORMAT = _instance_lock_checks._OFD_LOCK_FORMAT
 _BOT_HEALTH_REPORTER: BotHealthReporter | None = None
 _BOT_HEALTH_LOGGING_OBSERVER: HealthLoggingObserver | None = None
 
@@ -918,9 +918,6 @@ def ofd_lock_record(lock_type: int) -> bytes:
     """Return one one-byte-range Linux OFD lock request."""
     return _instance_lock_checks.ofd_lock_record(
         lock_type,
-        _OFD_LOCK_FORMAT=_OFD_LOCK_FORMAT,
-        os=os,
-        struct=struct,
     )
 
 
@@ -973,16 +970,13 @@ def require_instance_lock_for_remote_write(operation: str) -> None:
         _LOCK_FH=_LOCK_FH,
         _LOCK_SOCKET=_LOCK_SOCKET,
         _LOCK_SOCKET_NAME=_LOCK_SOCKET_NAME,
-        _OFD_LOCK_FORMAT=_OFD_LOCK_FORMAT,
         _STATE_DIR_LOCK_FD=_STATE_DIR_LOCK_FD,
         _STATE_DIR_LOCK_IDENTITY=_STATE_DIR_LOCK_IDENTITY,
         descriptor_owns_exclusive_flock=descriptor_owns_exclusive_flock,
         errno=errno,
         fcntl=fcntl,
-        ofd_lock_record=ofd_lock_record,
         os=os,
         stat=stat,
-        struct=struct,
         test_mode_excludes_live_remote_writes=test_mode_excludes_live_remote_writes,
     )
 
