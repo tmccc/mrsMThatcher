@@ -54,9 +54,9 @@ assert 'single_call_reply' not in sys.modules
 def test_adapters_forward_current_dependencies_arguments_references_and_errors(monkeypatch):
     assert bot.exact_x_create_route is route_values.exact_x_create_route
     for name, count in (
-        ("normalise_base_url", 4), ("endpoint_host", 1),
-        ("endpoint_is_loopback", 2),
-        ("frozen_strict_json_object", 2),
+        ("normalise_base_url", 2), ("endpoint_host", 0),
+        ("endpoint_is_loopback", 0),
+        ("frozen_strict_json_object", 1),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
@@ -136,7 +136,7 @@ def test_origin_delegates_before_conversion_and_provider_validation_keeps_order(
     origin = Mock(return_value=result)
     parser = Mock(wraps=bot.urlsplit)
     monkeypatch.setattr(bot, "_normalise_x_origin_before_runtime_configuration", origin)
-    monkeypatch.setattr(bot, "urlsplit", parser)
+    monkeypatch.setattr(route_values, "urlsplit", parser)
     assert bot.normalise_base_url(raw, require_origin=True) is result
     origin.assert_called_once_with(raw)
     parser.assert_not_called()
@@ -178,7 +178,7 @@ def test_endpoint_host_policy_uses_no_resolution_and_keeps_exception_boundaries(
         assert bot.endpoint_is_loopback(url) is expected
     assert bot.endpoint_host("http://LOCALHOST:9") == "localhost"
     parser = Mock(side_effect=RuntimeError("parser failure"))
-    monkeypatch.setattr(bot, "urlsplit", parser)
+    monkeypatch.setattr(route_values, "urlsplit", parser)
     assert bot.endpoint_host(object()) == ""
     interrupted = KeyboardInterrupt("parser interrupted")
     parser.side_effect = interrupted
@@ -188,8 +188,8 @@ def test_endpoint_host_policy_uses_no_resolution_and_keeps_exception_boundaries(
 
     host = Mock(return_value="service.localhost")
     address = Mock(side_effect=ValueError("invalid IP"))
-    monkeypatch.setattr(bot, "endpoint_host", host)
-    monkeypatch.setattr(bot, "ipaddress", SimpleNamespace(ip_address=address))
+    monkeypatch.setattr(route_values, "endpoint_host", host)
+    monkeypatch.setattr(route_values, "ipaddress", SimpleNamespace(ip_address=address))
     value = object()
     assert bot.endpoint_is_loopback(value) is True
     host.assert_called_once_with(value)
@@ -331,7 +331,7 @@ def test_strict_json_copy_preserves_canonical_encoding_and_isolates_nested_value
     trace = Mock()
     trace.dumps.side_effect = bot.json.dumps
     trace.loads.side_effect = bot.json.loads
-    monkeypatch.setattr(bot, "json", SimpleNamespace(
+    monkeypatch.setattr(route_values, "json", SimpleNamespace(
         dumps=trace.dumps, loads=trace.loads, JSONDecodeError=bot.json.JSONDecodeError,
     ))
     shared = {"values": (1, "é")}
@@ -351,7 +351,7 @@ def test_strict_json_copy_preserves_canonical_encoding_and_isolates_nested_value
     assert isinstance(caught.value.__cause__, ValueError)
 
 
-def test_strict_json_current_codec_keeps_reference_error_order_and_chains(monkeypatch):
+def test_strict_json_owned_codec_keeps_reference_error_order_and_chains(monkeypatch):
     class CurrentOutcome(bot.AmbiguousRemotePostOutcome):
         pass
 
@@ -362,7 +362,7 @@ def test_strict_json_current_codec_keeps_reference_error_order_and_chains(monkey
     encoded, decoded = "encoded-current-object", {"current": []}
     trace.dumps.return_value, trace.loads.return_value = encoded, decoded
     monkeypatch.setattr(bot, "AmbiguousRemotePostOutcome", CurrentOutcome)
-    monkeypatch.setattr(bot, "json", SimpleNamespace(
+    monkeypatch.setattr(route_values, "json", SimpleNamespace(
         dumps=trace.dumps, loads=trace.loads, JSONDecodeError=DecodeFailure,
     ))
     with pytest.raises(CurrentOutcome, match="payload must be one JSON object"):

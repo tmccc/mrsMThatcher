@@ -14,6 +14,7 @@ from mrs_bot_post_creation import (
 )
 
 from mrs_bot_x_response_diagnostics import raise_x_create_anomaly_outcome
+from mrs_bot_request_route_values import exact_x_create_route
 
 
 def x_request(
@@ -46,7 +47,6 @@ def x_request(
     canonical_transport_receipt_path_for_lane: Any,
     consume_media_upload_authority: Any,
     emit_x_create_response_anomaly: Any,
-    exact_x_create_route: Any,
     frozen_strict_json_object: Any,
     invalidate_reply_create_rejection_proof: Any,
     json: Any,

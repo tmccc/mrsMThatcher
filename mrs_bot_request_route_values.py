@@ -2,7 +2,8 @@
 
 XRequestRoutes binds current origins, request preparation and exception authority,
 then calls its base selection and classification methods directly. Endpoint
-configuration and strict JSON copying retain their explicit boundaries. Instances
+configuration retains its bootstrap boundary; fixed endpoint parsing and strict
+JSON encoding use local standard-library operations. Instances
 retain configured capabilities without retaining caller state. Import and
 construction perform no runtime work; explicit request preparation never sends.
 """
@@ -10,11 +11,12 @@ construction perform no runtime work; explicit request preparation never sends.
 from __future__ import annotations
 
 from collections.abc import Callable
-from types import ModuleType
 from dataclasses import dataclass
+import ipaddress
+import json
 import posixpath
 import re
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote, urlsplit, urlunsplit
 
 from provider_endpoint_policy import validate_provider_endpoint
 
@@ -26,8 +28,6 @@ def normalise_base_url(
     provider: str | None = None,
     test_mode: bool = False,
     _normalise_x_origin_before_runtime_configuration: Callable[[object], str],
-    urlsplit: Callable,
-    urlunsplit: Callable,
 ) -> str:
     """Return one validated API base or fail during configuration.
 
@@ -77,8 +77,6 @@ def normalise_base_url(
 
 def endpoint_host(
     url: str,
-    *,
-    urlsplit: Callable,
 ) -> str:
     """Return the normalised host from an API endpoint URL."""
     try:
@@ -89,9 +87,6 @@ def endpoint_host(
 
 def endpoint_is_loopback(
     url: str,
-    *,
-    endpoint_host: Callable[[str], str],
-    ipaddress: ModuleType,
 ) -> bool:
     """Return whether one configured endpoint is an explicit loopback host."""
 
@@ -129,7 +124,6 @@ def frozen_strict_json_object(
     *,
     label: str,
     AmbiguousRemotePostOutcome: type[Exception],
-    json: ModuleType,
 ) -> dict:
     """Return an isolated strict-JSON copy suitable for request transport."""
 

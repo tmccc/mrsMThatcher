@@ -1953,8 +1953,6 @@ def normalise_base_url(raw: str, *, require_origin: bool = False, provider: str 
         provider=provider,
         test_mode=TEST_MODE,
         _normalise_x_origin_before_runtime_configuration=_normalise_x_origin_before_runtime_configuration,
-        urlsplit=urlsplit,
-        urlunsplit=urlunsplit,
     )
 
 
@@ -1962,7 +1960,6 @@ def endpoint_host(url: str) -> str:
     """Return the normalised host from an API endpoint URL."""
     return _request_route_values.endpoint_host(
         url,
-        urlsplit=urlsplit,
     )
 
 
@@ -1970,8 +1967,6 @@ def endpoint_is_loopback(url: str) -> bool:
     """Return whether one configured endpoint is an explicit loopback host."""
     return _request_route_values.endpoint_is_loopback(
         url,
-        endpoint_host=endpoint_host,
-        ipaddress=ipaddress,
     )
 
 
@@ -3077,7 +3072,6 @@ def frozen_strict_json_object(value: object, *, label: str) -> dict:
         value,
         label=label,
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
-        json=json,
     )
 
 
@@ -3220,7 +3214,6 @@ def x_request(
         canonical_transport_receipt_path_for_lane=canonical_transport_receipt_path_for_lane,
         consume_media_upload_authority=consume_media_upload_authority,
         emit_x_create_response_anomaly=emit_x_create_response_anomaly,
-        exact_x_create_route=exact_x_create_route,
         frozen_strict_json_object=frozen_strict_json_object,
         invalidate_reply_create_rejection_proof=invalidate_reply_create_rejection_proof,
         json=json,

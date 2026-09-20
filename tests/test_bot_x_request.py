@@ -32,7 +32,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_x_request', 'mrs_bot_x_response_diagnostics', 'mrs_bot_post_creation'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_x_request', 'mrs_bot_x_response_diagnostics', 'mrs_bot_post_creation', 'mrs_bot_request_route_values'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -69,7 +69,7 @@ assert 'single_call_reply' not in sys.modules
         "block_if_unrelated_receipt_appeared_for_media_transport "
         "block_if_unrelated_receipt_appeared_for_tweet_transport "
         "canonical_transport_receipt_path_for_lane consume_media_upload_authority "
-        "emit_x_create_response_anomaly exact_x_create_route frozen_strict_json_object "
+        "emit_x_create_response_anomaly frozen_strict_json_object "
         "invalidate_reply_create_rejection_proof json log log_json_debug "
         "parse_validated_x_error_response "
         "perform_consumed_x_request prepared_x_create_route print_rate_limit_headers "
@@ -156,7 +156,8 @@ def test_read_request_logging_health_transport_and_response_references(monkeypat
         "requests": SimpleNamespace(request=trace.request, RequestException=bot.requests.RequestException),
         "AUTH": auth, "X_BASE": "http://current.invalid", "X_BEARER_TOKEN": token,
     }.items():
-        monkeypatch.setattr(bot, key, value)
+        target = owner if key == "exact_x_create_route" else bot
+        monkeypatch.setattr(target, key, value)
     options = {"params": {}, "json": {"nested": []}, "data": {}, "files": {"part": object()},
                "requests": object(), "AUTH": object(), "kwargs": object()}
     assert getattr(bot, name)("GET", "/2/read", **options) is result
@@ -300,7 +301,8 @@ def test_tweet_freeze_pause_binding_and_coordinator_dictionary_order(monkeypatch
         "perform_consumed_x_request": trace.perform, "x_create_response_anomaly_reason": trace.reason,
         "sys": SimpleNamespace(exc_info=trace.exc_info),
     }.items():
-        monkeypatch.setattr(bot, key, value)
+        target = owner if key == "exact_x_create_route" else bot
+        monkeypatch.setattr(target, key, value)
 
     failure = bot.TransportJournalError("canonical failure") if stop == "journal" else ValueError("boundary failure")
 
@@ -380,7 +382,7 @@ def test_media_metadata_references_and_consumption_precede_transport(monkeypatch
         "requests": SimpleNamespace(request=trace.request, RequestException=bot.requests.RequestException),
         "sys": SimpleNamespace(exc_info=trace.exc_info),
     }.items():
-        target = owner if key in {"media_upload_payload_metadata", "validate_media_upload_payload_metadata"} else bot
+        target = owner if key in {"media_upload_payload_metadata", "validate_media_upload_payload_metadata", "exact_x_create_route"} else bot
         monkeypatch.setattr(target, key, value)
 
     def pause(*args, **kwargs):
