@@ -1,7 +1,7 @@
 """Ordinary quotation posting orchestration.
 
-The coordinator supplies current callbacks, settings, logger, exception/type
-authority on every call. This owner retains selection, history rollback, schedule
+The coordinator supplies current owners, callbacks, settings, logger and
+exception/type authority on every call. This owner retains selection, history rollback, schedule
 projections and lane-specific local recovery. MainPostPublication owns the shared
 durable publication steps and partial transaction progress; its authorities are
 bound at cycle entry. State-field application uses its inert owner directly.
@@ -23,6 +23,7 @@ from mrs_bot_runtime_state_helpers import apply_state_fields
 
 
 if TYPE_CHECKING:
+    from mrs_bot_image_selection import ImageSelection
     from mrs_bot_main_post_publication import MainPostPublication
 
 
@@ -52,12 +53,12 @@ def _select_regular_quote_image_pair(
     state: dict,
     *,
     log: Logger,
-    choose_regular_quote_image_pair: Callable,
+    selection: ImageSelection,
     NoViableQuoteImagePair: type[Exception],
 ) -> tuple[dict, dict]:
     """Select an ordinary pair with the existing bounded image-cycle fallbacks."""
     try:
-        quote_choice, image_choice, attempts = choose_regular_quote_image_pair(
+        quote_choice, image_choice, attempts = selection.choose_pair(
             lines_used,
             images_used,
             state,
@@ -69,7 +70,7 @@ def _select_regular_quote_image_pair(
             exc.attempts,
         )
         try:
-            quote_choice, image_choice, attempts = choose_regular_quote_image_pair(
+            quote_choice, image_choice, attempts = selection.choose_pair(
                 lines_used,
                 images_used,
                 state,
@@ -85,7 +86,7 @@ def _select_regular_quote_image_pair(
                 reset_exc.excluded_last_image,
             )
             try:
-                quote_choice, image_choice, attempts = choose_regular_quote_image_pair(
+                quote_choice, image_choice, attempts = selection.choose_pair(
                     lines_used,
                     images_used,
                     state,
@@ -279,9 +280,8 @@ def post_random_quote(
     now_epoch: Callable,
     reconcile_main_post_receipts: Callable,
     require_historical_context_outbox_writable: Callable,
-    quote_used_history_has_legacy_indices: Callable,
+    selection: ImageSelection,
     CorruptUsedHistoryError: type[Exception],
-    choose_regular_quote_image_pair: Callable,
     NoViableQuoteImagePair: type[Exception],
     POST_SLEEP_MIN: int,
     POST_SLEEP_MAX: int,
@@ -337,7 +337,7 @@ def post_random_quote(
 
     try:
         require_historical_context_outbox_writable()
-        if quote_used_history_has_legacy_indices(lines_used):
+        if selection.used_history.quote_used_history_has_legacy_indices(lines_used):
             raise CorruptUsedHistoryError(
                 "Quote used-history still contains legacy integer entries; refusing regular quote posting until source-verified migration is possible"
             )
@@ -345,7 +345,7 @@ def post_random_quote(
         quote_choice, image_choice = _select_regular_quote_image_pair(
             lines_used, images_used, state,
             log=log,
-            choose_regular_quote_image_pair=choose_regular_quote_image_pair,
+            selection=selection,
             NoViableQuoteImagePair=NoViableQuoteImagePair,
         )
 

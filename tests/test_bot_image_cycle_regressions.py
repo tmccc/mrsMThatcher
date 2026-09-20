@@ -9,6 +9,10 @@ from pathlib import Path
 
 import pytest
 
+import mrs_bot_asset_metadata as asset_metadata
+import mrs_bot_image_selection as image_selection
+import mrs_bot_quote_candidates as quote_candidates
+import mrs_bot_used_history as used_history
 from tests.helpers.quote_candidate_overrides import patch_completed_research_quotes
 
 from tests.helpers.bot_runtime import bot
@@ -23,6 +27,10 @@ from tests.helpers.bot_fixtures import (
 
 
 pytestmark = pytest.mark.allow_loopback_network
+
+
+def patch_metadata(monkeypatch, name, callback):
+    monkeypatch.setattr(asset_metadata.AssetMetadata, name, lambda _owner, *args, **kwargs: callback(*args, **kwargs))
 
 
 def test_post_random_quote_retries_alternate_quote_when_first_has_no_image_match(
@@ -59,9 +67,9 @@ def test_post_random_quote_retries_alternate_quote_when_first_has_no_image_match
     monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
     monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
     monkeypatch.setattr(bot, "log_event", lambda name, **fields: events.append((name, fields)))
-    monkeypatch.setattr(
-        bot,
-        "load_quote_analysis",
+    patch_metadata(
+        monkeypatch,
+        "load_quote",
         lambda: quote_analysis_for_lines(
             ["Bad visual quote.", "Good visual quote."],
             {
@@ -76,9 +84,9 @@ def test_post_random_quote_retries_alternate_quote_when_first_has_no_image_match
             },
         ),
     )
-    monkeypatch.setattr(
-        bot,
-        "load_image_analysis",
+    patch_metadata(
+        monkeypatch,
+        "load_image",
         lambda: image_analysis_for_paths(
             [image_path],
             {
@@ -177,7 +185,7 @@ def configure_image_cycle_post(
     monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
     monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
     monkeypatch.setattr(bot, "log_event", lambda *args, **kwargs: None)
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(quotes, quote_analyses))
+    patch_metadata(monkeypatch, "load_quote", lambda: quote_analysis_for_lines(quotes, quote_analyses))
     return set(), set(), {}, image_paths
 
 
@@ -501,11 +509,11 @@ def test_global_image_failure_does_not_trigger_image_cycle_recovery(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     monkeypatch.setattr(bot, "reconcile_main_post_receipts", lambda *args, **kwargs: {"regular": False, "meme": False})
-    monkeypatch.setattr(bot, "quote_used_history_has_legacy_indices", lambda used: False)
+    monkeypatch.setattr(used_history.UsedHistory, "quote_used_history_has_legacy_indices", lambda _owner, used: False)
     monkeypatch.setattr(
-        bot,
-        "choose_unused_line_candidate",
-        lambda *args, **kwargs: {
+        quote_candidates.QuoteCandidates,
+        "choose",
+        lambda _owner, *args, **kwargs: {
             "line_no": 0,
             "quote_hash": bot.quote_text_hash("Good quote."),
             "text": "Good quote.",
@@ -513,9 +521,9 @@ def test_global_image_failure_does_not_trigger_image_cycle_recovery(
         },
     )
     monkeypatch.setattr(
-        bot,
-        "choose_matched_unused_image",
-        lambda *args, **kwargs: (_ for _ in ()).throw(bot.GlobalImageUnavailable("no images")),
+        image_selection.ImageSelection,
+        "choose_matched",
+        lambda _owner, *args, **kwargs: (_ for _ in ()).throw(bot.GlobalImageUnavailable("no images")),
     )
     caplog.set_level(logging.INFO, logger=bot.log.name)
 
@@ -599,9 +607,9 @@ def test_post_random_quote_restores_histories_when_all_pair_attempts_fail_after_
     monkeypatch.setattr(bot.random, "uniform", lambda low, high: low)
     monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: pytest.fail("upload_media should not be called"))
     monkeypatch.setattr(bot, "create_post", lambda **kwargs: pytest.fail("create_post should not be called"))
-    monkeypatch.setattr(
-        bot,
-        "load_quote_analysis",
+    patch_metadata(
+        monkeypatch,
+        "load_quote",
         lambda: quote_analysis_for_lines(
             ["Christmas quote.", "Bad quote A.", "Bad quote B."],
             {
@@ -624,9 +632,9 @@ def test_post_random_quote_restores_histories_when_all_pair_attempts_fail_after_
             },
         ),
     )
-    monkeypatch.setattr(
-        bot,
-        "load_image_analysis",
+    patch_metadata(
+        monkeypatch,
+        "load_image",
         lambda: image_analysis_for_paths(
             [t01, t23],
             {

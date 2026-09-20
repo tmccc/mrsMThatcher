@@ -630,15 +630,24 @@ def test_immutable_candidate_cache_follows_owned_calls_and_preserves_current_mis
         def completed(self):
             return completed_ids
 
-    cache_bot._quote_candidates_owner = lambda: replace(
-        SnapshotQuoteCandidates(**vars(bot._quote_candidates_owner())),
-        lines_file=source,
-        load_quote_analysis=cache_bot.load_quote_analysis,
-        validate_analysis=lambda *args: None,
-        current_datetime=cache_bot.current_datetime,
-        quote_text_hash=cache_bot.quote_text_hash,
-        quality_weight_max_multiplier=cache_bot.multiplier,
-    )
+    def candidate_owner(**kwargs):
+        base = bot._quote_candidates_owner(**kwargs)
+        metadata = SimpleNamespace(
+            load_quote=cache_bot.load_quote_analysis,
+            validate_quote_lines=lambda *args: None,
+            quote_for_hash=base.metadata.quote_for_hash,
+            load_json=base.metadata.load_json,
+        )
+        return replace(
+            SnapshotQuoteCandidates(**vars(base)),
+            lines_file=source,
+            metadata=metadata,
+            current_datetime=cache_bot.current_datetime,
+            quote_text_hash=cache_bot.quote_text_hash,
+            quality_weight_max_multiplier=cache_bot.multiplier,
+        )
+
+    cache_bot._quote_candidates_owner = candidate_owner
     cache_bot.quote_candidate_weight = lambda analysis, **kwargs: cache_bot._quote_candidates_owner().weight(analysis, **kwargs)
     cache_bot.load_quote_lines_and_analysis = lambda: cache_bot._quote_candidates_owner().load_source()
     cache_bot.current_quote_hashes_by_line = lambda lines: cache_bot._quote_candidates_owner().hashes_by_line(lines)

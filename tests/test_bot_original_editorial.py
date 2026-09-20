@@ -10,6 +10,7 @@ from unittest.mock import Mock
 
 import pytest
 
+import mrs_bot_asset_metadata as asset_metadata
 import mrs_bot_original_editorial as editorial
 from tests.helpers.bot_fixtures import _basic_quote
 from tests.helpers.bot_runtime import bot
@@ -80,12 +81,11 @@ EDITORIAL_INPUTS = {
  'synonym_to_concept': '_ORIGINAL_EDITORIAL_SYNONYM_TO_CONCEPT',
  'affinity_concepts': 'ORIGINAL_EDITORIAL_AFFINITY_CONCEPTS',
  'dimensions': 'ORIGINAL_EDITORIAL_DIMENSIONS',
- 'image_sha256': 'current_image_sha256',
+ 'metadata': '_asset_metadata_owner',
  'analysis_file': 'ORIGINAL_EDITORIAL_ANALYSIS_FILE',
  'analysis_cache': '_ORIGINAL_EDITORIAL_ANALYSIS_CACHE',
  'analysis_kind': 'ORIGINAL_EDITORIAL_ANALYSIS_KIND',
  'schema_version': 'ORIGINAL_EDITORIAL_SCHEMA_VERSION',
- 'image_paths': 'current_image_paths',
  'enabled': 'ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING',
  'default_weight': 'ORIGINAL_EDITORIAL_SHADOW_WEIGHT',
  'default_max_abs_adjustment': 'ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT',
@@ -103,11 +103,15 @@ def test_editorial_owner_binds_current_inputs_without_reading(monkeypatch):
     for _ in range(2):
         current = {name: Mock(side_effect=AssertionError("construction read runtime inputs")) for name in EDITORIAL_INPUTS}
         for name, value in current.items():
-            monkeypatch.setattr(bot, EDITORIAL_INPUTS[name], value)
+            monkeypatch.setattr(
+                bot,
+                EDITORIAL_INPUTS[name],
+                Mock(return_value=value) if name == "metadata" else value,
+            )
         owner = bot._original_editorial_owner()
         assert owner is not previous and vars(owner).keys() == current.keys()
         assert all(getattr(owner, name) is value for name, value in current.items())
-        assert all(not value.called for value in current.values())
+        assert all(not value.called for name, value in current.items() if name != "metadata")
         with pytest.raises(FrozenInstanceError):
             owner.analysis_file = "elsewhere"
         previous = owner
@@ -290,7 +294,11 @@ def test_loader_uses_current_callbacks_dimensions_and_cache_without_failure_inse
     monkeypatch.setattr(bot, "ORIGINAL_EDITORIAL_SCHEMA_VERSION", 3)
     monkeypatch.setattr(bot, "ORIGINAL_EDITORIAL_DIMENSIONS", dimensions)
     monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_ANALYSIS_CACHE", cache)
-    monkeypatch.setattr(bot, "current_image_paths", lambda: calls.append("discover") or [image, generated])
+    monkeypatch.setattr(
+        asset_metadata.AssetMetadata,
+        "image_paths",
+        lambda _owner: calls.append("discover") or [image, generated],
+    )
     monkeypatch.setattr(editorial, "generated_image_origin_quote_hash", lambda name: calls.append(("origin", name)) or ("generated" if name.startswith("tg_") else None))
     monkeypatch.setattr(bot, "current_image_sha256", lambda value: calls.append(("sha", value)) or "fresh")
     numeric, validate = bot.original_editorial_numeric, editorial.OriginalEditorial.validate_item

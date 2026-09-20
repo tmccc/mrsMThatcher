@@ -2,13 +2,14 @@
 
 Explicit calls read the supplied source, analysis and canonical eligibility
 manifest, and may clear the caller's in-memory used set at cycle exhaustion.
-The coordinator supplies current configuration, helpers and logger; durable
+The coordinator supplies current configuration, metadata owner and logger; durable
 history, image selection, publishing and research implementation stay outside.
 Canonical research-loader hashes come directly from the asset-metadata owner.
 Candidate hashing remains supplied for isolated simulation caches.
 QuoteCandidates binds current external inputs per root call and invokes its own
-operations directly. Import and construction perform no runtime work or state
-access. The public research loader remains shared with preparation tools.
+operations and the supplied AssetMetadata owner directly. Import and construction
+perform no runtime work or state access. The public research loader remains
+shared with preparation tools.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from datetime import datetime
 from logging import Logger
 from pathlib import Path
 
-from mrs_bot_asset_metadata import quote_text_hash
+from mrs_bot_asset_metadata import AssetMetadata, quote_text_hash
 
 
 def mm_dd_in_window(mm_dd: str, start_mm_dd: str, end_mm_dd: str) -> bool:
@@ -178,23 +179,20 @@ def load_completed_research_quote_hashes(
 
 @dataclass(frozen=True)
 class QuoteCandidates:
-    """Own quotation eligibility, source preparation, seasonal weights and cycle selection."""
+    """Own quotation eligibility and selection through one AssetMetadata owner."""
 
     season_date_specific_weight: float
     season_strong_weight: float
     season_soft_weight: float
     quality_weight_max_multiplier: float
     quote_text_hash: Callable[[str], str]
-    metadata_for_hash: Callable[..., dict | None]
+    metadata: AssetMetadata
     log: Logger
     lines_file: Path
-    load_quote_analysis: Callable[[], dict | None]
-    validate_analysis: Callable[[dict | None, list[str]], None]
     current_datetime: Callable[[], datetime]
     research_dir: Path
     eligible_manifest_file: Path
     research_file: Path
-    load_json_object: Callable[..., dict | None]
     file_sha256: Callable[[Path], str]
 
     def any_window(
@@ -311,7 +309,7 @@ class QuoteCandidates:
                 continue
             non_empty += 1
 
-            analysis = self.metadata_for_hash(quote_analysis, quote_hash, tweet)
+            analysis = self.metadata.quote_for_hash(quote_analysis, quote_hash, tweet)
             if analysis is None:
                 self.log.warning("Skipping unanalysed current quote line_no=%d quote_hash=%s until quote analysis is refreshed", line_no, quote_hash)
                 continue
@@ -343,10 +341,10 @@ class QuoteCandidates:
         if not lines:
             raise RuntimeError(f"No lines found in {self.lines_file}")
 
-        quote_analysis = self.load_quote_analysis()
+        quote_analysis = self.metadata.load_quote()
         if quote_analysis is None:
             raise RuntimeError(f"Quote analysis unavailable or invalid; refusing regular quote posting from {self.lines_file}")
-        self.validate_analysis(quote_analysis, lines)
+        self.metadata.validate_quote_lines(quote_analysis, lines)
         return lines, quote_analysis, self.current_datetime().strftime("%m-%d")
 
     def completed(
@@ -358,7 +356,7 @@ class QuoteCandidates:
             runtime_eligible_quote_manifest_file=self.eligible_manifest_file,
             lines_file=self.lines_file,
             completed_quote_research_file=self.research_file,
-            load_json_object=self.load_json_object,
+            load_json_object=self.metadata.load_json,
             file_sha256=self.file_sha256,
         )
 

@@ -838,7 +838,9 @@ def install_immutable_score_caches(bot: Any, *, image_policy: Any = None) -> Non
             def hashes_by_line(self, lines):
                 return cached_quote_hashes(lines)
 
-        bot._quote_candidates_owner = lambda: CachedQuoteCandidates(**vars(candidate_owner_factory()))
+        bot._quote_candidates_owner = lambda **kwargs: CachedQuoteCandidates(
+            **vars(candidate_owner_factory(**kwargs))
+        )
     if hasattr(image_owner, "current_image_paths"):
         original_image_paths = image_owner.current_image_paths
         image_paths_cache: list[list[str]] = []
@@ -920,7 +922,9 @@ def install_immutable_score_caches(bot: Any, *, image_policy: Any = None) -> Non
                         )
                     return cached_editorial_score(quote_analysis, editorial)
 
-            bot._original_editorial_owner = lambda: CachedOriginalEditorial(**vars(editorial_owner_factory()))
+            bot._original_editorial_owner = lambda **kwargs: CachedOriginalEditorial(
+                **vars(editorial_owner_factory(**kwargs))
+            )
 
 
 def load_context(run_dir: Path) -> HarnessContext:
@@ -942,7 +946,9 @@ def load_context(run_dir: Path) -> HarnessContext:
             def completed(self):
                 return set(completed_research_hash_cache)
 
-        bot._quote_candidates_owner = lambda: SnapshotQuoteCandidates(**vars(candidate_owner_factory()))
+        bot._quote_candidates_owner = lambda **kwargs: SnapshotQuoteCandidates(
+            **vars(candidate_owner_factory(**kwargs))
+        )
     install_immutable_score_caches(
         bot, image_policy=production_sim.historical_image_selection(bot),
     )

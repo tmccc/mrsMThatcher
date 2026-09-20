@@ -1,12 +1,13 @@
 """Original-editorial metadata validation, scoring and winner application.
 
-The bot supplies current configuration, vocabulary, cache and runtime helpers.
+The bot supplies current configuration, vocabulary, cache and AssetMetadata.
 Fixed tag/list normalization and generated-image identity come from their owners.
 Only explicit loader calls read metadata and discover/hash images; enabled
 startup/selection calls emit the existing logs through the supplied logger.
 OriginalEditorial binds these current boundaries without runtime work, then calls
-its owned concepts, validation, loading, scores and comparisons directly. Caller
-cache/vocabulary references and their existing mutation rules are preserved.
+its owned concepts, validation, loading, scores and comparisons and the supplied
+metadata owner directly. Caller cache/vocabulary references and their existing
+mutation rules are preserved.
 """
 
 from __future__ import annotations
@@ -15,11 +16,10 @@ from dataclasses import dataclass
 
 import json
 import math
-from collections.abc import Callable
 from logging import Logger
 from pathlib import Path
 
-from mrs_bot_asset_metadata import generated_image_origin_quote_hash
+from mrs_bot_asset_metadata import AssetMetadata, generated_image_origin_quote_hash
 from mrs_bot_image_scoring import as_string_list, normalise_tag
 
 
@@ -40,17 +40,16 @@ def original_editorial_numeric(value: object, *, key: str) -> float:
 
 @dataclass(frozen=True)
 class OriginalEditorial:
-    """Own validated editorial metadata, concepts, scoring and selection comparisons."""
+    """Own editorial validation, scoring and comparison through AssetMetadata."""
 
     synonym_to_concept: dict[str, str]
     affinity_concepts: set[str]
     dimensions: list[str]
-    image_sha256: Callable[[str], str]
+    metadata: AssetMetadata
     analysis_file: str | Path
     analysis_cache: dict[str, dict]
     analysis_kind: str
     schema_version: int
-    image_paths: Callable[[], list[str]]
     enabled: bool
     default_weight: float
     default_max_abs_adjustment: float
@@ -188,7 +187,7 @@ class OriginalEditorial:
         expected_sha = str(entry.get("sha256") or "")
         if not expected_sha:
             raise ValueError(f"missing sha256 for original editorial image {basename}")
-        current_sha = self.image_sha256(image_by_name[basename])
+        current_sha = self.metadata.image_sha256(image_by_name[basename])
         if current_sha != expected_sha:
             raise ValueError(f"stale SHA-256 for original editorial image {basename}")
         analysis = entry.get("analysis")
@@ -233,7 +232,7 @@ class OriginalEditorial:
         items = data.get("items")
         if not isinstance(items, dict):
             raise RuntimeError("Original editorial analysis items must be an object")
-        image_by_name = {Path(path_text).name: path_text for path_text in self.image_paths()}
+        image_by_name = {Path(path_text).name: path_text for path_text in self.metadata.image_paths()}
         result: dict[str, dict] = {}
         try:
             for key, entry in items.items():

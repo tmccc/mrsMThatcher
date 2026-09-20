@@ -15,6 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import mrs_bot_asset_metadata as asset_metadata
 from tests.helpers.bot_runtime import bot
 from tests.helpers.quote_candidate_overrides import patch_completed_research_quotes
 from tests.helpers.protocol_activation import create_test_protocol_activation
@@ -233,8 +234,16 @@ def configure_simple_quote_post(
     monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
     monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
     monkeypatch.setattr(bot, "log_event", lambda *args, **kwargs: None)
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(["Good quote."]))
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: image_analysis_for_paths([image_path]))
+    monkeypatch.setattr(
+        asset_metadata.AssetMetadata,
+        "load_quote",
+        lambda _owner: quote_analysis_for_lines(["Good quote."]),
+    )
+    monkeypatch.setattr(
+        asset_metadata.AssetMetadata,
+        "load_image",
+        lambda _owner: image_analysis_for_paths([image_path]),
+    )
     return set(), set(), {}, lines_used_file, images_used_file, receipt_file, lines_file
 
 

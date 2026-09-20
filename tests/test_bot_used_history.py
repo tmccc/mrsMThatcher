@@ -11,6 +11,8 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrsMThatcher2 as bot
+import mrs_bot_asset_metadata as asset_metadata
+import mrs_bot_quote_candidates as quote_candidates
 import mrs_bot_used_history as owner
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
@@ -44,7 +46,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt'} or name.startswith('mrs_bot_') and name != 'mrs_bot_used_history':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_used_history', 'mrs_bot_asset_metadata', 'mrs_bot_quote_candidates'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -125,6 +127,12 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
 def patch_history_dependency(monkeypatch, name, callback):
     if name in METHODS:
         monkeypatch.setattr(owner.UsedHistory, METHODS[name], lambda self, *args, **kwargs: callback(*args, **kwargs))
+    elif name == "current_quote_hashes_by_line":
+        monkeypatch.setattr(quote_candidates.QuoteCandidates, "hashes_by_line", lambda self, *args, **kwargs: callback(*args, **kwargs))
+    elif name == "load_quote_analysis":
+        monkeypatch.setattr(asset_metadata.AssetMetadata, "load_quote", lambda self: callback())
+    elif name == "load_image_analysis":
+        monkeypatch.setattr(asset_metadata.AssetMetadata, "load_image", lambda self: callback())
     elif name in {"coerce_used_set", "used_set_to_sorted_list", "json", "re", "hashlib", "Path"}:
         monkeypatch.setattr(owner, name, callback)
     else:
@@ -132,15 +140,21 @@ def patch_history_dependency(monkeypatch, name, callback):
 
 
 def test_composition_binds_current_history_authorities_without_runtime_access(monkeypatch):
-    fields = {'CorruptUsedHistoryError': 'corrupt_error', 'UnsafeDurableStateNamespace': 'unsafe_namespace', 'log': 'log', 'read_stable_owned_json_bytes_no_follow': 'read_stable_bytes', 'atomic_write_json': 'write_json', 'current_quote_hashes_by_line': 'quote_hashes_by_line', 'LINES_USED_FILE': 'quote_history_file', 'PICKLE_FILE': 'legacy_quote_file', 'load_quote_analysis': 'quote_analysis', 'IMAGES_USED_FILE': 'image_history_file', 'IMAGE_PICKLE_FILE': 'legacy_image_file', 'load_image_analysis': 'image_analysis'}
+    fields = {'CorruptUsedHistoryError': 'corrupt_error', 'UnsafeDurableStateNamespace': 'unsafe_namespace', 'log': 'log', 'read_stable_owned_json_bytes_no_follow': 'read_stable_bytes', 'atomic_write_json': 'write_json', 'LINES_USED_FILE': 'quote_history_file', 'PICKLE_FILE': 'legacy_quote_file', 'IMAGES_USED_FILE': 'image_history_file', 'IMAGE_PICKLE_FILE': 'legacy_image_file'}
     previous = None
     for _ in range(2):
         current = {name: object() for name in fields}
         for name, value in current.items():
             monkeypatch.setattr(bot, name, value)
+        metadata = object()
+        candidates = object()
+        monkeypatch.setattr(bot, "_asset_metadata_owner", Mock(return_value=metadata))
+        monkeypatch.setattr(bot, "_quote_candidates_owner", Mock(return_value=candidates))
         current_owner = bot._used_history_owner()
         assert current_owner is not previous
         assert all(getattr(current_owner, field) is current[name] for name, field in fields.items())
+        assert current_owner.metadata is metadata
+        assert current_owner.quote_candidates is candidates
         previous = current_owner
 
 

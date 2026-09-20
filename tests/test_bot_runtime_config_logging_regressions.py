@@ -13,6 +13,8 @@ from types import SimpleNamespace
 
 import pytest
 
+import mrs_bot_asset_metadata as asset_metadata
+
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,
@@ -403,7 +405,7 @@ def test_bootstrap_and_regular_selection_do_not_load_removed_observer(
     )
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(images / "t*"))
     monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", False)
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: metadata)
+    monkeypatch.setattr(asset_metadata.AssetMetadata, "load_image", lambda _owner: metadata)
     monkeypatch.setattr(
         bot,
         "score_image_for_quote",

@@ -25,5 +25,5 @@ def patch_completed_research_quotes(
     monkeypatch.setattr(
         bot,
         "_quote_candidates_owner",
-        lambda: FixtureQuoteCandidates(**vars(owner_factory())),
+        lambda **kwargs: FixtureQuoteCandidates(**vars(owner_factory(**kwargs))),
     )

@@ -11,6 +11,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import historical_context_formatter as formatter
+import mrs_bot_asset_metadata as asset_metadata
 import mrs_bot_quote_candidates as candidates
 from tests.helpers.bot_runtime import bot
 
@@ -70,16 +71,13 @@ CANDIDATE_INPUTS = {'season_date_specific_weight': 'QUOTE_SEASON_DATE_SPECIFIC_W
  'season_soft_weight': 'QUOTE_SEASON_SOFT_WEIGHT',
  'quality_weight_max_multiplier': 'QUOTE_QUALITY_WEIGHT_MAX_MULTIPLIER',
  'quote_text_hash': 'quote_text_hash',
- 'metadata_for_hash': 'quote_metadata_for_hash',
+ 'metadata': '_asset_metadata_owner',
  'log': 'log',
  'lines_file': 'LINES_FILE',
- 'load_quote_analysis': 'load_quote_analysis',
- 'validate_analysis': 'validate_quote_analysis_against_lines',
  'current_datetime': 'current_datetime',
  'research_dir': 'HISTORICAL_CONTEXT_RESEARCH_DIR',
  'eligible_manifest_file': 'RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE',
  'research_file': 'COMPLETED_QUOTE_RESEARCH_FILE',
- 'load_json_object': 'load_json_object',
  'file_sha256': 'file_sha256'}
 
 
@@ -94,11 +92,15 @@ def test_candidate_owner_binds_current_inputs_without_reading(monkeypatch):
     for _ in range(2):
         current = {name: Mock(side_effect=AssertionError("construction read runtime inputs")) for name in CANDIDATE_INPUTS}
         for name, value in current.items():
-            monkeypatch.setattr(bot, CANDIDATE_INPUTS[name], value)
+            monkeypatch.setattr(
+                bot,
+                CANDIDATE_INPUTS[name],
+                Mock(return_value=value) if name == "metadata" else value,
+            )
         owner = bot._quote_candidates_owner()
         assert owner is not previous and vars(owner).keys() == current.keys()
         assert all(getattr(owner, name) is value for name, value in current.items())
-        assert all(not value.called for value in current.values())
+        assert all(not value.called for name, value in current.items() if name != "metadata")
         with pytest.raises(FrozenInstanceError):
             owner.lines_file = "elsewhere"
         previous = owner
@@ -210,7 +212,7 @@ def test_source_hash_and_candidate_callbacks_preserve_order_counters_and_referen
     metadata = Mock(side_effect=lambda corpus, quote_hash, text: analysis.get(quote_hash))
     weight = Mock(side_effect=lambda item, **kwargs: (0 if item["name"] == "Seasonal" else 1, season_status))
     log = Mock()
-    monkeypatch.setattr(bot, "quote_metadata_for_hash", metadata)
+    monkeypatch.setattr(asset_metadata.AssetMetadata, "quote_for_hash", lambda _owner, *args: metadata(*args))
     patch_candidates(monkeypatch, "weight", weight)
     monkeypatch.setattr(bot, "log", log)
     corpus, excluded = {}, {"Excluded"}
@@ -241,8 +243,8 @@ def test_source_load_keeps_default_encoding_references_and_error_order(tmp_path,
     open_source = Mock(wraps=open)
     monkeypatch.setattr(candidates, "open", open_source, raising=False)
     monkeypatch.setattr(bot, "LINES_FILE", path)
-    monkeypatch.setattr(bot, "load_quote_analysis", forbidden)
-    monkeypatch.setattr(bot, "validate_quote_analysis_against_lines", forbidden)
+    monkeypatch.setattr(asset_metadata.AssetMetadata, "load_quote", lambda _owner: forbidden())
+    monkeypatch.setattr(asset_metadata.AssetMetadata, "validate_quote_lines", lambda _owner, *args: forbidden(*args))
     monkeypatch.setattr(bot, "current_datetime", forbidden)
     with pytest.raises(RuntimeError) as exc:
         bot.load_quote_lines_and_analysis()
@@ -251,9 +253,9 @@ def test_source_load_keeps_default_encoding_references_and_error_order(tmp_path,
 
     path.write_text("Quotation.\n")
     analysis, events = {}, []
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: events.append("load") or analysis)
+    monkeypatch.setattr(asset_metadata.AssetMetadata, "load_quote", lambda _owner: events.append("load") or analysis)
     validate = Mock(side_effect=lambda *args: events.append("validate"))
-    monkeypatch.setattr(bot, "validate_quote_analysis_against_lines", validate)
+    monkeypatch.setattr(asset_metadata.AssetMetadata, "validate_quote_lines", lambda _owner, *args: validate(*args))
     monkeypatch.setattr(bot, "current_datetime", lambda: events.append("clock") or datetime(2026, 7, 5))
     lines, returned_analysis, today = bot.load_quote_lines_and_analysis()
     assert events == ["load", "validate", "clock"]

@@ -7,9 +7,13 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
+import mrs_bot_asset_metadata as asset_metadata
+import mrs_bot_quote_candidates as quote_candidates
+import mrs_bot_used_history as used_history
 from tests.helpers.bot_runtime import bot
 from tests.helpers.quote_candidate_overrides import patch_completed_research_quotes
 from tests.helpers.bot_fixtures import (
@@ -22,6 +26,18 @@ from tests.helpers.bot_fixtures import (
 
 
 pytestmark = pytest.mark.allow_loopback_network
+
+
+def patch_metadata(monkeypatch, name, callback):
+    monkeypatch.setattr(asset_metadata.AssetMetadata, name, lambda _owner, *args, **kwargs: callback(*args, **kwargs))
+
+
+def patch_quote_candidates(monkeypatch, name, callback):
+    monkeypatch.setattr(quote_candidates.QuoteCandidates, name, lambda _owner, *args, **kwargs: callback(*args, **kwargs))
+
+
+def patch_used_history(monkeypatch, name, callback):
+    monkeypatch.setattr(used_history.UsedHistory, name, lambda _owner, *args, **kwargs: callback(*args, **kwargs))
 
 
 def test_used_history_json_round_trip(tmp_path: Path) -> None:
@@ -110,6 +126,61 @@ def test_quote_override_deep_merges_only_requested_field() -> None:
     assert merged["items"][quote_hash]["analysis"]["scores"]["general_post_suitability"] == 80
 
 
+def test_real_selection_owner_graph_bypasses_obsolete_root_relays(tmp_path, monkeypatch):
+    quote_text = "A practical quotation."
+    lines_file = tmp_path / "quotes.txt"
+    lines_file.write_text(quote_text + "\n", encoding="utf-8")
+    quote_file = tmp_path / "quote_analysis.json"
+    quote_file.write_text(
+        json.dumps(quote_analysis_for_lines([quote_text])),
+        encoding="utf-8",
+    )
+    image_dir = tmp_path / "images"
+    image_dir.mkdir()
+    image_path = image_dir / "t01.jpg"
+    image_path.write_bytes(b"current image")
+    image_file = tmp_path / "image_analysis.json"
+    write_image_analysis(image_file, image_analysis_for_paths([image_path]))
+    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
+    monkeypatch.setattr(bot, "QUOTE_ANALYSIS_FILE", quote_file)
+    monkeypatch.setattr(bot, "QUOTE_ANALYSIS_OVERRIDES_FILE", tmp_path / "no-overrides.json")
+    monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", image_file)
+    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
+    monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", False)
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
+
+    obsolete = {
+        name: Mock(side_effect=AssertionError(f"obsolete root relay used: {name}"))
+        for name in (
+            "load_json_object",
+            "load_quote_analysis",
+            "validate_quote_analysis_against_lines",
+            "quote_metadata_for_hash",
+            "current_quote_hashes_by_line",
+            "current_image_paths",
+            "load_image_analysis",
+            "normalise_image_used_basenames",
+            "save_image_used_basenames",
+            "image_used_history_has_legacy_indices",
+            "image_metadata_for_basename",
+            "original_editorial_shadow_result",
+            "apply_original_editorial_selection",
+            "log_original_editorial_shadow_result",
+            "choose_unused_line_candidate",
+            "choose_matched_unused_image",
+        )
+    }
+    for name, relay in obsolete.items():
+        monkeypatch.setattr(bot, name, relay)
+
+    quote, image, attempts = bot.choose_regular_quote_image_pair(set(), set(), {})
+
+    assert quote["text"] == quote_text
+    assert image["basename"] == image_path.name
+    assert attempts == 1
+    assert all(not relay.called for relay in obsolete.values())
+
+
 def test_stale_quote_override_is_warned_and_skipped(caplog: pytest.LogCaptureFixture) -> None:
     quote_hash = "hash1"
     raw = {
@@ -176,9 +247,9 @@ def test_quote_cycle_seasonal_exhaustion_resets_without_selecting_hard_excluded(
             "relevance": "strong",
         }
     }
-    monkeypatch.setattr(
-        bot,
-        "load_quote_analysis",
+    patch_metadata(
+        monkeypatch,
+        "load_quote",
         lambda: quote_analysis_for_lines(["Normal quote.", "Christmas quote."], {1: christmas_analysis}),
     )
 
@@ -199,7 +270,7 @@ def test_quote_cycle_resets_when_only_unused_quote_is_unanalysed(
     analysed = quote_analysis_for_lines(["Analysed quote."])
     analysed_hash = bot.quote_text_hash("Analysed quote.")
     monkeypatch.setattr(bot, "LINES_FILE", lines_file)
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: analysed)
+    patch_metadata(monkeypatch, "load_quote", lambda: analysed)
 
     chosen = bot.choose_unused_line_candidate({analysed_hash})
 
@@ -222,7 +293,7 @@ def test_quote_cycle_resets_when_remaining_unused_quotes_are_unanalysed_and_hard
     lines_file = tmp_path / "quotes.txt"
     lines_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
     monkeypatch.setattr(bot, "LINES_FILE", lines_file)
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: analysed)
+    patch_metadata(monkeypatch, "load_quote", lambda: analysed)
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
 
     chosen = bot.choose_unused_line_candidate({bot.quote_text_hash("Analysed quote.")})
@@ -280,9 +351,9 @@ def test_currently_eligible_image_cycle_resets_without_marking_seasonal_image_us
         image_paths.append(path)
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
-    monkeypatch.setattr(
-        bot,
-        "load_image_analysis",
+    patch_metadata(
+        monkeypatch,
+        "load_image",
         lambda: image_analysis_for_paths(
             image_paths,
             {
@@ -325,9 +396,9 @@ def test_seasonal_image_re_enters_when_current_date_matches(
         image_paths.append(path)
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 12, 20))
-    monkeypatch.setattr(
-        bot,
-        "load_image_analysis",
+    patch_metadata(
+        monkeypatch,
+        "load_image",
         lambda: image_analysis_for_paths(
             image_paths,
             {
@@ -433,9 +504,9 @@ def test_highest_scoring_unused_image_is_selected_even_if_global_best_is_used(tm
         image_paths.append(path)
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
-    monkeypatch.setattr(
-        bot,
-        "load_image_analysis",
+    patch_metadata(
+        monkeypatch,
+        "load_image",
         lambda: image_analysis_for_paths(
             image_paths,
             {
@@ -586,7 +657,7 @@ def test_partial_visible_image_scan_does_not_migrate_legacy_indices_or_rewrite_h
     history = tmp_path / "images_used.json"
     history.write_text("[0, 1, 2]\n", encoding="utf-8")
     monkeypatch.setattr(bot, "IMAGES_USED_FILE", history)
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: analysis)
+    patch_metadata(monkeypatch, "load_image", lambda: analysis)
     before = history.read_text(encoding="utf-8")
 
     used = bot.load_image_used_basenames([str(path) for path in visible])
@@ -608,7 +679,7 @@ def test_regular_posting_blocks_unsafe_legacy_image_index_migration(
     analysis = image_analysis_for_paths([visible, hidden])
     hidden.unlink()
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: analysis)
+    patch_metadata(monkeypatch, "load_image", lambda: analysis)
     used = {0}
 
     with pytest.raises(bot.UnsafeImageHistoryMigration):
@@ -634,8 +705,8 @@ def test_unsafe_first_quote_index_migration_is_preserved_and_blocks_posting(
     monkeypatch.setattr(bot, "LINES_FILE", lines_file)
     monkeypatch.setattr(bot, "LINES_USED_FILE", history)
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(original))
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: image_analysis_for_paths([image_path]))
+    patch_metadata(monkeypatch, "load_quote", lambda: quote_analysis_for_lines(original))
+    patch_metadata(monkeypatch, "load_image", lambda: image_analysis_for_paths([image_path]))
 
     used = bot.load_quote_used_hashes([line + "\n" for line in reordered])
 
@@ -660,7 +731,7 @@ def test_quote_hash_candidates_deduplicate_identical_source_lines(tmp_path: Path
     lines_file = tmp_path / "quotes.txt"
     lines_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
     monkeypatch.setattr(bot, "LINES_FILE", lines_file)
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(lines))
+    patch_metadata(monkeypatch, "load_quote", lambda: quote_analysis_for_lines(lines))
 
     candidates = bot.quote_candidates_for_current_cycle(set())
 
@@ -680,7 +751,7 @@ def test_quote_cycle_resets_when_only_research_ineligible_source_records_remain(
     }
     used = set(eligible_hashes)
     monkeypatch.setattr(bot, "LINES_FILE", lines_file)
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(lines))
+    patch_metadata(monkeypatch, "load_quote", lambda: quote_analysis_for_lines(lines))
     patch_completed_research_quotes(monkeypatch, bot, lambda: eligible_hashes)
 
     candidates = bot.quote_candidates_for_current_cycle(used)
@@ -705,8 +776,8 @@ def test_posting_duplicate_quote_marks_hash_and_blocks_identical_line_same_cycle
     monkeypatch.setattr(bot, "LINES_USED_FILE", tmp_path / "lines_used.json")
     monkeypatch.setattr(bot, "IMAGES_USED_FILE", tmp_path / "images_used.json")
     monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", tmp_path / "regular_post_receipt.json")
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(lines))
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: image_analysis_for_paths([image_path]))
+    patch_metadata(monkeypatch, "load_quote", lambda: quote_analysis_for_lines(lines))
+    patch_metadata(monkeypatch, "load_image", lambda: image_analysis_for_paths([image_path]))
     monkeypatch.setattr(bot.random, "uniform", lambda low, high: low)
     monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
     monkeypatch.setattr(
@@ -743,7 +814,7 @@ def test_quote_hash_history_migrates_legacy_lines_and_survives_reordering(tmp_pa
     history.write_text("[1]\n", encoding="utf-8")
     monkeypatch.setattr(bot, "LINES_FILE", lines_file)
     monkeypatch.setattr(bot, "LINES_USED_FILE", history)
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(original_lines))
+    patch_metadata(monkeypatch, "load_quote", lambda: quote_analysis_for_lines(original_lines))
 
     used = bot.load_quote_used_hashes([line + "\n" for line in original_lines])
     second_hash = bot.quote_text_hash("Second quote.")
@@ -751,7 +822,7 @@ def test_quote_hash_history_migrates_legacy_lines_and_survives_reordering(tmp_pa
 
     reordered = ["Second quote.", "First quote.", "Brand new quote."]
     lines_file.write_text("\n".join(reordered) + "\n", encoding="utf-8")
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(reordered))
+    patch_metadata(monkeypatch, "load_quote", lambda: quote_analysis_for_lines(reordered))
     candidates = bot.quote_candidates_for_current_cycle(used)
     assert "Second quote." not in [candidate["text"] for candidate in candidates]
     assert "Brand new quote." in [candidate["text"] for candidate in candidates]
@@ -793,7 +864,7 @@ def test_stale_image_is_skipped_while_valid_image_remains_selectable(tmp_path: P
     analysis = image_analysis_for_paths([stale_path, valid_path])
     stale_path.write_bytes(b"changed")
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: analysis)
+    patch_metadata(monkeypatch, "load_image", lambda: analysis)
 
     chosen = bot.choose_matched_unused_image(set(), {"analysis": {"primary_topics": ["anything"]}}, {})
 
@@ -811,7 +882,7 @@ def test_new_unanalysed_image_is_excluded_while_valid_image_remains_selectable(t
     analysis = image_analysis_for_paths([used_path, valid_path])
     new_path.write_bytes(b"new")
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: analysis)
+    patch_metadata(monkeypatch, "load_image", lambda: analysis)
 
     chosen = bot.choose_matched_unused_image({"t01.jpg"}, {"analysis": {"primary_topics": ["anything"]}}, {})
 
@@ -826,7 +897,7 @@ def test_all_stale_images_fail_without_mutating_history(tmp_path: Path, monkeypa
     analysis = image_analysis_for_paths([image_path])
     image_path.write_bytes(b"changed")
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: analysis)
+    patch_metadata(monkeypatch, "load_image", lambda: analysis)
     used: set[str] = set()
 
     with pytest.raises(bot.NoEligibleImageForQuote):
@@ -839,7 +910,7 @@ def test_missing_whole_quote_analysis_fails_regular_quote_selection(tmp_path: Pa
     lines_file = tmp_path / "quotes.txt"
     lines_file.write_text("Christmas quote.\n", encoding="utf-8")
     monkeypatch.setattr(bot, "LINES_FILE", lines_file)
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: None)
+    patch_metadata(monkeypatch, "load_quote", lambda: None)
 
     with pytest.raises(RuntimeError, match="Quote analysis unavailable"):
         bot.choose_unused_line_candidate(set())
@@ -851,7 +922,7 @@ def test_unanalysed_current_christmas_quote_is_skipped_in_july(tmp_path: Path, m
     lines_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
     analysed = quote_analysis_for_lines(["Ordinary quote.", "Old Christmas quote."])
     monkeypatch.setattr(bot, "LINES_FILE", lines_file)
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: analysed)
+    patch_metadata(monkeypatch, "load_quote", lambda: analysed)
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
 
     candidates = bot.quote_candidates_for_current_cycle(set())
@@ -865,7 +936,7 @@ def test_missing_image_analysis_fails_regular_image_selection(tmp_path: Path, mo
     image_path = image_dir / "t01.jpg"
     image_path.write_bytes(b"fake")
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: None)
+    patch_metadata(monkeypatch, "load_image", lambda: None)
 
     with pytest.raises(bot.NoEligibleImageForQuote, match="Image analysis unavailable"):
         bot.choose_matched_unused_image(set(), {"analysis": {"primary_topics": ["government"]}}, {})
@@ -885,7 +956,7 @@ def test_missing_per_image_analysis_is_excluded_with_valid_alternative(
     missing_hash = bot.file_sha256(missing_path)
     analysis["items"].pop(missing_hash)
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: analysis)
+    patch_metadata(monkeypatch, "load_image", lambda: analysis)
 
     chosen = bot.choose_matched_unused_image(set(), {"analysis": {"primary_topics": ["anything"]}}, {})
 
@@ -904,7 +975,7 @@ def test_image_hash_failure_excludes_image_with_valid_alternative(
     good_path.write_bytes(b"good")
     analysis = image_analysis_for_paths([bad_path, good_path])
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: analysis)
+    patch_metadata(monkeypatch, "load_image", lambda: analysis)
     real_hash = bot.current_image_sha256
 
     def maybe_fail(path: str) -> str:
@@ -929,7 +1000,7 @@ def test_all_image_hash_failures_raise_global_unavailable(
     image_path.write_bytes(b"bad")
     analysis = image_analysis_for_paths([image_path])
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: analysis)
+    patch_metadata(monkeypatch, "load_image", lambda: analysis)
     monkeypatch.setattr(bot, "current_image_sha256", lambda path, **_kwargs: (_ for _ in ()).throw(OSError("read failed")))
 
     with pytest.raises(bot.GlobalImageUnavailable):
@@ -948,7 +1019,7 @@ def test_invalid_per_image_analysis_type_is_excluded(
     image_hash = bot.file_sha256(image_path)
     analysis["items"][image_hash]["analysis"] = "bad"
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: analysis)
+    patch_metadata(monkeypatch, "load_image", lambda: analysis)
 
     with pytest.raises(bot.GlobalImageUnavailable):
         bot.choose_matched_unused_image(set(), {"analysis": {"primary_topics": ["anything"]}}, {})
@@ -967,8 +1038,8 @@ def test_global_image_failure_is_not_retried_across_quotes(
         return {"line_no": calls - 1, "quote_hash": f"{calls:064x}", "text": f"Quote {calls}.", "analysis": {}}
 
     monkeypatch.setattr(bot, "reconcile_main_post_receipts", lambda *args, **kwargs: {"regular": False, "meme": False})
-    monkeypatch.setattr(bot, "quote_used_history_has_legacy_indices", lambda used: False)
-    monkeypatch.setattr(bot, "choose_unused_line_candidate", fake_quote)
+    patch_used_history(monkeypatch, "quote_used_history_has_legacy_indices", lambda used: False)
+    patch_quote_candidates(monkeypatch, "choose", fake_quote)
     monkeypatch.setattr(bot._image_selection.ImageSelection, "choose_matched", lambda *args, **kwargs: (_ for _ in ()).throw(bot.GlobalImageUnavailable("no corpus")))
 
     with pytest.raises(bot.GlobalImageUnavailable):
@@ -983,7 +1054,7 @@ def test_image_cycle_status_log_formats_without_argument_mismatch(tmp_path: Path
     image_path = image_dir / "t01.jpg"
     image_path.write_bytes(b"valid")
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: image_analysis_for_paths([image_path]))
+    patch_metadata(monkeypatch, "load_image", lambda: image_analysis_for_paths([image_path]))
 
     bot.choose_matched_unused_image(set(), {"analysis": {"primary_topics": ["anything"]}}, {})
 

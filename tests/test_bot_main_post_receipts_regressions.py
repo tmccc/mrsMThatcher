@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+import mrs_bot_asset_metadata as asset_metadata
+
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,
@@ -425,7 +427,11 @@ def test_existing_valid_receipt_is_reconciled_before_next_regular_post(
     }
     bot.atomic_write_json(receipt_file, receipt)
     lines_file.write_text("Old quote.\nGood quote.\n", encoding="utf-8")
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(["Old quote.", "Good quote."]))
+    monkeypatch.setattr(
+        asset_metadata.AssetMetadata,
+        "load_quote",
+        lambda _owner: quote_analysis_for_lines(["Old quote.", "Good quote."]),
+    )
 
     bot.post_random_quote(lines_used, images_used, state)
 

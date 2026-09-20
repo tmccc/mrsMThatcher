@@ -2212,21 +2212,28 @@ coerce_used_set = _used_history.coerce_used_set
 used_set_to_sorted_list = _used_history.used_set_to_sorted_list
 
 
-def _used_history_owner() -> _used_history.UsedHistory:
-    """Bind current used-history paths and authorities without reading files."""
+def _used_history_owner(
+    *,
+    metadata: _asset_metadata.AssetMetadata | None = None,
+    quote_candidates: _quote_candidates.QuoteCandidates | None = None,
+) -> _used_history.UsedHistory:
+    """Bind current history authorities and adjacent owners without reading files."""
+    if metadata is None:
+        metadata = _asset_metadata_owner()
+    if quote_candidates is None:
+        quote_candidates = _quote_candidates_owner(metadata=metadata)
     return _used_history.UsedHistory(
         corrupt_error=CorruptUsedHistoryError,
         unsafe_namespace=UnsafeDurableStateNamespace,
         log=log,
         read_stable_bytes=read_stable_owned_json_bytes_no_follow,
         write_json=atomic_write_json,
-        quote_hashes_by_line=current_quote_hashes_by_line,
+        quote_candidates=quote_candidates,
+        metadata=metadata,
         quote_history_file=LINES_USED_FILE,
         legacy_quote_file=PICKLE_FILE,
-        quote_analysis=load_quote_analysis,
         image_history_file=IMAGES_USED_FILE,
         legacy_image_file=IMAGE_PICKLE_FILE,
-        image_analysis=load_image_analysis,
     )
 
 
@@ -4839,24 +4846,25 @@ def load_image_analysis() -> dict | None:
 mm_dd_in_window = _quote_candidates.mm_dd_in_window
 
 
-def _quote_candidates_owner() -> _quote_candidates.QuoteCandidates:
-    """Bind current external boundaries without runtime work or caller state."""
+def _quote_candidates_owner(
+    *, metadata: _asset_metadata.AssetMetadata | None = None,
+) -> _quote_candidates.QuoteCandidates:
+    """Bind current candidate policy and metadata without runtime work."""
+    if metadata is None:
+        metadata = _asset_metadata_owner()
     return _quote_candidates.QuoteCandidates(
         season_date_specific_weight=QUOTE_SEASON_DATE_SPECIFIC_WEIGHT,
         season_strong_weight=QUOTE_SEASON_STRONG_WEIGHT,
         season_soft_weight=QUOTE_SEASON_SOFT_WEIGHT,
         quality_weight_max_multiplier=QUOTE_QUALITY_WEIGHT_MAX_MULTIPLIER,
         quote_text_hash=quote_text_hash,
-        metadata_for_hash=quote_metadata_for_hash,
+        metadata=metadata,
         log=log,
         lines_file=LINES_FILE,
-        load_quote_analysis=load_quote_analysis,
-        validate_analysis=validate_quote_analysis_against_lines,
         current_datetime=current_datetime,
         research_dir=HISTORICAL_CONTEXT_RESEARCH_DIR,
         eligible_manifest_file=RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE,
         research_file=COMPLETED_QUOTE_RESEARCH_FILE,
-        load_json_object=load_json_object,
         file_sha256=file_sha256,
     )
 
@@ -6188,18 +6196,21 @@ _ORIGINAL_EDITORIAL_ANALYSIS_CACHE: dict[str, dict] = {}
 original_editorial_numeric = _original_editorial.original_editorial_numeric
 
 
-def _original_editorial_owner() -> _original_editorial.OriginalEditorial:
-    """Bind current external boundaries without runtime work or caller state."""
+def _original_editorial_owner(
+    *, metadata: _asset_metadata.AssetMetadata | None = None,
+) -> _original_editorial.OriginalEditorial:
+    """Bind current editorial policy and metadata without runtime work."""
+    if metadata is None:
+        metadata = _asset_metadata_owner()
     return _original_editorial.OriginalEditorial(
         synonym_to_concept=_ORIGINAL_EDITORIAL_SYNONYM_TO_CONCEPT,
         affinity_concepts=ORIGINAL_EDITORIAL_AFFINITY_CONCEPTS,
         dimensions=ORIGINAL_EDITORIAL_DIMENSIONS,
-        image_sha256=current_image_sha256,
+        metadata=metadata,
         analysis_file=ORIGINAL_EDITORIAL_ANALYSIS_FILE,
         analysis_cache=_ORIGINAL_EDITORIAL_ANALYSIS_CACHE,
         analysis_kind=ORIGINAL_EDITORIAL_ANALYSIS_KIND,
         schema_version=ORIGINAL_EDITORIAL_SCHEMA_VERSION,
-        image_paths=current_image_paths,
         enabled=ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING,
         default_weight=ORIGINAL_EDITORIAL_SHADOW_WEIGHT,
         default_max_abs_adjustment=ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT,
@@ -6388,28 +6399,30 @@ def choose_unused_line_candidate(
 
 
 def _image_selection_owner() -> _image_selection.ImageSelection:
-    """Bind current external boundaries without runtime work or caller state."""
+    """Compose current asset-selection owners without runtime work or caller state."""
+    metadata = _asset_metadata_owner()
+    quote_candidates = _quote_candidates_owner(metadata=metadata)
+    used_history = _used_history_owner(
+        metadata=metadata,
+        quote_candidates=quote_candidates,
+    )
     return _image_selection.ImageSelection(
         NoEligibleImageForQuote=NoEligibleImageForQuote,
         log=log,
-        current_image_paths=current_image_paths,
-        load_image_analysis=load_image_analysis,
-        normalise_image_used_basenames=normalise_image_used_basenames,
-        save_image_used_basenames=save_image_used_basenames,
-        image_used_history_has_legacy_indices=image_used_history_has_legacy_indices,
+        metadata=metadata,
+        used_history=used_history,
+        editorial=_original_editorial_owner(metadata=metadata),
+        quote_candidates=quote_candidates,
         current_datetime=current_datetime,
-        image_metadata_for_basename=image_metadata_for_basename,
         score_image_for_quote=score_image_for_quote,
-        original_editorial_enabled=ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING,
-        original_editorial_shadow_result=original_editorial_shadow_result,
-        apply_original_editorial_selection=apply_original_editorial_selection,
-        log_original_editorial_shadow_result=log_original_editorial_shadow_result,
         image_glob=IMAGE_GLOB,
         images_used_file=IMAGES_USED_FILE,
+        max_quote_image_pair_attempts=MAX_QUOTE_IMAGE_PAIR_ATTEMPTS,
         UnsafeImageHistoryMigration=UnsafeImageHistoryMigration,
         GlobalImageUnavailable=GlobalImageUnavailable,
         StaleImageMetadata=StaleImageMetadata,
         QuoteSpecificImageMismatch=QuoteSpecificImageMismatch,
+        NoViableQuoteImagePair=NoViableQuoteImagePair,
     )
 
 
@@ -6472,19 +6485,13 @@ def choose_regular_quote_image_pair(
     excluded_quote_hashes: set[str] | None = None,
 ) -> tuple[dict, dict, int]:
     """Select a production quotation-image pair under current cycle rules."""
-    return _image_selection.choose_regular_quote_image_pair(
+    return _image_selection_owner().choose_pair(
         lines_used,
         images_used,
         state,
         force_image_cycle_reset=force_image_cycle_reset,
         avoid_last_image_at_cycle_boundary=avoid_last_image_at_cycle_boundary,
         excluded_quote_hashes=excluded_quote_hashes,
-        choose_unused_line_candidate=choose_unused_line_candidate,
-        choose_matched_unused_image=choose_matched_unused_image,
-        max_quote_image_pair_attempts=MAX_QUOTE_IMAGE_PAIR_ATTEMPTS,
-        QuoteSpecificImageMismatch=QuoteSpecificImageMismatch,
-        NoViableQuoteImagePair=NoViableQuoteImagePair,
-        log=log,
     )
 
 
@@ -6519,6 +6526,7 @@ def _main_post_publication_owner(lane: str) -> _main_post_publication.MainPostPu
 
 def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
     """Post a quotation pair through the owner with current root dependencies."""
+    selection = _image_selection_owner()
     return _quote_posting.post_random_quote(
         lines_used, images_used, state,
         publication=_main_post_publication_owner("quote_image"),
@@ -6527,9 +6535,8 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         now_epoch=now_epoch,
         reconcile_main_post_receipts=reconcile_main_post_receipts,
         require_historical_context_outbox_writable=require_historical_context_outbox_writable,
-        quote_used_history_has_legacy_indices=quote_used_history_has_legacy_indices,
+        selection=selection,
         CorruptUsedHistoryError=CorruptUsedHistoryError,
-        choose_regular_quote_image_pair=choose_regular_quote_image_pair,
         NoViableQuoteImagePair=NoViableQuoteImagePair,
         POST_SLEEP_MIN=POST_SLEEP_MIN,
         POST_SLEEP_MAX=POST_SLEEP_MAX,

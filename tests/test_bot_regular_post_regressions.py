@@ -8,7 +8,10 @@ from pathlib import Path
 
 import pytest
 
+import mrs_bot_asset_metadata as asset_metadata
 import mrs_bot_quote_posting as posting
+import mrs_bot_quote_candidates as quote_candidates
+import mrs_bot_used_history as used_history
 
 from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from tests.helpers.bot_runtime import bot
@@ -23,6 +26,10 @@ from tests.helpers.bot_fixtures import (
 
 
 pytestmark = pytest.mark.allow_loopback_network
+
+
+def patch_metadata(monkeypatch, name, callback):
+    monkeypatch.setattr(asset_metadata.AssetMetadata, name, lambda _owner, *args, **kwargs: callback(*args, **kwargs))
 
 
 def test_post_random_quote_requires_created_post_id_before_marking_histories(
@@ -59,9 +66,9 @@ def test_post_random_quote_requires_created_post_id_before_marking_histories(
     monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: pytest.fail("cache_tweet should not be called"))
     monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: pytest.fail("record_recent_own_post should not be called"))
     monkeypatch.setattr(bot, "log_event", lambda event, **kwargs: events.append((event, kwargs)))
-    monkeypatch.setattr(
-        bot,
-        "load_quote_analysis",
+    patch_metadata(
+        monkeypatch,
+        "load_quote",
         lambda: quote_analysis_for_lines(
             ["Good quote."],
             {
@@ -72,9 +79,9 @@ def test_post_random_quote_requires_created_post_id_before_marking_histories(
             },
         ),
     )
-    monkeypatch.setattr(
-        bot,
-        "load_image_analysis",
+    patch_metadata(
+        monkeypatch,
+        "load_image",
         lambda: image_analysis_for_paths(
             [image_path],
             {
@@ -152,7 +159,7 @@ def test_confirmed_regular_post_receipt_recovers_local_persistence_failures(
     assert "t01.jpg" in reconciled_images
 
     lines_file.write_text("Good quote.\nNew quote.\n", encoding="utf-8")
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(["Good quote.", "New quote."]))
+    patch_metadata(monkeypatch, "load_quote", lambda: quote_analysis_for_lines(["Good quote.", "New quote."]))
     candidates = bot.quote_candidates_for_current_cycle(reconciled_lines)
     assert [candidate["text"] for candidate in candidates] == ["New quote."]
 
@@ -504,14 +511,14 @@ def test_pre_confirmation_failures_restore_histories_after_quote_cycle_reset(
     images_used = {"old-image"}
     state: dict = {}
     monkeypatch.setattr(bot, "reconcile_main_post_receipts", lambda *args, **kwargs: {"regular": False, "meme": False})
-    monkeypatch.setattr(bot, "quote_used_history_has_legacy_indices", lambda used: False)
+    monkeypatch.setattr(used_history.UsedHistory, "quote_used_history_has_legacy_indices", lambda _owner, used: False)
 
     def reset_then_quote(used: set, *, excluded_quote_hashes: set[str] | None = None, allow_cycle_reset: bool = True) -> dict:
         assert allow_cycle_reset is True
         used.clear()
         return {"line_no": 0, "quote_hash": bot.quote_text_hash("Good quote."), "text": "Good quote.", "analysis": {}}
 
-    monkeypatch.setattr(bot, "choose_unused_line_candidate", reset_then_quote)
+    monkeypatch.setattr(quote_candidates.QuoteCandidates, "choose", lambda _owner, *args, **kwargs: reset_then_quote(*args, **kwargs))
 
     if failure == "global_image":
         monkeypatch.setattr(bot._image_selection.ImageSelection, "choose_matched", lambda *args, **kwargs: (_ for _ in ()).throw(bot.GlobalImageUnavailable("no images")))

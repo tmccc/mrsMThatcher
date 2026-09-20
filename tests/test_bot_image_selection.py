@@ -11,7 +11,11 @@ from unittest.mock import Mock, call
 
 import pytest
 
+import mrs_bot_asset_metadata as asset_metadata
 import mrs_bot_image_selection as selection
+import mrs_bot_original_editorial as original_editorial
+import mrs_bot_quote_candidates as quote_candidates
+import mrs_bot_used_history as used_history
 from tests.helpers.bot_runtime import bot
 
 def test_concise_components_keeps_root_alias_and_formatting():
@@ -60,31 +64,44 @@ assert 'mrsMThatcher2' not in sys.modules
 
 SELECTION_METHODS = {'available_currently_eligible_image_basenames': 'available_basenames',
  'log_regular_image_selection': 'log_choice',
- 'choose_matched_unused_image': 'choose_matched'}
+ 'choose_matched_unused_image': 'choose_matched',
+ 'choose_regular_quote_image_pair': 'choose_pair'}
 SELECTION_INPUTS = {'NoEligibleImageForQuote': 'NoEligibleImageForQuote',
  'log': 'log',
- 'current_image_paths': 'current_image_paths',
- 'load_image_analysis': 'load_image_analysis',
- 'normalise_image_used_basenames': 'normalise_image_used_basenames',
- 'save_image_used_basenames': 'save_image_used_basenames',
- 'image_used_history_has_legacy_indices': 'image_used_history_has_legacy_indices',
+ 'metadata': '_asset_metadata_owner',
+ 'used_history': '_used_history_owner',
+ 'editorial': '_original_editorial_owner',
+ 'quote_candidates': '_quote_candidates_owner',
  'current_datetime': 'current_datetime',
- 'image_metadata_for_basename': 'image_metadata_for_basename',
  'score_image_for_quote': 'score_image_for_quote',
- 'original_editorial_enabled': 'ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING',
- 'original_editorial_shadow_result': 'original_editorial_shadow_result',
- 'apply_original_editorial_selection': 'apply_original_editorial_selection',
- 'log_original_editorial_shadow_result': 'log_original_editorial_shadow_result',
  'image_glob': 'IMAGE_GLOB',
  'images_used_file': 'IMAGES_USED_FILE',
+ 'max_quote_image_pair_attempts': 'MAX_QUOTE_IMAGE_PAIR_ATTEMPTS',
  'UnsafeImageHistoryMigration': 'UnsafeImageHistoryMigration',
  'GlobalImageUnavailable': 'GlobalImageUnavailable',
  'StaleImageMetadata': 'StaleImageMetadata',
- 'QuoteSpecificImageMismatch': 'QuoteSpecificImageMismatch'}
+ 'QuoteSpecificImageMismatch': 'QuoteSpecificImageMismatch',
+ 'NoViableQuoteImagePair': 'NoViableQuoteImagePair'}
 
 
 def patch_selection(monkeypatch, name, callback):
     monkeypatch.setattr(selection.ImageSelection, name, lambda _owner, *args, **kwargs: callback(*args, **kwargs))
+
+
+def patch_metadata(monkeypatch, name, callback):
+    monkeypatch.setattr(asset_metadata.AssetMetadata, name, lambda _owner, *args, **kwargs: callback(*args, **kwargs))
+
+
+def patch_history(monkeypatch, name, callback):
+    monkeypatch.setattr(used_history.UsedHistory, name, lambda _owner, *args, **kwargs: callback(*args, **kwargs))
+
+
+def patch_editorial(monkeypatch, name, callback):
+    monkeypatch.setattr(original_editorial.OriginalEditorial, name, lambda _owner, *args, **kwargs: callback(*args, **kwargs))
+
+
+def patch_quote_candidates(monkeypatch, name, callback):
+    monkeypatch.setattr(quote_candidates.QuoteCandidates, name, lambda _owner, *args, **kwargs: callback(*args, **kwargs))
 
 
 def test_selection_owner_binds_current_inputs_without_reading(monkeypatch):
@@ -94,11 +111,21 @@ def test_selection_owner_binds_current_inputs_without_reading(monkeypatch):
     for _ in range(2):
         current = {name: Mock(side_effect=AssertionError("construction read runtime inputs")) for name in SELECTION_INPUTS}
         for name, value in current.items():
-            monkeypatch.setattr(bot, SELECTION_INPUTS[name], value)
+            monkeypatch.setattr(
+                bot,
+                SELECTION_INPUTS[name],
+                Mock(return_value=value)
+                if name in {"metadata", "used_history", "editorial", "quote_candidates"}
+                else value,
+            )
         owner = bot._image_selection_owner()
         assert owner is not previous and vars(owner).keys() == current.keys()
         assert all(getattr(owner, name) is value for name, value in current.items())
-        assert all(not value.called for value in current.values())
+        assert all(
+            not value.called
+            for name, value in current.items()
+            if name not in {"metadata", "used_history", "editorial", "quote_candidates"}
+        )
         with pytest.raises(FrozenInstanceError):
             owner.image_glob = "elsewhere"
         previous = owner
@@ -159,10 +186,10 @@ def test_legacy_normalization_mutates_and_saves_before_remaining_index_check(mon
     paths, used, normalized = ["b.jpg", "a.jpg"], {0, 1}, {"b.jpg", 1}
     save_path, events = object(), []
     failure = OSError("save failed")
-    monkeypatch.setattr(bot, "current_image_paths", lambda: paths)
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: None)
+    patch_metadata(monkeypatch, "image_paths", lambda: paths)
+    patch_metadata(monkeypatch, "load_image", lambda: None)
     normalize = Mock(return_value=(normalized, True))
-    monkeypatch.setattr(bot, "normalise_image_used_basenames", normalize)
+    patch_history(monkeypatch, "normalise_image_used_basenames", normalize)
     monkeypatch.setattr(bot, "IMAGES_USED_FILE", save_path)
     monkeypatch.setattr(bot, "UnsafeImageHistoryMigration", CurrentUnsafe)
     monkeypatch.setattr(bot, "current_datetime", forbidden)
@@ -179,8 +206,8 @@ def test_legacy_normalization_mutates_and_saves_before_remaining_index_check(mon
         events.append("legacy")
         return True
 
-    monkeypatch.setattr(bot, "save_image_used_basenames", save)
-    monkeypatch.setattr(bot, "image_used_history_has_legacy_indices", legacy)
+    patch_history(monkeypatch, "save_image_used_basenames", save)
+    patch_history(monkeypatch, "image_used_history_has_legacy_indices", legacy)
     with pytest.raises(OSError if save_fails else CurrentUnsafe) as exc:
         bot.choose_matched_unused_image(used, {}, {})
     if save_fails:
@@ -202,18 +229,18 @@ def test_selector_preserves_original_scores_editorial_callbacks_and_one_random_d
     idf, used, state, events, captured = {}, set(), {}, [], {}
     log = Mock()
     monkeypatch.setattr(bot, "log", log)
-    monkeypatch.setattr(bot, "current_image_paths", lambda: paths)
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: corpus)
-    monkeypatch.setattr(bot, "normalise_image_used_basenames", lambda *args: (used, False))
+    patch_metadata(monkeypatch, "image_paths", lambda: paths)
+    patch_metadata(monkeypatch, "load_image", lambda: corpus)
+    patch_history(monkeypatch, "normalise_image_used_basenames", lambda *args: (used, False))
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 9, 6))
     build_idf = Mock(return_value=idf)
     metadata = Mock(side_effect=lambda data, name, path: ("hash:" + name, data[name]))
     seasonal = Mock(return_value=False)
     monkeypatch.setattr(selection, "build_image_topic_idf", build_idf)
-    monkeypatch.setattr(bot, "image_metadata_for_basename", metadata)
+    patch_metadata(monkeypatch, "image_for_basename", metadata)
     monkeypatch.setattr(selection, "image_is_out_of_season", seasonal)
     monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", False)
-    monkeypatch.setattr(bot, "original_editorial_shadow_result", forbidden)
+    patch_editorial(monkeypatch, "compare", forbidden)
 
     def score(quote_analysis, analysis, weights):
         assert quote_analysis is quote["analysis"] and weights is idf
@@ -235,9 +262,9 @@ def test_selector_preserves_original_scores_editorial_callbacks_and_one_random_d
     regular = Mock(side_effect=lambda choice: events.append("regular"))
     concise = Mock(side_effect=lambda detail: str(detail["base"]))
     monkeypatch.setattr(bot, "score_image_for_quote", score)
-    monkeypatch.setattr(bot, "apply_original_editorial_selection", editorial)
+    patch_editorial(monkeypatch, "apply_selection", editorial)
     patch_selection(monkeypatch, "log_choice", regular)
-    monkeypatch.setattr(bot, "log_original_editorial_shadow_result", editorial_shadow)
+    patch_editorial(monkeypatch, "log_comparison", editorial_shadow)
     monkeypatch.setattr(selection, "concise_components", concise)
     before, choose = random.getstate(), random.choice
     monkeypatch.setattr(random, "choice", lambda tied: events.append("rng_choice") or choose(tied))
@@ -274,24 +301,27 @@ def test_selector_reuses_comparison_and_preserves_duplicate_path_numbers(monkeyp
     corpus = {"a.jpg": {"score": 10.0}, "b.jpg": {"score": 9.0}}
     baseline_components = {name: {"base": value["score"]} for name, value in corpus.items()}
     metadata = Mock(side_effect=lambda data, name, path: (name, data[name]))
-    comparison = Mock(wraps=bot.original_editorial_shadow_result)
+    real_compare = original_editorial.OriginalEditorial.compare
+    comparison = Mock(side_effect=lambda *args, **kwargs: real_compare(
+        bot._original_editorial_owner(), *args, **kwargs,
+    ))
     editorial_metadata = {name: {"adjustment": adjustment} for name, adjustment in (("a.jpg", 0.0), ("b.jpg", 2.0))}
     loader = Mock(return_value=editorial_metadata if metadata_present else {})
     scorer = Mock(side_effect=lambda quote, row: (row["adjustment"], {}))
     log = Mock()
     monkeypatch.setattr(bot, "log", log)
-    monkeypatch.setattr(bot, "current_image_paths", lambda: paths)
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: corpus)
-    monkeypatch.setattr(bot, "normalise_image_used_basenames", lambda *args: (set(), False))
+    patch_metadata(monkeypatch, "image_paths", lambda: paths)
+    patch_metadata(monkeypatch, "load_image", lambda: corpus)
+    patch_history(monkeypatch, "normalise_image_used_basenames", lambda *args: (set(), False))
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 9, 17))
     monkeypatch.setattr(selection, "build_image_topic_idf", lambda data: {})
-    monkeypatch.setattr(bot, "image_metadata_for_basename", metadata)
+    patch_metadata(monkeypatch, "image_for_basename", metadata)
     monkeypatch.setattr(selection, "image_is_out_of_season", lambda *args: False)
     monkeypatch.setattr(bot, "score_image_for_quote", lambda quote, analysis, idf: (
         analysis["score"], baseline_components["a.jpg" if analysis is corpus["a.jpg"] else "b.jpg"], True,
     ))
     monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", enabled)
-    monkeypatch.setattr(bot, "original_editorial_shadow_result", comparison)
+    patch_editorial(monkeypatch, "compare", comparison)
     monkeypatch.setattr(bot._original_editorial.OriginalEditorial, "load", lambda _owner: loader())
     monkeypatch.setattr(bot._original_editorial.OriginalEditorial, "score", lambda _owner, *args, **kwargs: scorer(*args, **kwargs))
 
@@ -334,9 +364,9 @@ def test_metadata_rechecks_keep_current_stale_and_exhaustion_exception_boundarie
         pass
 
     corpus, analysis, used = {}, {}, {"a.jpg", "unavailable.jpg"}
-    monkeypatch.setattr(bot, "current_image_paths", lambda: ["a.jpg"])
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: corpus)
-    monkeypatch.setattr(bot, "normalise_image_used_basenames", lambda *args: (used, False))
+    patch_metadata(monkeypatch, "image_paths", lambda: ["a.jpg"])
+    patch_metadata(monkeypatch, "load_image", lambda: corpus)
+    patch_history(monkeypatch, "normalise_image_used_basenames", lambda *args: (used, False))
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 9, 6))
     monkeypatch.setattr(selection, "build_image_topic_idf", lambda data: {})
     monkeypatch.setattr(selection, "image_is_out_of_season", lambda *args: False)
@@ -345,7 +375,7 @@ def test_metadata_rechecks_keep_current_stale_and_exhaustion_exception_boundarie
     monkeypatch.setattr(bot, "GlobalImageUnavailable", CurrentGlobal)
     monkeypatch.setattr(bot, "QuoteSpecificImageMismatch", CurrentMismatch)
     metadata = Mock(side_effect=([("hash", analysis)] if stale_on_recheck else []) + [CurrentStale("changed")])
-    monkeypatch.setattr(bot, "image_metadata_for_basename", metadata)
+    patch_metadata(monkeypatch, "image_for_basename", metadata)
     with pytest.raises(CurrentMismatch if stale_on_recheck else CurrentGlobal) as exc:
         bot.choose_matched_unused_image(used, {}, {})
     assert exc.value.args == (("No metadata-eligible regular-post images matched the selected quote" if stale_on_recheck else "No analysed currently eligible regular-post images are available"),)
@@ -384,31 +414,33 @@ def test_pair_retries_keep_current_exceptions_limit_exclusions_and_one_time_rese
             assert boundary is boundaries[0] and boundary == {"z.jpg", "a.jpg"}
         raise CurrentMismatch("no pair")
 
-    monkeypatch.setattr(bot, "choose_unused_line_candidate", quote)
+    patch_quote_candidates(monkeypatch, "choose", quote)
     patch_selection(monkeypatch, "choose_matched", image)
     with pytest.raises(CurrentExhausted) as exc:
         bot.choose_regular_quote_image_pair(lines, images, state, force_image_cycle_reset=True, excluded_quote_hashes=excluded)
     assert exc.value.args == ("No eligible regular quote/image pair found after 2 attempt(s); used histories unchanged", 2, "a.jpg")
     assert seen == [{"reserved"}, {"reserved", "first"}] and excluded == {"reserved"}
     failure = RuntimeError("ordinary exclusions exhausted")
-    monkeypatch.setattr(bot, "choose_unused_line_candidate", Mock(side_effect=failure))
+    patch_quote_candidates(monkeypatch, "choose", Mock(side_effect=failure))
     with pytest.raises(RuntimeError) as exc:
         bot.choose_regular_quote_image_pair(lines, images, state, excluded_quote_hashes=excluded)
     assert exc.value is failure
 
 
-def test_pair_binds_matched_image_policy_after_each_quote_selection(monkeypatch):
+def test_pair_uses_one_current_owner_graph_and_bypasses_root_relays(monkeypatch):
     quotes = [{"quote_hash": "first"}, {"quote_hash": "second"}]
-    policies = [object(), object()]
+    initial_policy, replacement_policy = object(), object()
     selected, observed = [], []
     result = {"basename": "chosen.jpg"}
     lines, images, state = set(), set(), {}
     monkeypatch.setattr(bot, "MAX_QUOTE_IMAGE_PAIR_ATTEMPTS", 2)
+    monkeypatch.setattr(bot, "IMAGE_GLOB", "bound-at-entry")
+    monkeypatch.setattr(bot, "score_image_for_quote", initial_policy)
 
     def quote(*args, **kwargs):
         index = len(selected)
-        monkeypatch.setattr(bot, "IMAGE_GLOB", f"attempt-{index}")
-        monkeypatch.setattr(bot, "score_image_for_quote", policies[index])
+        monkeypatch.setattr(bot, "IMAGE_GLOB", f"changed-after-{index}")
+        monkeypatch.setattr(bot, "score_image_for_quote", replacement_policy)
         selected.append(quotes[index])
         return quotes[index]
 
@@ -421,11 +453,17 @@ def test_pair_binds_matched_image_policy_after_each_quote_selection(monkeypatch)
             raise bot.QuoteSpecificImageMismatch("retry another quotation")
         return result
 
-    monkeypatch.setattr(bot, "choose_unused_line_candidate", quote)
+    patch_quote_candidates(monkeypatch, "choose", quote)
     monkeypatch.setattr(selection.ImageSelection, "choose_matched", matched)
+    obsolete_quote = Mock(side_effect=AssertionError("root quote relay used"))
+    obsolete_image = Mock(side_effect=AssertionError("root image relay used"))
+    monkeypatch.setattr(bot, "choose_unused_line_candidate", obsolete_quote)
+    monkeypatch.setattr(bot, "choose_matched_unused_image", obsolete_image)
     chosen_quote, chosen_image, attempts = bot.choose_regular_quote_image_pair(lines, images, state)
     assert chosen_quote is quotes[1] and chosen_image is result and attempts == 2
-    assert observed == [("attempt-0", policies[0]), ("attempt-1", policies[1])]
+    assert observed == [("bound-at-entry", initial_policy), ("bound-at-entry", initial_policy)]
+    obsolete_quote.assert_not_called()
+    obsolete_image.assert_not_called()
 
 
 def test_editorial_failure_preserves_chosen_pool_and_stops_selection_diagnostics(monkeypatch):
@@ -438,8 +476,8 @@ def test_editorial_failure_preserves_chosen_pool_and_stops_selection_diagnostics
     choose = Mock(return_value=scored[0])
     monkeypatch.setattr(bot, "log", logger)
     monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", False)
-    monkeypatch.setattr(bot, "apply_original_editorial_selection", apply)
-    monkeypatch.setattr(bot, "log_original_editorial_shadow_result", shadow)
+    patch_editorial(monkeypatch, "apply_selection", apply)
+    patch_editorial(monkeypatch, "log_comparison", shadow)
     monkeypatch.setattr(selection.random, "choice", choose)
 
     with pytest.raises(RuntimeError) as caught:

@@ -66,6 +66,28 @@ need. A recovered draft can bypass model evaluation.
 | Pre-send availability, delivery and read/write failure routing | `ReplyCycleDelivery.deliver` in [mrs_bot_reply_delivery.py](../mrs_bot_reply_delivery.py); terminal bookkeeping and status mapping stay in each lane |
 | Save draft, prepare receipt, send and commit confirmation | [mrs_bot_reply_preparation.py](../mrs_bot_reply_preparation.py), [mrs_bot_reply_delivery.py](../mrs_bot_reply_delivery.py), [mrs_bot_reply_reconciliation.py](../mrs_bot_reply_reconciliation.py) |
 
+For an ordinary quotation post, the root composes one `ImageSelection` graph at
+invocation entry. It shares one `AssetMetadata` with `QuoteCandidates`,
+`UsedHistory` and `OriginalEditorial`; the history owner also shares that
+`QuoteCandidates`. `ImageSelection.choose_pair` performs bounded quotation
+retries and calls `QuoteCandidates.choose` and `ImageSelection.choose_matched`
+directly. Regular posting uses the same selection owner for the legacy-history
+gate and all image-cycle recovery passes. The public metadata, history,
+editorial, quote-selection, image-selection and pair-selection adapters remain
+available, but are outside this internal path.
+
+This graph binds current paths, policy, clocks, exceptions and external
+boundaries on every root invocation without reading files during construction.
+`AssetMetadata` remains at 9 constructor dependencies (2 callback-typed).
+Direct composition reduces `QuoteCandidates` from 16 dependencies (7
+callback-typed) to 13 (3), `UsedHistory` from 12 (5) to 11 (2),
+`OriginalEditorial` from 13 (2) to 12 (0), and `ImageSelection` from 20 (11) to
+16 (2). The regular-post implementation entry point has 44 total parameters
+(41 injected), down from 45 (42 injected), replacing its history and pair root
+callbacks with the typed selection owner. Hand-off tests block the obsolete
+relays while exercising real metadata validation, source-verified migration,
+editorial comparison and bounded pair recovery.
+
 [mrs_bot_reply_cycle_interfaces.py](../mrs_bot_reply_cycle_interfaces.py) describes
 the settings and callback groups supplied to both reply lanes, and re-exports
 the delivery owner from its behavior module. Its

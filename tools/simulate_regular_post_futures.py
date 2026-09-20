@@ -598,6 +598,8 @@ def capture_shadow_selection(bot: Any) -> Iterable[dict]:
     events = JsonEventCapture()
     bot.log.addHandler(events)
     original_editorial = bot.log_original_editorial_shadow_result
+    editorial_owner_type = type(bot._original_editorial_owner())
+    original_owner_editorial = editorial_owner_type.log_comparison
     original_identity = image_policy.log_generated_identity_policy_shadow_result
     original_editorial_enabled = bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING
     original_identity_enabled = image_policy.ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING
@@ -621,7 +623,8 @@ def capture_shadow_selection(bot: Any) -> Iterable[dict]:
         capture["scored_ids"].append(id(scored))
         bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = True
         try:
-            original_editorial(
+            original_owner_editorial(
+                bot._original_editorial_owner(),
                 quote, chosen, scored,
                 selection_phase=selection_phase,
                 comparison=comparison,
@@ -647,7 +650,11 @@ def capture_shadow_selection(bot: Any) -> Iterable[dict]:
             selection_rng_state=selection_rng_state,
         )
 
+    def owner_editorial_hook(_owner, *args, **kwargs):
+        return editorial_hook(*args, **kwargs)
+
     bot.log_original_editorial_shadow_result = editorial_hook
+    editorial_owner_type.log_comparison = owner_editorial_hook
     image_policy.log_generated_identity_policy_shadow_result = identity_hook
     try:
         yield capture
@@ -658,6 +665,7 @@ def capture_shadow_selection(bot: Any) -> Iterable[dict]:
     finally:
         bot.log.removeHandler(events)
         bot.log_original_editorial_shadow_result = original_editorial
+        editorial_owner_type.log_comparison = original_owner_editorial
         image_policy.log_generated_identity_policy_shadow_result = original_identity
         bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = original_editorial_enabled
         image_policy.ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING = original_identity_enabled
@@ -669,6 +677,8 @@ def capture_scored_selection(bot: Any) -> Iterable[dict]:
     image_policy = historical_image_selection(bot)
     capture: dict[str, Any] = {"scored_ids": []}
     original_editorial = bot.log_original_editorial_shadow_result
+    editorial_owner_type = type(bot._original_editorial_owner())
+    original_owner_editorial = editorial_owner_type.log_comparison
     original_identity = image_policy.log_generated_identity_policy_shadow_result
     original_editorial_enabled = bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING
     bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = False
@@ -687,7 +697,11 @@ def capture_scored_selection(bot: Any) -> Iterable[dict]:
         capture["selection_phase"] = selection_phase
         capture["scored_ids"].append(id(scored))
 
+    def owner_hook(_owner, *args, **kwargs):
+        return hook(*args, **kwargs)
+
     bot.log_original_editorial_shadow_result = hook
+    editorial_owner_type.log_comparison = owner_hook
     image_policy.log_generated_identity_policy_shadow_result = hook
     try:
         yield capture
@@ -696,6 +710,7 @@ def capture_scored_selection(bot: Any) -> Iterable[dict]:
             raise SelectionCaptureError("candidate capture hooks did not receive one exact scored list")
     finally:
         bot.log_original_editorial_shadow_result = original_editorial
+        editorial_owner_type.log_comparison = original_owner_editorial
         image_policy.log_generated_identity_policy_shadow_result = original_identity
         bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = original_editorial_enabled
 

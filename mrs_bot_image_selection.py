@@ -1,16 +1,14 @@
 """Original-image selection for regular and experimental posts.
 
-The coordinator supplies current helpers, settings, exception classes and logger.
+The coordinator supplies current typed owners, settings, exception classes and logger.
 Fixed topic weighting, calendar eligibility and diagnostics use the scoring owner.
 Explicit calls discover and recheck metadata, preserve the shared random stream,
 and mutate caller histories/counters at the existing cycle and receipt boundaries.
-Legacy normalization saves through the supplied root callback before checking for
-remaining integer entries. Durable persistence, receipt implementations, publishing
-and configuration authority stay in the coordinator. Importing this module does
-no runtime work. ImageSelection binds current external policy/helpers per root
-call, then invokes owned eligibility, scored-pool choice and logging directly
-without retaining caller state. Pair orchestration keeps the root matched-image
-callback so each attempt binds current image policy after quotation selection.
+Legacy normalization saves through UsedHistory before checking for remaining
+integer entries. Durable persistence, receipt implementations, publishing and
+configuration authority stay in the coordinator. Importing this module does no
+runtime work. ImageSelection binds current metadata, history, editorial and quote
+owners per root call, then invokes them directly without retaining caller state.
 """
 
 from __future__ import annotations
@@ -27,32 +25,32 @@ from mrs_bot_image_scoring import (
     concise_components,
     image_is_out_of_season,
 )
+from mrs_bot_asset_metadata import AssetMetadata
+from mrs_bot_original_editorial import OriginalEditorial
+from mrs_bot_quote_candidates import QuoteCandidates
+from mrs_bot_used_history import UsedHistory
 
 
 @dataclass(frozen=True)
 class ImageSelection:
-    """Own eligible-image cycles, checked selection and selection diagnostics."""
+    """Own pair retries and image choice through the adjacent typed owners."""
 
     NoEligibleImageForQuote: type[Exception]
     log: Logger
-    current_image_paths: Callable
-    load_image_analysis: Callable
-    normalise_image_used_basenames: Callable
-    save_image_used_basenames: Callable
-    image_used_history_has_legacy_indices: Callable
+    metadata: AssetMetadata
+    used_history: UsedHistory
+    editorial: OriginalEditorial
+    quote_candidates: QuoteCandidates
     current_datetime: Callable
-    image_metadata_for_basename: Callable
     score_image_for_quote: Callable
-    original_editorial_enabled: bool
-    original_editorial_shadow_result: Callable
-    apply_original_editorial_selection: Callable
-    log_original_editorial_shadow_result: Callable
     image_glob: str
     images_used_file: Path
+    max_quote_image_pair_attempts: int
     UnsafeImageHistoryMigration: type[Exception]
     GlobalImageUnavailable: type[Exception]
     StaleImageMetadata: type[Exception]
     QuoteSpecificImageMismatch: type[Exception]
+    NoViableQuoteImagePair: type[Exception]
 
     def available_basenames(
         self,
@@ -108,18 +106,18 @@ class ImageSelection:
         selection_phase: str = 'normal',
     ) -> dict:
         """Select the highest-scoring eligible unused image for a quotation."""
-        images = self.current_image_paths()
+        images = self.metadata.image_paths()
         self.log.debug("Found %d images matching %s", len(images), self.image_glob)
         if not images:
             raise RuntimeError(f"No images found matching {self.image_glob}")
 
-        image_analysis = self.load_image_analysis()
-        normalised, changed = self.normalise_image_used_basenames(images_used, images, image_analysis)
+        image_analysis = self.metadata.load_image()
+        normalised, changed = self.used_history.normalise_image_used_basenames(images_used, images, image_analysis)
         if changed:
             images_used.clear()
             images_used.update(normalised)
-            self.save_image_used_basenames(self.images_used_file, normalised)
-        if self.image_used_history_has_legacy_indices(images_used):
+            self.used_history.save_image_used_basenames(self.images_used_file, normalised)
+        if self.used_history.image_used_history_has_legacy_indices(images_used):
             raise self.UnsafeImageHistoryMigration(
                 "Image used-history still contains legacy integer entries; refusing regular image posting until full analysed corpus is visible"
             )
@@ -139,7 +137,7 @@ class ImageSelection:
         stale_excluded = 0
         for basename in image_by_name:
             try:
-                _, analysis = self.image_metadata_for_basename(image_analysis, basename, image_by_name[basename])
+                _, analysis = self.metadata.image_for_basename(image_analysis, basename, image_by_name[basename])
             except self.StaleImageMetadata:
                 stale_excluded += 1
                 continue
@@ -188,7 +186,7 @@ class ImageSelection:
         scored: list[dict] = []
         for basename in available:
             try:
-                image_hash, analysis = self.image_metadata_for_basename(image_analysis, basename, image_by_name[basename])
+                image_hash, analysis = self.metadata.image_for_basename(image_analysis, basename, image_by_name[basename])
             except self.StaleImageMetadata:
                 self.log.info("Skipping image %s: stale analysed content", basename)
                 continue
@@ -232,14 +230,14 @@ class ImageSelection:
         tied = [item for item in scored if float(item["score"]) == best_score]
         baseline_choice = random.choice(tied)
         comparison = None
-        if self.original_editorial_enabled:
-            comparison = self.original_editorial_shadow_result(
+        if self.editorial.enabled:
+            comparison = self.editorial.compare(
                 quote_choice,
                 baseline_choice,
                 scored,
                 selection_phase=selection_phase,
             )
-        chosen = self.apply_original_editorial_selection(
+        chosen = self.editorial.apply_selection(
             quote_choice,
             baseline_choice,
             scored,
@@ -255,7 +253,7 @@ class ImageSelection:
             concise_components(chosen["components"]),
         )
         self.log_choice(chosen)
-        self.log_original_editorial_shadow_result(
+        self.editorial.log_comparison(
             quote_choice,
             baseline_choice,
             scored,
@@ -271,6 +269,27 @@ class ImageSelection:
             )
         return chosen
 
+    def choose_pair(
+        self,
+        lines_used: set,
+        images_used: set,
+        state: dict,
+        *,
+        force_image_cycle_reset: bool = False,
+        avoid_last_image_at_cycle_boundary: bool = True,
+        excluded_quote_hashes: set[str] | None = None,
+    ) -> tuple[dict, dict, int]:
+        """Select a production quotation-image pair under current cycle rules."""
+        return choose_regular_quote_image_pair(
+            lines_used,
+            images_used,
+            state,
+            force_image_cycle_reset=force_image_cycle_reset,
+            avoid_last_image_at_cycle_boundary=avoid_last_image_at_cycle_boundary,
+            excluded_quote_hashes=excluded_quote_hashes,
+            selection=self,
+        )
+
 
 def choose_regular_quote_image_pair(
     lines_used: set,
@@ -280,26 +299,21 @@ def choose_regular_quote_image_pair(
     force_image_cycle_reset: bool = False,
     avoid_last_image_at_cycle_boundary: bool = True,
     excluded_quote_hashes: set[str] | None = None,
-    choose_unused_line_candidate: Callable,
-    choose_matched_unused_image: Callable,
-    max_quote_image_pair_attempts: int,
-    QuoteSpecificImageMismatch: type[Exception],
-    NoViableQuoteImagePair: type[Exception],
-    log: Logger,
+    selection: ImageSelection,
 ) -> tuple[dict, dict, int]:
-    """Select a production quotation-image pair under current cycle rules."""
+    """Select a pair through one invocation-scoped image-selection graph."""
     attempted_quote_hashes: set[str] = set(excluded_quote_hashes or set())
     initial_excluded_count = len(attempted_quote_hashes)
     attempts = 0
     reset_available_images_once = force_image_cycle_reset
     cycle_boundary_exclusions: set[str] = set()
 
-    while attempts < max_quote_image_pair_attempts:
+    while attempts < selection.max_quote_image_pair_attempts:
         attempts += 1
         try:
             # Only lasting exclusions can justify resetting the quote cycle.
             # Failed pairings must reach image recovery with history intact.
-            quote_choice = choose_unused_line_candidate(
+            quote_choice = selection.quote_candidates.choose(
                 lines_used,
                 excluded_quote_hashes=attempted_quote_hashes,
                 allow_cycle_reset=attempts == 1,
@@ -313,7 +327,7 @@ def choose_regular_quote_image_pair(
             selection_phase = "normal"
             if force_image_cycle_reset:
                 selection_phase = "forced_cycle_reset" if avoid_last_image_at_cycle_boundary else "last_image_fallback"
-            image_choice = choose_matched_unused_image(
+            image_choice = selection.choose_matched(
                 images_used,
                 quote_choice,
                 state,
@@ -323,15 +337,15 @@ def choose_regular_quote_image_pair(
                 selection_phase=selection_phase,
             )
             if attempts > 1:
-                log.info(
+                selection.log.info(
                     "Selected alternate quote/image pair after %d attempt(s). line_no=%s image=%s",
                     attempts,
                     quote_choice.get("line_no"),
                     image_choice.get("basename"),
                 )
             return quote_choice, image_choice, attempts
-        except QuoteSpecificImageMismatch as exc:
-            log.warning(
+        except selection.QuoteSpecificImageMismatch as exc:
+            selection.log.warning(
                 "Selected quote line_no=%s quote_hash=%s could not be paired with any currently eligible unused image: %s",
                 quote_choice.get("line_no"),
                 quote_choice.get("quote_hash"),
@@ -340,7 +354,7 @@ def choose_regular_quote_image_pair(
         finally:
             reset_available_images_once = False
 
-    raise NoViableQuoteImagePair(
+    raise selection.NoViableQuoteImagePair(
         f"No eligible regular quote/image pair found after {attempts} attempt(s); used histories unchanged",
         attempts,
         sorted(cycle_boundary_exclusions)[0] if cycle_boundary_exclusions else None,

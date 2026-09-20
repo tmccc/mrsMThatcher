@@ -52,7 +52,7 @@ assert 'mrsMThatcher2' not in sys.modules
 def test_adapter_passes_current_dependencies_and_references_on_every_call(monkeypatch):
     names = [name for name, parameter in inspect.signature(posting.post_random_quote).parameters.items()
              if parameter.kind == inspect.Parameter.KEYWORD_ONLY]
-    assert len(names) == 42
+    assert len(names) == 41
     assert not set(names) & {
         "apply_state_fields", "valid_post_id",
         "main_post_attempt", "pending_schedule_receipt", "quote_post_epoch",
@@ -64,12 +64,15 @@ def test_adapter_passes_current_dependencies_and_references_on_every_call(monkey
     for _ in range(2):
         current = {name: object() for name in names}
         publication_factory = Mock(return_value=current["publication"])
+        selection_factory = Mock(return_value=current["selection"])
         monkeypatch.setattr(bot, "_main_post_publication_owner", publication_factory)
+        monkeypatch.setattr(bot, "_image_selection_owner", selection_factory)
         for name, value in current.items():
-            if name != "publication":
+            if name not in {"publication", "selection"}:
                 monkeypatch.setattr(bot, name, value)
         assert bot.post_random_quote(lines_used, images_used, state) is result
         publication_factory.assert_called_once_with("quote_image")
+        selection_factory.assert_called_once_with()
         args, kwargs = owner.call_args
         assert all(actual is expected for actual, expected in zip(args, (lines_used, images_used, state)))
         assert kwargs.keys() == current.keys()
@@ -135,12 +138,12 @@ def test_posting_keeps_upload_shape_and_publication_order(
     monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", daily_meme_enabled)
     events, captured, draws = [], {}, []
     original_create = bot.create_post
-    original_select = bot.choose_regular_quote_image_pair
+    original_select = bot._image_selection.ImageSelection.choose_pair
 
-    def select(lines, images, current_state, **kwargs):
+    def select(owner, lines, images, current_state, **kwargs):
         assert lines is lines_used and images is images_used and current_state is state
         assert kwargs == {}
-        return original_select(lines, images, current_state)
+        return original_select(owner, lines, images, current_state)
 
     def upload(path, **kwargs):
         assert path == str(tmp_path / "images" / "t01.jpg")
@@ -174,7 +177,7 @@ def test_posting_keeps_upload_shape_and_publication_order(
         "emit_account_root_posted",
     ):
         track(name)
-    monkeypatch.setattr(bot, "choose_regular_quote_image_pair", select)
+    monkeypatch.setattr(bot._image_selection.ImageSelection, "choose_pair", select)
     monkeypatch.setattr(bot, "upload_media", upload)
     monkeypatch.setattr(bot.random, "randint", randint)
     monkeypatch.setattr(bot, "create_post", create)
@@ -222,7 +225,7 @@ def test_prepublication_interrupt_preserves_draws_rollback_and_attempt_ownership
     transport = Mock(side_effect=AssertionError("unexpected transport preparation"))
     original_write = bot.write_main_post_attempt
 
-    def choose(lines, images, current_state, **kwargs):
+    def choose(_owner, lines, images, current_state, **kwargs):
         assert lines is lines_used and images is images_used and current_state is state
         lines.clear()
         images.clear()
@@ -245,7 +248,7 @@ def test_prepublication_interrupt_preserves_draws_rollback_and_attempt_ownership
         original_write(attempt)
         raise failure
 
-    monkeypatch.setattr(bot, "choose_regular_quote_image_pair", choose)
+    monkeypatch.setattr(bot._image_selection.ImageSelection, "choose_pair", choose)
     monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", True)
     monkeypatch.setattr(bot.random, "randint", randint)
     monkeypatch.setattr(bot, "log", log)

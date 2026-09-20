@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 import mrs_log_digest as digest
+import mrs_bot_asset_metadata as asset_metadata
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import _basic_quote, image_analysis_for_paths
 
@@ -349,7 +350,7 @@ def test_shadow_result_uses_actual_original_candidate_set_and_replaces_productio
         },
     )
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "*"))
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: image_analysis)
+    monkeypatch.setattr(asset_metadata.AssetMetadata, "load_image", lambda _owner: image_analysis)
     monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", True)
     monkeypatch.setattr(bot, "ORIGINAL_EDITORIAL_ANALYSIS_FILE", str(editorial_file))
     monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_ANALYSIS_CACHE", {})
@@ -413,7 +414,7 @@ def test_original_editorial_selection_excludes_generated_asset_from_broad_glob(
         },
     )
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "*"))
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: image_analysis)
+    monkeypatch.setattr(asset_metadata.AssetMetadata, "load_image", lambda _owner: image_analysis)
     monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", True)
     monkeypatch.setattr(bot, "ORIGINAL_EDITORIAL_ANALYSIS_FILE", str(editorial_file))
     monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_ANALYSIS_CACHE", {})
@@ -671,7 +672,7 @@ def test_editorial_selection_uses_stable_basename_tie_break_when_enabled(
         {path.name: {"description": path.name, "seasonality": {"avoid_outside_season_or_occasion": False}} for path in paths},
     )
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: metadata)
+    monkeypatch.setattr(asset_metadata.AssetMetadata, "load_image", lambda _owner: metadata)
     monkeypatch.setattr(bot, "score_image_for_quote", lambda *_args: (10.0, {"topics": 10.0}, True))
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 10))
     monkeypatch.setattr(bot._original_editorial.OriginalEditorial, "load", lambda _owner: {path.name: _editorial_analysis() for path in paths})

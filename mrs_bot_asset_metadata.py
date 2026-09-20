@@ -4,9 +4,10 @@ Explicit calls read the supplied quote/image/meme metadata and discover image
 paths. The coordinator supplies current configuration, helpers, logger and stale
 image exception; it retains eligibility, selection, cache and persistence
 responsibilities. AssetMetadata binds current external inputs per operation and
-uses its owned loaders/overrides directly. Pure normalization, hashing and merge
-recursion stay local. Import and construction do no runtime work; loaders retain
-their existing fallback/error boundaries.
+may be shared by the candidate, history, editorial and image-selection owners
+for one root call. It uses its owned loaders/overrides directly. Pure
+normalization, hashing and merge recursion stay local. Import and construction
+do no runtime work; loaders retain their existing fallback/error boundaries.
 """
 
 from __future__ import annotations
@@ -52,7 +53,7 @@ def generated_image_origin_quote_hash(basename: str) -> str | None:
 
 @dataclass(frozen=True)
 class AssetMetadata:
-    """Own asset loading, quote overrides, identity checks and current catalog discovery."""
+    """Own shared asset loading, overrides, identity checks and catalog discovery."""
 
     log: Logger
     quote_file: Path

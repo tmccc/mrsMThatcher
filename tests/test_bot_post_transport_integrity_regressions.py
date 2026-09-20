@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+import mrs_bot_asset_metadata as asset_metadata
+
 from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from tests.helpers.bot_runtime import (
     IMPORT_ENV,
@@ -224,9 +226,9 @@ def test_regular_hard_death_preserves_exact_post_reset_cycle_histories(
         second_image = image_dir / "t02.jpg"
         second_image.write_bytes(b"second")
         monkeypatch.setattr(
-            bot,
-            "load_image_analysis",
-            lambda: image_analysis_for_paths(
+            asset_metadata.AssetMetadata,
+            "load_image",
+            lambda _owner: image_analysis_for_paths(
                 [image_dir / "t01.jpg", second_image],
             ),
         )

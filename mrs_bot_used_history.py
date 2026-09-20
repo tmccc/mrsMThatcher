@@ -1,10 +1,10 @@
 """Durable quote and image used history.
 
-Each root invocation binds current paths, file authorities and analysis loaders
-to UsedHistory. Load/save and source-verified migrations call owned operations
-directly. Pure coercion/sorting and fixed JSON, hashing, regex and basename
-transforms stay local. The shared image-normalization leaf also supports the
-historical simulator's deliberately different corpus proof.
+Each root invocation binds current paths, file authorities, AssetMetadata and
+QuoteCandidates to UsedHistory. Load/save and source-verified migrations call
+owned operations directly. Pure coercion/sorting and fixed JSON, hashing, regex
+and basename transforms stay local. The shared image-normalization leaf also
+supports the historical simulator's deliberately different corpus proof.
 No caller history is retained and import performs no runtime work.
 """
 from __future__ import annotations
@@ -17,6 +17,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from logging import Logger
 from typing import Any
+
+from mrs_bot_asset_metadata import AssetMetadata
+from mrs_bot_quote_candidates import QuoteCandidates
 
 
 def coerce_used_set(value: object, *, path: Path) -> set:
@@ -42,20 +45,19 @@ def used_set_to_sorted_list(value: set) -> list:
 
 @dataclass(frozen=True)
 class UsedHistory:
-    """Own durable used-history loading, migration and rewrite decisions."""
+    """Own history migration and rewrites through candidate and metadata owners."""
 
     corrupt_error: type[Exception]
     unsafe_namespace: type[Exception]
     log: Logger
     read_stable_bytes: Callable[..., tuple[bool, bytes | None]]
     write_json: Callable
-    quote_hashes_by_line: Callable[[list[str]], dict[int, str]]
+    quote_candidates: QuoteCandidates
+    metadata: AssetMetadata
     quote_history_file: Path
     legacy_quote_file: Path
-    quote_analysis: Callable[[], dict | None]
     image_history_file: Path
     legacy_image_file: Path
-    image_analysis: Callable[[], dict | None]
 
     def load_used_set(self, path: Path, *, legacy_pickle_path: Path | None = None) -> set:
         """Load a fail-closed durable used-history set."""
@@ -118,7 +120,7 @@ class UsedHistory:
         quote_analysis: dict | None = None,
     ) -> tuple[set, bool]:
         """Return whether normalise quote used hashes."""
-        hashes_by_line = self.quote_hashes_by_line(lines)
+        hashes_by_line = self.quote_candidates.hashes_by_line(lines)
         normalised: set[str] = set()
         changed = False
         can_migrate_indices = self.quote_source_matches_analysis(quote_analysis, lines)
@@ -150,7 +152,7 @@ class UsedHistory:
     def load_quote_used_hashes(self, lines: list[str]) -> set[str]:
         """Return whether load quote used hashes."""
         raw = self.load_used_set(self.quote_history_file, legacy_pickle_path=self.legacy_quote_file)
-        quote_analysis = self.quote_analysis()
+        quote_analysis = self.metadata.load_quote()
         normalised, changed = self.normalise_quote_used_hashes(raw, lines, quote_analysis)
         if self.quote_used_history_has_legacy_indices(normalised):
             self.log.critical(
@@ -189,7 +191,7 @@ class UsedHistory:
     def load_image_used_basenames(self, images: list[str]) -> set:
         """Load image used basenames."""
         raw = self.load_used_set(self.image_history_file, legacy_pickle_path=self.legacy_image_file)
-        image_analysis = self.image_analysis()
+        image_analysis = self.metadata.load_image()
         normalised, changed = self.normalise_image_used_basenames(raw, images, image_analysis)
         if self.image_used_history_has_legacy_indices(normalised) and images:
             self.log.critical(

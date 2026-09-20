@@ -9,6 +9,8 @@ from unittest.mock import Mock
 
 import pytest
 
+import mrs_bot_asset_metadata as asset_metadata
+
 import historical_context_formatter as formatter
 import mrs_bot_historical_context_delivery as delivery
 from historical_context_outbox import (
@@ -267,7 +269,11 @@ def test_regular_quote_confirmation_survives_skipped_incomplete_context(
     packet = audited_packets[INCOMPLETE]
     lines_used, images_used, state, *paths = configure_simple_quote_post(tmp_path, monkeypatch)
     paths[-1].write_text(packet["quote_text"] + "\n", encoding="utf-8")
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines([packet["quote_text"]]))
+    monkeypatch.setattr(
+        asset_metadata.AssetMetadata,
+        "load_quote",
+        lambda _owner: quote_analysis_for_lines([packet["quote_text"]]),
+    )
     main_create = Mock(wraps=bot.create_post)
     runtime = _install_delivery(monkeypatch, packet)
     monkeypatch.setattr(bot, "create_post", main_create)

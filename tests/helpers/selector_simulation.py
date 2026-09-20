@@ -132,7 +132,9 @@ def isolated_simulator_bot(tmp_path: Path, snapshot: Path):
             def completed(self):
                 return set(validated_eligible_ids)
 
-        bot._quote_candidates_owner = lambda: SnapshotQuoteCandidates(**vars(candidate_owner_factory()))
+        bot._quote_candidates_owner = lambda **kwargs: SnapshotQuoteCandidates(
+            **vars(candidate_owner_factory(**kwargs))
+        )
         yield bot
     finally:
         for name, (owner, value) in original.items():
