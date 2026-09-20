@@ -1,7 +1,8 @@
 """Coordinate reply arbitration and blocked ticks through current root dependencies.
 
-Three explicit root adapters supply current flags, status values, exception
-classes, scheduler, persistence, lane and barrier callbacks, events and logger.
+Three explicit root adapters supply current flags, exception classes, scheduler,
+persistence, lane and barrier callbacks, events and logger. Fixed reply statuses
+come directly from the inert reply-cycle interface owner.
 Original bodies preserve scheduler repair before arbitration, state identity,
 spacing and priority predicates, separate save/event/log order and native
 failures. Every blocked tick rechecks durability before one-shot logging exits;
@@ -15,6 +16,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
+
+from mrs_bot_reply_cycle_interfaces import (
+    NORMAL_CHECK_STATUS_POSTED,
+    NORMAL_CHECK_STATUS_SKIPPED_SPACING,
+    QUOTE_CHECK_STATUS_POSTED,
+    QUOTE_CHECK_STATUS_SKIPPED_SPACING,
+)
 
 
 def sanitize_next_reply_lane_priority(
@@ -43,12 +51,8 @@ def run_reply_lane_checks_for_tick(
     ENABLE_AUTO_REPLIES: bool,
     ENABLE_QUOTE_TWEET_CHECKS: bool,
     MIN_SECONDS_BETWEEN_REPLIES: int,
-    NORMAL_CHECK_STATUS_POSTED: str,
-    NORMAL_CHECK_STATUS_SKIPPED_SPACING: str,
     QUOTE_CHECK_EVERY_SECONDS: int,
     QUOTE_CHECK_SPACING_RETRY_SECONDS: int,
-    QUOTE_CHECK_STATUS_POSTED: str,
-    QUOTE_CHECK_STATUS_SKIPPED_SPACING: str,
     REPLY_CHECK_EVERY_SECONDS: int,
     UnrecoverableConfirmedReplyPersistenceError: type[Exception],
     ambiguous_remote_post_is_blocking: Callable[[], bool],

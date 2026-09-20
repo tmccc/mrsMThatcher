@@ -12,6 +12,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_tick_coordination as coordination
+import mrs_bot_reply_cycle_interfaces as interfaces
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import unit_sending_reply_receipt
@@ -19,7 +20,7 @@ from tests.helpers.reply_fixtures import unit_sending_reply_receipt
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time, typing
+import builtins, collections.abc, dataclasses, io, logging, os, random, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -27,7 +28,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name != 'mrs_bot_tick_coordination':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_tick_coordination', 'mrs_bot_reply_cycle_interfaces'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -52,10 +53,21 @@ assert 'single_call_reply' not in sys.modules
     assert result.returncode == 0, result.stderr + result.stdout
 
 
+def test_fixed_reply_statuses_are_owned_without_tick_dependency_wiring():
+    parameters = inspect.signature(coordination.run_reply_lane_checks_for_tick).parameters
+    for name in (
+        "NORMAL_CHECK_STATUS_POSTED", "NORMAL_CHECK_STATUS_SKIPPED_SPACING",
+        "QUOTE_CHECK_STATUS_POSTED", "QUOTE_CHECK_STATUS_SKIPPED_SPACING",
+    ):
+        assert name not in parameters
+        assert getattr(coordination, name) is getattr(interfaces, name)
+        assert getattr(bot, name) is getattr(interfaces, name)
+
+
 def test_adapters_forward_current_dependencies_references_and_native_errors(monkeypatch):
     for name, count in (
         ("sanitize_next_reply_lane_priority", 1),
-        ("run_reply_lane_checks_for_tick", 19),
+        ("run_reply_lane_checks_for_tick", 15),
         ("maintain_global_remote_write_barrier_tick", 4),
     ):
         adapter = getattr(bot, name)
@@ -173,9 +185,7 @@ def test_repair_precedes_posted_lane_and_separate_canonical_saves(monkeypatch, p
         snapshots.append(json.loads(bot.STATE_FILE.read_text()))
 
     trace.save.side_effect = save
-    posted = object()
-    monkeypatch.setattr(bot, "NORMAL_CHECK_STATUS_POSTED", posted)
-    monkeypatch.setattr(bot, "QUOTE_CHECK_STATUS_POSTED", posted)
+    posted = "".join(["pos", "ted"])
     trace.normal.return_value = trace.quote.return_value = posted
     result = bot.run_reply_lane_checks_for_tick(state, 100)
     # Canonical scheduler epochs are repaired and committed once before lanes.
@@ -219,9 +229,8 @@ def test_forced_normal_spacing_preserves_interval_before_exact_quote_retry(monke
     state = dict(last_reply_check_epoch=95, last_quote_tweet_check_epoch=0,
                  last_reply_epoch=0, next_reply_lane_priority="normal")
     trace, snapshots = _observe_tick(monkeypatch, state)
-    normal_skip, quote_skip = object(), object()
-    monkeypatch.setattr(bot, "NORMAL_CHECK_STATUS_SKIPPED_SPACING", normal_skip)
-    monkeypatch.setattr(bot, "QUOTE_CHECK_STATUS_SKIPPED_SPACING", quote_skip)
+    normal_skip = "".join(["skipped", "_spacing"])
+    quote_skip = "".join(["skipped_", "spacing"])
     trace.normal.return_value, trace.quote.return_value = normal_skip, quote_skip
     assert bot.run_reply_lane_checks_for_tick(state, 100) == (95, 33)
     assert snapshots == [state]
