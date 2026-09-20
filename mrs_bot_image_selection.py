@@ -1,6 +1,7 @@
 """Original-image selection for regular and experimental posts.
 
 The coordinator supplies current helpers, settings, exception classes and logger.
+Fixed topic weighting, calendar eligibility and diagnostics use the scoring owner.
 Explicit calls discover and recheck metadata, preserve the shared random stream,
 and mutate caller histories/counters at the existing cycle and receipt boundaries.
 Legacy normalization saves through the supplied root callback before checking for
@@ -21,6 +22,12 @@ from collections.abc import Callable
 from logging import Logger
 from pathlib import Path
 
+from mrs_bot_image_scoring import (
+    build_image_topic_idf,
+    concise_components,
+    image_is_out_of_season,
+)
+
 
 @dataclass(frozen=True)
 class ImageSelection:
@@ -34,14 +41,11 @@ class ImageSelection:
     save_image_used_basenames: Callable
     image_used_history_has_legacy_indices: Callable
     current_datetime: Callable
-    build_image_topic_idf: Callable
     image_metadata_for_basename: Callable
-    image_is_out_of_season: Callable
     score_image_for_quote: Callable
     original_editorial_enabled: bool
     original_editorial_shadow_result: Callable
     apply_original_editorial_selection: Callable
-    concise_components: Callable
     log_original_editorial_shadow_result: Callable
     image_glob: str
     images_used_file: Path
@@ -129,7 +133,7 @@ class ImageSelection:
             raise self.GlobalImageUnavailable("Image analysis unavailable or invalid; refusing regular quote/image posting")
 
         today_mm_dd = self.current_datetime().strftime("%m-%d")
-        idf = self.build_image_topic_idf(image_analysis)
+        idf = build_image_topic_idf(image_analysis)
         eligible_basenames: set[str] = set()
         seasonally_excluded = 0
         stale_excluded = 0
@@ -139,7 +143,7 @@ class ImageSelection:
             except self.StaleImageMetadata:
                 stale_excluded += 1
                 continue
-            if analysis is not None and self.image_is_out_of_season(analysis, today_mm_dd):
+            if analysis is not None and image_is_out_of_season(analysis, today_mm_dd):
                 seasonally_excluded += 1
                 self.log.info("Skipping image %s: seasonal image outside appropriate window", basename)
                 continue
@@ -236,7 +240,7 @@ class ImageSelection:
             chosen["basename"],
             chosen["image_no"],
             chosen["score"],
-            self.concise_components(chosen["components"]),
+            concise_components(chosen["components"]),
         )
         self.log_choice(chosen)
         self.log_original_editorial_shadow_result(
@@ -251,7 +255,7 @@ class ImageSelection:
                 "Image match candidate basename=%s score=%.2f components=%s",
                 item["basename"],
                 item["score"],
-                self.concise_components(item["components"]),
+                concise_components(item["components"]),
             )
         return chosen
 

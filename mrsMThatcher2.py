@@ -6456,9 +6456,7 @@ def apply_original_editorial_selection(
     )
 
 
-def concise_components(components: dict[str, float]) -> str:
-    """Return the concise components."""
-    return ", ".join(f"{key}={value:.1f}" for key, value in sorted(components.items()))
+concise_components = _image_scoring.concise_components
 
 
 def build_quote_candidates(
@@ -6542,14 +6540,11 @@ def _image_selection_owner() -> _image_selection.ImageSelection:
         save_image_used_basenames=save_image_used_basenames,
         image_used_history_has_legacy_indices=image_used_history_has_legacy_indices,
         current_datetime=current_datetime,
-        build_image_topic_idf=build_image_topic_idf,
         image_metadata_for_basename=image_metadata_for_basename,
-        image_is_out_of_season=image_is_out_of_season,
         score_image_for_quote=score_image_for_quote,
         original_editorial_enabled=ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING,
         original_editorial_shadow_result=original_editorial_shadow_result,
         apply_original_editorial_selection=apply_original_editorial_selection,
-        concise_components=concise_components,
         log_original_editorial_shadow_result=log_original_editorial_shadow_result,
         image_glob=IMAGE_GLOB,
         images_used_file=IMAGES_USED_FILE,

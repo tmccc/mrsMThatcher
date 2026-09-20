@@ -30,6 +30,11 @@ def as_string_list(value: object) -> list[str]:
     return [str(value)]
 
 
+def concise_components(components: dict[str, float]) -> str:
+    """Return the concise components."""
+    return ", ".join(f"{key}={value:.1f}" for key, value in sorted(components.items()))
+
+
 def meaningful_tokens(
     value: object,
     *,

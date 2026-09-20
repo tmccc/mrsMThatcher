@@ -14,6 +14,13 @@ import pytest
 import mrs_bot_image_selection as selection
 from tests.helpers.bot_runtime import bot
 
+def test_concise_components_keeps_root_alias_and_formatting():
+    from mrs_bot_image_scoring import concise_components
+
+    assert bot.concise_components is selection.concise_components is concise_components
+    assert bot.concise_components({"z": 2.25, "a": -1.0}) == "a=-1.0, z=2.2"
+
+
 
 def forbidden(*args, **kwargs):
     pytest.fail("unexpected image selection work")
@@ -62,14 +69,11 @@ SELECTION_INPUTS = {'NoEligibleImageForQuote': 'NoEligibleImageForQuote',
  'save_image_used_basenames': 'save_image_used_basenames',
  'image_used_history_has_legacy_indices': 'image_used_history_has_legacy_indices',
  'current_datetime': 'current_datetime',
- 'build_image_topic_idf': 'build_image_topic_idf',
  'image_metadata_for_basename': 'image_metadata_for_basename',
- 'image_is_out_of_season': 'image_is_out_of_season',
  'score_image_for_quote': 'score_image_for_quote',
  'original_editorial_enabled': 'ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING',
  'original_editorial_shadow_result': 'original_editorial_shadow_result',
  'apply_original_editorial_selection': 'apply_original_editorial_selection',
- 'concise_components': 'concise_components',
  'log_original_editorial_shadow_result': 'log_original_editorial_shadow_result',
  'image_glob': 'IMAGE_GLOB',
  'images_used_file': 'IMAGES_USED_FILE',
@@ -205,9 +209,9 @@ def test_selector_preserves_original_scores_editorial_callbacks_and_one_random_d
     build_idf = Mock(return_value=idf)
     metadata = Mock(side_effect=lambda data, name, path: ("hash:" + name, data[name]))
     seasonal = Mock(return_value=False)
-    monkeypatch.setattr(bot, "build_image_topic_idf", build_idf)
+    monkeypatch.setattr(selection, "build_image_topic_idf", build_idf)
     monkeypatch.setattr(bot, "image_metadata_for_basename", metadata)
-    monkeypatch.setattr(bot, "image_is_out_of_season", seasonal)
+    monkeypatch.setattr(selection, "image_is_out_of_season", seasonal)
     monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", False)
     monkeypatch.setattr(bot, "original_editorial_shadow_result", forbidden)
 
@@ -234,7 +238,7 @@ def test_selector_preserves_original_scores_editorial_callbacks_and_one_random_d
     monkeypatch.setattr(bot, "apply_original_editorial_selection", editorial)
     patch_selection(monkeypatch, "log_choice", regular)
     monkeypatch.setattr(bot, "log_original_editorial_shadow_result", editorial_shadow)
-    monkeypatch.setattr(bot, "concise_components", concise)
+    monkeypatch.setattr(selection, "concise_components", concise)
     before, choose = random.getstate(), random.choice
     monkeypatch.setattr(random, "choice", lambda tied: events.append("rng_choice") or choose(tied))
     try:
@@ -280,9 +284,9 @@ def test_selector_reuses_comparison_and_preserves_duplicate_path_numbers(monkeyp
     monkeypatch.setattr(bot, "load_image_analysis", lambda: corpus)
     monkeypatch.setattr(bot, "normalise_image_used_basenames", lambda *args: (set(), False))
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 9, 17))
-    monkeypatch.setattr(bot, "build_image_topic_idf", lambda data: {})
+    monkeypatch.setattr(selection, "build_image_topic_idf", lambda data: {})
     monkeypatch.setattr(bot, "image_metadata_for_basename", metadata)
-    monkeypatch.setattr(bot, "image_is_out_of_season", lambda *args: False)
+    monkeypatch.setattr(selection, "image_is_out_of_season", lambda *args: False)
     monkeypatch.setattr(bot, "score_image_for_quote", lambda quote, analysis, idf: (
         analysis["score"], baseline_components["a.jpg" if analysis is corpus["a.jpg"] else "b.jpg"], True,
     ))
@@ -334,8 +338,8 @@ def test_metadata_rechecks_keep_current_stale_and_exhaustion_exception_boundarie
     monkeypatch.setattr(bot, "load_image_analysis", lambda: corpus)
     monkeypatch.setattr(bot, "normalise_image_used_basenames", lambda *args: (used, False))
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 9, 6))
-    monkeypatch.setattr(bot, "build_image_topic_idf", lambda data: {})
-    monkeypatch.setattr(bot, "image_is_out_of_season", lambda *args: False)
+    monkeypatch.setattr(selection, "build_image_topic_idf", lambda data: {})
+    monkeypatch.setattr(selection, "image_is_out_of_season", lambda *args: False)
     monkeypatch.setattr(bot, "score_image_for_quote", forbidden)
     monkeypatch.setattr(bot, "StaleImageMetadata", CurrentStale)
     monkeypatch.setattr(bot, "GlobalImageUnavailable", CurrentGlobal)
