@@ -549,3 +549,117 @@ def test_safe_wrapper_preserves_exception_only_mutation_and_diagnostic_order(mon
         "nested_critical": ["worker", "set", "critical", "event", "critical"],
     }
     assert events == expected_events[boundary]
+
+
+@pytest.mark.parametrize("phase", ["pre_remote", "remote_started", "legacy_unknown", "confirmed"])
+def test_generic_delivery_error_respects_current_durable_remote_phase(monkeypatch, quiet_runtime, phase):
+    obligation = {"parent_post_id": "123", "context_reply": {
+        "state": "context_reply_pending", "quote_id": "hash", "quote_text": "quote",
+    }}
+    claimed = {"parent_post_id": "123", "context_reply": {
+        **obligation["context_reply"], "state": "context_reply_attempting",
+        "attempt_count": 1, "remote_transaction_started": False,
+    }}
+    durable = {"parent_post_id": "123", "context_reply": dict(claimed["context_reply"])}
+    store = SimpleNamespace(
+        due=Mock(return_value=[obligation]), claim_attempt=Mock(return_value=claimed),
+        get=Mock(return_value=durable),
+    )
+    failure = OSError("local delivery failure")
+
+    def post(**_callbacks):
+        if phase == "confirmed":
+            durable["context_reply"].update(state="context_reply_confirmed", reply_post_id="999")
+        elif phase != "pre_remote":
+            durable["context_reply"]["remote_transaction_started"] = (
+                True if phase == "remote_started" else None
+            )
+        raise failure
+
+    record = Mock(return_value="context_reply_failed_retryable")
+    inspect_transport = Mock(return_value=SimpleNamespace(classification="armed_pair"))
+    journal_path = Mock(return_value=object())
+    monkeypatch.setattr(bot, "maybe_post_historical_context_reply", post)
+    monkeypatch.setattr(bot, "inspect_transport_state", inspect_transport)
+    monkeypatch.setattr(bot, "journal_path_for_receipt", journal_path)
+    monkeypatch.setattr(owner, "_record_context_outbox_failure", record)
+    result = bot._process_due_historical_context_obligations(store=store)
+    expected = (
+        "context_reply_failed_retryable" if phase == "pre_remote" else
+        "confirmed_local_reconciliation_pending" if phase == "confirmed" else
+        "remote_outcome_reconciliation_pending"
+    )
+    assert result == [{"parent_post_id": "123", "status": "failed", "context_reply_state": expected}]
+    store.get.assert_called_once_with("123")
+    if phase == "pre_remote":
+        record.assert_called_once_with(
+            store, parent_post_id="123", attempt_number=1, error=failure, failed_epoch=100,
+        )
+        assert record.call_args.kwargs["error"] is failure
+    else:
+        record.assert_not_called()
+    if phase in {"remote_started", "legacy_unknown"}:
+        journal_path.assert_called_once_with(bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE)
+        inspect_transport.assert_called_once_with(journal_path.return_value)
+    else:
+        journal_path.assert_not_called()
+        inspect_transport.assert_not_called()
+    assert claimed["context_reply"]["remote_transaction_started"] is False
+    assert bot._get_historical_context_outbox_unavailable_reason() is None
+
+
+@pytest.mark.parametrize("save_fails", [False, True])
+def test_write_cooldown_save_precedes_outbox_outcome_even_when_save_fails(monkeypatch, quiet_runtime, save_fails):
+    obligation = {"parent_post_id": "123", "context_reply": {
+        "state": "context_reply_pending", "quote_id": "hash", "quote_text": "quote",
+    }}
+    claimed = {"parent_post_id": "123", "context_reply": {
+        **obligation["context_reply"], "state": "context_reply_attempting", "attempt_count": 1,
+    }}
+    updated = {"context_reply": {"state": "context_reply_failed_retryable"}}
+    store = SimpleNamespace(
+        due=Mock(return_value=[obligation]), claim_attempt=Mock(return_value=claimed),
+        get=Mock(return_value=updated),
+    )
+    state, events = {}, []
+    failed_result = {
+        "status": "failed", "error": "rate limited", "error_service": "x",
+        "error_status_code": 429, "error_reset_epoch": 200,
+    }
+
+    def record_error(current, error, service, *, scope):
+        assert current is state and service == "x" and scope == "write"
+        assert isinstance(error, bot.ApiError)
+        assert error.status_code == 429 and error.reset_epoch == 200
+        assert error.request_method == "POST" and error.request_path == "/2/tweets"
+        state["cooldown_recorded"] = True
+        events.append("record_api_error")
+
+    def save(current):
+        assert current is state and state["cooldown_recorded"] is True
+        events.append("save_state")
+        if save_fails:
+            raise OSError("cooldown save failed")
+
+    def record_outbox(actual_store, **kwargs):
+        assert actual_store is store
+        assert kwargs == {
+            "parent_post_id": "123", "attempt_number": 1, "error": "rate limited",
+            "failed_epoch": 100, "force_terminal": False,
+        }
+        events.append("outbox_outcome")
+        return "context_reply_failed_retryable"
+
+    monkeypatch.setattr(bot, "maybe_post_historical_context_reply", Mock(return_value=failed_result))
+    monkeypatch.setattr(bot, "record_api_error", record_error)
+    monkeypatch.setattr(bot, "save_state", save)
+    monkeypatch.setattr(bot, "api_error_is_reply_not_allowed", Mock(return_value=False))
+    monkeypatch.setattr(owner, "_record_context_outbox_failure", record_outbox)
+    result = bot._process_due_historical_context_obligations(store=store, runtime_state=state)
+    assert events == ["record_api_error", "save_state", "outbox_outcome"]
+    assert result == [{
+        "parent_post_id": "123", "status": "failed",
+        "context_reply_state": "context_reply_failed_retryable",
+    }]
+    assert quiet_runtime.log.critical.call_count == int(save_fails)
+    assert bot._get_historical_context_outbox_unavailable_reason() is None

@@ -42,6 +42,7 @@ need. A recovered draft can bypass model evaluation.
 | Ambient and conversational daily-cap dates | `ReceiptDates` in [mrs_bot_receipt_primitives.py](../mrs_bot_receipt_primitives.py); receipt-bound timezone conversion keeps its separate policy boundary |
 | Meme catalog discovery, cycle selection and image summaries | `MemeCatalog` in [mrs_bot_daily_meme.py](../mrs_bot_daily_meme.py) |
 | Shared quote/meme attempt publication, guarded send and durable confirmation | `MainPostPublication` in [mrs_bot_main_post_publication.py](../mrs_bot_main_post_publication.py); lane owners retain rollback, schedule projections and emergency recovery |
+| Historical-context queue selection, recovery, claims and durable outcomes | [mrs_bot_historical_context_queue.py](../mrs_bot_historical_context_queue.py); its coordinator keeps gates and loop decisions, with local helpers for sending a claim and applying exception/returned outcomes |
 | Candidate discovery and durable mention queue (`MentionQueue` owns access and retirement) | [mrs_bot_mention_discovery.py](../mrs_bot_mention_discovery.py), [mrs_bot_hot_post_discovery.py](../mrs_bot_hot_post_discovery.py), [mrs_bot_quote_discovery.py](../mrs_bot_quote_discovery.py) |
 | Watched and recent original selection | `QuoteWatchPosts` in [mrs_bot_quote_discovery.py](../mrs_bot_quote_discovery.py) |
 | Verified tweet lookup, cache refresh and recent own-post index | `TweetLookupCache` in [mrs_bot_tweet_lookup_cache.py](../mrs_bot_tweet_lookup_cache.py) |

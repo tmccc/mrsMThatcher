@@ -2,6 +2,8 @@
 
 The root supplies current runtime dependencies explicitly on each call. This
 module performs no runtime work at import and retains no runtime authority.
+The queue coordinator owns gates, recovery, claiming and loop decisions; local
+helpers bind delivery callbacks and apply outcomes against the durable outbox.
 """
 from __future__ import annotations
 
@@ -309,155 +311,24 @@ def _process_due_historical_context_obligations(
             )
             break
         try:
-            result = maybe_post_historical_context_reply(
-                quote_hash=str(context["quote_id"]),
-                quote_text=str(context["quote_text"]),
-                parent_post_id=parent_id,
-                on_source_receipt_published=(
-                    lambda source_sha256,
-                    source_attempt_number,
-                    parent_id=parent_id,
-                    attempt_number=attempt_number: (
-                        store.bind_attempt_source_receipt(
-                            parent_id,
-                            attempt_number=attempt_number,
-                            source_receipt_sha256=source_sha256,
-                            source_receipt_attempt_number=(
-                                source_attempt_number
-                            ),
-                        )
-                    )
-                ),
-                on_remote_transaction_started=(
-                    lambda parent_id=parent_id, attempt_number=attempt_number: (
-                        store.mark_remote_transaction_started(
-                            parent_id,
-                            attempt_number=attempt_number,
-                        )
-                    )
-                ),
-                on_definite_non_success=(
-                    lambda error,
-                    parent_id=parent_id,
-                    attempt_number=attempt_number: (
-                        _record_context_outbox_failure(
-                            store,
-                            parent_post_id=parent_id,
-                            attempt_number=attempt_number,
-                            error=error,
-                            failed_epoch=now_epoch(),
-                            force_terminal=attempt_number >= store.max_attempts,
-                            proved_remote_non_success=True,
-                        )
-                    )
-                ),
-                on_confirmed_receipt=(
-                    lambda confirmed_receipt,
-                    confirmation_epoch,
-                    parent_id=parent_id,
-                    attempt_number=attempt_number: (
-                        store.record_confirmed(
-                            parent_id,
-                            attempt_number=attempt_number,
-                            reply_post_id=confirmed_receipt["reply_post_id"],
-                            confirmed_epoch=confirmation_epoch,
-                        )
-                    )
-                ),
+            result = _post_claimed_context_attempt(
+                store, parent_id, context, attempt_number,
+                maybe_post_historical_context_reply=maybe_post_historical_context_reply,
+                now_epoch=now_epoch,
             )
         except Exception as exc:
-            if type(exc).__name__ == "AmbiguousContextReplyOutcome":
-                record_ambiguous_remote_post(
-                    {
-                        "text": str(getattr(exc, "reply_text", "") or ""),
-                        "reply": {
-                            "in_reply_to_tweet_id": str(
-                                getattr(exc, "parent_post_id", "") or parent_id
-                            )
-                        },
-                    }
-                )
-                state_name = "ambiguous_remote_outcome"
-            elif type(exc).__name__ == "DefiniteContextReplyLocalPersistenceError":
-                try:
-                    state_name = _record_or_verify_proved_context_failure(
-                        store,
-                        parent_post_id=parent_id,
-                        attempt_number=attempt_number,
-                        error=exc,
-                        failed_epoch=now_epoch(),
-                    )
-                except Exception:
-                    _set_historical_context_outbox_unavailable_reason(
-                        "proved context outcome persistence failed"
-                    )
-                    log.critical(
-                        "Could not preserve the exact proved historical-context "
-                        "failure parent_post_id=%s",
-                        parent_id,
-                        exc_info=True,
-                    )
-                    state_name = "outbox_persistence_failed"
-            else:
-                try:
-                    current_obligation = store.get(parent_id)
-                    current_context = (
-                        current_obligation.get("context_reply")
-                        if isinstance(current_obligation, dict)
-                        else None
-                    )
-                    remote_phase_is_unproved = bool(
-                        isinstance(current_context, dict)
-                        and current_context.get("state")
-                        == "context_reply_attempting"
-                        and current_context.get("attempt_count")
-                        == attempt_number
-                        and current_context.get(
-                            "remote_transaction_started"
-                        )
-                        is not False
-                    )
-                    confirmed_outbox_outcome = bool(
-                        isinstance(current_context, dict)
-                        and current_context.get("state")
-                        == "context_reply_confirmed"
-                    )
-                    if remote_phase_is_unproved or confirmed_outbox_outcome:
-                        # Once the durable phase says transport may have
-                        # started, an arbitrary local exception cannot prove a
-                        # remote non-success.  The same applies after the
-                        # outbox already holds the confirmed identity. Preserve
-                        # that exact outcome and the independent receipt/journal
-                        # barriers for local or manual reconciliation.
-                        state_name = (
-                            "confirmed_local_reconciliation_pending"
-                            if confirmed_outbox_outcome
-                            or inspect_transport_state(
-                                journal_path_for_receipt(
-                                    HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
-                                )
-                            ).classification == "confirmed_pair"
-                            else "remote_outcome_reconciliation_pending"
-                        )
-                    else:
-                        state_name = _record_context_outbox_failure(
-                            store,
-                            parent_post_id=parent_id,
-                            attempt_number=attempt_number,
-                            error=exc,
-                            failed_epoch=now_epoch(),
-                        )
-                except Exception:
-                    _set_historical_context_outbox_unavailable_reason(
-                        "outbox outcome persistence failed"
-                    )
-                    log.critical(
-                        "Could not persist historical-context outbox failure "
-                        "parent_post_id=%s; main post remains confirmed",
-                        parent_id,
-                        exc_info=True,
-                    )
-                    state_name = "outbox_persistence_failed"
+            state_name = _record_context_attempt_exception(
+                store, parent_id, attempt_number, exc,
+                HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE=HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+                _set_historical_context_outbox_unavailable_reason=(
+                    _set_historical_context_outbox_unavailable_reason
+                ),
+                inspect_transport_state=inspect_transport_state,
+                journal_path_for_receipt=journal_path_for_receipt,
+                log=log,
+                now_epoch=now_epoch,
+                record_ambiguous_remote_post=record_ambiguous_remote_post,
+            )
             log.error(
                 "Confirmed main post remains successful; auxiliary historical-context "
                 "reply failed. parent_post_id=%s state=%s error_type=%s error=%s",
@@ -534,109 +405,13 @@ def _process_due_historical_context_obligations(
                     exc_info=True,
                 )
         try:
-            durable_outbox_failure_state = result.get(
-                "durable_outbox_failure_state"
+            updated = _persist_context_attempt_result(
+                store, parent_id, context, attempt_number, result,
+                status=status,
+                failed_api_error=failed_api_error,
+                api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
+                now_epoch=now_epoch,
             )
-            if status == "failed" and type(durable_outbox_failure_state) is str:
-                updated = store.get(parent_id)
-                updated_context = (
-                    updated.get("context_reply")
-                    if isinstance(updated, dict)
-                    else None
-                )
-                if (
-                    not isinstance(updated_context, dict)
-                    or updated_context.get("state")
-                    != durable_outbox_failure_state
-                ):
-                    raise RuntimeError(
-                        "durable context outbox failure state changed after "
-                        "source-receipt retirement"
-                    )
-            elif status in {"completed", "already_completed"}:
-                reply_post_id = str(result.get("reply_post_id") or "")
-                current_after_post = store.get(parent_id)
-                current_context_after_post = (
-                    current_after_post.get("context_reply")
-                    if isinstance(current_after_post, dict)
-                    else None
-                )
-                if (
-                    isinstance(current_context_after_post, dict)
-                    and current_context_after_post.get("state")
-                    == "context_reply_confirmed"
-                    and current_context_after_post.get("reply_post_id")
-                    == reply_post_id
-                    and (
-                        status == "already_completed"
-                        or confirmed_context_outbox_matches_receipt(
-                            current_context_after_post,
-                            result,
-                        )
-                    )
-                ):
-                    updated = current_after_post
-                elif status == "already_completed":
-                    updated = store.record_confirmed(
-                        parent_id,
-                        attempt_number=attempt_number,
-                        reply_post_id=reply_post_id,
-                        confirmed_epoch=now_epoch(),
-                    )
-                else:
-                    raise RuntimeError(
-                        "completed historical-context reply lacks its durable "
-                        "outbox confirmation"
-                    )
-            elif status in {
-                "disabled",
-                "skipped_no_completed_packet",
-                "skipped_incomplete_research",
-                "skipped_future_policy",
-                "skipped_unformattable_packet",
-            }:
-                if (
-                    int(context.get("attempt_count") or 0) == 1
-                    and "previous_failure" not in context
-                ):
-                    updated = store.mark_not_required(
-                        parent_id,
-                        reason=status,
-                        decided_epoch=now_epoch(),
-                    )
-                else:
-                    state_name = _record_context_outbox_failure(
-                        store,
-                        parent_post_id=parent_id,
-                        attempt_number=attempt_number,
-                        error=f"{status} after a prior retryable context attempt",
-                        failed_epoch=now_epoch(),
-                        force_terminal=True,
-                    )
-                    updated = store.get(parent_id)
-            elif status == "failed_terminal":
-                state_name = _record_context_outbox_failure(
-                    store,
-                    parent_post_id=parent_id,
-                    attempt_number=attempt_number,
-                    error=str(result.get("reason") or status),
-                    failed_epoch=now_epoch(),
-                    force_terminal=True,
-                )
-                updated = store.get(parent_id)
-            else:
-                state_name = _record_context_outbox_failure(
-                    store,
-                    parent_post_id=parent_id,
-                    attempt_number=attempt_number,
-                    error=str(result.get("error") or f"unexpected context status: {status}"),
-                    failed_epoch=now_epoch(),
-                    force_terminal=(
-                        failed_api_error is not None
-                        and api_error_is_reply_not_allowed(failed_api_error)
-                    ),
-                )
-                updated = store.get(parent_id)
         except Exception as exc:
             _set_historical_context_outbox_unavailable_reason(
                 f"{type(exc).__name__}: {exc}"
@@ -671,6 +446,311 @@ def _process_due_historical_context_obligations(
             }
         )
     return results
+
+
+def _post_claimed_context_attempt(
+    store,
+    parent_id: str,
+    context: dict,
+    attempt_number: int,
+    *,
+    maybe_post_historical_context_reply: Any,
+    now_epoch: Any,
+) -> dict:
+    """Send one claim with callbacks bound to its parent and attempt identity."""
+    return maybe_post_historical_context_reply(
+        quote_hash=str(context["quote_id"]),
+        quote_text=str(context["quote_text"]),
+        parent_post_id=parent_id,
+        on_source_receipt_published=(
+            lambda source_sha256,
+            source_attempt_number,
+            parent_id=parent_id,
+            attempt_number=attempt_number: (
+                store.bind_attempt_source_receipt(
+                    parent_id,
+                    attempt_number=attempt_number,
+                    source_receipt_sha256=source_sha256,
+                    source_receipt_attempt_number=(
+                        source_attempt_number
+                    ),
+                )
+            )
+        ),
+        on_remote_transaction_started=(
+            lambda parent_id=parent_id, attempt_number=attempt_number: (
+                store.mark_remote_transaction_started(
+                    parent_id,
+                    attempt_number=attempt_number,
+                )
+            )
+        ),
+        on_definite_non_success=(
+            lambda error,
+            parent_id=parent_id,
+            attempt_number=attempt_number: (
+                _record_context_outbox_failure(
+                    store,
+                    parent_post_id=parent_id,
+                    attempt_number=attempt_number,
+                    error=error,
+                    failed_epoch=now_epoch(),
+                    force_terminal=attempt_number >= store.max_attempts,
+                    proved_remote_non_success=True,
+                )
+            )
+        ),
+        on_confirmed_receipt=(
+            lambda confirmed_receipt,
+            confirmation_epoch,
+            parent_id=parent_id,
+            attempt_number=attempt_number: (
+                store.record_confirmed(
+                    parent_id,
+                    attempt_number=attempt_number,
+                    reply_post_id=confirmed_receipt["reply_post_id"],
+                    confirmed_epoch=confirmation_epoch,
+                )
+            )
+        ),
+    )
+
+
+def _record_context_attempt_exception(
+    store,
+    parent_id: str,
+    attempt_number: int,
+    exc: Exception,
+    *,
+    HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE: Any,
+    _set_historical_context_outbox_unavailable_reason: Any,
+    inspect_transport_state: Any,
+    journal_path_for_receipt: Any,
+    log: Any,
+    now_epoch: Any,
+    record_ambiguous_remote_post: Any,
+) -> str:
+    """Record proved failures while preserving unproved or confirmed transport.
+
+    Re-read the durable outbox after delivery: the original claim cannot say
+    whether a failed operation already started or confirmed a remote write.
+    """
+    if type(exc).__name__ == "AmbiguousContextReplyOutcome":
+        record_ambiguous_remote_post(
+            {
+                "text": str(getattr(exc, "reply_text", "") or ""),
+                "reply": {
+                    "in_reply_to_tweet_id": str(
+                        getattr(exc, "parent_post_id", "") or parent_id
+                    )
+                },
+            }
+        )
+        state_name = "ambiguous_remote_outcome"
+    elif type(exc).__name__ == "DefiniteContextReplyLocalPersistenceError":
+        try:
+            state_name = _record_or_verify_proved_context_failure(
+                store,
+                parent_post_id=parent_id,
+                attempt_number=attempt_number,
+                error=exc,
+                failed_epoch=now_epoch(),
+            )
+        except Exception:
+            _set_historical_context_outbox_unavailable_reason(
+                "proved context outcome persistence failed"
+            )
+            log.critical(
+                "Could not preserve the exact proved historical-context "
+                "failure parent_post_id=%s",
+                parent_id,
+                exc_info=True,
+            )
+            state_name = "outbox_persistence_failed"
+    else:
+        try:
+            current_obligation = store.get(parent_id)
+            current_context = (
+                current_obligation.get("context_reply")
+                if isinstance(current_obligation, dict)
+                else None
+            )
+            remote_phase_is_unproved = bool(
+                isinstance(current_context, dict)
+                and current_context.get("state")
+                == "context_reply_attempting"
+                and current_context.get("attempt_count")
+                == attempt_number
+                and current_context.get(
+                    "remote_transaction_started"
+                )
+                is not False
+            )
+            confirmed_outbox_outcome = bool(
+                isinstance(current_context, dict)
+                and current_context.get("state")
+                == "context_reply_confirmed"
+            )
+            if remote_phase_is_unproved or confirmed_outbox_outcome:
+                # Once the durable phase says transport may have
+                # started, an arbitrary local exception cannot prove a
+                # remote non-success.  The same applies after the
+                # outbox already holds the confirmed identity. Preserve
+                # that exact outcome and the independent receipt/journal
+                # barriers for local or manual reconciliation.
+                state_name = (
+                    "confirmed_local_reconciliation_pending"
+                    if confirmed_outbox_outcome
+                    or inspect_transport_state(
+                        journal_path_for_receipt(
+                            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+                        )
+                    ).classification == "confirmed_pair"
+                    else "remote_outcome_reconciliation_pending"
+                )
+            else:
+                state_name = _record_context_outbox_failure(
+                    store,
+                    parent_post_id=parent_id,
+                    attempt_number=attempt_number,
+                    error=exc,
+                    failed_epoch=now_epoch(),
+                )
+        except Exception:
+            _set_historical_context_outbox_unavailable_reason(
+                "outbox outcome persistence failed"
+            )
+            log.critical(
+                "Could not persist historical-context outbox failure "
+                "parent_post_id=%s; main post remains confirmed",
+                parent_id,
+                exc_info=True,
+            )
+            state_name = "outbox_persistence_failed"
+    return state_name
+
+
+def _persist_context_attempt_result(
+    store,
+    parent_id: str,
+    context: dict,
+    attempt_number: int,
+    result: dict,
+    *,
+    status: str,
+    failed_api_error: Exception | None,
+    api_error_is_reply_not_allowed: Any,
+    now_epoch: Any,
+) -> dict:
+    """Apply a returned outcome only when the durable claim permits it.
+
+    Completed sends require their source-bound outbox confirmation; skipped
+    work after an earlier failure must remain a terminal failed obligation.
+    """
+    durable_outbox_failure_state = result.get(
+        "durable_outbox_failure_state"
+    )
+    if status == "failed" and type(durable_outbox_failure_state) is str:
+        updated = store.get(parent_id)
+        updated_context = (
+            updated.get("context_reply")
+            if isinstance(updated, dict)
+            else None
+        )
+        if (
+            not isinstance(updated_context, dict)
+            or updated_context.get("state")
+            != durable_outbox_failure_state
+        ):
+            raise RuntimeError(
+                "durable context outbox failure state changed after "
+                "source-receipt retirement"
+            )
+    elif status in {"completed", "already_completed"}:
+        reply_post_id = str(result.get("reply_post_id") or "")
+        current_after_post = store.get(parent_id)
+        current_context_after_post = (
+            current_after_post.get("context_reply")
+            if isinstance(current_after_post, dict)
+            else None
+        )
+        if (
+            isinstance(current_context_after_post, dict)
+            and current_context_after_post.get("state")
+            == "context_reply_confirmed"
+            and current_context_after_post.get("reply_post_id")
+            == reply_post_id
+            and (
+                status == "already_completed"
+                or confirmed_context_outbox_matches_receipt(
+                    current_context_after_post,
+                    result,
+                )
+            )
+        ):
+            updated = current_after_post
+        elif status == "already_completed":
+            updated = store.record_confirmed(
+                parent_id,
+                attempt_number=attempt_number,
+                reply_post_id=reply_post_id,
+                confirmed_epoch=now_epoch(),
+            )
+        else:
+            raise RuntimeError(
+                "completed historical-context reply lacks its durable "
+                "outbox confirmation"
+            )
+    elif status in {
+        "disabled",
+        "skipped_no_completed_packet",
+        "skipped_incomplete_research",
+        "skipped_future_policy",
+        "skipped_unformattable_packet",
+    }:
+        if (
+            int(context.get("attempt_count") or 0) == 1
+            and "previous_failure" not in context
+        ):
+            updated = store.mark_not_required(
+                parent_id,
+                reason=status,
+                decided_epoch=now_epoch(),
+            )
+        else:
+            state_name = _record_context_outbox_failure(
+                store,
+                parent_post_id=parent_id,
+                attempt_number=attempt_number,
+                error=f"{status} after a prior retryable context attempt",
+                failed_epoch=now_epoch(),
+                force_terminal=True,
+            )
+            updated = store.get(parent_id)
+    elif status == "failed_terminal":
+        state_name = _record_context_outbox_failure(
+            store,
+            parent_post_id=parent_id,
+            attempt_number=attempt_number,
+            error=str(result.get("reason") or status),
+            failed_epoch=now_epoch(),
+            force_terminal=True,
+        )
+        updated = store.get(parent_id)
+    else:
+        state_name = _record_context_outbox_failure(
+            store,
+            parent_post_id=parent_id,
+            attempt_number=attempt_number,
+            error=str(result.get("error") or f"unexpected context status: {status}"),
+            failed_epoch=now_epoch(),
+            force_terminal=(
+                failed_api_error is not None
+                and api_error_is_reply_not_allowed(failed_api_error)
+            ),
+        )
+        updated = store.get(parent_id)
+    return updated
 
 
 def safely_process_due_historical_context_obligations(
