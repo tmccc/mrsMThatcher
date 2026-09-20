@@ -20,8 +20,7 @@ from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from transaction_mutation_authority import require_transaction_mutation_authority
 
 DEPENDENCIES = {'instance_lock_abstract_socket_name': ['BASE_DIR',
-                                        'os',
-                                        'stat'],
+                                        'os'],
  'instance_lock_abstract_socket_name_for_identity': [],
  'ofd_lock_record': [],
  'descriptor_owns_exclusive_flock': ['Path', 'os'],
@@ -43,10 +42,8 @@ DEPENDENCIES = {'instance_lock_abstract_socket_name': ['BASE_DIR',
                                             '_STATE_DIR_LOCK_FD',
                                             '_STATE_DIR_LOCK_IDENTITY',
                                             'descriptor_owns_exclusive_flock',
-                                            'errno',
                                             'fcntl',
                                             'os',
-                                            'stat',
                                             'test_mode_excludes_live_remote_writes'],
  'transaction_mutation_authority': ['issue_transaction_mutation_authority',
                                     'require_instance_lock_for_remote_write']}

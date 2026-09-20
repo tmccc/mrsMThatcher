@@ -1,15 +1,17 @@
 """Instance-lock checks and mutation-authority issuance.
 
-The root supplies current runtime dependencies explicitly on each call. The
-fixed device/inode socket-name encoding is shared with offline reconciliation.
+The root supplies current runtime dependencies explicitly on each call. Fixed
+file-mode and error-number interpretation stays local, alongside the device/inode
+socket-name and OFD encodings shared with offline reconciliation.
 This module performs no runtime work at import and retains no runtime authority.
 """
 from __future__ import annotations
 
+import errno
 import hashlib
 import os
+import stat
 import struct
-
 from typing import Any
 
 
@@ -21,7 +23,6 @@ def instance_lock_abstract_socket_name(
     *,
     BASE_DIR: Any,
     os: Any,
-    stat: Any,
 ) -> bytes:
     """Return one Linux abstract-socket name bound to the state directory."""
     root = os.path.abspath(os.fspath(base_dir or BASE_DIR))
@@ -146,10 +147,8 @@ def require_instance_lock_for_remote_write(
     _STATE_DIR_LOCK_FD: Any,
     _STATE_DIR_LOCK_IDENTITY: Any,
     descriptor_owns_exclusive_flock: Any,
-    errno: Any,
     fcntl: Any,
     os: Any,
-    stat: Any,
     test_mode_excludes_live_remote_writes: Any,
 ) -> None:
     """Prove exact OFD, pathname and abstract-singleton process ownership.

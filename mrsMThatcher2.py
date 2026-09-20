@@ -899,7 +899,6 @@ def instance_lock_abstract_socket_name(base_dir: Path | None = None) -> bytes:
         base_dir,
         BASE_DIR=BASE_DIR,
         os=os,
-        stat=stat,
     )
 
 
@@ -973,10 +972,8 @@ def require_instance_lock_for_remote_write(operation: str) -> None:
         _STATE_DIR_LOCK_FD=_STATE_DIR_LOCK_FD,
         _STATE_DIR_LOCK_IDENTITY=_STATE_DIR_LOCK_IDENTITY,
         descriptor_owns_exclusive_flock=descriptor_owns_exclusive_flock,
-        errno=errno,
         fcntl=fcntl,
         os=os,
-        stat=stat,
         test_mode_excludes_live_remote_writes=test_mode_excludes_live_remote_writes,
     )
 
