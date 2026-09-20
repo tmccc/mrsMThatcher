@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
 import inspect
 from pathlib import Path
 import subprocess
@@ -15,7 +16,7 @@ from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time
+import builtins, collections.abc, dataclasses, io, logging, os, random, socket, sys, time
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -48,37 +49,72 @@ assert 'single_call_reply' not in sys.modules
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-def test_adapters_forward_current_dependencies_arguments_references_and_errors(monkeypatch):
-    for name, count in (
-        ("in_api_cooldown", 3), ("clear_expired_api_cooldowns", 2),
-        ("prune_error_epochs", 3), ("cooldown_until_for_rate_limit", 1),
-        ("record_api_error", 10),
+OWNER_INPUTS = {
+    "datetime": "datetime", "log": "log", "now_epoch": "now_epoch",
+    "error_window_seconds": "ERROR_WINDOW_SECONDS", "rate_limit_seconds": "COOLDOWN_AFTER_429_SECONDS",
+    "repeated_error_seconds": "COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS",
+    "maximum_openai_errors": "MAX_OPENAI_ERRORS_PER_WINDOW", "maximum_x_errors": "MAX_X_ERRORS_PER_WINDOW",
+    "reply_not_allowed": "api_error_is_reply_not_allowed", "save_state": "save_state",
+}
+
+
+def patch_cooldown_method(monkeypatch, method, callback):
+    """Observe an owned operation without changing its original arguments."""
+    def invoke(_owner, *args, **kwargs):
+        return callback(*args, **kwargs)
+    monkeypatch.setattr(cooldowns.ApiCooldowns, method, invoke)
+
+
+def test_owner_binds_current_dependencies_without_accessing_runtime(monkeypatch):
+    snapshots = []
+    for _ in range(2):
+        current = {field: Mock() for field in OWNER_INPUTS}
+        for field, name in OWNER_INPUTS.items():
+            monkeypatch.setattr(bot, name, current[field])
+        owner = bot._api_cooldown_owner()
+        assert isinstance(owner, cooldowns.ApiCooldowns)
+        for field, value in current.items():
+            assert getattr(owner, field) is value
+            value.assert_not_called()
+        snapshots.append((owner, current))
+    first, current = snapshots[0]
+    assert first is not snapshots[1][0]
+    assert all(getattr(first, field) is value for field, value in current.items())
+    with pytest.raises(FrozenInstanceError):
+        first.log = Mock()
+
+
+def test_adapters_keep_signatures_defaults_references_and_native_errors(monkeypatch):
+    for root_name, method in (
+        ("in_api_cooldown", "active"), ("clear_expired_api_cooldowns", "clear_expired"),
+        ("prune_error_epochs", "prune_epochs"), ("cooldown_until_for_rate_limit", "rate_limit_until"),
+        ("record_api_error", "record_error"),
     ):
-        adapter = getattr(bot, name)
-        public = inspect.signature(adapter).parameters
-        dependencies = inspect.signature(getattr(cooldowns, name)).parameters.keys() - public.keys()
-        assert len(dependencies) == count, name
-        args = tuple(object() for param in public.values() if param.kind == param.POSITIONAL_OR_KEYWORD)
-        result = object()
-        owner = Mock(return_value=result)
-        with monkeypatch.context() as patch:
-            patch.setattr(cooldowns, name, owner)
-            for options in ({}, {key: object() for key, param in public.items() if param.kind == param.KEYWORD_ONLY}):
-                current = {key: object() for key in dependencies}
-                for key, value in current.items():
-                    patch.setattr(bot, key, value)
-                assert adapter(*args, **options) is result
-                expected = {key: options.get(key, param.default) for key, param in public.items() if param.kind == param.KEYWORD_ONLY} | current
-                actual_args, actual_kwargs = owner.call_args
-                assert len(actual_args) == len(args)
-                assert all(actual is original for actual, original in zip(actual_args, args))
-                assert actual_kwargs.keys() == expected.keys()
-                assert all(actual_kwargs[key] is value for key, value in expected.items())
-            failure = TypeError("current owner failure")
-            owner.side_effect = failure
-            with pytest.raises(TypeError) as caught:
-                adapter(*args, **options)
-            assert caught.value is failure
+        adapter = getattr(bot, root_name)
+        public = inspect.signature(adapter)
+        owned = inspect.signature(getattr(cooldowns.ApiCooldowns, method))
+        assert list(public.parameters.values()) == list(owned.parameters.values())[1:]
+        assert public.return_annotation == owned.return_annotation
+        args = tuple(object() for param in public.parameters.values() if param.kind == param.POSITIONAL_OR_KEYWORD)
+        owner = Mock(spec=cooldowns.ApiCooldowns)
+        factory = Mock(return_value=owner)
+        callback = getattr(owner, method)
+        monkeypatch.setattr(bot, "_api_cooldown_owner", factory)
+        for options in ({}, {key: object() for key, param in public.parameters.items() if param.kind == param.KEYWORD_ONLY}):
+            factory.reset_mock()
+            assert adapter(*args, **options) is callback.return_value
+            expected = {key: options.get(key, param.default) for key, param in public.parameters.items() if param.kind == param.KEYWORD_ONLY}
+            actual_args, actual_kwargs = callback.call_args
+            assert len(actual_args) == len(args)
+            assert all(actual is original for actual, original in zip(actual_args, args))
+            assert actual_kwargs.keys() == expected.keys()
+            assert all(actual_kwargs[key] is value for key, value in expected.items())
+            factory.assert_called_once_with()
+        failure = TypeError("current cooldown failure")
+        callback.side_effect = failure
+        with pytest.raises(TypeError) as caught:
+            adapter(*args, **options)
+        assert caught.value is failure
 
 
 @pytest.mark.parametrize("scope,prefix,label", [
@@ -190,7 +226,7 @@ def test_terminal_classification_precedes_clock_and_unknown_service_fails_after_
     trace.classify.return_value = True
     monkeypatch.setattr(bot, "api_error_is_reply_not_allowed", trace.classify)
     monkeypatch.setattr(bot, "now_epoch", trace.clock)
-    monkeypatch.setattr(bot, "prune_error_epochs", trace.prune)
+    patch_cooldown_method(monkeypatch, "prune_epochs", trace.prune)
     monkeypatch.setattr(bot, "log", trace.log)
     monkeypatch.setattr(bot, "save_state", trace.save)
     state, error = {}, RuntimeError("restriction")
@@ -212,7 +248,7 @@ def test_record_assigns_current_prune_list_before_diagnostic_failure(monkeypatch
     trace.clock.return_value = 1000
     trace.prune.return_value = retained
     monkeypatch.setattr(bot, "now_epoch", trace.clock)
-    monkeypatch.setattr(bot, "prune_error_epochs", trace.prune)
+    patch_cooldown_method(monkeypatch, "prune_epochs", trace.prune)
     monkeypatch.setattr(bot, "log", trace.log)
     monkeypatch.setattr(bot, "save_state", trace.save)
     failure = RuntimeError("diagnostic property failed")
@@ -268,7 +304,9 @@ def test_diagnostic_warning_precedes_rate_limit_and_save_failure_keeps_mutated_s
     trace.prune.return_value = []
     trace.rate_limit.return_value = 2222
     trace.datetime.fromtimestamp.return_value.strftime.return_value = "local time"
-    for name, value in {"now_epoch": trace.clock, "prune_error_epochs": trace.prune, "cooldown_until_for_rate_limit": trace.rate_limit,
+    patch_cooldown_method(monkeypatch, "prune_epochs", trace.prune)
+    patch_cooldown_method(monkeypatch, "rate_limit_until", trace.rate_limit)
+    for name, value in {"now_epoch": trace.clock,
                         "datetime": trace.datetime, "log": trace.log, "save_state": trace.save, "MAX_OPENAI_ERRORS_PER_WINDOW": 1}.items():
         monkeypatch.setattr(bot, name, value)
     state, reset, diagnostic = {}, object(), object()

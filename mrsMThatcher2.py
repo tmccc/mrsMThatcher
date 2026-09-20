@@ -3091,24 +3091,30 @@ def valid_tweets_sorted_by_id(tweets: list[dict], *, context: str) -> list[dict]
     return [tweet for _, tweet in sorted(valid, key=lambda item: item[0])]
 
 
-def in_api_cooldown(state: dict, *, scope: str = "api") -> bool:
-    """Return the in API cooldown."""
-    return _api_cooldowns.in_api_cooldown(
-        state,
-        scope=scope,
+def _api_cooldown_owner() -> _api_cooldowns.ApiCooldowns:
+    """Bind current cooldown policy without reading clocks or caller state."""
+    return _api_cooldowns.ApiCooldowns(
         datetime=datetime,
         log=log,
         now_epoch=now_epoch,
+        error_window_seconds=ERROR_WINDOW_SECONDS,
+        rate_limit_seconds=COOLDOWN_AFTER_429_SECONDS,
+        repeated_error_seconds=COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS,
+        maximum_openai_errors=MAX_OPENAI_ERRORS_PER_WINDOW,
+        maximum_x_errors=MAX_X_ERRORS_PER_WINDOW,
+        reply_not_allowed=api_error_is_reply_not_allowed,
+        save_state=save_state,
     )
+
+
+def in_api_cooldown(state: dict, *, scope: str = "api") -> bool:
+    """Return the in API cooldown."""
+    return _api_cooldown_owner().active(state, scope=scope)
 
 
 def clear_expired_api_cooldowns(state: dict) -> bool:
     """Clear expired API cooldowns."""
-    return _api_cooldowns.clear_expired_api_cooldowns(
-        state,
-        log=log,
-        now_epoch=now_epoch,
-    )
+    return _api_cooldown_owner().clear_expired(state)
 
 
 def sanitize_next_reply_lane_priority(state: dict) -> bool:
@@ -3130,41 +3136,17 @@ def load_runtime_state() -> dict:
 
 def prune_error_epochs(epochs: list[int]) -> list[int]:
     """Prune error epochs."""
-    return _api_cooldowns.prune_error_epochs(
-        epochs,
-        ERROR_WINDOW_SECONDS=ERROR_WINDOW_SECONDS,
-        log=log,
-        now_epoch=now_epoch,
-    )
+    return _api_cooldown_owner().prune_epochs(epochs)
 
 
 def cooldown_until_for_rate_limit(current: int, reset_epoch: int | None) -> int:
     """Return the cooldown until for rate limit."""
-    return _api_cooldowns.cooldown_until_for_rate_limit(
-        current,
-        reset_epoch,
-        COOLDOWN_AFTER_429_SECONDS=COOLDOWN_AFTER_429_SECONDS,
-    )
+    return _api_cooldown_owner().rate_limit_until(current, reset_epoch)
 
 
 def record_api_error(state: dict, error: Exception, service: str, *, scope: str = "api") -> None:
     """Record API error."""
-    return _api_cooldowns.record_api_error(
-        state,
-        error,
-        service,
-        scope=scope,
-        COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS=COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS,
-        MAX_OPENAI_ERRORS_PER_WINDOW=MAX_OPENAI_ERRORS_PER_WINDOW,
-        MAX_X_ERRORS_PER_WINDOW=MAX_X_ERRORS_PER_WINDOW,
-        api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
-        cooldown_until_for_rate_limit=cooldown_until_for_rate_limit,
-        datetime=datetime,
-        log=log,
-        now_epoch=now_epoch,
-        prune_error_epochs=prune_error_epochs,
-        save_state=save_state,
-    )
+    return _api_cooldown_owner().record_error(state, error, service, scope=scope)
 
 
 # ---------------------------------------------------------------------

@@ -40,6 +40,7 @@ need. A recovered draft can bypass model evaluation.
 | Watched and recent original selection | `QuoteWatchPosts` in [mrs_bot_quote_discovery.py](../mrs_bot_quote_discovery.py) |
 | Verified normal context and two-turn quote context | `ReplyContext.build` and `build_quote` in [mrs_bot_reply_context.py](../mrs_bot_reply_context.py) |
 | Native photo selection, retrieval and byte validation | `ReplyMedia` in [mrs_bot_reply_native_media.py](../mrs_bot_reply_native_media.py) |
+| Read, write, quote and provider cooldowns | `ApiCooldowns` in [mrs_bot_api_cooldowns.py](../mrs_bot_api_cooldowns.py) |
 | Bounded model requests and retry/error metadata | `ReplyModelTransport` in [mrs_bot_reply_model_transport.py](../mrs_bot_reply_model_transport.py) |
 | Reply evaluation, local validation and outcome accounting | `ReplyGeneration` in [mrs_bot_reply_generation.py](../mrs_bot_reply_generation.py), then [single_call_reply.py](../single_call_reply.py) |
 | Pending-draft validation, storage, recovery, clearing and receipt-draft checks | `ReplyDrafts` in [mrs_bot_reply_drafts.py](../mrs_bot_reply_drafts.py) |
