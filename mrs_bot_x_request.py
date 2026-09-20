@@ -1,8 +1,10 @@
 """Authenticated X request execution and response handling.
 
 Fixed JSON parsing, path values and exception inspection use local standard
-library operations. The root supplies current runtime dependencies and its collected request kwargs
-explicitly on each call. Importing this module performs no runtime work and
+library operations. Private validation steps keep route/authority agreement and
+exact media-body checks explicit before transport authority is consumed. The
+root supplies current runtime dependencies and collected request kwargs on each
+call. Importing this module performs no runtime work and
 retains no runtime authority.
 """
 from __future__ import annotations
@@ -16,7 +18,6 @@ from mrs_bot_post_creation import (
     media_upload_payload_metadata,
     validate_media_upload_payload_metadata,
 )
-
 from mrs_bot_x_response_diagnostics import raise_x_create_anomaly_outcome
 from mrs_bot_request_route_values import exact_x_create_route
 
@@ -117,6 +118,60 @@ def _classify_request_authority(
             request_path=path,
         )
     return is_post_create, is_media_upload, method_upper
+
+
+def _validated_media_request(
+    kwargs: dict,
+    payload: object,
+    supplied_metadata: object,
+    *,
+    method: str,
+    path: str,
+    ReceiptBoundMediaPayload: type,
+    AmbiguousRemotePostOutcome: type[Exception],
+) -> tuple[tuple, dict]:
+    """Validate exact multipart values and metadata before consuming authority."""
+    files = kwargs.get("files")
+    form = kwargs.get("data")
+    media_part = files.get("media") if isinstance(files, dict) else None
+    if (
+        not isinstance(media_part, tuple)
+        or len(media_part) != 3
+        or not isinstance(media_part[0], str)
+        or type(media_part[1]) is not bytes
+        or not isinstance(media_part[2], str)
+        or not isinstance(form, dict)
+        or not isinstance(payload, ReceiptBoundMediaPayload)
+        or media_part
+        != (
+            payload.basename,
+            payload.data,
+            payload.mime_type,
+        )
+    ):
+        raise AmbiguousRemotePostOutcome(
+            "X media upload request is not an exact bound multipart payload",
+            service="x",
+            request_method=method,
+            request_path=path,
+        )
+    try:
+        receipt_payload_metadata = (
+            media_upload_payload_metadata(form)
+            if supplied_metadata is None
+            else validate_media_upload_payload_metadata(
+                supplied_metadata,
+                form=form,
+            )
+        )
+    except (TypeError, ValueError) as exc:
+        raise AmbiguousRemotePostOutcome(
+            "X media upload receipt metadata does not match its exact form",
+            service="x",
+            request_method=method,
+            request_path=path,
+        ) from exc
+    return media_part, receipt_payload_metadata
 
 
 def x_request(
@@ -268,46 +323,15 @@ def x_request(
             request_path=path,
         )
     if is_media_upload:
-        files = kwargs.get("files")
-        form = kwargs.get("data")
-        media_part = files.get("media") if isinstance(files, dict) else None
-        if (
-            not isinstance(media_part, tuple)
-            or len(media_part) != 3
-            or not isinstance(media_part[0], str)
-            or type(media_part[1]) is not bytes
-            or not isinstance(media_part[2], str)
-            or not isinstance(form, dict)
-            or not isinstance(_remote_media_payload, ReceiptBoundMediaPayload)
-            or media_part
-            != (
-                _remote_media_payload.basename,
-                _remote_media_payload.data,
-                _remote_media_payload.mime_type,
-            )
-        ):
-            raise AmbiguousRemotePostOutcome(
-                "X media upload request is not an exact bound multipart payload",
-                service="x",
-                request_method=method,
-                request_path=path,
-            )
-        try:
-            receipt_payload_metadata = (
-                media_upload_payload_metadata(form)
-                if _remote_media_payload_metadata is None
-                else validate_media_upload_payload_metadata(
-                    _remote_media_payload_metadata,
-                    form=form,
-                )
-            )
-        except (TypeError, ValueError) as exc:
-            raise AmbiguousRemotePostOutcome(
-                "X media upload receipt metadata does not match its exact form",
-                service="x",
-                request_method=method,
-                request_path=path,
-            ) from exc
+        media_part, receipt_payload_metadata = _validated_media_request(
+            kwargs,
+            _remote_media_payload,
+            _remote_media_payload_metadata,
+            method=method,
+            path=path,
+            ReceiptBoundMediaPayload=ReceiptBoundMediaPayload,
+            AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
+        )
         try:
             block_if_unrelated_receipt_appeared_for_media_transport()
             consume_media_upload_authority(

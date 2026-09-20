@@ -53,7 +53,6 @@ def _completion_case(lane, *, fail_at=None, failure=None):
                 posted_id="950001", quote_post_epoch=100, quote_schedule_fields={},
                 meme_schedule_fields={}, tweet="text", receipt=receipt, line_no=1,
                 image_no=2, image_choice=image_choice, canonical_quote_text="canonical",
-                apply_state_fields=Mock(),
                 cache_tweet=Mock(), MY_USER_ID="123", record_recent_own_post=Mock(),
                 ConfirmedPostLocalPersistenceError=LocalPersistenceError, **common,
             )

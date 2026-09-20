@@ -1,9 +1,10 @@
 """Own durable mention queue authority and normalization.
 
-A fresh MentionAuthority binds current paths, caps, diagnostics and external
-ID/provenance/terminal checks for each root invocation. Validation calls owned
-normalizers and recovery reporting directly; pure guard/reset root aliases
-remain local primitives. No caller state is retained and no saves are added.
+A fresh MentionAuthority binds current paths, caps and diagnostics for each
+root invocation. ID parsing and terminal lookup use their inert owners directly;
+continuation grammar, normalization and recovery reporting are owned here.
+Pure guard/reset root aliases remain local primitives. No caller state is
+retained and no saves are added.
 
 Strict validation, partial mutation and recovery ordering, shallow pending
 copies, guard references and exact page ownership stay unchanged. Discovery,

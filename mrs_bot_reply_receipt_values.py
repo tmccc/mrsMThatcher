@@ -1,7 +1,8 @@
 """Own conversational reply receipt validation and in-memory projections.
 
-ReplyReceiptValues binds current identity, draft and time boundaries without
-retaining caller state; canonical receipt encoding comes from its inert owner.
+ReplyReceiptValues binds current draft, time and error boundaries without
+retaining caller state. Fixed identity checks, continuation grammar and
+canonical receipt encoding come directly from their inert owners.
 Current and frozen recovery validation dispatch through owned methods,
 preserving shallow references, source lineage, timing rules and exact exception
 scopes. Durable receipt I/O, retirement authority and confirmed-state application
@@ -17,7 +18,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from mrs_bot_mention_authority import mention_pagination_provenance_is_valid
-
 from mrs_bot_durable_json_io import canonical_atomic_json_bytes
 from mrs_bot_receipt_primitives import receipt_int, valid_string_post_id
 from mrs_bot_legacy_reply_validation import (

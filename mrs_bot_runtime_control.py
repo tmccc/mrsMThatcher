@@ -21,7 +21,6 @@ from pathlib import Path
 from types import ModuleType
 
 from mrs_bot_local_config import load_strict_runtime_json
-
 from runtime_control_contract import (
     CONTROL_ALLOWED_KEYS,
     CONTROL_BOOLEAN_KEYS,

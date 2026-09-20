@@ -8,10 +8,12 @@ mutation, callback, reference and error order, including source
 lineage before state application and durable state saving before journal
 retirement and receipt removal.
 
-Mention authority, receipt I/O, transport journals, persistence and posting
-remain in their existing owners and use current root callbacks. Receipt values
-use the supplied owner directly. Import uses the standard library and inert state owners, and
-performs no file, environment, provider or RNG work; no callbacks are retained.
+Fixed mention continuation grammar comes directly from its owner; canonical
+page ownership and recovery reporting retain current callbacks. Receipt I/O,
+transport journals, persistence and posting keep their existing boundaries.
+Receipt values use the supplied owner directly. Import uses the standard library
+and inert state owners, with no file, environment, provider or RNG work;
+no callbacks are retained.
 """
 
 from __future__ import annotations
