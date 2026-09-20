@@ -238,3 +238,51 @@ def test_migration_failure_precedes_post_load_maintenance(monkeypatch):
         bot.load_runtime_state()
     assert caught.value is failure
     maintenance.assert_not_called()
+
+
+@pytest.mark.parametrize("repair_pending_identity", [False, True])
+@pytest.mark.parametrize("conflicting", [False, True])
+def test_generation_selection_has_one_collision_and_tie_rule_before_repairs(
+    monkeypatch, repair_pending_identity, conflicting,
+):
+    from mrs_bot_state_generation import encode_generation
+
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 2)
+    paths = [bot.STATE_FILE] + [
+        bot.STATE_FILE.with_name(f"{bot.STATE_FILE.name}.bak{i}") for i in (1, 2)
+    ]
+    documents = {}
+    for index, path in enumerate(paths):
+        state = bot.state_document_for_persistence({"extension": "different" if conflicting and index == 2 else "same"})
+        _, data = encode_generation(state, 1 if index == 0 else 3, bot.DURABLE_RUNTIME_JSON_MAX_BYTES)
+        documents[path] = data
+    reads, normalized = [], {}
+
+    def read_candidate(path):
+        reads.append(path)
+        return True, documents[path]
+
+    def normalize(candidate, *, path, recovery_events, recover_pending_identity):
+        if repair_pending_identity and not recover_pending_identity:
+            return None
+        if repair_pending_identity:
+            recovery_events.append({"reason": "orphaned_pending_candidates", "discarded_candidates": 1})
+        normalized[path] = candidate
+        return candidate
+
+    save, event = Mock(), Mock()
+    monkeypatch.setattr(bot, "read_stable_owned_json_bytes_no_follow", read_candidate)
+    monkeypatch.setattr(bot, "normalise_state_candidate", normalize)
+    monkeypatch.setattr(bot, "save_state", save)
+    monkeypatch.setattr(bot, "log_event", event)
+    if conflicting:
+        with pytest.raises(RuntimeError, match="^conflicting state generation identities; refusing to guess$"):
+            bot.load_state()
+        save.assert_not_called()
+        event.assert_not_called()
+    else:
+        result = bot.load_state()
+        assert result is normalized[paths[1]]
+        save.assert_called_once_with(result, durable=True)
+        assert event.call_count == int(repair_pending_identity)
+    assert reads == paths * (2 if repair_pending_identity else 1)

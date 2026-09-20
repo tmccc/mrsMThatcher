@@ -13,6 +13,20 @@ from pathlib import Path
 from types import ModuleType
 
 
+def _select_latest_generation(
+    candidates: dict[Path, dict],
+    generations: dict[Path, tuple[int, bytes]],
+) -> Path:
+    """Select the newest replica only after every sequence has one exact identity."""
+    identities: dict[int, bytes] = {}
+    for candidate in candidates:
+        sequence, encoded = generations[candidate]
+        if sequence in identities and identities[sequence] != encoded:
+            raise RuntimeError('conflicting state generation identities; refusing to guess')
+        identities[sequence] = encoded
+    return max(candidates, key=lambda path: generations[path][0])
+
+
 def load_state(
     *,
     STATE_BACKUP_COUNT: int,
@@ -188,13 +202,7 @@ def load_state(
         if recovered is not None and candidate_generations[candidate][0]:
             modern[candidate] = recovered
     if modern:
-        sequences: dict[int, bytes] = {}
-        for candidate in modern:
-            sequence, encoded = candidate_generations[candidate]
-            if sequence in sequences and sequences[sequence] != encoded:
-                raise RuntimeError('conflicting state generation identities; refusing to guess')
-            sequences[sequence] = encoded
-        selected = max(modern, key=lambda path: candidate_generations[path][0])
+        selected = _select_latest_generation(modern, candidate_generations)
         recovered = modern[selected]
         sequence, encoded = candidate_generations[selected]
         repair = selected != STATE_FILE or bool(candidate_recoveries.get(selected))
@@ -258,13 +266,7 @@ def load_state(
             if candidate_generations[candidate][0]
         }
         if modern_repairable:
-            sequences = {}
-            for candidate in modern_repairable:
-                sequence, encoded = candidate_generations[candidate]
-                if sequence in sequences and sequences[sequence] != encoded:
-                    raise RuntimeError('conflicting state generation identities; refusing to guess')
-                sequences[sequence] = encoded
-            candidate = max(modern_repairable, key=lambda path: candidate_generations[path][0])
+            candidate = _select_latest_generation(modern_repairable, candidate_generations)
             recovered = modern_repairable[candidate]
         else:
             require_unambiguous_legacy_documents(repairable_candidates, STATE_FILE)
