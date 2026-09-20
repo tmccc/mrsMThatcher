@@ -66,7 +66,7 @@ assert scoring.visual_energy_score('high', 'low') == -8.0
     assert bot.mm_dd_in_window is scoring.mm_dd_in_window
 
 
-def test_tokens_use_current_stopwords_and_root_regex_operations(monkeypatch):
+def test_tokens_use_current_stopwords_and_owned_regex_operations(monkeypatch):
     stopwords = {"military"}
     monkeypatch.setattr(bot, "TOKEN_STOPWORDS", stopwords)
     assert bot.meaningful_tokens("military crowds") == {"crowds"}
@@ -85,7 +85,8 @@ def test_tokens_use_current_stopwords_and_root_regex_operations(monkeypatch):
         calls.append((pattern, value))
         return ["patched"]
 
-    monkeypatch.setattr(bot, "re", SimpleNamespace(sub=sub, findall=findall))
+    assert bot.normalise_tag is scoring.normalise_tag
+    monkeypatch.setattr(scoring, "re", SimpleNamespace(sub=sub, findall=findall))
     assert bot.normalise_tag("  Mixed Tag  ") == "patched"
     assert bot.meaningful_tokens("  MiXeD  ") == {"patched"}
     assert calls == [
@@ -124,7 +125,7 @@ def test_phrase_helpers_use_current_root_callbacks_and_keep_round_vs_ceil(monkey
     assert calls == [phrase, text]
 
 
-def test_idf_and_score_use_owned_list_and_current_tag_helpers(monkeypatch):
+def test_idf_and_score_use_owned_list_and_tag_helpers(monkeypatch):
     marker = object()
     original_list, original_tag = bot.as_string_list, bot.normalise_tag
     seen = []
@@ -142,7 +143,7 @@ def test_idf_and_score_use_owned_list_and_current_tag_helpers(monkeypatch):
         return original_tag(value)
 
     monkeypatch.setattr(scoring, "as_string_list", as_list)
-    monkeypatch.setattr(bot, "normalise_tag", tag)
+    monkeypatch.setattr(scoring, "normalise_tag", tag)
     image = {"themes": marker}
     assert bot.build_image_topic_idf({"items": {"one": {"analysis": image}}}) == {
         "freedom": 1.0 + (1 / 2) ** 0.5,
@@ -219,7 +220,7 @@ def test_score_keeps_owned_values_current_matching_callbacks_and_penalty(monkeyp
         assert calls == ["scene", "event", "strong"]
 
 
-def test_season_keeps_current_tags_owned_window_and_christmas_precedence(monkeypatch):
+def test_season_keeps_owned_tags_window_and_christmas_precedence(monkeypatch):
     marker = object()
     calls = []
     image = {"seasonality": {
@@ -240,7 +241,7 @@ def test_season_keeps_current_tags_owned_window_and_christmas_precedence(monkeyp
         return True
 
     monkeypatch.setattr(scoring, "as_string_list", as_list)
-    monkeypatch.setattr(bot, "normalise_tag", tag)
+    monkeypatch.setattr(scoring, "normalise_tag", tag)
     monkeypatch.setattr(scoring, "mm_dd_in_window", window)
     assert bot.image_is_out_of_season(image, "12-20") is False
     assert calls == [("12-20", "12-10", "12-28")]
@@ -250,10 +251,9 @@ def test_season_keeps_current_tags_owned_window_and_christmas_precedence(monkeyp
 
 @pytest.mark.parametrize("name, arguments, dependencies", [
     ("image_text_corpus", ({},), {}),
-    ("build_image_topic_idf", ({},), {"normalise_tag": "normalise_tag"}),
-    ("image_is_out_of_season", ({}, "12-20"), {"normalise_tag": "normalise_tag"}),
+    ("build_image_topic_idf", ({},), {}),
+    ("image_is_out_of_season", ({}, "12-20"), {}),
     ("score_image_for_quote", ({}, {}, {}), {
-        "normalise_tag": "normalise_tag",
         "phrase_matches_text": "phrase_matches_text",
         "hard_mismatch_phrase_matches_text": "hard_mismatch_phrase_matches_text",
         "strong_mismatch_penalty": "IMAGE_STRONG_MISMATCH_PENALTY",

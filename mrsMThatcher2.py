@@ -6265,13 +6265,9 @@ def load_image_used_basenames(images: list[str]) -> set:
     return _used_history_owner().load_image_used_basenames(images)
 
 
-# Keep the public helper API here; resolve configuration and sibling helpers
-# at each call so runtime overrides and root monkeypatches remain effective.
-def normalise_tag(value: object) -> str:
-    """Normalise tag."""
-    return _image_scoring.normalise_tag(
-        value, re_sub=re.sub,
-    )
+# Keep the public helper API here; resolve runtime token and phrase policy
+# at each call while fixed tag transformations use their owner directly.
+normalise_tag = _image_scoring.normalise_tag
 
 
 as_string_list = _image_scoring.as_string_list
@@ -6281,7 +6277,6 @@ def meaningful_tokens(value: object) -> set[str]:
     """Return the meaningful tokens."""
     return _image_scoring.meaningful_tokens(
         value,
-        re_findall=re.findall,
         token_stopwords=TOKEN_STOPWORDS,
     )
 
@@ -6316,7 +6311,6 @@ def build_image_topic_idf(image_analysis: dict | None) -> dict[str, float]:
     """Build image topic idf."""
     return _image_scoring.build_image_topic_idf(
         image_analysis,
-        normalise_tag=normalise_tag,
     )
 
 
@@ -6327,7 +6321,6 @@ def image_is_out_of_season(image_analysis: dict, today_mm_dd: str) -> bool:
     """Return whether image is out of season."""
     return _image_scoring.image_is_out_of_season(
         image_analysis, today_mm_dd,
-        normalise_tag=normalise_tag,
     )
 
 
@@ -6335,7 +6328,6 @@ def score_image_for_quote(quote_analysis: dict | None, image_analysis: dict | No
     """Calculate the production image score and component breakdown for a quotation."""
     return _image_scoring.score_image_for_quote(
         quote_analysis, image_analysis, idf,
-        normalise_tag=normalise_tag,
         phrase_matches_text=phrase_matches_text,
         hard_mismatch_phrase_matches_text=hard_mismatch_phrase_matches_text,
         strong_mismatch_penalty=IMAGE_STRONG_MISMATCH_PENALTY,

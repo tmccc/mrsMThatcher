@@ -1,13 +1,14 @@
 """Score quotation/image matches using explicit coordinator dependencies.
 
-Fixed list, visual-energy, text-corpus and calendar-window values use their
-inert owner implementations directly. The bot supplies current tag/phrase
+Fixed regex, tag, list, visual-energy, text-corpus and calendar-window values
+use their inert owner implementations directly. The bot supplies current phrase
 callbacks, mutable token policy and mismatch penalties at their existing call
 boundaries. This module performs no I/O and retains no callbacks or caller data.
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 
 from mrs_bot_quote_candidates import mm_dd_in_window
@@ -15,11 +16,9 @@ from mrs_bot_quote_candidates import mm_dd_in_window
 
 def normalise_tag(
     value: object,
-    *,
-    re_sub: Callable[..., str],
 ) -> str:
     """Normalise tag."""
-    return re_sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower()).strip("_")
+    return re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower()).strip("_")
 
 
 def as_string_list(value: object) -> list[str]:
@@ -34,11 +33,10 @@ def as_string_list(value: object) -> list[str]:
 def meaningful_tokens(
     value: object,
     *,
-    re_findall: Callable[..., list[str]],
     token_stopwords: set[str],
 ) -> set[str]:
     """Return the meaningful tokens."""
-    words = re_findall(r"[a-z0-9]+", str(value or "").lower())
+    words = re.findall(r"[a-z0-9]+", str(value or "").lower())
     return {word for word in words if len(word) >= 4 and word not in token_stopwords}
 
 
@@ -115,8 +113,6 @@ def image_text_corpus(image_analysis: dict) -> str:
 
 def build_image_topic_idf(
     image_analysis: dict | None,
-    *,
-    normalise_tag: Callable[[object], str],
 ) -> dict[str, float]:
     """Build image topic idf."""
     if not isinstance(image_analysis, dict):
@@ -157,8 +153,6 @@ def visual_energy_score(quote_energy: str, image_energy: str) -> float:
 def image_is_out_of_season(
     image_analysis: dict,
     today_mm_dd: str,
-    *,
-    normalise_tag: Callable[[object], str],
 ) -> bool:
     """Return whether image is out of season."""
     seasonality = image_analysis.get("seasonality", {})
@@ -184,7 +178,6 @@ def score_image_for_quote(
     image_analysis: dict | None,
     idf: dict[str, float] | None = None,
     *,
-    normalise_tag: Callable[[object], str],
     phrase_matches_text: Callable[[str, str], bool],
     hard_mismatch_phrase_matches_text: Callable[[str, str], bool],
     strong_mismatch_penalty: float,
