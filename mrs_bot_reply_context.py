@@ -1,8 +1,10 @@
 """Own verified parent paths and prepared normal and quote reply contexts.
 
-ReplyContext binds current lookup, validation, media, clock and policy boundaries
-without retaining caller state. Parent traversal, quote selection, structural
-admission, usable parent-suffix projection and canonical assembly call owned methods.
+ReplyContext receives the lookup/cache owner and current validation, media, clock
+and policy boundaries without retaining caller state. Parent and quote lookup
+call that owner directly, including cache pruning. Parent traversal, quote selection,
+structural admission, usable parent-suffix projection and canonical assembly call
+owned methods.
 Text cleanup uses local pure helpers. Cache sharing, lookup budgets, media
 preparation order, copy boundaries and diagnostic hashes retain their existing
 semantics. Import and construction perform no file, environment, clock, provider
@@ -22,7 +24,7 @@ from datetime import timezone
 from logging import Logger
 
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
-from mrs_bot_tweet_lookup_cache import tweet_text_is_complete
+from mrs_bot_tweet_lookup_cache import TweetLookupCache, tweet_text_is_complete
 
 
 def clean_text_for_reply_context(text: str) -> str:
@@ -87,10 +89,9 @@ class ReplyContext:
     maximum_parent_depth: int
     maximum_parent_network_fetches: int
     is_permanent_target_failure: Callable
-    get_tweet_by_id_cached: Callable
+    tweets: TweetLookupCache
     log: Logger
     log_json_debug: Callable
-    prune_tweet_cache: Callable
     user_id: str
     parse_x_datetime_to_epoch: Callable
     always_fetch_parent: bool
@@ -129,7 +130,7 @@ class ReplyContext:
         network_fetches = 0
 
         parent_id = self.parent_id(mention)
-        self.prune_tweet_cache(state)
+        self.tweets.prune(state)
 
         while parent_id and len(chain) < self.maximum_parent_depth:
             if parent_id in seen_ids:
@@ -153,7 +154,7 @@ class ReplyContext:
                 network_fetches += 1
 
             try:
-                parent = self.get_tweet_by_id_cached(parent_id, state)
+                parent = self.tweets.get_cached(parent_id, state)
             except self.api_error as exc:
                 if self.is_permanent_target_failure(exc):
                     self.log.warning(
@@ -267,7 +268,7 @@ class ReplyContext:
             if not quoted_id:
                 continue
             try:
-                quoted = self.get_tweet_by_id_cached(
+                quoted = self.tweets.get_cached(
                     quoted_id,
                     state,
                     # Parent-cache records omit native attachment expansions.  A

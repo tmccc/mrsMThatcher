@@ -16,9 +16,10 @@ import pytest
 
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 import mrs_bot_reply_context as reply_context
+from mrs_bot_tweet_lookup_cache import TweetLookupCache
 from tests.helpers.bot_runtime import SCENARIOS, bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
-from tests.helpers.reply_fixtures import patch_reply_context_method
+from tests.helpers.reply_fixtures import patch_reply_context_method, patch_tweet_lookup_method
 from tests.fake_api_server import load_scenario
 
 
@@ -62,9 +63,8 @@ OWNER_INPUTS = {
     "maximum_parent_depth": "THREAD_CONTEXT_MAX_DEPTH",
     "maximum_parent_network_fetches": "THREAD_CONTEXT_MAX_NETWORK_FETCHES",
     "is_permanent_target_failure": "api_error_is_permanent_target_failure",
-    "get_tweet_by_id_cached": "get_tweet_by_id_cached",
     "log": "log", "log_json_debug": "log_json_debug",
-    "prune_tweet_cache": "prune_tweet_cache", "user_id": "MY_USER_ID",
+    "user_id": "MY_USER_ID",
     "parse_x_datetime_to_epoch": "parse_x_datetime_to_epoch",
     "always_fetch_parent": "ALWAYS_FETCH_PARENT_FOR_CONTEXT",
     "context_validation_error": "ContextValidationError",
@@ -83,6 +83,7 @@ def make_owner():
     def build(**overrides):
         current = {field: getattr(bot, name) for field, name in OWNER_INPUTS.items()}
         current["default_post_maximum_chars"] = inspect.signature(bot._reply_context_post).parameters["maximum_chars"].default
+        current["tweets"] = bot._tweet_lookup_cache_owner()
         return reply_context.ReplyContext(**{**current, **overrides})
     return build
 
@@ -90,22 +91,30 @@ def make_owner():
 def test_owner_composition_binds_current_dependencies_without_calling_them(monkeypatch):
     default = inspect.signature(bot._reply_context_post).parameters["maximum_chars"].default
     parameters = inspect.signature(reply_context.ReplyContext).parameters
-    assert len(parameters) == 20
-    assert parameters.keys() == OWNER_INPUTS.keys() | {"default_post_maximum_chars"}
+    assert len(parameters) == 19
+    assert parameters.keys() == OWNER_INPUTS.keys() | {"default_post_maximum_chars", "tweets"}
+    assert {"get_tweet_by_id_cached", "prune_tweet_cache"}.isdisjoint(parameters)
     snapshots = []
     for _ in range(2):
         current = {field: Mock() for field in OWNER_INPUTS}
         for field, name in OWNER_INPUTS.items():
             monkeypatch.setattr(bot, name, current[field])
+        tweets = Mock(spec=TweetLookupCache)
+        factory = Mock(return_value=tweets)
+        monkeypatch.setattr(bot, "_tweet_lookup_cache_owner", factory)
         owner = bot._reply_context_owner()
+        factory.assert_called_once_with()
+        assert owner.tweets is tweets
+        assert tweets.mock_calls == []
         assert isinstance(owner, reply_context.ReplyContext)
         assert owner.default_post_maximum_chars == default
         for field, value in current.items():
             assert getattr(owner, field) is value
             value.assert_not_called()
-        snapshots.append((owner, current))
+        snapshots.append((owner, {**current, "tweets": tweets}))
     first, values = snapshots[0]
     assert first is not snapshots[1][0]
+    assert first.tweets is not snapshots[1][0].tweets
     assert all(getattr(first, field) is value for field, value in values.items())
     with pytest.raises(FrozenInstanceError):
         first.user_id = "different"
@@ -129,6 +138,13 @@ def test_adapters_preserve_defaults_argument_result_identity_and_native_errors(m
         if method_name == "build_quote":
             assert tuple(public) == ("original_tweet", "quote_tweet")
             assert all(param.kind is param.POSITIONAL_OR_KEYWORD for param in public.values())
+        elif method_name in {"build", "parent_chain"}:
+            assert tuple(public) == ("mention", "state")
+            assert all(param.kind is param.POSITIONAL_OR_KEYWORD for param in public.values())
+        elif method_name == "directly_quoted_tweet":
+            assert tuple(public) == ("candidate", "state", "include_media")
+            assert public["include_media"].kind is inspect.Parameter.KEYWORD_ONLY
+            assert public["include_media"].default is True
         args = tuple(object() for param in public.values() if param.kind == param.POSITIONAL_OR_KEYWORD)
         for use_defaults in (True, False):
             owner = Mock(spec=reply_context.ReplyContext)
@@ -266,7 +282,7 @@ def test_parent_chain_keeps_current_callback_order_and_original_parent_reference
     trace = Mock()
     trace.lookup.side_effect = [parent, root]
     owner = make_owner(
-        prune_tweet_cache=trace.prune, get_tweet_by_id_cached=trace.lookup,
+        tweets=Mock(spec=TweetLookupCache, prune=trace.prune, get_cached=trace.lookup),
         log_json_debug=trace.debug, maximum_parent_depth=2,
         maximum_parent_network_fetches=1,
     )
@@ -290,13 +306,75 @@ def test_parent_chain_keeps_current_callback_order_and_original_parent_reference
     trace.lookup.assert_not_called()
 
 
+def test_context_lookup_handoff_bounds_parent_reads_and_refreshes_quoted_media(monkeypatch):
+    """Traverse real cache operations and quoted-media refresh without root relays."""
+    monkeypatch.setattr(bot, "now_epoch", lambda: 100)
+    monkeypatch.setattr(bot, "TWEET_CACHE_MAX_AGE_SECONDS", 10)
+    monkeypatch.setattr(bot, "THREAD_CONTEXT_MAX_DEPTH", 3)
+    monkeypatch.setattr(bot, "THREAD_CONTEXT_MAX_NETWORK_FETCHES", 1)
+    parent = {
+        "id": "2", "text": "Cached parent", "text_is_complete": True,
+        "author_id": "202", "conversation_id": "1", "cached_epoch": 100,
+        "referenced_tweets": [{"type": "replied_to", "id": "1"}],
+    }
+    root = {
+        "id": "1", "text": "Fetched ancestor", "author_id": "201",
+        "conversation_id": "1", "referenced_tweets": [{"type": "replied_to", "id": "99"}],
+    }
+    target = {"id": "3", "referenced_tweets": [{"type": "replied_to", "id": "2"}]}
+    state = {"tweet_cache": {"2": parent, "expired": {"cached_epoch": 0}}}
+    saved = []
+
+    def save(current):
+        assert current is state
+        saved.append(copy.deepcopy(current))
+
+    monkeypatch.setattr(bot, "save_state", Mock(side_effect=save))
+    fresh = {
+        **root, "text": "Refreshed quoted text",
+        "attachments": {"media_keys": ["photo"]},
+        "_attached_media": [{"media_key": "photo", "type": "photo", "url": "https://example.invalid/photo"}],
+    }
+    fetch = Mock(side_effect=[root, fresh])
+    patch_tweet_lookup_method(monkeypatch, "fetch", fetch)
+    relays = {}
+    for name in ("get_tweet_by_id_cached", "prune_tweet_cache"):
+        relays[name] = Mock(side_effect=AssertionError(f"root relay used: {name}"))
+        monkeypatch.setattr(bot, name, relays[name])
+    owner = bot._reply_context_owner()
+    assert isinstance(owner.tweets, TweetLookupCache)
+
+    chain = owner.parent_chain(target, state)
+
+    assert [row["id"] for row in chain] == ["1", "2"]
+    assert chain[1] is parent
+    assert chain[0] == state["tweet_cache"]["1"]
+    assert chain[0] is not state["tweet_cache"]["1"]
+    fetch.assert_called_once_with("1")
+    assert len(saved) == 1 and set(saved[0]["tweet_cache"]) == {"1", "2"}
+    stored = copy.deepcopy(state["tweet_cache"]["1"])
+    quoted = owner.directly_quoted_tweet(
+        {"referenced_tweets": [{"type": "quoted", "id": "1"}]}, state,
+    )
+
+    assert fetch.call_args_list == [call("1"), call("1", include_media=True)]
+    assert quoted["text"] == fresh["text"]
+    assert quoted["_attached_media"] == fresh["_attached_media"]
+    assert quoted["_attached_media"] is not fresh["_attached_media"]
+    assert quoted is not state["tweet_cache"]["1"]
+    assert state["tweet_cache"]["1"] == stored
+    assert len(saved) == 1
+    for relay in relays.values():
+        relay.assert_not_called()
+
+
 def test_quote_alias_and_lookup_keep_distinct_container_rules_and_first_result(make_owner):
     assert bot._direct_quote_id is reply_context._direct_quote_id
     first = {"type": "quoted", "id": 900}
     candidate = {"referenced_tweets": (first, {"type": "quoted", "id": "901"})}
     state, quoted = {}, {"id": "900", "text": "Original"}
     lookup = Mock(return_value=quoted)
-    owner = make_owner(get_tweet_by_id_cached=lookup)
+    owner = make_owner(tweets=Mock(spec=TweetLookupCache, get_cached=lookup))
     assert bot._direct_quote_id(candidate) is None
     assert owner.directly_quoted_tweet(candidate, state) is quoted
     lookup.assert_called_once_with("900", state, include_media=True)
@@ -349,7 +427,8 @@ def test_context_keeps_usable_suffix_raw_ancestor_quote_and_media_copy_metadata_
     trace.media.side_effect = prepare_media
     trace.clock.return_value = datetime(2030, 2, 3, tzinfo=timezone.utc)
     owner = make_owner(
-        get_tweet_by_id_cached=lookup, always_fetch_parent=True, skip_own_auto_replies=False,
+        tweets=Mock(spec=TweetLookupCache, get_cached=lookup),
+        always_fetch_parent=True, skip_own_auto_replies=False,
         bound_visible_conversation=trace.bound_visible_conversation,
         reply_media_context_for_candidate=trace.media, current_utc_datetime=trace.clock,
     )
@@ -459,7 +538,7 @@ def test_unusable_rendered_target_stops_before_quote_lookup_and_media(monkeypatc
     monkeypatch.setattr(reply_context.ReplyContext, "post", render)
     owner = make_owner(
         always_fetch_parent=False, skip_own_auto_replies=False,
-        get_tweet_by_id_cached=lookup, reply_media_context_for_candidate=media,
+        tweets=Mock(spec=TweetLookupCache, get_cached=lookup), reply_media_context_for_candidate=media,
         current_utc_datetime=clock,
     )
 

@@ -92,7 +92,7 @@ def test_legacy_parent_refreshes_respect_network_fetch_budget(monkeypatch):
     target = {'id': '103', 'referenced_tweets': [{'type': 'replied_to', 'id': '102'}]}
     monkeypatch.setattr(bot, 'THREAD_CONTEXT_MAX_NETWORK_FETCHES', 1)
     lookup = Mock(side_effect=lambda tid, current: current['tweet_cache'][tid])
-    monkeypatch.setattr(bot, 'get_tweet_by_id_cached', lookup)
+    patch_tweet_lookup_method(monkeypatch, "get_cached", lookup)
     assert [row['id'] for row in bot.build_parent_chain(target, state)] == ['102']
     lookup.assert_called_once_with('102', state)
 

@@ -133,6 +133,11 @@ Pre-send availability uses a fresh lookup. Root adapters construct current owner
 clocks, provider requests and saves remain inside their original operations.
 Lookup tests patch `fetch` on the owner; `restore_tweet_lookup_fetch` restores its
 real transport operation when an isolated test server supplies the response.
+`ReplyContext` receives a current `TweetLookupCache` owner and calls `prune` and
+`get_cached` directly for parent traversal and directly quoted posts. The
+context-to-lookup hand-off test in `tests/test_bot_reply_context.py` blocks the
+root lookup/pruning relays while exercising cache identity, bounded parent
+fetches and transient media refresh.
 
 Quote discovery saves fetched candidates in `quote_pending_candidates` before
 advancing recent-search cursors. Pending work is returned before further search,

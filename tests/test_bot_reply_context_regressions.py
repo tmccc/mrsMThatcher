@@ -970,7 +970,7 @@ def test_declared_ancestor_quote_fails_context_closed_when_unresolvable(
         lookups.append((str(tweet_id), include_media))
         return None
 
-    monkeypatch.setattr(bot, "get_tweet_by_id_cached", missing)
+    patch_tweet_lookup_method(monkeypatch, "get_cached", missing)
 
     assert bot.build_context_for_reply_ai(target, bot.default_state()) is None
     assert lookups == [("900", True)]
@@ -1014,9 +1014,8 @@ def test_reply_plus_quote_preserves_real_thread_and_separates_quote(
         "referenced_tweets": [],
     }
     patch_reply_context_method(monkeypatch, "parent_chain", lambda *_args: [root, parent])
-    monkeypatch.setattr(
-        bot,
-        "get_tweet_by_id_cached",
+    patch_tweet_lookup_method(
+        monkeypatch, "get_cached",
         lambda tweet_id, *_args, **_kwargs: (
             quoted
             if str(tweet_id) == "900"
@@ -1158,9 +1157,8 @@ def test_image_only_direct_quote_reaches_one_multimodal_sol_call(
             }
         ],
     }
-    monkeypatch.setattr(
-        bot,
-        "get_tweet_by_id_cached",
+    patch_tweet_lookup_method(
+        monkeypatch, "get_cached",
         lambda tweet_id, *_args, **_kwargs: (
             quoted
             if str(tweet_id) == "900"

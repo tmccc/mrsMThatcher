@@ -9,6 +9,7 @@ import pytest
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime
 from tests.helpers.reply_fixtures import (
+    patch_tweet_lookup_method,
     UNIT_REPLY_REPOSITORY,
     unit_reply_context,
 )
@@ -362,9 +363,8 @@ def test_parent_and_quoted_lookup_only_suppress_target_specific_failures(
         request_method="GET",
         request_path="/2/tweets/123",
     )
-    monkeypatch.setattr(
-        bot,
-        "get_tweet_by_id_cached",
+    patch_tweet_lookup_method(
+        monkeypatch, "get_cached",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(unavailable),
     )
 
@@ -384,9 +384,8 @@ def test_parent_and_quoted_lookup_only_suppress_target_specific_failures(
         request_method="GET",
         request_path="/2/tweets/123",
     )
-    monkeypatch.setattr(
-        bot,
-        "get_tweet_by_id_cached",
+    patch_tweet_lookup_method(
+        monkeypatch, "get_cached",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(global_denial),
     )
     with pytest.raises(bot.ApiError, match="expired token"):
