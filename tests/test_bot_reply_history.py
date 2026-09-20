@@ -28,7 +28,6 @@ def make_owner():
     def build(**overrides):
         options = dict(
             now_epoch=bot.now_epoch,
-            valid_string_post_id=bot.valid_string_post_id,
             quoted_post_reference_id=bot.quoted_post_reference_id,
             maximum_state_epoch=bot.MAX_REASONABLE_STATE_EPOCH,
             maximum_recent_replies=bot.MAX_RECENT_ACCOUNT_REPLIES,
@@ -64,7 +63,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name != 'mrs_bot_reply_history':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_receipt_primitives', 'mrs_bot_reply_history'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -95,7 +94,7 @@ assert 'single_call_reply' not in sys.modules
 
 def test_root_owner_binds_current_dependencies_and_preserves_original_default(monkeypatch):
     names = {
-        "now_epoch": "now_epoch", "valid_string_post_id": "valid_string_post_id",
+        "now_epoch": "now_epoch",
         "quoted_post_reference_id": "quoted_post_reference_id",
         "maximum_state_epoch": "MAX_REASONABLE_STATE_EPOCH",
         "maximum_recent_replies": "MAX_RECENT_ACCOUNT_REPLIES",
@@ -107,7 +106,7 @@ def test_root_owner_binds_current_dependencies_and_preserves_original_default(mo
     snapshots = []
     for _ in range(2):
         current = {field: object() for field in names}
-        for field in ("now_epoch", "valid_string_post_id", "quoted_post_reference_id"):
+        for field in ("now_epoch", "quoted_post_reference_id"):
             current[field] = Mock()
         for field, root_name in names.items():
             monkeypatch.setattr(bot, root_name, current[field])
@@ -115,7 +114,7 @@ def test_root_owner_binds_current_dependencies_and_preserves_original_default(mo
         assert isinstance(owner, reply_history.ReplyHistory)
         assert all(getattr(owner, field) is value for field, value in current.items())
         assert owner.default_recent_reply_limit == default
-        for field in ("now_epoch", "valid_string_post_id", "quoted_post_reference_id"):
+        for field in ("now_epoch", "quoted_post_reference_id"):
             current[field].assert_not_called()
         snapshots.append((owner, current))
     first, first_inputs = snapshots[0]
@@ -185,7 +184,7 @@ def test_recent_default_is_fixed_while_body_reads_current_cap(confirmed_row, mon
     assert inspect.signature(bot.recent_confirmed_account_replies).parameters["limit"].default == default
 
 
-def test_confirmed_rows_keep_references_and_lane_id_and_epoch_rules(confirmed_row, make_owner):
+def test_confirmed_rows_keep_references_and_lane_id_and_epoch_rules(confirmed_row, make_owner, monkeypatch):
     state = {"ai_reply_history": [confirmed_row]}
     owner = make_owner()
     assert owner.confirmed_rows(state)[0] is confirmed_row
@@ -194,7 +193,7 @@ def test_confirmed_rows_keep_references_and_lane_id_and_epoch_rules(confirmed_ro
     confirmed_row["candidate_source"] = "mention"
     confirmed_row["target_id"] = "current-target"
     valid_id = Mock(return_value=True)
-    owner = make_owner(valid_string_post_id=valid_id)
+    monkeypatch.setattr(reply_history, "valid_string_post_id", valid_id)
     assert owner.confirmed_rows(state)[0] is confirmed_row
     assert valid_id.call_args_list == [call("current-target"), call(confirmed_row["reply_post_id"])]
     assert replace(owner, maximum_state_epoch=confirmed_row["reply_epoch"] - 1).confirmed_rows(state) == []
@@ -362,13 +361,18 @@ def test_recording_keeps_expansion_order_strict_epochs_sort_cap_and_references(m
 
 
 @pytest.mark.parametrize("dependency", ["now_epoch", "valid_string_post_id"])
-def test_recording_keeps_native_callback_errors_and_original_history(make_owner, dependency):
+def test_recording_keeps_native_callback_errors_and_original_history(make_owner, dependency, monkeypatch):
     receipt = unit_confirmed_reply_receipt()
     retained = {"target_id": "101", "reply_post_id": "10", "reply_epoch": receipt["reply_epoch"]}
     history = [retained]
     state = {"ai_reply_history": history}
     failure = TypeError("history dependency failed")
-    owner = make_owner(**{dependency: Mock(side_effect=failure)})
+    failing = Mock(side_effect=failure)
+    if dependency == "valid_string_post_id":
+        monkeypatch.setattr(reply_history, dependency, failing)
+        owner = make_owner()
+    else:
+        owner = make_owner(**{dependency: failing})
     with pytest.raises(TypeError) as caught:
         owner.record_confirmation(
             state, receipt, receipt["ai_reply_draft"], target_id="100", reply_post_id="999",

@@ -27,7 +27,6 @@ OWNER_INPUTS = {
     "pipeline_enabled": "conversational_reply_pipeline_enabled",
     "parent_id": "get_immediate_parent_id",
     "get_tweet_by_id_cached": "get_tweet_by_id_cached",
-    "tweet_text_is_complete": "tweet_text_is_complete",
     "api_error_is_permanent_target_failure": "api_error_is_permanent_target_failure",
     "is_our_auto_reply": "is_our_auto_reply", "api_error": "ApiError",
     "invalid_receipt": "InvalidConfirmedReplyReceipt",
@@ -55,7 +54,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name != 'mrs_bot_reply_clarifications':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_clarifications', 'mrs_bot_reply_native_media', 'mrs_bot_tweet_lookup_cache'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 

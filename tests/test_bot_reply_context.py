@@ -32,7 +32,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_context', 'mrs_bot_reply_cycle_interfaces'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_context', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_native_media', 'mrs_bot_tweet_lookup_cache'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -61,7 +61,6 @@ OWNER_INPUTS = {
     "api_error": "ApiError", "parse_tweet_id": "parse_tweet_id",
     "maximum_parent_depth": "THREAD_CONTEXT_MAX_DEPTH",
     "maximum_parent_network_fetches": "THREAD_CONTEXT_MAX_NETWORK_FETCHES",
-    "tweet_text_is_complete": "tweet_text_is_complete",
     "is_permanent_target_failure": "api_error_is_permanent_target_failure",
     "get_tweet_by_id_cached": "get_tweet_by_id_cached",
     "log": "log", "log_json_debug": "log_json_debug",
@@ -91,7 +90,7 @@ def make_owner():
 def test_owner_composition_binds_current_dependencies_without_calling_them(monkeypatch):
     default = inspect.signature(bot._reply_context_post).parameters["maximum_chars"].default
     parameters = inspect.signature(reply_context.ReplyContext).parameters
-    assert len(parameters) == 21
+    assert len(parameters) == 20
     assert parameters.keys() == OWNER_INPUTS.keys() | {"default_post_maximum_chars"}
     snapshots = []
     for _ in range(2):

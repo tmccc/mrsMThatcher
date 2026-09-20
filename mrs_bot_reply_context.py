@@ -22,6 +22,8 @@ from logging import Logger
 
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 
+from mrs_bot_tweet_lookup_cache import tweet_text_is_complete
+
 
 def clean_text_for_reply_context(text: str) -> str:
     """Return normalised text for a bounded AI reply context."""
@@ -84,7 +86,6 @@ class ReplyContext:
     parse_tweet_id: Callable
     maximum_parent_depth: int
     maximum_parent_network_fetches: int
-    tweet_text_is_complete: Callable
     is_permanent_target_failure: Callable
     get_tweet_by_id_cached: Callable
     log: Logger
@@ -139,7 +140,7 @@ class ReplyContext:
             cache = state.get("tweet_cache", {})
             parent_is_cached = bool(
                 isinstance(cache, dict) and cache.get(parent_id)
-                and self.tweet_text_is_complete(cache[parent_id])
+                and tweet_text_is_complete(cache[parent_id])
             )
             if not parent_is_cached:
                 if network_fetches >= self.maximum_parent_network_fetches:

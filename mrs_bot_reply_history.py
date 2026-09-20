@@ -15,6 +15,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 
+from mrs_bot_receipt_primitives import valid_string_post_id
+
 
 CONVERSATIONAL_REPLY_HISTORY_LANES = frozenset(
     {"mention", "hot_post_reply", "quote_tweet", "conversational_reply"}
@@ -45,7 +47,6 @@ class ReplyHistory:
     """Record and select confirmed history using explicit caller state."""
 
     now_epoch: Callable
-    valid_string_post_id: Callable
     quoted_post_reference_id: Callable
     maximum_state_epoch: int
     maximum_recent_replies: int
@@ -79,8 +80,8 @@ class ReplyHistory:
             reply = str(raw.get("proposed_reply") or "").strip()
             epoch = raw.get("reply_epoch")
             if (
-                not self.valid_string_post_id(target_id)
-                or not self.valid_string_post_id(reply_post_id)
+                not valid_string_post_id(target_id)
+                or not valid_string_post_id(reply_post_id)
                 or not reply
                 or type(epoch) is not int
                 or epoch <= 0
@@ -381,7 +382,7 @@ class ReplyHistory:
             key=lambda item: (
                 int(item["reply_epoch"]),
                 int(str(item.get("reply_post_id") or "0"))
-                if self.valid_string_post_id(item.get("reply_post_id"))
+                if valid_string_post_id(item.get("reply_post_id"))
                 else 0,
             )
         )

@@ -2818,7 +2818,6 @@ def _clarification_reply_owner() -> _reply_clarifications.ClarificationReplies:
         pipeline_enabled=conversational_reply_pipeline_enabled,
         parent_id=get_immediate_parent_id,
         get_tweet_by_id_cached=get_tweet_by_id_cached,
-        tweet_text_is_complete=tweet_text_is_complete,
         api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
         is_our_auto_reply=is_our_auto_reply,
         api_error=ApiError,
@@ -3334,7 +3333,6 @@ def _reply_context_owner() -> _reply_context.ReplyContext:
         parse_tweet_id=parse_tweet_id,
         maximum_parent_depth=THREAD_CONTEXT_MAX_DEPTH,
         maximum_parent_network_fetches=THREAD_CONTEXT_MAX_NETWORK_FETCHES,
-        tweet_text_is_complete=tweet_text_is_complete,
         is_permanent_target_failure=api_error_is_permanent_target_failure,
         get_tweet_by_id_cached=get_tweet_by_id_cached,
         log=log,
@@ -7094,7 +7092,6 @@ def _reply_history_owner() -> _reply_history.ReplyHistory:
     """Bind current history dependencies without reading state or the clock."""
     return _reply_history.ReplyHistory(
         now_epoch=now_epoch,
-        valid_string_post_id=valid_string_post_id,
         quoted_post_reference_id=quoted_post_reference_id,
         maximum_state_epoch=MAX_REASONABLE_STATE_EPOCH,
         maximum_recent_replies=MAX_RECENT_ACCOUNT_REPLIES,

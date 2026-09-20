@@ -14,6 +14,8 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from mrs_bot_tweet_lookup_cache import tweet_text_is_complete
+
 
 CLARIFICATION_CUE_RE = re.compile(
     r"\b(?:you\s+)?(?:did(?:n't|\s+not)|does(?:n't|\s+not)|have(?:n't|\s+not))\s+answer(?:ed)?\b"
@@ -52,7 +54,6 @@ class ClarificationReplies:
     pipeline_enabled: Callable
     parent_id: Callable
     get_tweet_by_id_cached: Callable
-    tweet_text_is_complete: Callable
     api_error_is_permanent_target_failure: Callable
     is_our_auto_reply: Callable
     api_error: type[Exception]
@@ -119,7 +120,7 @@ class ClarificationReplies:
         thread_id = clarification_thread_id(candidate)
         if not thread_id or str(original_question.get("conversation_id") or original_question_id) != thread_id:
             return None
-        if not self.tweet_text_is_complete(original_question):
+        if not tweet_text_is_complete(original_question):
             try:
                 original_question = self.get_tweet_by_id_cached(str(original_question_id), state)
             except self.api_error as exc:
