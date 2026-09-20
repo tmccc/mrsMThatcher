@@ -39,6 +39,7 @@ need. A recovered draft can bypass model evaluation.
 | Ordinary quotation eligibility, seasonal weights and used-cycle selection | `QuoteCandidates` in [mrs_bot_quote_candidates.py](../mrs_bot_quote_candidates.py) |
 | Current daily-meme calendar, fallback and first-quote anchor | `MemeSchedule` in [mrs_bot_daily_meme.py](../mrs_bot_daily_meme.py) |
 | Quote delay selection and schedule persistence | `QuoteSchedule` in [mrs_bot_runtime_state_helpers.py](../mrs_bot_runtime_state_helpers.py) |
+| Ambient and conversational daily-cap dates | `ReceiptDates` in [mrs_bot_receipt_primitives.py](../mrs_bot_receipt_primitives.py); receipt-bound timezone conversion keeps its separate policy boundary |
 | Meme catalog discovery, cycle selection and image summaries | `MemeCatalog` in [mrs_bot_daily_meme.py](../mrs_bot_daily_meme.py) |
 | Candidate discovery and durable mention queue (`MentionQueue` owns access and retirement) | [mrs_bot_mention_discovery.py](../mrs_bot_mention_discovery.py), [mrs_bot_hot_post_discovery.py](../mrs_bot_hot_post_discovery.py), [mrs_bot_quote_discovery.py](../mrs_bot_quote_discovery.py) |
 | Watched and recent original selection | `QuoteWatchPosts` in [mrs_bot_quote_discovery.py](../mrs_bot_quote_discovery.py) |

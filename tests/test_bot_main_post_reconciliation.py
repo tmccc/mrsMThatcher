@@ -112,7 +112,7 @@ SIGNATURES = {'apply_meme_post_receipt': "(receipt: 'dict', state: 'dict') -> 'N
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time, typing
+import builtins, collections.abc, dataclasses, io, logging, os, random, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):

@@ -1,11 +1,14 @@
 """Receipt scalar values, calendars and confirmation time.
 
-The root supplies current runtime dependencies explicitly on each call. This
-module performs no runtime work at import and retains no runtime authority.
+ReceiptDates owns ambient and daily-cap dates and their safe conversions,
+binding current calendar and clock inputs per operation. Receipt-bound zone
+validation and conversion retain their separate call-time policy boundaries.
+Import and owner construction perform no runtime work.
 """
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -49,30 +52,6 @@ def receipt_bool(value: object) -> bool | None:
     if isinstance(value, bool):
         return value
     return None
-
-
-def safe_epoch_date_str(
-    epoch: int,
-    *,
-    epoch_date_str: Any,
-) -> str | None:
-    """Return the safe epoch date str."""
-    try:
-        return epoch_date_str(epoch)
-    except (TypeError, ValueError, OverflowError, OSError):
-        return None
-
-
-def safe_reply_cap_date_str(
-    epoch: int,
-    *,
-    reply_cap_date_str: Any,
-) -> str | None:
-    """Return a safe Europe/London conversational daily-cap date."""
-    try:
-        return reply_cap_date_str(epoch)
-    except (TypeError, ValueError, OverflowError, OSError):
-        return None
 
 
 def main_post_schedule_zone(
@@ -180,30 +159,52 @@ def confirmation_epoch_after_remote_success(
     return max(fallback, observed)
 
 
-def epoch_date_str(
-    epoch: int | None = None,
-    *,
-    datetime: Any,
-    now_epoch: Any,
-) -> str:
-    """Return the epoch date str."""
-    if epoch is None:
-        epoch = now_epoch()
-    return datetime.fromtimestamp(int(epoch)).strftime("%Y-%m-%d")
+@dataclass(frozen=True)
+class ReceiptDates:
+    """Own ambient and daily-cap dates with their distinct safe conversions."""
 
+    datetime: Any
+    now_epoch: Any
+    reply_cap_timezone: Any
+    zone_info: Any
 
-def reply_cap_date_str(
-    epoch: int | None = None,
-    *,
-    MAIN_POST_SCHEDULE_TIMEZONE: Any,
-    ZoneInfo: Any,
-    datetime: Any,
-    now_epoch: Any,
-) -> str:
-    """Return the conversational daily-cap date in Europe/London."""
-    if epoch is None:
-        epoch = now_epoch()
-    return datetime.fromtimestamp(
-        int(epoch),
-        tz=ZoneInfo(MAIN_POST_SCHEDULE_TIMEZONE),
-    ).strftime("%Y-%m-%d")
+    def local_date(
+        self,
+        epoch: int | None = None,
+    ) -> str:
+        """Return the epoch date str."""
+        if epoch is None:
+            epoch = self.now_epoch()
+        return self.datetime.fromtimestamp(int(epoch)).strftime("%Y-%m-%d")
+
+    def reply_cap_date(
+        self,
+        epoch: int | None = None,
+    ) -> str:
+        """Return the conversational daily-cap date in Europe/London."""
+        if epoch is None:
+            epoch = self.now_epoch()
+        return self.datetime.fromtimestamp(
+            int(epoch),
+            tz=self.zone_info(self.reply_cap_timezone),
+        ).strftime("%Y-%m-%d")
+
+    def safe_local_date(
+        self,
+        epoch: int,
+    ) -> str | None:
+        """Return the safe epoch date str."""
+        try:
+            return self.local_date(epoch)
+        except (TypeError, ValueError, OverflowError, OSError):
+            return None
+
+    def safe_reply_cap_date(
+        self,
+        epoch: int,
+    ) -> str | None:
+        """Return a safe Europe/London conversational daily-cap date."""
+        try:
+            return self.reply_cap_date(epoch)
+        except (TypeError, ValueError, OverflowError, OSError):
+            return None

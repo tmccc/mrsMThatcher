@@ -5166,20 +5166,24 @@ receipt_int = _receipt_primitives.receipt_int
 receipt_bool = _receipt_primitives.receipt_bool
 
 
+def _receipt_dates_owner() -> _receipt_primitives.ReceiptDates:
+    """Bind current external boundaries without runtime work or caller state."""
+    return _receipt_primitives.ReceiptDates(
+        datetime=datetime,
+        now_epoch=now_epoch,
+        reply_cap_timezone=MAIN_POST_SCHEDULE_TIMEZONE,
+        zone_info=ZoneInfo,
+    )
+
+
 def safe_epoch_date_str(epoch: int) -> str | None:
     """Return the safe epoch date str."""
-    return _receipt_primitives.safe_epoch_date_str(
-        epoch,
-        epoch_date_str=epoch_date_str,
-    )
+    return _receipt_dates_owner().safe_local_date(epoch)
 
 
 def safe_reply_cap_date_str(epoch: int) -> str | None:
     """Return a safe Europe/London conversational daily-cap date."""
-    return _receipt_primitives.safe_reply_cap_date_str(
-        epoch,
-        reply_cap_date_str=reply_cap_date_str,
-    )
+    return _receipt_dates_owner().safe_reply_cap_date(epoch)
 
 
 def main_post_schedule_zone(timezone_name: object) -> ZoneInfo:
@@ -6851,22 +6855,12 @@ def choose_next_meme(state: dict) -> Path | None:
 
 def epoch_date_str(epoch: int | None = None) -> str:
     """Return the epoch date str."""
-    return _receipt_primitives.epoch_date_str(
-        epoch,
-        datetime=datetime,
-        now_epoch=now_epoch,
-    )
+    return _receipt_dates_owner().local_date(epoch)
 
 
 def reply_cap_date_str(epoch: int | None = None) -> str:
     """Return the conversational daily-cap date in Europe/London."""
-    return _receipt_primitives.reply_cap_date_str(
-        epoch,
-        MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
-        ZoneInfo=ZoneInfo,
-        datetime=datetime,
-        now_epoch=now_epoch,
-    )
+    return _receipt_dates_owner().reply_cap_date(epoch)
 
 
 def _meme_schedule_owner() -> _daily_meme.MemeSchedule:

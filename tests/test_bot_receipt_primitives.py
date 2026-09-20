@@ -19,8 +19,6 @@ DEPENDENCIES = {'valid_post_id': [],
  'valid_receipt_epoch': ['MAX_CONFIRMATION_EPOCH', 'MIN_CONFIRMATION_EPOCH'],
  'receipt_int': [],
  'receipt_bool': [],
- 'safe_epoch_date_str': ['epoch_date_str'],
- 'safe_reply_cap_date_str': ['reply_cap_date_str'],
  'main_post_schedule_zone': ['MAIN_POST_SCHEDULE_TIMEZONE', 'ZoneInfo', 'ZoneInfoNotFoundError'],
  'bound_schedule_datetime': ['datetime', 'main_post_schedule_zone'],
  'safe_bound_schedule_date_str': ['bound_schedule_datetime'],
@@ -29,8 +27,7 @@ DEPENDENCIES = {'valid_post_id': [],
                                              'log',
                                              'now_epoch',
                                              'valid_receipt_epoch'],
- 'epoch_date_str': ['datetime', 'now_epoch'],
- 'reply_cap_date_str': ['MAIN_POST_SCHEDULE_TIMEZONE', 'ZoneInfo', 'datetime', 'now_epoch']}
+}
 
 SIGNATURES = {'valid_post_id': "(value: 'object') -> 'bool'",
  'valid_string_post_id': "(value: 'object') -> 'bool'",
@@ -50,7 +47,7 @@ SIGNATURES = {'valid_post_id': "(value: 'object') -> 'bool'",
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, re, datetime, io, logging, os, random, socket, sys, time, typing, zoneinfo
+import builtins, collections.abc, dataclasses, re, datetime, io, logging, os, random, socket, sys, time, typing, zoneinfo
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -365,7 +362,11 @@ def test_safe_dates_keep_result_references_formatting_and_distinct_catches(
     result = object()
     formatter = Mock(return_value=result)
     callback_mock = Mock(return_value=SimpleNamespace(strftime=formatter) if bound else result)
-    monkeypatch.setattr(bot, callback, callback_mock)
+    if bound:
+        monkeypatch.setattr(bot, callback, callback_mock)
+    else:
+        method = "local_date" if callback == "epoch_date_str" else "reply_cap_date"
+        monkeypatch.setattr(owner.ReceiptDates, method, lambda _owner, *args: callback_mock(*args))
     wrapper = getattr(bot, name)
     assert wrapper(*args) is result
     assert all(a is b for a, b in zip(callback_mock.call_args.args, args))
@@ -739,3 +740,78 @@ def test_confirmation_native_failures_outside_clock_try_escape_without_retries(
         assert trace.critical.call_count == 1
     else:
         trace.critical.assert_not_called()
+
+
+DATE_METHODS = {
+    "epoch_date_str": "local_date", "reply_cap_date_str": "reply_cap_date",
+    "safe_epoch_date_str": "safe_local_date", "safe_reply_cap_date_str": "safe_reply_cap_date",
+}
+
+
+def test_receipt_date_composition_binds_current_calendar_inputs_without_work(monkeypatch):
+    fields = {"datetime": "datetime", "now_epoch": "now_epoch",
+              "MAIN_POST_SCHEDULE_TIMEZONE": "reply_cap_timezone", "ZoneInfo": "zone_info"}
+    previous = None
+    for _ in range(2):
+        current = {name: Mock(side_effect=AssertionError("construction performed work")) for name in fields}
+        for name, value in current.items():
+            monkeypatch.setattr(bot, name, value)
+        dates = bot._receipt_dates_owner()
+        assert isinstance(dates, owner.ReceiptDates) and dates is not previous
+        assert set(vars(dates)) == set(fields.values())
+        for name, field in fields.items():
+            assert getattr(dates, field) is current[name]
+            current[name].assert_not_called()
+        previous = dates
+
+
+@pytest.mark.parametrize("name,method", DATE_METHODS.items())
+def test_receipt_date_adapters_keep_signatures_defaults_references_and_errors(monkeypatch, name, method):
+    adapter = getattr(bot, name)
+    signature = inspect.signature(adapter)
+    assert str(signature) == SIGNATURES[name]
+    result = object()
+    operation = Mock(return_value=result)
+    factory = Mock(return_value=SimpleNamespace(**{method: operation}))
+    monkeypatch.setattr(bot, "_receipt_dates_owner", factory)
+    epoch = object()
+    assert adapter(epoch) is result
+    factory.assert_called_once_with()
+    operation.assert_called_once_with(epoch)
+    if signature.parameters["epoch"].default is None:
+        operation.reset_mock()
+        assert adapter() is result
+        operation.assert_called_once_with(None)
+    failure = KeyboardInterrupt("date operation failure")
+    operation.side_effect = failure
+    with pytest.raises(KeyboardInterrupt) as caught:
+        adapter(epoch)
+    assert caught.value is failure
+
+
+@pytest.mark.parametrize("name", ["epoch_date_str", "reply_cap_date_str"])
+def test_receipt_dates_keep_calendar_capture_before_clock_and_refresh_next_call(monkeypatch, name):
+    first_zone, second_zone = object(), object()
+    first = Mock(return_value=SimpleNamespace(strftime=Mock(return_value="first")))
+    second = Mock(return_value=SimpleNamespace(strftime=Mock(return_value="second")))
+    first_zone_lookup = Mock(return_value=first_zone)
+    second_zone_lookup = Mock(return_value=second_zone)
+    monkeypatch.setattr(bot, "datetime", SimpleNamespace(fromtimestamp=first))
+    monkeypatch.setattr(bot, "MAIN_POST_SCHEDULE_TIMEZONE", "First/Zone")
+    monkeypatch.setattr(bot, "ZoneInfo", first_zone_lookup)
+
+    def clock():
+        monkeypatch.setattr(bot, "datetime", SimpleNamespace(fromtimestamp=second))
+        monkeypatch.setattr(bot, "MAIN_POST_SCHEDULE_TIMEZONE", "Second/Zone")
+        monkeypatch.setattr(bot, "ZoneInfo", second_zone_lookup)
+        return 123
+
+    monkeypatch.setattr(bot, "now_epoch", clock)
+    date = getattr(bot, name)
+    assert date() == "first"
+    first.assert_called_once_with(123, **({"tz": first_zone} if name == "reply_cap_date_str" else {}))
+    assert date() == "second"
+    second.assert_called_once_with(123, **({"tz": second_zone} if name == "reply_cap_date_str" else {}))
+    if name == "reply_cap_date_str":
+        first_zone_lookup.assert_called_once_with("First/Zone")
+        second_zone_lookup.assert_called_once_with("Second/Zone")
