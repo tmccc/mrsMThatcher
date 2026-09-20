@@ -333,3 +333,47 @@ def test_selected_recovery_reporting_preserves_order_and_failure_before_save(mon
         loaded = bot.load_state()
         assert events == ["info", "warning", recoveries[1], "warning", recoveries[2]]
         saved.assert_called_once_with(loaded, durable=True)
+
+
+@pytest.mark.parametrize("modern", [False, True])
+@pytest.mark.parametrize("bad_primary", [False, True])
+def test_rollback_fence_errors_distinguish_primary_authority_from_unused_backup(monkeypatch, modern, bad_primary):
+    """Primary rollback ambiguity stops loading; unused invalid backups do not."""
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 1)
+    primary = bot.STATE_FILE
+    backup = primary.with_name(primary.name + ".bak1")
+    bad_path = primary if bad_primary else backup
+    good_path = backup if bad_primary else primary
+    _legacy(good_path)
+    _legacy(
+        bad_path,
+        minimum_reader_version=bot.STATE_MINIMUM_READER_VERSION if modern else 4,
+        pending_reply_drafts={"unretired": True},
+    )
+    normalise, save, logger = Mock(side_effect=lambda value, **kwargs: value), Mock(), Mock()
+    monkeypatch.setattr(bot, "normalise_state_candidate", normalise)
+    monkeypatch.setattr(bot, "save_state", save)
+    monkeypatch.setattr(bot, "log", logger)
+    expected = (
+        f"State candidate {bad_path} declares minimum reader version "
+        f"{bot.STATE_MINIMUM_READER_VERSION} without the exact compatibility "
+        "fence; refusing unsafe rollback state"
+        if modern else
+        f"Legacy V1 reply drafts remain in {bad_path}; refusing to interpret or post them "
+        "through the AI-first strategy"
+    )
+    if bad_primary:
+        with pytest.raises(RuntimeError) as caught:
+            bot.load_state()
+        assert str(caught.value) == expected
+        logger.critical.assert_called_once_with(expected)
+        normalise.assert_not_called()
+        save.assert_not_called()
+    else:
+        loaded = bot.load_state()
+        logger.warning.assert_called_once_with(
+            "%s; candidate is not needed because primary state is usable", expected,
+        )
+        assert normalise.call_count == 1
+        assert normalise.call_args.kwargs["path"] == primary
+        save.assert_called_once_with(loaded, durable=True)

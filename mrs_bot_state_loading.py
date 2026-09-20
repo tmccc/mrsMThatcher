@@ -2,7 +2,9 @@
 
 Sealed sequence numbers order complete replicas; conflicting identities fail
 closed. Selected-candidate recovery reporting is separate from replica selection;
-repairs and legacy migration publish through the locked state writer.
+repairs and legacy migration publish through the locked state writer. Rollback
+fence grammar is checked before normalization, with strict/permissive candidate
+handling retained at the loader boundary.
 Reader policy and filesystem dependencies are supplied explicitly by the root;
 this module retains no runtime authority or import-time side effects."""
 
@@ -69,6 +71,31 @@ def _emit_candidate_recoveries(
                 reason,
             )
         log_event("mention_backlog_reset", **recovery)
+
+
+def _rollback_fence_error(
+    legacy_drafts: object,
+    minimum_reader_version: int,
+    *,
+    candidate: Path,
+    required_reader_version: int,
+    current_fence: dict,
+    previous_fences: tuple[dict, ...],
+) -> str | None:
+    """Describe incompatible rollback data before candidate normalization."""
+    if minimum_reader_version >= required_reader_version:
+        if legacy_drafts != current_fence:
+            return (
+                f"State candidate {candidate} declares minimum reader version "
+                f"{minimum_reader_version} without the exact compatibility "
+                "fence; refusing unsafe rollback state"
+            )
+    elif legacy_drafts not in (None, {}) and legacy_drafts not in previous_fences:
+        return (
+            f"Legacy V1 reply drafts remain in {candidate}; refusing to interpret or post them "
+            "through the AI-first strategy"
+        )
+    return None
 
 
 def load_state(
@@ -145,33 +172,22 @@ def load_state(
             path=candidate,
         )
         legacy_drafts = state.get("pending_reply_drafts")
-        if minimum_reader_version >= STATE_MINIMUM_READER_VERSION:
-            if legacy_drafts != STATE_READER_COMPATIBILITY_FENCE:
-                message = (
-                    f"State candidate {candidate} declares minimum reader version "
-                    f"{minimum_reader_version} without the exact compatibility "
-                    "fence; refusing unsafe rollback state"
-                )
-                if reject_legacy:
-                    log.critical(message)
-                    raise RuntimeError(message)
-                log.warning(
-                    "%s; candidate is not needed because primary state is usable",
-                    message,
-                )
-                return None
-        elif (
-            legacy_drafts not in (None, {})
-            and legacy_drafts not in STATE_PREVIOUS_READER_COMPATIBILITY_FENCES
-        ):
-            message = (
-                f"Legacy V1 reply drafts remain in {candidate}; refusing to interpret or post them "
-                "through the AI-first strategy"
-            )
+        fence_error = _rollback_fence_error(
+            legacy_drafts,
+            minimum_reader_version,
+            candidate=candidate,
+            required_reader_version=STATE_MINIMUM_READER_VERSION,
+            current_fence=STATE_READER_COMPATIBILITY_FENCE,
+            previous_fences=STATE_PREVIOUS_READER_COMPATIBILITY_FENCES,
+        )
+        if fence_error is not None:
             if reject_legacy:
-                log.critical(message)
-                raise RuntimeError(message)
-            log.warning("%s; candidate is not needed because primary state is usable", message)
+                log.critical(fence_error)
+                raise RuntimeError(fence_error)
+            log.warning(
+                "%s; candidate is not needed because primary state is usable",
+                fence_error,
+            )
             return None
         try:
             sequence = generation_number(state)
