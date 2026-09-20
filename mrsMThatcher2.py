@@ -7242,75 +7242,58 @@ def reply_cap_date_str(epoch: int | None = None) -> str:
     )
 
 
+def _meme_schedule_owner() -> _daily_meme.MemeSchedule:
+    """Bind current calendar and persistence boundaries without runtime work."""
+    return _daily_meme.MemeSchedule(
+        bound_datetime=bound_schedule_datetime,
+        timezone=MAIN_POST_SCHEDULE_TIMEZONE,
+        now_epoch=now_epoch,
+        fallback_hour=MEME_FALLBACK_HOUR,
+        fallback_minute=MEME_FALLBACK_MINUTE,
+        version=MEME_SCHEDULE_VERSION,
+        modes=MEME_SCHEDULE_MODES,
+        enabled=ENABLE_DAILY_MEME_POSTS,
+        trigger_hour=MEME_TRIGGER_AFTER_HOUR,
+        minimum_delay=MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS,
+        maximum_delay=MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS,
+        save_state=save_state,
+        log=log,
+    )
+
+
 def meme_schedule_datetime(epoch: int) -> datetime:
     """Interpret a meme epoch through the current production-zone helper."""
-    return _daily_meme.meme_schedule_datetime(
-        epoch,
-        bound_schedule_datetime=bound_schedule_datetime,
-        MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
-    )
+    return _meme_schedule_owner().datetime(epoch)
 
 
 def meme_schedule_date_str(epoch: int | None = None) -> str:
     """Return the meme calendar date through current root helpers."""
-    return _daily_meme.meme_schedule_date_str(
-        epoch,
-        now_epoch=now_epoch,
-        meme_schedule_datetime=meme_schedule_datetime,
-    )
+    return _meme_schedule_owner().date_str(epoch)
 
 
 def meme_posted_on_date(state: dict, date_text: str) -> bool:
     """Check the daily meme guard through the current date helper."""
-    return _daily_meme.meme_posted_on_date(
-        state, date_text,
-        meme_schedule_date_str=meme_schedule_date_str,
-    )
+    return _meme_schedule_owner().posted_on_date(state, date_text)
 
 
 def next_meme_fallback_epoch(state: dict, from_epoch: int | None = None) -> int:
     """Calculate the next fallback through current calendar settings."""
-    return _daily_meme.next_meme_fallback_epoch(
-        state, from_epoch,
-        now_epoch=now_epoch,
-        meme_schedule_datetime=meme_schedule_datetime,
-        MEME_FALLBACK_HOUR=MEME_FALLBACK_HOUR,
-        MEME_FALLBACK_MINUTE=MEME_FALLBACK_MINUTE,
-        meme_posted_on_date=meme_posted_on_date,
-    )
+    return _meme_schedule_owner().next_fallback_epoch(state, from_epoch)
 
 
 def next_meme_schedule_fields(state: dict, from_epoch: int | None = None, mode: str = "fallback") -> dict:
     """Build fallback schedule fields through current root helpers."""
-    return _daily_meme.next_meme_schedule_fields(
-        state, from_epoch, mode,
-        next_meme_fallback_epoch=next_meme_fallback_epoch,
-        MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
-        meme_schedule_date_str=meme_schedule_date_str,
-    )
+    return _meme_schedule_owner().next_fields(state, from_epoch, mode)
 
 
 def meme_delay_schedule_fields(epoch: int, mode: str) -> dict:
     """Build delayed schedule fields through current modes and helpers."""
-    return _daily_meme.meme_delay_schedule_fields(
-        epoch, mode,
-        MEME_SCHEDULE_MODES=MEME_SCHEDULE_MODES,
-        MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
-        meme_schedule_date_str=meme_schedule_date_str,
-    )
+    return _meme_schedule_owner().delay_fields(epoch, mode)
 
 
 def set_meme_delay_schedule(state: dict, *, epoch: int, mode: str, save: bool = True) -> None:
     """Apply a meme delay and optionally save through root authority."""
-    return _daily_meme.set_meme_delay_schedule(
-        state,
-        epoch=epoch,
-        mode=mode,
-        save=save,
-        apply_state_fields=apply_state_fields,
-        meme_delay_schedule_fields=meme_delay_schedule_fields,
-        save_state=save_state,
-    )
+    return _meme_schedule_owner().set_delay(state, epoch=epoch, mode=mode, save=save)
 
 
 apply_state_fields = _runtime_state_helpers.apply_state_fields
@@ -7318,60 +7301,22 @@ apply_state_fields = _runtime_state_helpers.apply_state_fields
 
 def schedule_next_meme_post(state: dict, from_epoch: int | None = None, mode: str = "fallback", *, save: bool = True) -> None:
     """Schedule the fallback and optionally save through root authority."""
-    return _daily_meme.schedule_next_meme_post(
-        state, from_epoch, mode,
-        save=save,
-        next_meme_schedule_fields=next_meme_schedule_fields,
-        apply_state_fields=apply_state_fields,
-        save_state=save_state,
-        log=log,
-    )
+    return _meme_schedule_owner().schedule_next(state, from_epoch, mode, save=save)
 
 
 def ensure_meme_schedule_initialized(state: dict) -> None:
     """Initialise or migrate the meme schedule through root authority."""
-    return _daily_meme.ensure_meme_schedule_initialized(
-        state,
-        ENABLE_DAILY_MEME_POSTS=ENABLE_DAILY_MEME_POSTS,
-        MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
-        log=log,
-        MEME_TRIGGER_AFTER_HOUR=MEME_TRIGGER_AFTER_HOUR,
-        MEME_FALLBACK_HOUR=MEME_FALLBACK_HOUR,
-        MEME_FALLBACK_MINUTE=MEME_FALLBACK_MINUTE,
-        schedule_next_meme_post=schedule_next_meme_post,
-        now_epoch=now_epoch,
-    )
+    return _meme_schedule_owner().ensure_initialized(state)
 
 
 def meme_schedule_fields_after_quote_post(state: dict, quote_post_epoch: int | None = None, *, delay: int | None = None) -> dict:
     """Build quote-anchored meme fields through current root settings."""
-    return _daily_meme.meme_schedule_fields_after_quote_post(
-        state, quote_post_epoch,
-        delay=delay,
-        ENABLE_DAILY_MEME_POSTS=ENABLE_DAILY_MEME_POSTS,
-        now_epoch=now_epoch,
-        meme_schedule_datetime=meme_schedule_datetime,
-        MEME_TRIGGER_AFTER_HOUR=MEME_TRIGGER_AFTER_HOUR,
-        log=log,
-        meme_posted_on_date=meme_posted_on_date,
-        MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS=MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS,
-        MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS=MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS,
-        MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
-    )
+    return _meme_schedule_owner().fields_after_quote(state, quote_post_epoch, delay=delay)
 
 
 def maybe_schedule_meme_after_quote_post(state: dict, quote_post_epoch: int | None = None, *, save: bool = True) -> None:
     """Apply quote-anchored meme scheduling and optionally save state."""
-    return _daily_meme.maybe_schedule_meme_after_quote_post(
-        state, quote_post_epoch,
-        save=save,
-        meme_schedule_fields_after_quote_post=meme_schedule_fields_after_quote_post,
-        apply_state_fields=apply_state_fields,
-        save_state=save_state,
-        now_epoch=now_epoch,
-        log=log,
-        MEME_TRIGGER_AFTER_HOUR=MEME_TRIGGER_AFTER_HOUR,
-    )
+    return _meme_schedule_owner().maybe_after_quote(state, quote_post_epoch, save=save)
 
 
 def run_daily_meme_stage(stage: str, operation):

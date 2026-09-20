@@ -22,7 +22,7 @@ from tests.helpers.bot_fixtures import (
 
 def test_import_needs_no_runtime_access_and_keeps_shared_standard_library():
     code = """
-import builtins, collections.abc, datetime, io, logging, os, random, re, socket, sys
+import builtins, collections.abc, dataclasses, datetime, io, logging, os, random, re, socket, sys
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -30,7 +30,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai'} or name.startswith('mrs_bot_') and name != 'mrs_bot_daily_meme':
+    if name in {'mrsMThatcher2', 'requests', 'openai'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_daily_meme', 'mrs_bot_runtime_state_helpers'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -57,10 +57,6 @@ assert 'mrsMThatcher2' not in sys.modules
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
     names = (
         "build_meme_cache_summary", "list_meme_candidates", "choose_next_meme",
-        "meme_schedule_datetime", "meme_schedule_date_str", "meme_posted_on_date",
-        "next_meme_fallback_epoch", "next_meme_schedule_fields", "meme_delay_schedule_fields",
-        "set_meme_delay_schedule", "schedule_next_meme_post", "ensure_meme_schedule_initialized",
-        "meme_schedule_fields_after_quote_post", "maybe_schedule_meme_after_quote_post",
         "run_daily_meme_stage", "require_valid_meme_post_id", "post_next_meme",
     )
     for name in names:
@@ -89,6 +85,109 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
             with pytest.raises(KeyboardInterrupt) as caught:
                 adapter(*args, **options)
             assert caught.value is failure
+
+
+SCHEDULE_METHODS = {'meme_schedule_datetime': 'datetime',
+ 'meme_schedule_date_str': 'date_str',
+ 'meme_posted_on_date': 'posted_on_date',
+ 'next_meme_fallback_epoch': 'next_fallback_epoch',
+ 'next_meme_schedule_fields': 'next_fields',
+ 'meme_delay_schedule_fields': 'delay_fields',
+ 'set_meme_delay_schedule': 'set_delay',
+ 'schedule_next_meme_post': 'schedule_next',
+ 'ensure_meme_schedule_initialized': 'ensure_initialized',
+ 'meme_schedule_fields_after_quote_post': 'fields_after_quote',
+ 'maybe_schedule_meme_after_quote_post': 'maybe_after_quote'}
+SCHEDULE_INPUTS = {'bound_datetime': 'bound_schedule_datetime',
+ 'timezone': 'MAIN_POST_SCHEDULE_TIMEZONE',
+ 'now_epoch': 'now_epoch',
+ 'fallback_hour': 'MEME_FALLBACK_HOUR',
+ 'fallback_minute': 'MEME_FALLBACK_MINUTE',
+ 'version': 'MEME_SCHEDULE_VERSION',
+ 'modes': 'MEME_SCHEDULE_MODES',
+ 'enabled': 'ENABLE_DAILY_MEME_POSTS',
+ 'trigger_hour': 'MEME_TRIGGER_AFTER_HOUR',
+ 'minimum_delay': 'MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS',
+ 'maximum_delay': 'MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS',
+ 'save_state': 'save_state',
+ 'log': 'log'}
+
+
+def patch_schedule(monkeypatch, name, callback):
+    monkeypatch.setattr(meme.MemeSchedule, name, lambda _owner, *args, **kwargs: callback(*args, **kwargs))
+
+
+def test_schedule_owner_binds_current_inputs_without_runtime_access(monkeypatch):
+    from dataclasses import FrozenInstanceError
+
+    previous = None
+    for _ in range(2):
+        current = {name: Mock(side_effect=AssertionError("construction performed runtime work")) for name in SCHEDULE_INPUTS}
+        for name, value in current.items():
+            monkeypatch.setattr(bot, SCHEDULE_INPUTS[name], value)
+        owner = bot._meme_schedule_owner()
+        assert owner is not previous
+        assert vars(owner).keys() == current.keys()
+        assert all(getattr(owner, name) is value for name, value in current.items())
+        assert all(not value.called for value in current.values())
+        with pytest.raises(FrozenInstanceError):
+            owner.version = 123
+        previous = owner
+
+
+def test_schedule_adapters_preserve_signatures_arguments_results_and_errors(monkeypatch):
+    for root_name, method in SCHEDULE_METHODS.items():
+        adapter = getattr(bot, root_name)
+        public = inspect.signature(adapter).parameters
+        owned = inspect.signature(getattr(meme.MemeSchedule, method)).parameters
+        assert list(public) == list(owned)[1:]
+        assert [(p.kind, p.default) for p in public.values()] == [(p.kind, p.default) for p in list(owned.values())[1:]]
+        args = tuple(object() for parameter in public.values() if parameter.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        options = {key: object() for key, parameter in public.items() if parameter.kind == inspect.Parameter.KEYWORD_ONLY}
+        result = object()
+        callback = Mock(return_value=result)
+        with monkeypatch.context() as patch:
+            patch_schedule(patch, method, callback)
+            assert adapter(*args, **options) is result
+            actual_args, actual_kwargs = callback.call_args
+            assert len(actual_args) == len(args)
+            assert all(actual is expected for actual, expected in zip(actual_args, args))
+            assert actual_kwargs.keys() == options.keys()
+            assert all(actual_kwargs[key] is value for key, value in options.items())
+            failure = KeyboardInterrupt(root_name)
+            callback.side_effect = failure
+            with pytest.raises(KeyboardInterrupt) as caught:
+                adapter(*args, **options)
+            assert caught.value is failure
+
+
+def test_owned_quote_schedule_keeps_two_clock_samples_around_save(monkeypatch):
+    epoch = int(datetime(2026, 7, 6, 13, tzinfo=ZoneInfo("Europe/London")).timestamp())
+    events, state = [], {}
+    samples = iter([epoch, epoch + 2])
+
+    def clock():
+        events.append("clock")
+        return next(samples)
+
+    def save(current):
+        assert current is state and current["meme_anchor_quote_post_epoch"] == epoch
+        events.append("save")
+
+    monkeypatch.setattr(bot, "now_epoch", clock)
+    monkeypatch.setattr(bot, "save_state", save)
+    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", True)
+    monkeypatch.setattr(bot, "MEME_TRIGGER_AFTER_HOUR", 12)
+    monkeypatch.setattr(bot.random, "randint", lambda *_args: 3600)
+    monkeypatch.setattr(bot, "log", Mock(info=lambda *args: events.append(("log", args))))
+    for root_name in SCHEDULE_METHODS:
+        if root_name != "maybe_schedule_meme_after_quote_post":
+            monkeypatch.setattr(bot, root_name, Mock(side_effect=AssertionError("owned schedule bounced through root")))
+    bot.maybe_schedule_meme_after_quote_post(state)
+    assert events[:3] == ["clock", "save", "clock"]
+    assert len(events) == 4 and events[3][0] == "log"
+    assert events[3][1][2] == 3598
+    assert state["next_meme_post_epoch"] == epoch + 3600
 
 
 def test_filename_alias_uses_shared_regex_and_preserves_exact_pattern_order(monkeypatch):
@@ -182,8 +281,8 @@ def test_fallback_current_calendar_and_posted_callback_preserve_short_circuit_at
     state = {}
     calendar = Mock(side_effect=lambda value: datetime.fromtimestamp(value, target.tzinfo))
     posted = Mock(return_value=False)
-    monkeypatch.setattr(bot, "meme_schedule_datetime", calendar)
-    monkeypatch.setattr(bot, "meme_posted_on_date", posted)
+    patch_schedule(monkeypatch, "datetime", calendar)
+    patch_schedule(monkeypatch, "posted_on_date", posted)
     monkeypatch.setattr(bot, "MEME_FALLBACK_HOUR", 16)
     monkeypatch.setattr(bot, "MEME_FALLBACK_MINUTE", 0)
     assert bot.next_meme_fallback_epoch(state, epoch - 1) == epoch
@@ -224,7 +323,7 @@ def test_quote_trigger_draws_only_when_needed_and_saves_original_fields_in_order
     assert bot.meme_schedule_date_str(fields["next_meme_post_epoch"]) == "2026-07-07"
 
     state, events = {}, []
-    monkeypatch.setattr(bot, "meme_schedule_fields_after_quote_post", lambda current, value: fields if current is state and value == epoch else pytest.fail("copied caller"))
+    patch_schedule(monkeypatch, "fields_after_quote", lambda current, value: fields if current is state and value == epoch else pytest.fail("copied caller"))
     apply = bot.apply_state_fields
 
     def apply_fields(current, supplied):
@@ -232,7 +331,7 @@ def test_quote_trigger_draws_only_when_needed_and_saves_original_fields_in_order
         events.append("apply")
         apply(current, supplied)
 
-    monkeypatch.setattr(bot, "apply_state_fields", apply_fields)
+    monkeypatch.setattr(meme, "apply_state_fields", apply_fields)
     monkeypatch.setattr(bot, "save_state", lambda current: events.append("save") if current is state and current == fields else pytest.fail("save before apply"))
     monkeypatch.setattr(bot, "log", Mock(info=lambda *args: events.append("log")))
     bot.maybe_schedule_meme_after_quote_post(state, epoch)

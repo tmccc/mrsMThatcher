@@ -6,7 +6,9 @@ are preserved; metadata loading, shared state helpers, durable attempts, receipt
 transport and persistence remain in their existing owners. Explicit runtime calls
 may scan the supplied meme directory and mutate/save the caller's state or publish
 through supplied callbacks. Imports perform no runtime work or configuration
-access, and no callbacks are retained. Standard-library regex, calendar and random
+access. MemeSchedule binds current calendar/persistence policy for each root call
+and invokes its owned operations directly without retaining caller state.
+Standard-library regex, calendar and random
 imports preserve the existing behavior and shared random stream.
 """
 
@@ -15,9 +17,12 @@ from __future__ import annotations
 import random
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from logging import Logger
 from pathlib import Path
+
+from mrs_bot_runtime_state_helpers import apply_state_fields
 
 
 # A callback may return None before a later step fails. Keep that distinct from
@@ -150,294 +155,251 @@ def choose_next_meme(
     return available[0]
 
 
-def meme_schedule_datetime(
-    epoch: int,
-    *,
-    bound_schedule_datetime: Callable,
-    MAIN_POST_SCHEDULE_TIMEZONE: str,
-) -> datetime:
-    """Interpret a meme schedule epoch in the production calendar zone."""
+@dataclass(frozen=True)
+class MemeSchedule:
+    """Own the current meme calendar, fallback and quote-anchor scheduling rules."""
 
-    return bound_schedule_datetime(int(epoch), MAIN_POST_SCHEDULE_TIMEZONE)
+    bound_datetime: Callable
+    timezone: str
+    now_epoch: Callable
+    fallback_hour: int
+    fallback_minute: int
+    version: int
+    modes: set[str]
+    enabled: bool
+    trigger_hour: int
+    minimum_delay: int
+    maximum_delay: int
+    save_state: Callable
+    log: Logger
 
+    def datetime(self, epoch: int) -> datetime:
+        """Interpret a meme schedule epoch in the production calendar zone."""
 
-def meme_schedule_date_str(
-    epoch: int | None = None,
-    *,
-    now_epoch: Callable,
-    meme_schedule_datetime: Callable,
-) -> str:
-    """Return a meme schedule date independent of the process's ambient TZ."""
+        return self.bound_datetime(int(epoch), self.timezone)
 
-    if epoch is None:
-        epoch = now_epoch()
-    return meme_schedule_datetime(int(epoch)).strftime("%Y-%m-%d")
+    def date_str(self, epoch: int | None = None) -> str:
+        """Return a meme schedule date independent of the process's ambient TZ."""
 
+        if epoch is None:
+            epoch = self.now_epoch()
+        return self.datetime(int(epoch)).strftime("%Y-%m-%d")
 
-def meme_posted_on_date(
-    state: dict,
-    date_text: str,
-    *,
-    meme_schedule_date_str: Callable,
-) -> bool:
-    """Return the meme posted on date."""
-    last_epoch = int(state.get("last_meme_post_epoch", 0) or 0)
-    if not last_epoch:
-        return False
-    return meme_schedule_date_str(last_epoch) == date_text
+    def posted_on_date(
+        self,
+        state: dict,
+        date_text: str,
+    ) -> bool:
+        """Return the meme posted on date."""
+        last_epoch = int(state.get("last_meme_post_epoch", 0) or 0)
+        if not last_epoch:
+            return False
+        return self.date_str(last_epoch) == date_text
 
+    def next_fallback_epoch(
+        self,
+        state: dict,
+        from_epoch: int | None = None,
+    ) -> int:
+        """Return the next meme fallback epoch."""
+        if from_epoch is None:
+            from_epoch = self.now_epoch()
 
-def next_meme_fallback_epoch(
-    state: dict,
-    from_epoch: int | None = None,
-    *,
-    now_epoch: Callable,
-    meme_schedule_datetime: Callable,
-    MEME_FALLBACK_HOUR: int,
-    MEME_FALLBACK_MINUTE: int,
-    meme_posted_on_date: Callable,
-) -> int:
-    """Return the next meme fallback epoch."""
-    if from_epoch is None:
-        from_epoch = now_epoch()
-
-    now_dt = meme_schedule_datetime(int(from_epoch))
-    target = now_dt.replace(
-        hour=MEME_FALLBACK_HOUR,
-        minute=MEME_FALLBACK_MINUTE,
-        second=0,
-        microsecond=0,
-    )
-
-    target_date = target.strftime("%Y-%m-%d")
-
-    if int(target.timestamp()) <= from_epoch or meme_posted_on_date(state, target_date):
-        target = target + timedelta(days=1)
-
-    return int(target.timestamp())
-
-
-def next_meme_schedule_fields(
-    state: dict,
-    from_epoch: int | None = None,
-    mode: str = 'fallback',
-    *,
-    next_meme_fallback_epoch: Callable,
-    MEME_SCHEDULE_VERSION: int,
-    meme_schedule_date_str: Callable,
-) -> dict:
-    """Return the next meme schedule fields."""
-    next_epoch = next_meme_fallback_epoch(state, from_epoch)
-    return {
-        "next_meme_post_epoch": next_epoch,
-        "meme_schedule_version": MEME_SCHEDULE_VERSION,
-        "next_meme_schedule_mode": mode,
-        "next_meme_schedule_date": meme_schedule_date_str(next_epoch),
-        "meme_anchor_quote_post_epoch": 0,
-    }
-
-
-def meme_delay_schedule_fields(
-    epoch: int,
-    mode: str,
-    *,
-    MEME_SCHEDULE_MODES: set[str],
-    MEME_SCHEDULE_VERSION: int,
-    meme_schedule_date_str: Callable,
-) -> dict:
-    """Return the meme delay schedule fields."""
-    if mode not in MEME_SCHEDULE_MODES or mode in {"", "after_first_quote_after_midday"}:
-        raise ValueError(f"Unsupported non-quote meme delay schedule mode: {mode}")
-    return {
-        "next_meme_post_epoch": int(epoch),
-        "meme_schedule_version": MEME_SCHEDULE_VERSION,
-        "next_meme_schedule_mode": mode,
-        "next_meme_schedule_date": meme_schedule_date_str(int(epoch)),
-        "meme_anchor_quote_post_epoch": 0,
-    }
-
-
-def set_meme_delay_schedule(
-    state: dict,
-    *,
-    epoch: int,
-    mode: str,
-    save: bool = True,
-    apply_state_fields: Callable,
-    meme_delay_schedule_fields: Callable,
-    save_state: Callable,
-) -> None:
-    """Set meme delay schedule."""
-    apply_state_fields(state, meme_delay_schedule_fields(epoch, mode))
-    if save:
-        save_state(state)
-
-
-def schedule_next_meme_post(
-    state: dict,
-    from_epoch: int | None = None,
-    mode: str = 'fallback',
-    *,
-    save: bool = True,
-    next_meme_schedule_fields: Callable,
-    apply_state_fields: Callable,
-    save_state: Callable,
-    log: Logger,
-) -> None:
-    """
-    Schedule the fallback daily meme time. This is deliberately later than the
-    preferred organic timing. If a quote/image post happens after midday first,
-    maybe_schedule_meme_after_quote_post() will replace this fallback with a
-    random 35-75 minute delay after that post.
-    """
-    fields = next_meme_schedule_fields(state, from_epoch, mode)
-    apply_state_fields(state, fields)
-    next_epoch = int(fields["next_meme_post_epoch"])
-    if save:
-        save_state(state)
-
-    log.info(
-        "Next meme fallback scheduled at %s mode=%s",
-        datetime.fromtimestamp(next_epoch).strftime("%Y-%m-%d %H:%M:%S"),
-        mode,
-    )
-
-
-def ensure_meme_schedule_initialized(
-    state: dict,
-    *,
-    ENABLE_DAILY_MEME_POSTS: bool,
-    MEME_SCHEDULE_VERSION: int,
-    log: Logger,
-    MEME_TRIGGER_AFTER_HOUR: int,
-    MEME_FALLBACK_HOUR: int,
-    MEME_FALLBACK_MINUTE: int,
-    schedule_next_meme_post: Callable,
-    now_epoch: Callable,
-) -> None:
-    """Ensure meme schedule initialized."""
-    if not ENABLE_DAILY_MEME_POSTS:
-        return
-
-    next_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
-    schedule_version = int(state.get("meme_schedule_version", 0) or 0)
-
-    if schedule_version != MEME_SCHEDULE_VERSION:
-        log.info(
-            "Migrating meme schedule state to version %s: after first quote/image post after %02d:00, fallback %02d:%02d",
-            MEME_SCHEDULE_VERSION,
-            MEME_TRIGGER_AFTER_HOUR,
-            MEME_FALLBACK_HOUR,
-            MEME_FALLBACK_MINUTE,
+        now_dt = self.datetime(int(from_epoch))
+        target = now_dt.replace(
+            hour=self.fallback_hour,
+            minute=self.fallback_minute,
+            second=0,
+            microsecond=0,
         )
-        schedule_next_meme_post(state, now_epoch(), mode="fallback_migrated")
-        return
 
-    if not next_epoch:
-        log.info("No next_meme_post_epoch found; scheduling meme fallback")
-        schedule_next_meme_post(state, now_epoch(), mode="fallback_startup")
-        return
+        target_date = target.strftime("%Y-%m-%d")
 
-    log.info(
-        "Existing next_meme_post_epoch=%s, human=%s, mode=%s, schedule_date=%s",
-        next_epoch,
-        datetime.fromtimestamp(next_epoch).strftime("%Y-%m-%d %H:%M:%S"),
-        state.get("next_meme_schedule_mode"),
-        state.get("next_meme_schedule_date"),
-    )
+        if int(target.timestamp()) <= from_epoch or self.posted_on_date(state, target_date):
+            target = target + timedelta(days=1)
 
+        return int(target.timestamp())
 
-def meme_schedule_fields_after_quote_post(
-    state: dict,
-    quote_post_epoch: int | None = None,
-    *,
-    delay: int | None = None,
-    ENABLE_DAILY_MEME_POSTS: bool,
-    now_epoch: Callable,
-    meme_schedule_datetime: Callable,
-    MEME_TRIGGER_AFTER_HOUR: int,
-    log: Logger,
-    meme_posted_on_date: Callable,
-    MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS: int,
-    MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS: int,
-    MEME_SCHEDULE_VERSION: int,
-) -> dict:
-    """Return the meme schedule fields after quote post."""
-    if not ENABLE_DAILY_MEME_POSTS:
-        return {}
+    def next_fields(
+        self,
+        state: dict,
+        from_epoch: int | None = None,
+        mode: str = 'fallback',
+    ) -> dict:
+        """Return the next meme schedule fields."""
+        next_epoch = self.next_fallback_epoch(state, from_epoch)
+        return {
+            "next_meme_post_epoch": next_epoch,
+            "meme_schedule_version": self.version,
+            "next_meme_schedule_mode": mode,
+            "next_meme_schedule_date": self.date_str(next_epoch),
+            "meme_anchor_quote_post_epoch": 0,
+        }
 
-    if quote_post_epoch is None:
-        quote_post_epoch = now_epoch()
+    def delay_fields(
+        self,
+        epoch: int,
+        mode: str,
+    ) -> dict:
+        """Return the meme delay schedule fields."""
+        if mode not in self.modes or mode in {"", "after_first_quote_after_midday"}:
+            raise ValueError(f"Unsupported non-quote meme delay schedule mode: {mode}")
+        return {
+            "next_meme_post_epoch": int(epoch),
+            "meme_schedule_version": self.version,
+            "next_meme_schedule_mode": mode,
+            "next_meme_schedule_date": self.date_str(int(epoch)),
+            "meme_anchor_quote_post_epoch": 0,
+        }
 
-    quote_dt = meme_schedule_datetime(int(quote_post_epoch))
-    quote_date = quote_dt.strftime("%Y-%m-%d")
+    def set_delay(
+        self,
+        state: dict,
+        *,
+        epoch: int,
+        mode: str,
+        save: bool = True,
+    ) -> None:
+        """Set meme delay schedule."""
+        apply_state_fields(state, self.delay_fields(epoch, mode))
+        if save:
+            self.save_state(state)
 
-    if quote_dt.hour < MEME_TRIGGER_AFTER_HOUR:
-        log.info(
-            "Quote/image post was before meme trigger hour %02d:00; not scheduling daily meme from it",
-            MEME_TRIGGER_AFTER_HOUR,
+    def schedule_next(
+        self,
+        state: dict,
+        from_epoch: int | None = None,
+        mode: str = 'fallback',
+        *,
+        save: bool = True,
+    ) -> None:
+        """
+        Schedule the fallback daily meme time. This is deliberately later than the
+        preferred organic timing. If a quote/image post happens after midday first,
+        self.maybe_after_quote() will replace this fallback with a
+        random 35-75 minute delay after that post.
+        """
+        fields = self.next_fields(state, from_epoch, mode)
+        apply_state_fields(state, fields)
+        next_epoch = int(fields["next_meme_post_epoch"])
+        if save:
+            self.save_state(state)
+
+        self.log.info(
+            "Next meme fallback scheduled at %s mode=%s",
+            datetime.fromtimestamp(next_epoch).strftime("%Y-%m-%d %H:%M:%S"),
+            mode,
         )
-        return {}
 
-    if meme_posted_on_date(state, quote_date):
-        log.info("Daily meme already posted on %s; not scheduling another", quote_date)
-        return {}
+    def ensure_initialized(self, state: dict) -> None:
+        """Ensure meme schedule initialized."""
+        if not self.enabled:
+            return
 
-    next_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
-    next_mode = str(state.get("next_meme_schedule_mode", "") or "")
+        next_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
+        schedule_version = int(state.get("meme_schedule_version", 0) or 0)
 
-    if next_epoch:
-        next_schedule_date = str(state.get("next_meme_schedule_date", "") or "")
-        if next_schedule_date == quote_date and next_mode == "after_first_quote_after_midday":
-            log.info(
-                "Daily meme already scheduled from first post after midday at %s; not rescheduling",
-                datetime.fromtimestamp(next_epoch).strftime("%Y-%m-%d %H:%M:%S"),
+        if schedule_version != self.version:
+            self.log.info(
+                "Migrating meme schedule state to version %s: after first quote/image post after %02d:00, fallback %02d:%02d",
+                self.version,
+                self.trigger_hour,
+                self.fallback_hour,
+                self.fallback_minute,
+            )
+            self.schedule_next(state, self.now_epoch(), mode="fallback_migrated")
+            return
+
+        if not next_epoch:
+            self.log.info("No next_meme_post_epoch found; scheduling meme fallback")
+            self.schedule_next(state, self.now_epoch(), mode="fallback_startup")
+            return
+
+        self.log.info(
+            "Existing next_meme_post_epoch=%s, human=%s, mode=%s, schedule_date=%s",
+            next_epoch,
+            datetime.fromtimestamp(next_epoch).strftime("%Y-%m-%d %H:%M:%S"),
+            state.get("next_meme_schedule_mode"),
+            state.get("next_meme_schedule_date"),
+        )
+
+    def fields_after_quote(
+        self,
+        state: dict,
+        quote_post_epoch: int | None = None,
+        *,
+        delay: int | None = None,
+    ) -> dict:
+        """Return the meme schedule fields after quote post."""
+        if not self.enabled:
+            return {}
+
+        if quote_post_epoch is None:
+            quote_post_epoch = self.now_epoch()
+
+        quote_dt = self.datetime(int(quote_post_epoch))
+        quote_date = quote_dt.strftime("%Y-%m-%d")
+
+        if quote_dt.hour < self.trigger_hour:
+            self.log.info(
+                "Quote/image post was before meme trigger hour %02d:00; not scheduling daily meme from it",
+                self.trigger_hour,
             )
             return {}
 
-    if delay is None:
-        delay = random.randint(MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS, MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS)
-    scheduled_epoch = int(quote_post_epoch) + delay
-    return {
-        "next_meme_post_epoch": scheduled_epoch,
-        "meme_schedule_version": MEME_SCHEDULE_VERSION,
-        "next_meme_schedule_mode": "after_first_quote_after_midday",
-        "next_meme_schedule_date": quote_date,
-        "meme_anchor_quote_post_epoch": int(quote_post_epoch),
-    }
+        if self.posted_on_date(state, quote_date):
+            self.log.info("Daily meme already posted on %s; not scheduling another", quote_date)
+            return {}
 
+        next_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
+        next_mode = str(state.get("next_meme_schedule_mode", "") or "")
 
-def maybe_schedule_meme_after_quote_post(
-    state: dict,
-    quote_post_epoch: int | None = None,
-    *,
-    save: bool = True,
-    meme_schedule_fields_after_quote_post: Callable,
-    apply_state_fields: Callable,
-    save_state: Callable,
-    now_epoch: Callable,
-    log: Logger,
-    MEME_TRIGGER_AFTER_HOUR: int,
-) -> None:
-    """Attempt to schedule meme after quote post."""
-    fields = meme_schedule_fields_after_quote_post(state, quote_post_epoch)
-    if not fields:
-        return
-    apply_state_fields(state, fields)
-    if save:
-        save_state(state)
+        if next_epoch:
+            next_schedule_date = str(state.get("next_meme_schedule_date", "") or "")
+            if next_schedule_date == quote_date and next_mode == "after_first_quote_after_midday":
+                self.log.info(
+                    "Daily meme already scheduled from first post after midday at %s; not rescheduling",
+                    datetime.fromtimestamp(next_epoch).strftime("%Y-%m-%d %H:%M:%S"),
+                )
+                return {}
 
-    if quote_post_epoch is None:
-        quote_post_epoch = now_epoch()
-    scheduled_epoch = int(fields["next_meme_post_epoch"])
-    delay = scheduled_epoch - int(quote_post_epoch)
+        if delay is None:
+            delay = random.randint(self.minimum_delay, self.maximum_delay)
+        scheduled_epoch = int(quote_post_epoch) + delay
+        return {
+            "next_meme_post_epoch": scheduled_epoch,
+            "meme_schedule_version": self.version,
+            "next_meme_schedule_mode": "after_first_quote_after_midday",
+            "next_meme_schedule_date": quote_date,
+            "meme_anchor_quote_post_epoch": int(quote_post_epoch),
+        }
 
-    log.info(
-        "Daily meme scheduled for %s: %d seconds after first quote/image post after %02d:00",
-        datetime.fromtimestamp(scheduled_epoch).strftime("%Y-%m-%d %H:%M:%S"),
-        delay,
-        MEME_TRIGGER_AFTER_HOUR,
-    )
+    def maybe_after_quote(
+        self,
+        state: dict,
+        quote_post_epoch: int | None = None,
+        *,
+        save: bool = True,
+    ) -> None:
+        """Attempt to schedule meme after quote post."""
+        fields = self.fields_after_quote(state, quote_post_epoch)
+        if not fields:
+            return
+        apply_state_fields(state, fields)
+        if save:
+            self.save_state(state)
+
+        if quote_post_epoch is None:
+            quote_post_epoch = self.now_epoch()
+        scheduled_epoch = int(fields["next_meme_post_epoch"])
+        delay = scheduled_epoch - int(quote_post_epoch)
+
+        self.log.info(
+            "Daily meme scheduled for %s: %d seconds after first quote/image post after %02d:00",
+            datetime.fromtimestamp(scheduled_epoch).strftime("%Y-%m-%d %H:%M:%S"),
+            delay,
+            self.trigger_hour,
+        )
 
 
 def run_daily_meme_stage(
