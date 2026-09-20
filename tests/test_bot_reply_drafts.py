@@ -251,6 +251,47 @@ def test_absent_draft_recovery_and_clear_preserve_state_without_evidence_access(
         dependency.assert_not_called()
 
 
+@pytest.mark.parametrize("source", ["mention", "custom_receipt_source"])
+def test_confirmed_target_operations_cover_all_lanes_and_preserve_other_draft_references(make_owner, source):
+    evidence, validate, record, event = Mock(), Mock(), Mock(), Mock()
+    owner = make_owner(evidence_repository=evidence, validate_persisted_draft=validate,
+                       record_result=record, log_event=event)
+    lanes = {source, "mention", "hot_post_reply", "quote_tweet", "conversational_reply"}
+    sibling, unrelated = {"reply": "another target"}, {"reply": "another lane"}
+    drafts = {
+        **{f"{lane}:100": None for lane in lanes},
+        "mention:101": sibling,
+        "unrelated:100": unrelated,
+    }
+    state = {"pending_ai_reply_drafts": drafts}
+    before = drafts.copy()
+    assert owner.has_target(state, "100", source) is True
+    assert drafts == before
+    owner.clear_target(state, "100", source)
+    assert state["pending_ai_reply_drafts"] is drafts
+    assert drafts == {"mention:101": sibling, "unrelated:100": unrelated}
+    assert drafts["mention:101"] is sibling and drafts["unrelated:100"] is unrelated
+    assert owner.has_target(state, "100", source) is False
+    assert owner.has_target(state, "101", source) is True
+    owner.clear_target(state, "101", source)
+    owner.clear_target(state, "100", "unrelated")
+    assert state == {} and drafts == {}
+    for dependency in (evidence, validate, record, event):
+        dependency.assert_not_called()
+
+
+@pytest.mark.parametrize("drafts", [None, [], {}])
+def test_confirmed_target_operations_preserve_absent_and_malformed_maps(make_owner, drafts):
+    owner = make_owner(evidence_repository=Mock(side_effect=AssertionError("no evidence access")))
+    state = {} if drafts is None else {"pending_ai_reply_drafts": drafts}
+    assert owner.has_target(state, "100", "mention") is False
+    owner.clear_target(state, "100", "mention")
+    if isinstance(drafts, list):
+        assert state["pending_ai_reply_drafts"] is drafts
+    else:
+        assert state == {}
+
+
 def test_recovery_copies_draft_metadata_and_uses_supplied_telemetry_and_result_class(make_owner):
     context = unit_reply_context()
     reply = unit_approved_reply(

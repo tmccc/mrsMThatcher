@@ -30,6 +30,11 @@ def pending_ai_reply_draft_key(target_id: object, candidate_source: object) -> s
     return f"{str(candidate_source or 'mention')}:{str(target_id)}"
 
 
+def _target_draft_sources(candidate_source: str) -> set[str]:
+    """Include the receipt's source and every conversational reply lane."""
+    return {candidate_source, "mention", "hot_post_reply", "quote_tweet", "conversational_reply"}
+
+
 @dataclass(frozen=True)
 class ReplyDrafts:
     """Keep current draft rules together without retaining caller state."""
@@ -268,3 +273,17 @@ class ReplyDrafts:
         except (KeyError, OSError, RuntimeError, TypeError, ValueError):
             return False
         return validated["proposed_reply"] == text
+
+    def clear_target(self, state: dict, target_id: str, candidate_source: str) -> None:
+        """Retire every lane's draft after one public reply confirms this target."""
+        for source in _target_draft_sources(candidate_source):
+            self.clear(state, target_id, source)
+
+    def has_target(self, state: dict, target_id: str, candidate_source: str) -> bool:
+        """Check whether any lane still carries a draft for a confirmed target."""
+        drafts = state.get("pending_ai_reply_drafts")
+        pending_keys = {
+            pending_ai_reply_draft_key(target_id, source)
+            for source in _target_draft_sources(candidate_source)
+        }
+        return isinstance(drafts, dict) and bool(pending_keys.intersection(drafts))

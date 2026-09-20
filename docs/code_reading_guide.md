@@ -71,6 +71,9 @@ For a change to saved-draft behaviour, start with `ReplyDrafts`. Its `store`,
 internal draft operations do not return through root adapters. Each validation
 acquires current evidence. Recovery distinguishes an absent draft, an obsolete
 draft, a terminal validation failure and a reusable reply with zero model calls.
+Confirmation uses `clear_target` to retire drafts across reply lanes;
+emergency replay checks use `has_target` with the same lane coverage. Both
+operations retain other drafts and require no evidence access or durable save.
 The root's `_reply_draft_owner()` binds current dependencies without loading
 evidence. `_reply_cycle_persistence()` creates one owner per cycle invocation
 and supplies its bound `recover`, `store` and `clear` methods alongside the

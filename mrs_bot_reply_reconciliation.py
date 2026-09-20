@@ -39,7 +39,7 @@ def apply_confirmed_reply_receipt(
     _reset_mention_candidate_authority: Callable,
     _emit_mention_authority_recovery: Callable,
     log: logging.Logger,
-    clear_pending_ai_reply: Callable,
+    clear_target_drafts: Callable[[dict, str, str], None],
     mark_quote_tweet_replied: Callable,
     append_unique_durable: Callable,
     append_unique_capped: Callable,
@@ -161,8 +161,7 @@ def apply_confirmed_reply_receipt(
                 "reply receipt without transaction-bound provenance"
             )
     # A confirmed public reply retires drafts for this target in every lane.
-    for source in {candidate_source, "mention", "hot_post_reply", "quote_tweet", "conversational_reply"}:
-        clear_pending_ai_reply(state, target_id, source)
+    clear_target_drafts(state, target_id, candidate_source)
 
     if candidate_source == "quote_tweet":
         replied_to_ids = set(str(x) for x in state.get("replied_to_quote_post_ids", []))
@@ -400,7 +399,7 @@ def confirmed_reply_emergency_representation_is_complete(
     conversational_reply_confirmation_epoch: Callable,
     InvalidConfirmedReplyReceipt: type[Exception],
     receipt_int: Callable,
-    pending_ai_reply_draft_key: Callable,
+    has_target_draft: Callable[[dict, str, str], bool],
 ) -> bool:
     """Return whether state alone durably suppresses a confirmed reply replay."""
     if not confirmed_reply_receipt_is_semantically_valid(receipt):
@@ -414,16 +413,12 @@ def confirmed_reply_emergency_representation_is_complete(
         return False
     state_reply_epoch = receipt_int(state.get("last_reply_epoch"))
     own_reply_ids = {str(item) for item in state.get("own_auto_reply_ids", [])}
-    drafts = state.get("pending_ai_reply_drafts")
-    pending_keys = {
-        pending_ai_reply_draft_key(target_id, source)
-        for source in {candidate_source, "mention", "hot_post_reply", "quote_tweet", "conversational_reply"}
-    }
+    target_has_draft = has_target_draft(state, target_id, candidate_source)
     if (
         state_reply_epoch is None
         or state_reply_epoch < reply_epoch
         or reply_post_id not in own_reply_ids
-        or (isinstance(drafts, dict) and pending_keys.intersection(drafts))
+        or target_has_draft
     ):
         return False
     if candidate_source == "quote_tweet":

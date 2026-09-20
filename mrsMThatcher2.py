@@ -8465,7 +8465,7 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
         _reset_mention_candidate_authority=_reset_mention_candidate_authority,
         _emit_mention_authority_recovery=_emit_mention_authority_recovery,
         log=log,
-        clear_pending_ai_reply=clear_pending_ai_reply,
+        clear_target_drafts=_reply_draft_owner().clear_target,
         mark_quote_tweet_replied=mark_quote_tweet_replied,
         append_unique_durable=append_unique_durable,
         append_unique_capped=append_unique_capped,
@@ -8530,7 +8530,7 @@ def confirmed_reply_emergency_representation_is_complete(
         conversational_reply_confirmation_epoch=conversational_reply_confirmation_epoch,
         InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
         receipt_int=receipt_int,
-        pending_ai_reply_draft_key=pending_ai_reply_draft_key,
+        has_target_draft=_reply_draft_owner().has_target,
     )
 
 
