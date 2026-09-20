@@ -33,7 +33,7 @@ def forbidden(*args, **kwargs):
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
     if name in {'mrsMThatcher2', 'historical_context_formatter', 'requests', 'openai'} or (
-        name.startswith('mrs_bot_') and name not in {'mrs_bot_image_scoring', 'mrs_bot_quote_candidates'}
+        name.startswith('mrs_bot_') and name not in {'mrs_bot_asset_metadata', 'mrs_bot_image_scoring', 'mrs_bot_quote_candidates'}
     ):
         forbidden()
     return original_import(name, *args, **kwargs)

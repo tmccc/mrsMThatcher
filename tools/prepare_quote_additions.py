@@ -342,7 +342,7 @@ def _build_preparation(batch: Path, project: Path, staged: Path, work: Path, bat
         runtime_eligible_quote_manifest_file=staged / RUNTIME,
         lines_file=staged / "mrsMThatcher.txt",
         completed_quote_research_file=staged / RESEARCH / "research_packets.json",
-        quote_text_hash=quote_text_hash, file_sha256=file_hash,
+        file_sha256=file_hash,
         load_json_object=lambda path, **_kwargs: read_json(path),
     )
     if actual != set(runtime["runtime_eligible_quote_ids"]):

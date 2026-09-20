@@ -4,6 +4,8 @@ Explicit calls read the supplied source, analysis and canonical eligibility
 manifest, and may clear the caller's in-memory used set at cycle exhaustion.
 The coordinator supplies current configuration, helpers and logger; durable
 history, image selection, publishing and research implementation stay outside.
+Canonical research-loader hashes come directly from the asset-metadata owner.
+Candidate hashing remains supplied for isolated simulation caches.
 QuoteCandidates binds current external inputs per root call and invokes its own
 operations directly. Import and construction perform no runtime work or state
 access. The public research loader remains shared with preparation tools.
@@ -19,6 +21,8 @@ from collections.abc import Callable
 from datetime import datetime
 from logging import Logger
 from pathlib import Path
+
+from mrs_bot_asset_metadata import quote_text_hash
 
 
 def mm_dd_in_window(mm_dd: str, start_mm_dd: str, end_mm_dd: str) -> bool:
@@ -50,7 +54,6 @@ def load_completed_research_quote_hashes(
     completed_quote_research_file: Path,
     load_json_object: Callable[..., dict | None],
     file_sha256: Callable[[Path], str],
-    quote_text_hash: Callable[[str], str],
 ) -> set[str]:
     """Load the exact hash-bound ordinary-post eligibility partition."""
     from historical_context_formatter import (
@@ -357,7 +360,6 @@ class QuoteCandidates:
             completed_quote_research_file=self.research_file,
             load_json_object=self.load_json_object,
             file_sha256=self.file_sha256,
-            quote_text_hash=self.quote_text_hash,
         )
 
     def for_cycle(

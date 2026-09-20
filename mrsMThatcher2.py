@@ -6460,7 +6460,6 @@ def load_completed_research_quote_hashes() -> set[str]:
         completed_quote_research_file=COMPLETED_QUOTE_RESEARCH_FILE,
         load_json_object=load_json_object,
         file_sha256=file_sha256,
-        quote_text_hash=quote_text_hash,
     )
 
 

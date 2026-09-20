@@ -620,6 +620,7 @@ def test_immutable_candidate_cache_follows_owned_calls_and_preserves_current_mis
         load_image_analysis=lambda: {},
         current_datetime=lambda: datetime(2026, 7, 5),
         multiplier=1.0,
+        quote_text_hash=lambda text: text.strip(),
     )
     owner_type = bot._quote_candidates.QuoteCandidates
     original_weight = owner_type.weight
@@ -635,7 +636,7 @@ def test_immutable_candidate_cache_follows_owned_calls_and_preserves_current_mis
         load_quote_analysis=cache_bot.load_quote_analysis,
         validate_analysis=lambda *args: None,
         current_datetime=cache_bot.current_datetime,
-        quote_text_hash=lambda text: text.strip(),
+        quote_text_hash=cache_bot.quote_text_hash,
         quality_weight_max_multiplier=cache_bot.multiplier,
     )
     cache_bot.quote_candidate_weight = lambda analysis, **kwargs: cache_bot._quote_candidates_owner().weight(analysis, **kwargs)
@@ -658,10 +659,12 @@ def test_immutable_candidate_cache_follows_owned_calls_and_preserves_current_mis
     hashes = cache_bot._quote_candidates_owner().hashes_by_line(lines)
     hashes[99] = "transient"
     assert cache_bot._quote_candidates_owner().hashes_by_line(lines) == {0: "A quotation."}
+    assert cache_bot.quote_text_hash(lines[0]) == "A quotation."
     counters = cache_bot._HARNESS_IMMUTABLE_CACHE_COUNTERS
     assert (counters["quote_weight_misses"], counters["quote_weight_hits"]) == (1, 1)
     assert (counters["quote_input_misses"], counters["quote_input_hits"]) == (1, 1)
     assert (counters["quote_hash_misses"], counters["quote_hash_hits"]) == (1, 1)
+    assert (counters["quote_text_hash_misses"], counters["quote_text_hash_hits"]) == (1, 1)
     assert owner_type.weight is original_weight
 
 

@@ -269,6 +269,7 @@ def test_source_load_keeps_default_encoding_references_and_error_order(tmp_path,
 
 
 def test_research_loader_uses_current_callbacks_and_validates_core_before_manifest(monkeypatch):
+    assert "quote_text_hash" not in inspect.signature(candidates.load_completed_research_quote_hashes).parameters
     research, manifest_path = Path("current-research"), Path("current-manifest")
     failure = RuntimeError("canonical core invalid")
     core = Mock(side_effect=failure)
@@ -277,7 +278,7 @@ def test_research_loader_uses_current_callbacks_and_validates_core_before_manife
     monkeypatch.setattr(bot, "RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE", manifest_path)
     monkeypatch.setattr(bot, "load_json_object", forbidden)
     monkeypatch.setattr(bot, "file_sha256", forbidden)
-    monkeypatch.setattr(bot, "quote_text_hash", forbidden)
+    monkeypatch.setattr(candidates, "quote_text_hash", forbidden)
     with pytest.raises(RuntimeError) as exc:
         bot.load_completed_research_quote_hashes()
     assert exc.value is failure
