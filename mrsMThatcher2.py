@@ -2849,9 +2849,6 @@ def _clarification_reply_owner() -> _reply_clarifications.ClarificationReplies:
         api_error=ApiError,
         invalid_receipt=InvalidConfirmedReplyReceipt,
         window_seconds=CLARIFICATION_REPLY_WINDOW_SECONDS,
-        cue_re=CLARIFICATION_CUE_RE,
-        token_re=CLARIFICATION_TOKEN_RE,
-        token_stopwords=CLARIFICATION_TOKEN_STOPWORDS,
         log_event=log_event,
     )
 
@@ -2874,9 +2871,7 @@ def author_used_clarification_recently(state: dict, author_id: str, *, current: 
     return _clarification_reply_owner().author_used_recently(state, author_id, current=current)
 
 
-def _clarification_tokens(text: object) -> set[str]:
-    """Delegate clarification behavior to its owner with current dependencies."""
-    return _clarification_reply_owner().tokens(text)
+_clarification_tokens = _reply_clarifications._clarification_tokens
 
 
 def clarification_reply_context(state: dict, candidate: dict, *, current: int) -> dict | None:

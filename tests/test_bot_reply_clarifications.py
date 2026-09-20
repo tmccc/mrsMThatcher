@@ -32,8 +32,7 @@ OWNER_INPUTS = {
     "is_our_auto_reply": "is_our_auto_reply", "api_error": "ApiError",
     "invalid_receipt": "InvalidConfirmedReplyReceipt",
     "window_seconds": "CLARIFICATION_REPLY_WINDOW_SECONDS",
-    "cue_re": "CLARIFICATION_CUE_RE", "token_re": "CLARIFICATION_TOKEN_RE",
-    "token_stopwords": "CLARIFICATION_TOKEN_STOPWORDS", "log_event": "log_event",
+    "log_event": "log_event",
 }
 
 
@@ -101,7 +100,6 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
 
 def test_root_adapters_preserve_arguments_result_identity_and_errors(monkeypatch):
     methods = {
-        "_clarification_tokens": "tokens",
         "clarification_thread_is_terminal": "thread_is_terminal",
         "author_used_clarification_recently": "author_used_recently",
         "clarification_reply_context": "context",
@@ -132,7 +130,7 @@ def test_root_adapters_preserve_arguments_result_identity_and_errors(monkeypatch
             assert caught.value is failure
 
 
-def test_aliases_share_fixed_objects_and_tokens_use_current_regex_and_stopwords(monkeypatch, make_owner):
+def test_aliases_share_fixed_objects_and_tokens_use_owned_regex_and_stopwords(monkeypatch, make_owner):
     for name in ("clarification_thread_id",
                  "CLARIFICATION_CUE_RE", "CLARIFICATION_TOKEN_RE", "CLARIFICATION_TOKEN_STOPWORDS"):
         assert getattr(bot, name) is getattr(policy, name) is getattr(clarifications, name)
@@ -146,11 +144,14 @@ def test_aliases_share_fixed_objects_and_tokens_use_current_regex_and_stopwords(
         assert owner.tokens("@Someone STAGE25TOKEN Berlin berlin?") == {"berlin"}
     finally:
         stopwords.remove("stage25token")
-    owner = replace(owner, token_re=re.compile(r"\d+"), token_stopwords={"25"})
+    assert bot._clarification_tokens is clarifications._clarification_tokens
+    monkeypatch.setattr(bot, "_clarification_reply_owner", Mock(side_effect=AssertionError("pure tokens built runtime owner")))
+    monkeypatch.setattr(clarifications, "CLARIFICATION_TOKEN_RE", re.compile(r"\d+"))
+    monkeypatch.setattr(clarifications, "CLARIFICATION_TOKEN_STOPWORDS", {"25"})
     assert owner.tokens("@user99 stage 25 or 26 or 26?") == {"26"}
     current_re = SimpleNamespace(sub=Mock(return_value="27 25"))
     monkeypatch.setattr(clarifications, "re", current_re)
-    assert owner.tokens(None) == {"27"}
+    assert bot._clarification_tokens(None) == {"27"}
     current_re.sub.assert_called_once_with(r"(?<![A-Za-z0-9_])@[A-Za-z0-9_]+", " ", "")
 
 
@@ -179,7 +180,8 @@ def test_cached_clarification_keeps_original_references_and_current_correction_t
     trace.parent = Mock(wraps=bot.get_immediate_parent_id)
     trace.own = Mock(wraps=bot.is_our_auto_reply)
     trace.cue.search = Mock(wraps=bot.CLARIFICATION_CUE_RE.search)
-    owner = make_owner(parent_id=trace.parent, is_our_auto_reply=trace.own, cue_re=trace.cue)
+    monkeypatch.setattr(clarifications, "CLARIFICATION_CUE_RE", trace.cue)
+    owner = make_owner(parent_id=trace.parent, is_our_auto_reply=trace.own)
     trace.tokens = Mock(wraps=owner.tokens)
     monkeypatch.setattr(clarifications.ClarificationReplies, "tokens", trace.tokens)
     result = owner.context(state, candidate, current=2_000_000_001)
@@ -193,7 +195,7 @@ def test_cached_clarification_keeps_original_references_and_current_correction_t
     assert trace.parent.call_args_list[1].args[0] is prior
     assert trace.own.call_args.args[0] is prior and trace.own.call_args.args[1] is state
     assert trace.tokens.call_args_list == [call(question["text"]), call(candidate["text"])]
-    owner = replace(owner, cue_re=re.compile(r"(?!)"))
+    monkeypatch.setattr(clarifications, "CLARIFICATION_CUE_RE", re.compile(r"(?!)"))
     assert owner.context(state, candidate, current=2_000_000_001)["trigger"] == "restated_question"
     monkeypatch.setattr(clarifications.ClarificationReplies, "tokens", Mock(return_value=set()))
     assert owner.context(state, candidate, current=2_000_000_001) is None

@@ -3,7 +3,7 @@
 Detection, author windows and terminal-thread checks share the same completion
 ledger. Confirmation conflict checks and recording remain separate operations so
 callers preserve their existing state, cache and telemetry ordering. Context and
-lookup capabilities, pipeline enablement, exception types and mutable policy are
+lookup capabilities, pipeline enablement, exception types and author windows are
 bound per invocation; persistence and remote delivery remain with their owners.
 Import constructs only fixed regexes and stopwords, without runtime access.
 """
@@ -36,6 +36,15 @@ def clarification_thread_id(candidate: dict) -> str:
     return str(candidate.get("conversation_id") or candidate.get("id") or "")
 
 
+def _clarification_tokens(text: object) -> set[str]:
+    """Return significant question words after removing account handles."""
+    without_handles = re.sub(r"(?<![A-Za-z0-9_])@[A-Za-z0-9_]+", " ", str(text or ""))
+    return {
+        token.lower() for token in CLARIFICATION_TOKEN_RE.findall(without_handles)
+        if token.lower() not in CLARIFICATION_TOKEN_STOPWORDS
+    }
+
+
 @dataclass(frozen=True)
 class ClarificationReplies:
     """Recognise eligible repair requests and own their completed-thread ledger."""
@@ -49,9 +58,6 @@ class ClarificationReplies:
     api_error: type[Exception]
     invalid_receipt: type[Exception]
     window_seconds: int
-    cue_re: re.Pattern[str]
-    token_re: re.Pattern[str]
-    token_stopwords: set[str]
     log_event: Callable
 
     def thread_is_terminal(self, state: dict, candidate: dict) -> bool:
@@ -75,13 +81,7 @@ class ClarificationReplies:
                 continue
         return False
 
-    def tokens(self, text: object) -> set[str]:
-        """Return significant question words after removing account handles."""
-        without_handles = re.sub(r"(?<![A-Za-z0-9_])@[A-Za-z0-9_]+", " ", str(text or ""))
-        return {
-            token.lower() for token in self.token_re.findall(without_handles)
-            if token.lower() not in self.token_stopwords
-        }
+    tokens = staticmethod(_clarification_tokens)
 
     def context(self, state: dict, candidate: dict, *, current: int) -> dict | None:
         """Return bounded repair metadata only for a direct follow-up to our confirmed reply."""
@@ -137,7 +137,7 @@ class ClarificationReplies:
         if "?" not in question_text:
             return None
 
-        explicit_correction = bool(self.cue_re.search(incoming_text))
+        explicit_correction = bool(CLARIFICATION_CUE_RE.search(incoming_text))
         restated_question = "?" in incoming_text
         if restated_question:
             restated_question = bool(
