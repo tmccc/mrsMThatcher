@@ -52,7 +52,7 @@ assert 'mrsMThatcher2' not in sys.modules
 def test_adapter_passes_current_dependencies_and_references_on_every_call(monkeypatch):
     names = [name for name, parameter in inspect.signature(posting.post_random_quote).parameters.items()
              if parameter.kind == inspect.Parameter.KEYWORD_ONLY]
-    assert len(names) == 58
+    assert len(names) == 42
     assert not set(names) & {
         "apply_state_fields", "valid_post_id",
         "main_post_attempt", "pending_schedule_receipt", "quote_post_epoch",
@@ -63,9 +63,13 @@ def test_adapter_passes_current_dependencies_and_references_on_every_call(monkey
     monkeypatch.setattr(posting, "post_random_quote", owner)
     for _ in range(2):
         current = {name: object() for name in names}
+        publication_factory = Mock(return_value=current["publication"])
+        monkeypatch.setattr(bot, "_main_post_publication_owner", publication_factory)
         for name, value in current.items():
-            monkeypatch.setattr(bot, name, value)
+            if name != "publication":
+                monkeypatch.setattr(bot, name, value)
         assert bot.post_random_quote(lines_used, images_used, state) is result
+        publication_factory.assert_called_once_with("quote_image")
         args, kwargs = owner.call_args
         assert all(actual is expected for actual, expected in zip(args, (lines_used, images_used, state)))
         assert kwargs.keys() == current.keys()

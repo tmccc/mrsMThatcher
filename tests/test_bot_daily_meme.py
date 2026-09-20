@@ -70,9 +70,15 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
             patch.setattr(meme, name, owner)
             for _ in range(2):
                 current = {key: object() for key in dependencies}
+                if "publication" in current:
+                    publication_factory = Mock(return_value=current["publication"])
+                    patch.setattr(bot, "_main_post_publication_owner", publication_factory)
                 for key, value in current.items():
-                    patch.setattr(bot, key, value)
+                    if key != "publication":
+                        patch.setattr(bot, key, value)
                 assert adapter(*args, **options) is result, name
+                if "publication" in current:
+                    publication_factory.assert_called_once_with("daily_meme")
                 actual_args, actual_kwargs = owner.call_args
                 assert len(actual_args) == len(args)
                 assert all(actual is expected for actual, expected in zip(actual_args, args)), name
@@ -450,9 +456,10 @@ def test_posting_closures_keep_assets_prepared_transport_and_named_stage_order(t
         if "analysis_index" in closure:
             assert closure["analysis_index"] is index
         if name == "x_post_request":
-            assert closure["main_post_attempt"] is prepared["attempt"]
-            assert closure["transport_authority"] is prepared["authority"]
-            assert closure["transport_source"] is prepared["source"]
+            publication = closure["self"]
+            assert publication.attempt is prepared["attempt"]
+            assert publication.transport_authority is prepared["authority"]
+            assert publication.transport_source is prepared["source"]
         return original_stage(name, operation)
 
     def prepare(attempt):

@@ -1,11 +1,11 @@
 """Ordinary quotation posting orchestration.
 
 The coordinator supplies current callbacks, settings, logger, exception/type
-authority on every call. This owner
-preserves the complete selection, publication and local recovery workflow.
-Fixed post-ID checks and state-field application use their inert owners directly;
-transactions, transport, receipts, persistence and scheduling helpers remain in
-the coordinator. Arguments and nested closure references are not copied by the
+authority on every call. This owner retains selection, history rollback, schedule
+projections and lane-specific local recovery. MainPostPublication owns the shared
+durable publication steps and partial transaction progress; its authorities are
+bound at cycle entry. State-field application uses its inert owner directly.
+Arguments and nested closure references are not copied by the
 adapter. Imports perform no runtime work or configuration access, and callbacks
 are never retained beyond the call. The standard-library random stream is shared.
 """
@@ -16,11 +16,14 @@ import random
 from collections.abc import Callable
 from logging import Logger
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, TYPE_CHECKING
 
-from mrs_bot_receipt_primitives import valid_post_id
 from mrs_bot_regular_post_completion import complete_regular_post_persistence
 from mrs_bot_runtime_state_helpers import apply_state_fields
+
+
+if TYPE_CHECKING:
+    from mrs_bot_main_post_publication import MainPostPublication
 
 
 # Availability is separate from a callback's value, including an assigned None.
@@ -270,11 +273,11 @@ def post_random_quote(
     images_used: set,
     state: dict,
     *,
+    publication: MainPostPublication,
     log: Logger,
     block_if_ambiguous_remote_post: Callable,
     now_epoch: Callable,
     reconcile_main_post_receipts: Callable,
-    ConfirmedPostSigintDeferral: type,
     require_historical_context_outbox_writable: Callable,
     quote_used_history_has_legacy_indices: Callable,
     CorruptUsedHistoryError: type[Exception],
@@ -291,25 +294,9 @@ def post_random_quote(
     MEME_SCHEDULE_VERSION: int,
     MAIN_POST_SCHEDULE_TIMEZONE: str,
     bound_meme_schedule_state: Callable,
-    write_main_post_attempt: Callable,
-    prepare_main_tweet_transport: Callable,
-    handoff_confirmed_media_upload_to_main_attempt: Callable,
-    begin_confirmed_post_sigint_deferral: Callable,
-    create_post: Callable,
-    api_error_proves_remote_non_success: Callable,
     remove_main_post_attempt: Callable,
-    end_confirmed_post_sigint_deferral: Callable,
-    AmbiguousRemotePostOutcome: type[Exception],
-    remote_write_safety_incident_is_latched: Callable,
     durable_remote_write_safety_barrier_exists: Callable,
-    retain_sigint_deferral_without_durable_barrier: Callable,
-    inspect_confirmed_transport_transaction: Callable,
-    journal_path_for_receipt: Callable,
     REGULAR_POST_RECEIPT_FILE: Path,
-    confirmation_epoch_for_main_attempt: Callable,
-    build_confirmed_pending_schedule_receipt: Callable,
-    promote_main_post_attempt_to_confirmed_pending_schedule: Callable,
-    finalize_confirmed_pending_schedule_receipt: Callable,
     ConfirmedPendingScheduleDurabilityUncertain: type[Exception],
     ConfirmedPostLocalPersistenceError: type[Exception],
     materialize_bound_regular_schedule_receipt: Callable,
@@ -347,8 +334,6 @@ def post_random_quote(
         return
     original_lines_used = set(lines_used)
     original_images_used = set(images_used)
-    confirmed_post_sigint_guard: ConfirmedPostSigintDeferral | None = None
-    main_post_attempt = _RECOVERY_VALUE_UNAVAILABLE
 
     try:
         require_historical_context_outbox_writable()
@@ -416,108 +401,32 @@ def post_random_quote(
             },
             attempt_epoch=transaction_preflight_epoch,
         )
-        write_main_post_attempt(main_post_attempt)
-        (
-            main_post_attempt,
-            transport_source,
-            transport_authority,
-        ) = prepare_main_tweet_transport(main_post_attempt)
-        handoff_confirmed_media_upload_to_main_attempt(
-            main_post_attempt,
-            transport_authority,
+        publication.prepare(main_post_attempt)
+        publication.begin_guard()
+        posted_id = publication.send(
+            text=tweet, media_id=media_id, made_with_ai=image_made_with_ai,
         )
-        confirmed_post_sigint_guard = begin_confirmed_post_sigint_deferral()
-        response = create_post(
-            text=tweet,
-            media_ids=[media_id],
-            reply_to_id=None,
-            made_with_ai=image_made_with_ai,
-            prepared_main_post_attempt=main_post_attempt,
-            prepared_transport_authority=transport_authority,
-            prepared_transport_source=transport_source,
-        )
-        posted_id = response.get("data", {}).get("id") if isinstance(response, dict) else None
-        log.debug("Posted_id=%s", posted_id)
-
-        if not valid_post_id(posted_id):
-            raise RuntimeError("Quote/image post did not return a valid post id; used histories unchanged")
     except BaseException as remote_exc:
         lines_used.clear()
         lines_used.update(original_lines_used)
         images_used.clear()
         images_used.update(original_images_used)
-        if (
-            main_post_attempt is not _RECOVERY_VALUE_UNAVAILABLE
-            and api_error_proves_remote_non_success(remote_exc)
-        ):
-            try:
-                remove_main_post_attempt(
-                    main_post_attempt,
-                    sending_disposition="definite_non_success",
-                )
-            except BaseException as removal_exc:
-                end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
-                confirmed_post_sigint_guard = None
-                raise AmbiguousRemotePostOutcome(
-                    "A definitely unsuccessful regular post left its durable "
-                    "sending receipt unresolved",
-                    service="x",
-                ) from removal_exc
-        if (
-            isinstance(remote_exc, AmbiguousRemotePostOutcome)
-            and remote_write_safety_incident_is_latched()
-            and not durable_remote_write_safety_barrier_exists()
-        ):
-            retain_sigint_deferral_without_durable_barrier(
-                lane="quote_image",
-                guard=confirmed_post_sigint_guard,
-            )
-        else:
-            end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
-            confirmed_post_sigint_guard = None
+        publication.handle_remote_failure(remote_exc)
         raise
 
     quote_post_epoch = _RECOVERY_VALUE_UNAVAILABLE
-    pending_schedule_receipt = _RECOVERY_VALUE_UNAVAILABLE
     fallback_receipt = _RECOVERY_VALUE_UNAVAILABLE
     quote_schedule_fields = _RECOVERY_VALUE_UNAVAILABLE
     meme_schedule_fields = _RECOVERY_VALUE_UNAVAILABLE
-    pending_schedule_promoted = False
     try:
-        transport_confirmation = inspect_confirmed_transport_transaction(
-            journal_path_for_receipt(REGULAR_POST_RECEIPT_FILE)
-        )
-        if transport_confirmation.post_id != str(posted_id):
-            raise AmbiguousRemotePostOutcome(
-                "Confirmed regular-post identity differs from its journal",
-                service="x",
-            )
-        quote_post_epoch = confirmation_epoch_for_main_attempt(
-            main_post_attempt,
-            transport_confirmation.confirmation_epoch,
-        )
+        quote_post_epoch = publication.read_confirmation_epoch(posted_id)
         context_obligation_receipt = {
             "post_id": str(posted_id),
             "quote_hash": quote_hash,
             "quote_post_epoch": quote_post_epoch,
             "text": tweet,
         }
-        pending_schedule_receipt = build_confirmed_pending_schedule_receipt(
-            main_post_attempt,
-            post_id=str(posted_id),
-            confirmation_epoch=quote_post_epoch,
-        )
-        pending_schedule_receipt = (
-            promote_main_post_attempt_to_confirmed_pending_schedule(
-                main_post_attempt,
-                post_id=str(posted_id),
-                confirmation_epoch=quote_post_epoch,
-            )
-        )
-        pending_schedule_promoted = True
-        receipt = finalize_confirmed_pending_schedule_receipt(
-            pending_schedule_receipt
-        )
+        receipt = publication.confirm_pending_schedule(posted_id, quote_post_epoch)
         quote_schedule_fields = _confirmed_quote_schedule_fields(receipt)
         meme_schedule_fields = _confirmed_meme_schedule_fields(receipt)
     except BaseException as receipt_exc:
@@ -531,20 +440,15 @@ def post_random_quote(
             ConfirmedPendingScheduleDurabilityUncertain,
         ):
             if receipt_exc.durable_barrier:
-                end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
-                confirmed_post_sigint_guard = None
+                publication.release_guard()
             else:
-                retain_sigint_deferral_without_durable_barrier(
-                    lane="quote_image",
-                    guard=confirmed_post_sigint_guard,
-                )
+                publication.retain_guard()
             raise
-        if pending_schedule_promoted:
+        if publication.pending_promoted:
             # The remote identity is already durable.  Leave this receipt in
             # place so startup/current-loop reconciliation retries only local
             # schedule materialisation and can never recreate the X post.
-            end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
-            confirmed_post_sigint_guard = None
+            publication.release_guard()
             if not isinstance(receipt_exc, Exception):
                 raise
             raise ConfirmedPostLocalPersistenceError(
@@ -552,10 +456,10 @@ def post_random_quote(
                 "pending-schedule receipt remains for local-only reconciliation"
             ) from receipt_exc
         fallback_failures: list[str] = []
-        if pending_schedule_receipt is not _RECOVERY_VALUE_UNAVAILABLE:
+        if publication.pending_available:
             try:
                 fallback_receipt = materialize_bound_regular_schedule_receipt(
-                    pending_schedule_receipt
+                    publication.pending_receipt
                 )
                 quote_schedule_fields = _confirmed_quote_schedule_fields(fallback_receipt)
                 meme_schedule_fields = _confirmed_meme_schedule_fields(fallback_receipt)
@@ -611,7 +515,7 @@ def post_random_quote(
         except Exception:
             log.critical("Emergency in-memory cache/recent update failed after confirmed regular post", exc_info=True)
         from mrs_bot_state_generation import record_receipt_commit
-        record_receipt_commit(state, main_post_attempt)
+        record_receipt_commit(state, publication.attempt)
         persistence = emergency_persist_confirmed_regular_post(lines_used, images_used, state)
         failures = [*fallback_failures, *persistence.failures]
         if not confirmed_regular_emergency_representation_is_complete(
@@ -622,7 +526,7 @@ def post_random_quote(
             lines_used=lines_used,
             images_used=images_used,
             state=state,
-            main_post_attempt=main_post_attempt,
+            main_post_attempt=publication.attempt,
         ):
             failures.append("incomplete_regular_post_state")
         failure_text = ", ".join(failures) if failures else "receipt"
@@ -633,13 +537,9 @@ def post_random_quote(
                 failure_components=["regular_post_receipt", *failures],
             )
             if durable_barrier or durable_remote_write_safety_barrier_exists():
-                end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
-                confirmed_post_sigint_guard = None
+                publication.release_guard()
             else:
-                retain_sigint_deferral_without_durable_barrier(
-                    lane="quote_image",
-                    guard=confirmed_post_sigint_guard,
-                )
+                publication.retain_guard()
             raise UnrecoverableConfirmedPostPersistenceError(
                 f"Confirmed regular quote/image post {posted_id} has no complete "
                 f"durable recovery representation: {failure_text}"
@@ -659,8 +559,7 @@ def post_random_quote(
                     posted_id,
                     exc_info=True,
                 )
-                end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
-                confirmed_post_sigint_guard = None
+                publication.release_guard()
                 raise ConfirmedPostLocalPersistenceError(
                     f"Confirmed regular quote/image post {posted_id} but failed "
                     "persisting its historical-context disposition; the durable "
@@ -668,13 +567,13 @@ def post_random_quote(
                 ) from context_exc
             retire_lane_transport_journal_if_present(
                 receipt_path=REGULAR_POST_RECEIPT_FILE,
-                receipt=main_post_attempt,
+                receipt=publication.attempt,
                 lane="quote_image",
                 post_id=str(posted_id),
                 commit_proof=persistence.commit_proof,
             )
             remove_main_post_attempt(
-                main_post_attempt,
+                publication.attempt,
                 sending_disposition="confirmed_state_fallback",
                 commit_proof=persistence.commit_proof,
             )
@@ -683,16 +582,14 @@ def post_random_quote(
                 f"Confirmed regular quote/image post {posted_id} has no stable "
                 "receipt state after fallback persistence"
             ) from receipt_exc
-        end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
-        confirmed_post_sigint_guard = None
+        publication.release_guard()
         if not isinstance(receipt_exc, Exception):
             raise
         raise ConfirmedPostLocalPersistenceError(
             f"Confirmed regular quote/image post {posted_id} but failed local recovery receipt/persistence: {failure_text}"
         ) from receipt_exc
 
-    end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
-    confirmed_post_sigint_guard = None
+    publication.release_guard()
 
     _complete_quote_post(
         lines_used, images_used, state,

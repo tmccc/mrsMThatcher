@@ -1,9 +1,11 @@
 """Daily meme selection, calendar scheduling and transactional posting.
 
 The coordinator supplies current callbacks, configuration, logger and exception
-authority on every call. Original workflow bodies and nested closure references
-are preserved; metadata loading, shared state helpers, durable attempts, receipts,
-transport and persistence remain in their existing owners. Explicit runtime calls
+authority on every call. MainPostPublication owns shared publication and partial
+transaction progress with authorities bound at cycle entry. Named stages,
+preparation exception boundaries, schedule projections and meme-specific recovery
+remain explicit here; metadata, receipt storage and persistence retain their
+owners. Explicit runtime calls
 may scan the supplied meme directory and mutate/save the caller's state or publish
 through supplied callbacks. Imports perform no runtime work or configuration
 access. MemeCatalog owns asset discovery, history-reset selection and summaries.
@@ -22,8 +24,13 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from logging import Logger
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from mrs_bot_runtime_state_helpers import apply_state_fields
+
+
+if TYPE_CHECKING:
+    from mrs_bot_main_post_publication import MainPostPublication
 
 
 # A callback may return None before a later step fails. Keep that distinct from
@@ -445,6 +452,7 @@ def require_valid_meme_post_id(
 def post_next_meme(
     state: dict,
     *,
+    publication: MainPostPublication,
     log: Logger,
     run_daily_meme_stage: Callable,
     block_if_ambiguous_remote_post: Callable,
@@ -468,25 +476,8 @@ def post_next_meme(
     MEME_FALLBACK_HOUR: int,
     MEME_FALLBACK_MINUTE: int,
     MAIN_POST_SCHEDULE_TIMEZONE: str,
-    write_main_post_attempt: Callable,
-    prepare_main_tweet_transport: Callable,
-    handoff_confirmed_media_upload_to_main_attempt: Callable,
-    begin_confirmed_post_sigint_deferral: Callable,
-    create_post: Callable,
-    require_valid_meme_post_id: Callable,
-    api_error_proves_remote_non_success: Callable,
     remove_main_post_attempt: Callable,
-    end_confirmed_post_sigint_deferral: Callable,
-    AmbiguousRemotePostOutcome: type[Exception],
-    remote_write_safety_incident_is_latched: Callable,
     durable_remote_write_safety_barrier_exists: Callable,
-    retain_sigint_deferral_without_durable_barrier: Callable,
-    inspect_confirmed_transport_transaction: Callable,
-    journal_path_for_receipt: Callable,
-    confirmation_epoch_for_main_attempt: Callable,
-    build_confirmed_pending_schedule_receipt: Callable,
-    promote_main_post_attempt_to_confirmed_pending_schedule: Callable,
-    finalize_confirmed_pending_schedule_receipt: Callable,
     log_event: Callable,
     ConfirmedPendingScheduleDurabilityUncertain: type[Exception],
     ConfirmedPostLocalPersistenceError: type[Exception],
@@ -598,110 +589,22 @@ def post_next_meme(
         },
         attempt_epoch=current_meme_epoch,
     )
-    run_daily_meme_stage(
-        "main_post_attempt_persistence",
-        lambda: write_main_post_attempt(main_post_attempt),
-    )
-    (
-        main_post_attempt,
-        transport_source,
-        transport_authority,
-    ) = run_daily_meme_stage(
-        "tweet_transport_preparation",
-        lambda: prepare_main_tweet_transport(main_post_attempt),
-    )
-    run_daily_meme_stage(
-        "media_upload_handoff",
-        lambda: handoff_confirmed_media_upload_to_main_attempt(
-            main_post_attempt,
-            transport_authority,
-        ),
-    )
-    confirmed_post_sigint_guard = begin_confirmed_post_sigint_deferral()
+    publication.prepare(main_post_attempt)
+    publication.begin_guard()
     try:
-        response = run_daily_meme_stage(
-            "x_post_request",
-            lambda: create_post(
-                text=MEME_POST_TEXT,
-                media_ids=[media_id],
-                reply_to_id=None,
-                made_with_ai=False,
-                prepared_main_post_attempt=main_post_attempt,
-                prepared_transport_authority=transport_authority,
-                prepared_transport_source=transport_source,
-            ),
-        )
-
-        posted_id = response.get("data", {}).get("id") if isinstance(response, dict) else None
-        log.debug("Posted meme id=%s", posted_id)
-
-        run_daily_meme_stage(
-            "x_post_response_validation",
-            lambda: require_valid_meme_post_id(posted_id),
+        posted_id = publication.send(
+            text=MEME_POST_TEXT, media_id=media_id, made_with_ai=False,
         )
     except BaseException as remote_exc:
-        if api_error_proves_remote_non_success(remote_exc):
-            try:
-                remove_main_post_attempt(
-                    main_post_attempt,
-                    sending_disposition="definite_non_success",
-                )
-            except BaseException as removal_exc:
-                end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
-                confirmed_post_sigint_guard = None
-                raise AmbiguousRemotePostOutcome(
-                    "A definitely unsuccessful meme post left its durable "
-                    "sending receipt unresolved",
-                    service="x",
-                ) from removal_exc
-        if (
-            isinstance(remote_exc, AmbiguousRemotePostOutcome)
-            and remote_write_safety_incident_is_latched()
-            and not durable_remote_write_safety_barrier_exists()
-        ):
-            retain_sigint_deferral_without_durable_barrier(
-                lane="daily_meme",
-                guard=confirmed_post_sigint_guard,
-            )
-        else:
-            end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
-            confirmed_post_sigint_guard = None
+        publication.handle_remote_failure(remote_exc)
         raise
 
     meme_post_epoch = _RECOVERY_VALUE_UNAVAILABLE
-    pending_schedule_receipt = _RECOVERY_VALUE_UNAVAILABLE
     meme_schedule_fields = _RECOVERY_VALUE_UNAVAILABLE
-    pending_schedule_promoted = False
     try:
-        transport_confirmation = inspect_confirmed_transport_transaction(
-            journal_path_for_receipt(MEME_POST_RECEIPT_FILE)
-        )
-        if transport_confirmation.post_id != str(posted_id):
-            raise AmbiguousRemotePostOutcome(
-                "Confirmed meme-post identity differs from its journal",
-                service="x",
-            )
-        meme_post_epoch = confirmation_epoch_for_main_attempt(
-            main_post_attempt,
-            transport_confirmation.confirmation_epoch,
-        )
-        pending_schedule_receipt = build_confirmed_pending_schedule_receipt(
-            main_post_attempt,
-            post_id=str(posted_id),
-            confirmation_epoch=meme_post_epoch,
-            image_summary=image_summary,
-        )
-        pending_schedule_receipt = (
-            promote_main_post_attempt_to_confirmed_pending_schedule(
-                main_post_attempt,
-                post_id=str(posted_id),
-                confirmation_epoch=meme_post_epoch,
-                image_summary=image_summary,
-            )
-        )
-        pending_schedule_promoted = True
-        receipt = finalize_confirmed_pending_schedule_receipt(
-            pending_schedule_receipt
+        meme_post_epoch = publication.read_confirmation_epoch(posted_id)
+        receipt = publication.confirm_pending_schedule(
+            posted_id, meme_post_epoch, image_summary=image_summary,
         )
         meme_schedule_fields = _confirmed_meme_schedule_fields(receipt)
     except BaseException as receipt_exc:
@@ -723,20 +626,15 @@ def post_next_meme(
             ConfirmedPendingScheduleDurabilityUncertain,
         ):
             if receipt_exc.durable_barrier:
-                end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
-                confirmed_post_sigint_guard = None
+                publication.release_guard()
             else:
-                retain_sigint_deferral_without_durable_barrier(
-                    lane="daily_meme",
-                    guard=confirmed_post_sigint_guard,
-                )
+                publication.retain_guard()
             raise
-        if pending_schedule_promoted:
+        if publication.pending_promoted:
             # Confirmation is already durable.  Leave the pending receipt for
             # local-only reconciliation; no scheduler path may create another
             # meme while it remains.
-            end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
-            confirmed_post_sigint_guard = None
+            publication.release_guard()
             if not isinstance(receipt_exc, Exception):
                 raise
             raise ConfirmedPostLocalPersistenceError(
@@ -746,9 +644,9 @@ def post_next_meme(
         emergency_state_write_succeeded = False
         emergency_state_complete = False
         try:
-            if pending_schedule_receipt is not _RECOVERY_VALUE_UNAVAILABLE:
+            if publication.pending_available:
                 fallback_receipt = materialize_bound_meme_schedule_receipt(
-                    pending_schedule_receipt
+                    publication.pending_receipt
                 )
                 meme_schedule_fields = _confirmed_meme_schedule_fields(fallback_receipt)
             state["last_main_post_id"] = str(posted_id)
@@ -774,7 +672,7 @@ def post_next_meme(
             except Exception:
                 log.critical("Emergency in-memory cache/recent update failed after confirmed meme post", exc_info=True)
             from mrs_bot_state_generation import record_receipt_commit
-            record_receipt_commit(state, main_post_attempt)
+            record_receipt_commit(state, publication.attempt)
             commit_proof = save_state(state, durable=True)
             emergency_state_write_succeeded = True
             emergency_state_complete = confirmed_meme_emergency_representation_is_complete(
@@ -782,7 +680,7 @@ def post_next_meme(
                 post_epoch=meme_post_epoch if meme_post_epoch is not _RECOVERY_VALUE_UNAVAILABLE else None,
                 meme_basename=meme_path.name,
                 state=state,
-                main_post_attempt=main_post_attempt,
+                main_post_attempt=publication.attempt,
             )
         except Exception as emergency_exc:
             if isinstance(emergency_exc, StateBackupWriteError) and json_file_matches(STATE_FILE, state, commit_proof=getattr(emergency_exc, "commit_proof", None)):
@@ -793,7 +691,7 @@ def post_next_meme(
                     post_epoch=meme_post_epoch if meme_post_epoch is not _RECOVERY_VALUE_UNAVAILABLE else None,
                     meme_basename=meme_path.name,
                     state=state,
-                    main_post_attempt=main_post_attempt,
+                    main_post_attempt=publication.attempt,
                 )
                 log.warning(
                     "Emergency canonical state was committed after confirmed meme post, "
@@ -815,13 +713,9 @@ def post_next_meme(
                 failure_components=["meme_post_receipt", incomplete_component],
             )
             if durable_barrier or durable_remote_write_safety_barrier_exists():
-                end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
-                confirmed_post_sigint_guard = None
+                publication.release_guard()
             else:
-                retain_sigint_deferral_without_durable_barrier(
-                    lane="daily_meme",
-                    guard=confirmed_post_sigint_guard,
-                )
+                publication.retain_guard()
             raise UnrecoverableConfirmedPostPersistenceError(
                 f"Confirmed meme post {posted_id} has no complete durable recovery representation"
             ) from receipt_exc
@@ -830,12 +724,12 @@ def post_next_meme(
             retire_lane_transport_journal_if_present(
                 commit_proof=commit_proof,
                 receipt_path=MEME_POST_RECEIPT_FILE,
-                receipt=main_post_attempt,
+                receipt=publication.attempt,
                 lane="daily_meme",
                 post_id=str(posted_id),
             )
             remove_main_post_attempt(
-                main_post_attempt,
+                publication.attempt,
                 sending_disposition="confirmed_state_fallback",
                 commit_proof=commit_proof,
             )
@@ -844,16 +738,14 @@ def post_next_meme(
                 f"Confirmed meme post {posted_id} has no stable receipt state "
                 "after fallback persistence"
             ) from receipt_exc
-        end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
-        confirmed_post_sigint_guard = None
+        publication.release_guard()
         if not isinstance(receipt_exc, Exception):
             raise
         raise ConfirmedPostLocalPersistenceError(
             f"Confirmed meme post {posted_id} but failed writing recovery receipt"
         ) from receipt_exc
 
-    end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
-    confirmed_post_sigint_guard = None
+    publication.release_guard()
 
     try:
         state["last_main_post_id"] = str(posted_id)

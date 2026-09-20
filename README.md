@@ -276,6 +276,7 @@ deployed as a coherent set:
 - `mrs_bot_main_post_receipt_storage.py`
 - `mrs_bot_main_post_attempt_values.py`
 - `mrs_bot_main_post_confirmation_persistence.py`
+- `mrs_bot_main_post_publication.py`
 - `mrs_bot_x_request.py`
 - `mrs_bot_post_creation.py`
 - `mrs_bot_main_post_reconciliation.py`

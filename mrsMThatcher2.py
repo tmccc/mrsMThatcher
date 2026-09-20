@@ -281,6 +281,7 @@ import mrs_bot_state_candidate_validation as _state_candidate_validation
 import mrs_bot_state_loading as _state_loading
 import mrs_bot_main_post_receipts as _main_post_receipts
 import mrs_bot_main_post_receipt_storage as _main_post_receipt_storage
+import mrs_bot_main_post_publication as _main_post_publication
 import mrs_bot_main_post_attempt_values as _main_post_attempt_values
 import mrs_bot_main_post_confirmation_persistence as _main_post_confirmation_persistence
 import mrs_bot_x_request as _x_request
@@ -6491,15 +6492,44 @@ def choose_regular_quote_image_pair(
     )
 
 
+def _main_post_publication_owner(lane: str) -> _main_post_publication.MainPostPublication:
+    """Bind one publication at cycle entry without beginning any runtime work."""
+    return _main_post_publication.MainPostPublication(
+        lane=lane,
+        receipt_path=REGULAR_POST_RECEIPT_FILE if lane == "quote_image" else MEME_POST_RECEIPT_FILE,
+        log=log,
+        write_attempt=write_main_post_attempt,
+        prepare_transport=prepare_main_tweet_transport,
+        handoff_media=handoff_confirmed_media_upload_to_main_attempt,
+        begin_sigint=begin_confirmed_post_sigint_deferral,
+        create_post=create_post,
+        proves_non_success=api_error_proves_remote_non_success,
+        retire_attempt=remove_main_post_attempt,
+        end_sigint=end_confirmed_post_sigint_deferral,
+        ambiguous_outcome=AmbiguousRemotePostOutcome,
+        incident_latched=remote_write_safety_incident_is_latched,
+        durable_barrier_exists=durable_remote_write_safety_barrier_exists,
+        retain_sigint=retain_sigint_deferral_without_durable_barrier,
+        inspect_confirmation=inspect_confirmed_transport_transaction,
+        journal_path=journal_path_for_receipt,
+        confirmation_epoch=confirmation_epoch_for_main_attempt,
+        build_pending=build_confirmed_pending_schedule_receipt,
+        promote_pending=promote_main_post_attempt_to_confirmed_pending_schedule,
+        finalize_pending=finalize_confirmed_pending_schedule_receipt,
+        run_stage=run_daily_meme_stage if lane == "daily_meme" else None,
+        validate_meme_post_id=require_valid_meme_post_id if lane == "daily_meme" else None,
+    )
+
+
 def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
     """Post a quotation pair through the owner with current root dependencies."""
     return _quote_posting.post_random_quote(
         lines_used, images_used, state,
+        publication=_main_post_publication_owner("quote_image"),
         log=log,
         block_if_ambiguous_remote_post=block_if_ambiguous_remote_post,
         now_epoch=now_epoch,
         reconcile_main_post_receipts=reconcile_main_post_receipts,
-        ConfirmedPostSigintDeferral=ConfirmedPostSigintDeferral,
         require_historical_context_outbox_writable=require_historical_context_outbox_writable,
         quote_used_history_has_legacy_indices=quote_used_history_has_legacy_indices,
         CorruptUsedHistoryError=CorruptUsedHistoryError,
@@ -6516,25 +6546,9 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
         MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
         bound_meme_schedule_state=bound_meme_schedule_state,
-        write_main_post_attempt=write_main_post_attempt,
-        prepare_main_tweet_transport=prepare_main_tweet_transport,
-        handoff_confirmed_media_upload_to_main_attempt=handoff_confirmed_media_upload_to_main_attempt,
-        begin_confirmed_post_sigint_deferral=begin_confirmed_post_sigint_deferral,
-        create_post=create_post,
-        api_error_proves_remote_non_success=api_error_proves_remote_non_success,
         remove_main_post_attempt=remove_main_post_attempt,
-        end_confirmed_post_sigint_deferral=end_confirmed_post_sigint_deferral,
-        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
-        remote_write_safety_incident_is_latched=remote_write_safety_incident_is_latched,
         durable_remote_write_safety_barrier_exists=durable_remote_write_safety_barrier_exists,
-        retain_sigint_deferral_without_durable_barrier=retain_sigint_deferral_without_durable_barrier,
-        inspect_confirmed_transport_transaction=inspect_confirmed_transport_transaction,
-        journal_path_for_receipt=journal_path_for_receipt,
         REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
-        confirmation_epoch_for_main_attempt=confirmation_epoch_for_main_attempt,
-        build_confirmed_pending_schedule_receipt=build_confirmed_pending_schedule_receipt,
-        promote_main_post_attempt_to_confirmed_pending_schedule=promote_main_post_attempt_to_confirmed_pending_schedule,
-        finalize_confirmed_pending_schedule_receipt=finalize_confirmed_pending_schedule_receipt,
         ConfirmedPendingScheduleDurabilityUncertain=ConfirmedPendingScheduleDurabilityUncertain,
         ConfirmedPostLocalPersistenceError=ConfirmedPostLocalPersistenceError,
         materialize_bound_regular_schedule_receipt=materialize_bound_regular_schedule_receipt,
@@ -6701,6 +6715,7 @@ def post_next_meme(state: dict) -> None:
     """Select and post a daily meme through the owner with root authority."""
     return _daily_meme.post_next_meme(
         state,
+        publication=_main_post_publication_owner("daily_meme"),
         log=log,
         run_daily_meme_stage=run_daily_meme_stage,
         block_if_ambiguous_remote_post=block_if_ambiguous_remote_post,
@@ -6724,25 +6739,8 @@ def post_next_meme(state: dict) -> None:
         MEME_FALLBACK_HOUR=MEME_FALLBACK_HOUR,
         MEME_FALLBACK_MINUTE=MEME_FALLBACK_MINUTE,
         MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
-        write_main_post_attempt=write_main_post_attempt,
-        prepare_main_tweet_transport=prepare_main_tweet_transport,
-        handoff_confirmed_media_upload_to_main_attempt=handoff_confirmed_media_upload_to_main_attempt,
-        begin_confirmed_post_sigint_deferral=begin_confirmed_post_sigint_deferral,
-        create_post=create_post,
-        require_valid_meme_post_id=require_valid_meme_post_id,
-        api_error_proves_remote_non_success=api_error_proves_remote_non_success,
         remove_main_post_attempt=remove_main_post_attempt,
-        end_confirmed_post_sigint_deferral=end_confirmed_post_sigint_deferral,
-        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
-        remote_write_safety_incident_is_latched=remote_write_safety_incident_is_latched,
         durable_remote_write_safety_barrier_exists=durable_remote_write_safety_barrier_exists,
-        retain_sigint_deferral_without_durable_barrier=retain_sigint_deferral_without_durable_barrier,
-        inspect_confirmed_transport_transaction=inspect_confirmed_transport_transaction,
-        journal_path_for_receipt=journal_path_for_receipt,
-        confirmation_epoch_for_main_attempt=confirmation_epoch_for_main_attempt,
-        build_confirmed_pending_schedule_receipt=build_confirmed_pending_schedule_receipt,
-        promote_main_post_attempt_to_confirmed_pending_schedule=promote_main_post_attempt_to_confirmed_pending_schedule,
-        finalize_confirmed_pending_schedule_receipt=finalize_confirmed_pending_schedule_receipt,
         log_event=log_event,
         ConfirmedPendingScheduleDurabilityUncertain=ConfirmedPendingScheduleDurabilityUncertain,
         ConfirmedPostLocalPersistenceError=ConfirmedPostLocalPersistenceError,
