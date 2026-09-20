@@ -2541,15 +2541,23 @@ def normalise_tweet_cache(value: object, *, path: Path) -> dict[str, dict] | Non
     return _tweet_lookup_cache_owner().normalise(value, path=path)
 
 
+def _mention_authority_owner() -> _mention_authority.MentionAuthority:
+    """Bind current mention authority policy without inspecting or saving state."""
+    return _mention_authority.MentionAuthority(
+        state_file=STATE_FILE,
+        maximum_epoch=MAX_REASONABLE_STATE_EPOCH,
+        token_limit=MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT,
+        bounded_id=bounded_tweet_id_value,
+        log=log,
+        valid_provenance=mention_pagination_provenance_is_valid,
+        log_event=log_event,
+        terminal_evaluation=terminal_reply_evaluation,
+    )
+
+
 def normalise_mention_pagination(value: object, *, path: Path) -> dict[str, str] | None:
     """Delegate to mention authority with current root dependencies."""
-    return _mention_authority.normalise_mention_pagination(
-        value,
-        path=path,
-        bounded_tweet_id_value=bounded_tweet_id_value,
-        log=log,
-        mention_pagination_provenance_is_valid=mention_pagination_provenance_is_valid,
-    )
+    return _mention_authority_owner().normalise_pagination(value, path=path)
 
 
 def normalise_mention_backlog_reset_guard(
@@ -2558,12 +2566,7 @@ def normalise_mention_backlog_reset_guard(
     path: Path,
 ) -> dict[str, object] | None:
     """Delegate to mention authority with current root dependencies."""
-    return _mention_authority.normalise_mention_backlog_reset_guard(
-        value,
-        path=path,
-        bounded_tweet_id_value=bounded_tweet_id_value,
-        log=log,
-    )
+    return _mention_authority_owner().normalise_reset_guard(value, path=path)
 
 
 active_mention_backlog_reset_guard = _mention_authority.active_mention_backlog_reset_guard
@@ -2576,15 +2579,7 @@ def normalise_mention_backlog(
     reset_token_overflow: bool = False,
 ) -> dict | None:
     """Delegate to mention authority with current root dependencies."""
-    return _mention_authority.normalise_mention_backlog(
-        value,
-        path=path,
-        reset_token_overflow=reset_token_overflow,
-        MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
-        MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT=MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT,
-        bounded_tweet_id_value=bounded_tweet_id_value,
-        log=log,
-    )
+    return _mention_authority_owner().normalise_backlog(value, path=path, reset_token_overflow=reset_token_overflow)
 
 
 def canonical_mention_pending_candidates(
@@ -2593,12 +2588,7 @@ def canonical_mention_pending_candidates(
     path: Path,
 ) -> dict[str, dict] | None:
     """Delegate to mention authority with current root dependencies."""
-    return _mention_authority.canonical_mention_pending_candidates(
-        value,
-        path=path,
-        bounded_tweet_id_value=bounded_tweet_id_value,
-        log=log,
-    )
+    return _mention_authority_owner().canonical_candidates(value, path=path)
 
 
 def _emit_mention_authority_recovery(
@@ -2608,13 +2598,7 @@ def _emit_mention_authority_recovery(
     recovery_events: list[dict[str, object]] | None,
 ) -> None:
     """Delegate to mention authority with current root dependencies."""
-    return _mention_authority._emit_mention_authority_recovery(
-        recovery,
-        path=path,
-        recovery_events=recovery_events,
-        log=log,
-        log_event=log_event,
-    )
+    return _mention_authority_owner().emit_recovery(recovery, path=path, recovery_events=recovery_events)
 
 
 _reset_mention_candidate_authority = _mention_authority._reset_mention_candidate_authority
@@ -2628,22 +2612,7 @@ def validate_pending_mention_candidate_authority(
     recovery_events: list[dict[str, object]] | None = None,
 ) -> tuple[bool, bool]:
     """Delegate to mention authority with current root dependencies."""
-    return _mention_authority.validate_pending_mention_candidate_authority(
-        state,
-        path=path,
-        recover_pending_identity=recover_pending_identity,
-        recovery_events=recovery_events,
-        _emit_mention_authority_recovery=_emit_mention_authority_recovery,
-        _reset_mention_candidate_authority=_reset_mention_candidate_authority,
-        active_mention_backlog_reset_guard=active_mention_backlog_reset_guard,
-        bounded_tweet_id_value=bounded_tweet_id_value,
-        canonical_mention_pending_candidates=canonical_mention_pending_candidates,
-        log=log,
-        normalise_mention_backlog=normalise_mention_backlog,
-        normalise_mention_backlog_reset_guard=normalise_mention_backlog_reset_guard,
-        normalise_mention_pagination=normalise_mention_pagination,
-        terminal_reply_evaluation=terminal_reply_evaluation,
-    )
+    return _mention_authority_owner().validate_pending(state, path=path, recover_pending_identity=recover_pending_identity, recovery_events=recovery_events)
 
 
 def mention_pagination_has_canonical_page_ownership(
@@ -2653,15 +2622,7 @@ def mention_pagination_has_canonical_page_ownership(
     target_id: str,
 ) -> bool:
     """Delegate to mention authority with current root dependencies."""
-    return _mention_authority.mention_pagination_has_canonical_page_ownership(
-        state,
-        pagination,
-        target_id=target_id,
-        STATE_FILE=STATE_FILE,
-        bounded_tweet_id_value=bounded_tweet_id_value,
-        mention_pagination_provenance_is_valid=mention_pagination_provenance_is_valid,
-        normalise_mention_backlog=normalise_mention_backlog,
-    )
+    return _mention_authority_owner().owns_page(state, pagination, target_id=target_id)
 
 
 def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dict | None:

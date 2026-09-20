@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 from unittest.mock import Mock, call
+from types import SimpleNamespace
 
 import pytest
 
@@ -14,9 +15,53 @@ from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
+
+METHODS = {'normalise_mention_pagination': 'normalise_pagination', 'normalise_mention_backlog_reset_guard': 'normalise_reset_guard', 'normalise_mention_backlog': 'normalise_backlog', 'canonical_mention_pending_candidates': 'canonical_candidates', '_emit_mention_authority_recovery': 'emit_recovery', 'validate_pending_mention_candidate_authority': 'validate_pending', 'mention_pagination_has_canonical_page_ownership': 'owns_page'}
+
+
+def authority_operation(name):
+    if name in METHODS:
+        return getattr(bot._mention_authority_owner(), METHODS[name])
+    return getattr(authority, name)
+
+
+def patch_authority_method(monkeypatch, name, callback):
+    if name in METHODS:
+        monkeypatch.setattr(authority.MentionAuthority, METHODS[name], lambda self, *args, **kwargs: callback(*args, **kwargs))
+    else:
+        monkeypatch.setattr(authority, name, callback)
+
+
+def test_composition_binds_current_authority_policy_without_runtime_access(monkeypatch):
+    fields = {'STATE_FILE': 'state_file', 'MAX_REASONABLE_STATE_EPOCH': 'maximum_epoch', 'MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT': 'token_limit', 'bounded_tweet_id_value': 'bounded_id', 'log': 'log', 'mention_pagination_provenance_is_valid': 'valid_provenance', 'log_event': 'log_event', 'terminal_reply_evaluation': 'terminal_evaluation'}
+    previous = None
+    for _ in range(2):
+        current = {name: object() for name in fields}
+        for name, value in current.items():
+            monkeypatch.setattr(bot, name, value)
+        owner = bot._mention_authority_owner()
+        assert owner is not previous
+        assert all(getattr(owner, field) is current[name] for name, field in fields.items())
+        previous = owner
+
+
+def test_pending_validation_calls_owned_normalizers_and_keeps_queue_children(monkeypatch):
+    state = bot.default_state()
+    queue_active_mention(state, mention(105, 205), base_since_id="99")
+    candidate = state["mention_pending_candidates"]["105"]
+    def forbidden(*args, **kwargs):
+        raise AssertionError("mention authority bounced through root")
+    for name in ("normalise_mention_backlog", "normalise_mention_pagination", "normalise_mention_backlog_reset_guard", "canonical_mention_pending_candidates"):
+        monkeypatch.setattr(bot, name, forbidden)
+    usable, changed = bot.validate_pending_mention_candidate_authority(
+        state, path=bot.STATE_FILE, recover_pending_identity=True,
+    )
+    assert usable and not changed
+    assert state["mention_pending_candidates"]["105"] is candidate
+
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys
+import builtins, collections.abc, dataclasses, io, logging, os, random, socket, sys
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -47,26 +92,21 @@ assert 'requests' not in sys.modules
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-def test_adapters_forward_current_dependencies_defaults_references_and_native_errors(monkeypatch):
-    for name, count in (
-        ("normalise_mention_pagination", 3), ("normalise_mention_backlog_reset_guard", 2),
-        ("normalise_mention_backlog", 4), ("canonical_mention_pending_candidates", 2),
-        ("_emit_mention_authority_recovery", 2), ("validate_pending_mention_candidate_authority", 10),
-        ("mention_pagination_has_canonical_page_ownership", 4),
-    ):
+def test_adapters_forward_public_arguments_defaults_references_and_native_errors(monkeypatch):
+    for name, method in METHODS.items():
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
-        dependencies = inspect.signature(getattr(authority, name)).parameters.keys() - public.keys()
-        assert len(dependencies) == count
+        owned = inspect.signature(getattr(authority.MentionAuthority, method)).parameters
+        assert tuple(owned)[1:] == tuple(public)
+        for key, parameter in public.items():
+            assert owned[key].kind == parameter.kind
+            assert owned[key].default == parameter.default
         args = tuple(object() for param in public.values() if param.kind == param.POSITIONAL_OR_KEYWORD)
         result = object()
-        owner = Mock(return_value=result)
+        target = Mock(return_value=result)
         with monkeypatch.context() as patch:
-            patch.setattr(authority, name, owner)
+            patch.setattr(bot, "_mention_authority_owner", Mock(return_value=SimpleNamespace(**{method: target})))
             for use_defaults in (True, False):
-                current = {key: object() for key in dependencies}
-                for key, value in current.items():
-                    patch.setattr(bot, key, value)
                 options = {
                     key: object() for key, param in public.items()
                     if param.kind == param.KEYWORD_ONLY
@@ -75,15 +115,15 @@ def test_adapters_forward_current_dependencies_defaults_references_and_native_er
                 expected = {
                     key: param.default for key, param in public.items()
                     if param.kind == param.KEYWORD_ONLY and param.default is not param.empty
-                } | options | current
+                } | options
                 assert adapter(*args, **options) is result
-                actual_args, actual_kwargs = owner.call_args
+                actual_args, actual_kwargs = target.call_args
                 assert len(actual_args) == len(args)
                 assert all(actual is original for actual, original in zip(actual_args, args))
                 assert actual_kwargs.keys() == expected.keys()
                 assert all(actual_kwargs[key] is value for key, value in expected.items())
             failure = TypeError(name)
-            owner.side_effect = failure
+            target.side_effect = failure
             with pytest.raises(TypeError) as caught:
                 adapter(*args, **options)
             assert caught.value is failure
@@ -208,9 +248,9 @@ def test_normalizer_error_leaves_prior_deduplication_and_skips_guard_reset_and_e
         ("guard", "normalise_mention_backlog_reset_guard"), ("reset", "_reset_mention_candidate_authority"),
         ("emit", "_emit_mention_authority_recovery"),
     ):
-        callback = Mock(wraps=getattr(bot, name))
+        callback = Mock(wraps=authority_operation(name))
         trace.attach_mock(callback, label)
-        monkeypatch.setattr(bot, name, callback)
+        patch_authority_method(monkeypatch, name, callback)
     failure = TypeError("current pagination normalizer failed")
     trace.pagination.side_effect = failure
     with pytest.raises(TypeError) as caught:
@@ -235,12 +275,12 @@ def test_invalid_maps_keep_failure_precedence_and_reset_before_current_emitter_e
         ("backlog", "normalise_mention_backlog"), ("pagination", "normalise_mention_pagination"),
         ("guard", "normalise_mention_backlog_reset_guard"), ("reset", "_reset_mention_candidate_authority"),
     ):
-        callback = Mock(wraps=getattr(bot, name))
+        callback = Mock(wraps=authority_operation(name))
         trace.attach_mock(callback, label)
-        monkeypatch.setattr(bot, name, callback)
+        patch_authority_method(monkeypatch, name, callback)
     failure = RuntimeError("current emitter failed after reset")
     trace.emit.side_effect = failure
-    monkeypatch.setattr(bot, "_emit_mention_authority_recovery", trace.emit)
+    patch_authority_method(monkeypatch, "_emit_mention_authority_recovery", trace.emit)
     events = []
     with pytest.raises(RuntimeError) as caught:
         bot.validate_pending_mention_candidate_authority(
@@ -266,8 +306,8 @@ def test_page_ownership_uses_current_path_and_exact_backlog_equality_before_id_c
     before = dict(state)
     path = tmp_path / "current-state.json"
     monkeypatch.setattr(bot, "STATE_FILE", path)
-    normalizer = Mock(wraps=bot.normalise_mention_backlog)
-    monkeypatch.setattr(bot, "normalise_mention_backlog", normalizer)
+    normalizer = Mock(wraps=authority_operation("normalise_mention_backlog"))
+    patch_authority_method(monkeypatch, "normalise_mention_backlog", normalizer)
     assert bot.mention_pagination_has_canonical_page_ownership(state, pagination, target_id="105") is True
     normalizer.assert_called_once_with(state["mention_backlog"], path=path)
     assert normalizer.call_args.args[0] is state["mention_backlog"]
