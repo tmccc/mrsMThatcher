@@ -21,53 +21,20 @@ from mrs_bot_x_response_diagnostics import raise_x_create_anomaly_outcome
 from mrs_bot_request_route_values import exact_x_create_route
 
 
-def x_request(
+def _classify_request_authority(
     method: str,
     path: str,
     *,
-    ambiguous_write: bool = False,
-    _remote_write_authorization: TransportAuthority | MediaUploadAuthority | None = None,
-    _remote_media_payload: ReceiptBoundMediaPayload | None = None,
-    _remote_media_payload_metadata: dict[str, object] | None = None,
-    kwargs,
-    AUTH: Any,
-    AmbiguousRemotePostOutcome: Any,
-    ApiError: Any,
-    DeterministicReplyCreateRejectionProof: Any,
-    MEDIA_UPLOAD_RECEIPT_FILE: Any,
-    MediaUploadAuthority: Any,
-    MediaUploadReceiptError: Any,
-    ProvedRemotePostNonSuccess: Any,
-    ReceiptBoundMediaPayload: Any,
+    prepared_create_route: str | None,
+    ambiguous_write: Any,
+    _remote_write_authorization: Any,
+    _remote_media_payload: Any,
+    _remote_media_payload_metadata: Any,
     TransportAuthority: Any,
-    TransportJournalError: Any,
-    ValidatedXErrorResponse: Any,
-    XErrorResponseValidationError: Any,
-    _activate_coordinator_reply_create_rejection_proof: Any,
-    _bind_transport_authority_to_configured_x_request: Any,
-    block_if_unrelated_receipt_appeared_for_media_transport: Any,
-    block_if_unrelated_receipt_appeared_for_tweet_transport: Any,
-    canonical_transport_receipt_path_for_lane: Any,
-    consume_media_upload_authority: Any,
-    emit_x_create_response_anomaly: Any,
-    frozen_strict_json_object: Any,
-    invalidate_reply_create_rejection_proof: Any,
-    log: Any,
-    log_json_debug: Any,
-    parse_validated_x_error_response: Any,
-    perform_consumed_x_request: Any,
-    prepared_x_create_route: Any,
-    print_rate_limit_headers: Any,
-    report_bot_health_progress: Any,
-    request_timeout: Any,
-    requests: Any,
-    require_remote_operation_unpaused: Any,
-    x_create_response_anomaly_reason: Any,
-    x_request_base_url: Any,
-) -> dict:
-    """Send an authenticated X API request without automatic retries."""
-    url = f"{x_request_base_url(method, path)}{path}"
-    prepared_create_route = prepared_x_create_route(method, path)
+    MediaUploadAuthority: Any,
+    AmbiguousRemotePostOutcome: Any,
+) -> tuple[bool, bool, str]:
+    """Validate route/authority agreement before request-body or transport work."""
     exact_create_route = exact_x_create_route(method, path)
     if prepared_create_route != exact_create_route:
         raise AmbiguousRemotePostOutcome(
@@ -149,6 +116,68 @@ def x_request(
             request_method=method,
             request_path=path,
         )
+    return is_post_create, is_media_upload, method_upper
+
+
+def x_request(
+    method: str,
+    path: str,
+    *,
+    ambiguous_write: bool = False,
+    _remote_write_authorization: TransportAuthority | MediaUploadAuthority | None = None,
+    _remote_media_payload: ReceiptBoundMediaPayload | None = None,
+    _remote_media_payload_metadata: dict[str, object] | None = None,
+    kwargs,
+    AUTH: Any,
+    AmbiguousRemotePostOutcome: Any,
+    ApiError: Any,
+    DeterministicReplyCreateRejectionProof: Any,
+    MEDIA_UPLOAD_RECEIPT_FILE: Any,
+    MediaUploadAuthority: Any,
+    MediaUploadReceiptError: Any,
+    ProvedRemotePostNonSuccess: Any,
+    ReceiptBoundMediaPayload: Any,
+    TransportAuthority: Any,
+    TransportJournalError: Any,
+    ValidatedXErrorResponse: Any,
+    XErrorResponseValidationError: Any,
+    _activate_coordinator_reply_create_rejection_proof: Any,
+    _bind_transport_authority_to_configured_x_request: Any,
+    block_if_unrelated_receipt_appeared_for_media_transport: Any,
+    block_if_unrelated_receipt_appeared_for_tweet_transport: Any,
+    canonical_transport_receipt_path_for_lane: Any,
+    consume_media_upload_authority: Any,
+    emit_x_create_response_anomaly: Any,
+    frozen_strict_json_object: Any,
+    invalidate_reply_create_rejection_proof: Any,
+    log: Any,
+    log_json_debug: Any,
+    parse_validated_x_error_response: Any,
+    perform_consumed_x_request: Any,
+    prepared_x_create_route: Any,
+    print_rate_limit_headers: Any,
+    report_bot_health_progress: Any,
+    request_timeout: Any,
+    requests: Any,
+    require_remote_operation_unpaused: Any,
+    x_create_response_anomaly_reason: Any,
+    x_request_base_url: Any,
+) -> dict:
+    """Send an authenticated X API request without automatic retries."""
+    url = f"{x_request_base_url(method, path)}{path}"
+    prepared_create_route = prepared_x_create_route(method, path)
+    is_post_create, is_media_upload, method_upper = _classify_request_authority(
+        method,
+        path,
+        prepared_create_route=prepared_create_route,
+        ambiguous_write=ambiguous_write,
+        _remote_write_authorization=_remote_write_authorization,
+        _remote_media_payload=_remote_media_payload,
+        _remote_media_payload_metadata=_remote_media_payload_metadata,
+        TransportAuthority=TransportAuthority,
+        MediaUploadAuthority=MediaUploadAuthority,
+        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
+    )
 
     expected_receipt_path: Path | None = None
     if is_post_create:
