@@ -8444,13 +8444,12 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
     """Apply confirmed reply receipt."""
     return _reply_reconciliation.apply_confirmed_reply_receipt(
         state, receipt,
-        conversational_reply_confirmation_epoch=conversational_reply_confirmation_epoch,
+        receipt_values=_reply_receipt_values_owner(),
         validate_pending_mention_candidate_authority=validate_pending_mention_candidate_authority,
         STATE_FILE=STATE_FILE,
         InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
         reply_cap_date_str=reply_cap_date_str,
         accounting=_daily_reply_accounting_owner(),
-        mention_pagination_provenance_is_valid=mention_pagination_provenance_is_valid,
         mention_pagination_has_canonical_page_ownership=mention_pagination_has_canonical_page_ownership,
         _reset_mention_candidate_authority=_reset_mention_candidate_authority,
         _emit_mention_authority_recovery=_emit_mention_authority_recovery,
@@ -8516,8 +8515,7 @@ def confirmed_reply_emergency_representation_is_complete(
     """Return whether state alone durably suppresses a confirmed reply replay."""
     return _reply_reconciliation.confirmed_reply_emergency_representation_is_complete(
         receipt, state,
-        confirmed_reply_receipt_is_semantically_valid=confirmed_reply_receipt_is_semantically_valid,
-        conversational_reply_confirmation_epoch=conversational_reply_confirmation_epoch,
+        receipt_values=_reply_receipt_values_owner(),
         InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
         receipt_int=receipt_int,
         has_target_draft=_reply_draft_owner().has_target,

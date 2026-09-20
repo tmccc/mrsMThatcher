@@ -12,6 +12,7 @@ import pytest
 from tests.helpers.adapter_assertions import assert_adapters_forward_current_dependencies
 
 import mrs_bot_reply_reconciliation as reconciliation
+import mrs_bot_reply_receipt_values as reply_receipt_values
 import mrs_bot_reply_history as reply_history
 import mrs_bot_reply_drafts as reply_drafts
 import mrs_bot_reply_clarifications as reply_clarifications
@@ -21,6 +22,7 @@ from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import (
     patch_reply_history_method,
+    patch_reply_owner_method,
     patch_reply_draft_method,
     unit_confirmed_reply_receipt,
     unit_confirmed_v4_reply_receipt,
@@ -88,28 +90,35 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
     assert {
         "now_epoch", "AI_REPLY_HISTORY_MAX_AGE_SECONDS", "valid_string_post_id",
         "AI_REPLY_HISTORY_MAX_RECORDS", "_advance_reply_counters_to_confirmation_date",
-        "mark_daily_author_replied",
+        "mark_daily_author_replied", "conversational_reply_confirmation_epoch",
+        "mention_pagination_provenance_is_valid",
     }.isdisjoint(parameters)
-    assert {"clarifications", "accounting"} <= parameters.keys()
+    assert {"clarifications", "accounting", "receipt_values"} <= parameters.keys()
     assert "clear_pending_ai_reply" not in parameters
-    dependencies = parameters.keys() - public.keys() - {"record_reply_history", "clarifications", "accounting", "clear_target_drafts"}
+    dependencies = parameters.keys() - public.keys() - {"record_reply_history", "clarifications", "accounting", "clear_target_drafts", "receipt_values"}
     implementation = Mock(return_value=object())
     history_factory = Mock(wraps=bot._reply_history_owner)
     clarification_factory = Mock(wraps=bot._clarification_reply_owner)
     accounting_factory = Mock(wraps=bot._daily_reply_accounting_owner)
     draft_factory = Mock(wraps=bot._reply_draft_owner)
+    values_factory = Mock(wraps=bot._reply_receipt_values_owner)
     monkeypatch.setattr(reconciliation, "apply_confirmed_reply_receipt", implementation)
     monkeypatch.setattr(bot, "_reply_history_owner", history_factory)
     monkeypatch.setattr(bot, "_clarification_reply_owner", clarification_factory)
     monkeypatch.setattr(bot, "_daily_reply_accounting_owner", accounting_factory)
     monkeypatch.setattr(bot, "_reply_draft_owner", draft_factory)
+    monkeypatch.setattr(bot, "_reply_receipt_values_owner", values_factory)
     state, receipt, histories, clarification_owners, accounting_owners, draft_owners = {}, {}, [], [], [], []
+    value_owners = []
     for index in range(2):
         current = {name: object() for name in dependencies}
         for name, value in current.items():
             monkeypatch.setattr(bot, name, value)
         clock = Mock()
         monkeypatch.setattr(bot, "now_epoch", clock)
+        bounded_id, receipt_integer = Mock(), Mock()
+        monkeypatch.setattr(bot, "bounded_tweet_id_value", bounded_id)
+        monkeypatch.setattr(bot, "receipt_int", receipt_integer)
         monkeypatch.setattr(bot, "AI_REPLY_HISTORY_MAX_AGE_SECONDS", 100 + index)
         monkeypatch.setattr(bot, "AI_REPLY_HISTORY_MAX_RECORDS", 10 + index)
         monkeypatch.setattr(bot, "CLARIFICATION_REPLY_WINDOW_SECONDS", 1000 + index)
@@ -118,9 +127,10 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
         assert clarification_factory.call_count == index + 1
         assert accounting_factory.call_count == index + 1
         assert draft_factory.call_count == index + 1
+        assert values_factory.call_count == index + 1
         args, supplied = implementation.call_args
         assert len(args) == 2 and args[0] is state and args[1] is receipt
-        assert supplied.keys() == {*current, "record_reply_history", "clarifications", "accounting", "clear_target_drafts"}
+        assert supplied.keys() == {*current, "record_reply_history", "clarifications", "accounting", "clear_target_drafts", "receipt_values"}
         assert all(supplied[name] is value for name, value in current.items())
         callback = supplied["record_reply_history"]
         assert callback.__func__ is reply_history.ReplyHistory.record_confirmation
@@ -142,6 +152,16 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
         assert draft_callback.__func__ is reply_drafts.ReplyDrafts.clear_target
         assert draft_callback.__self__.log_event is current["log_event"]
         draft_owners.append(draft_callback.__self__)
+        values = supplied["receipt_values"]
+        assert isinstance(values, reply_receipt_values.ReplyReceiptValues)
+        assert values.now_epoch is clock
+        assert values.bounded_tweet_id_value is bounded_id
+        assert values.receipt_int is receipt_integer
+        assert values.invalid_receipt is current["InvalidConfirmedReplyReceipt"]
+        assert values.reply_cap_date_str is current["reply_cap_date_str"]
+        bounded_id.assert_not_called()
+        receipt_integer.assert_not_called()
+        value_owners.append(values)
         clock.assert_not_called()
         histories.append(history)
         clarification_owners.append(clarification_owner)
@@ -153,6 +173,8 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
     assert accounting_owners[0] is not accounting_owners[1]
     assert accounting_owners[0].reply_cap_date_str is not accounting_owners[1].reply_cap_date_str
     assert draft_owners[0] is not draft_owners[1]
+    assert value_owners[0] is not value_owners[1]
+    assert value_owners[0].receipt_int is not value_owners[1].receipt_int
     failure = TypeError("current application failure")
     implementation.side_effect = failure
     with pytest.raises(TypeError) as caught:
@@ -160,34 +182,55 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
     assert caught.value is failure
 
 
-def test_emergency_adapter_uses_current_draft_owner_and_preserves_arguments_and_errors(monkeypatch):
+def test_emergency_adapter_binds_current_owners_and_preserves_arguments_and_errors(monkeypatch):
     adapter = bot.confirmed_reply_emergency_representation_is_complete
+    assert tuple(inspect.signature(adapter).parameters) == ("receipt", "state")
     implementation = Mock(return_value=object())
     parameters = inspect.signature(reconciliation.confirmed_reply_emergency_representation_is_complete).parameters
-    assert "pending_ai_reply_draft_key" not in parameters
-    dependencies = parameters.keys() - {"receipt", "state", "has_target_draft"}
+    assert {
+        "pending_ai_reply_draft_key", "confirmed_reply_receipt_is_semantically_valid",
+        "conversational_reply_confirmation_epoch",
+    }.isdisjoint(parameters)
+    dependencies = parameters.keys() - {"receipt", "state", "has_target_draft", "receipt_values"}
     monkeypatch.setattr(reconciliation, "confirmed_reply_emergency_representation_is_complete", implementation)
     factory = Mock(wraps=bot._reply_draft_owner)
+    values_factory = Mock(wraps=bot._reply_receipt_values_owner)
     monkeypatch.setattr(bot, "_reply_draft_owner", factory)
-    receipt, state, owners = {}, {}, []
+    monkeypatch.setattr(bot, "_reply_receipt_values_owner", values_factory)
+    receipt, state, owners, value_owners = {}, {}, [], []
     for index in range(2):
         current = {name: object() for name in dependencies}
         for name, value in current.items():
             monkeypatch.setattr(bot, name, value)
         evidence = Mock()
         monkeypatch.setattr(bot, "reply_evidence_repository", evidence)
+        bounded_id, validator = Mock(), Mock()
+        monkeypatch.setattr(bot, "bounded_tweet_id_value", bounded_id)
+        monkeypatch.setattr(bot, "ai_reply_receipt_draft_is_valid", validator)
         assert adapter(receipt, state) is implementation.return_value
         assert factory.call_count == index + 1
+        assert values_factory.call_count == index + 1
         args, supplied = implementation.call_args
         assert args[0] is receipt and args[1] is state
-        assert supplied.keys() == {*current, "has_target_draft"}
+        assert supplied.keys() == {*current, "has_target_draft", "receipt_values"}
         assert all(supplied[name] is value for name, value in current.items())
         callback = supplied["has_target_draft"]
         assert callback.__func__ is reply_drafts.ReplyDrafts.has_target
         assert callback.__self__.evidence_repository is evidence
         evidence.assert_not_called()
         owners.append(callback.__self__)
+        values = supplied["receipt_values"]
+        assert isinstance(values, reply_receipt_values.ReplyReceiptValues)
+        assert values.receipt_int is current["receipt_int"]
+        assert values.invalid_receipt is current["InvalidConfirmedReplyReceipt"]
+        assert values.bounded_tweet_id_value is bounded_id
+        assert values.draft_is_valid is validator
+        bounded_id.assert_not_called()
+        validator.assert_not_called()
+        value_owners.append(values)
     assert owners[0] is not owners[1]
+    assert value_owners[0] is not value_owners[1]
+    assert value_owners[0].draft_is_valid is not value_owners[1].draft_is_valid
     failure = TypeError("current emergency check failure")
     implementation.side_effect = failure
     with pytest.raises(TypeError) as caught:
@@ -211,9 +254,19 @@ def test_confirmation_and_authority_precede_counter_reset_and_clarification_conf
         ("authority", "validate_pending_mention_candidate_authority"),
         ("cache", "cache_tweet"),
     ):
-        callback = Mock(wraps=getattr(bot, name))
+        original = (
+            bot._reply_receipt_values_owner().confirmation_epoch
+            if label == "confirmation" else getattr(bot, name)
+        )
+        callback = Mock(wraps=original)
         trace.attach_mock(callback, label)
-        monkeypatch.setattr(bot, name, callback)
+        if label == "confirmation":
+            patch_reply_owner_method(
+                monkeypatch, reply_receipt_values.ReplyReceiptValues,
+                "confirmation_epoch", callback,
+            )
+        else:
+            monkeypatch.setattr(bot, name, callback)
     trace.clear = Mock(wraps=bot._reply_draft_owner().clear_target)
     patch_reply_draft_method(monkeypatch, "clear_target", trace.clear)
     trace.advance = Mock(wraps=bot._daily_reply_accounting_owner().advance)
@@ -686,8 +739,12 @@ def test_emergency_catches_only_current_confirmation_error_inside_its_try(monkey
     state = bot.default_state()
     trace = Mock()
     trace.validate.return_value = False
-    monkeypatch.setattr(bot, "confirmed_reply_receipt_is_semantically_valid", trace.validate)
-    monkeypatch.setattr(bot, "conversational_reply_confirmation_epoch", trace.confirmation)
+    patch_reply_owner_method(
+        monkeypatch, reply_receipt_values.ReplyReceiptValues, "confirmed_is_valid", trace.validate,
+    )
+    patch_reply_owner_method(
+        monkeypatch, reply_receipt_values.ReplyReceiptValues, "confirmation_epoch", trace.confirmation,
+    )
 
     class CurrentInvalidReceipt(ValueError):
         pass
@@ -748,7 +805,7 @@ def test_pagination_preservation_resets_missing_ownership_before_copy_and_legacy
         state, receipt, target_id="105", candidate_source="mention",
         InvalidConfirmedReplyReceipt=bot.InvalidConfirmedReplyReceipt,
         STATE_FILE=bot.STATE_FILE,
-        mention_pagination_provenance_is_valid=trace.provenance,
+        receipt_values=Mock(pagination_is_valid=trace.provenance),
         mention_pagination_has_canonical_page_ownership=trace.ownership,
         _reset_mention_candidate_authority=trace.reset,
         _emit_mention_authority_recovery=trace.recovery,

@@ -1,14 +1,15 @@
 """Apply and reconcile already-confirmed conversational reply state.
 
-Root adapters supply current helpers, settings, paths, logger and application
-exception classes on every call. Original bodies preserve mutation, callback,
-reference and error order, including source lineage before state application
-and durable state saving before journal retirement and receipt removal.
+Root adapters supply current receipt-value, clarification and accounting owners,
+helpers, settings, paths, logger and application exception classes on every call.
+Bodies preserve mutation, callback, reference and error order, including source
+lineage before state application and durable state saving before journal
+retirement and receipt removal.
 
-Mention authority, receipt validation and I/O, transport journals, persistence
-and posting remain in their existing owners and are invoked through current
-root callbacks. Import uses only the standard library and performs no file,
-environment, provider or RNG work; no callbacks are retained.
+Mention authority, receipt I/O, transport journals, persistence and posting
+remain in their existing owners and use current root callbacks. Receipt values
+use the supplied owner directly. Import uses only the standard library and
+performs no file, environment, provider or RNG work; no callbacks are retained.
 """
 
 from __future__ import annotations
@@ -22,19 +23,19 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from mrs_bot_reply_clarifications import ClarificationReplies
     from mrs_bot_daily_reply_accounting import DailyReplyAccounting
+    from mrs_bot_reply_receipt_values import ReplyReceiptValues
 
 
 def apply_confirmed_reply_receipt(
     state: dict,
     receipt: dict,
     *,
-    conversational_reply_confirmation_epoch: Callable,
+    receipt_values: ReplyReceiptValues,
     validate_pending_mention_candidate_authority: Callable,
     STATE_FILE: Path,
     InvalidConfirmedReplyReceipt: type[Exception],
     reply_cap_date_str: Callable,
     accounting: DailyReplyAccounting,
-    mention_pagination_provenance_is_valid: Callable,
     mention_pagination_has_canonical_page_ownership: Callable,
     _reset_mention_candidate_authority: Callable,
     _emit_mention_authority_recovery: Callable,
@@ -57,7 +58,7 @@ def apply_confirmed_reply_receipt(
     target_id = str(receipt["target_id"])
     reply_post_id = str(receipt["reply_post_id"])
     author_id = str(receipt.get("author_id") or "")
-    reply_epoch = conversational_reply_confirmation_epoch(receipt)
+    reply_epoch = receipt_values.confirmation_epoch(receipt)
     candidate_source = str(receipt.get("candidate_source") or "mention")
     conversation_id = str(receipt.get("conversation_id") or target_id)
     reply_text = str(receipt.get("reply_text") or "")
@@ -89,7 +90,7 @@ def apply_confirmed_reply_receipt(
         state, receipt, target_id=target_id, candidate_source=candidate_source,
         InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
         STATE_FILE=STATE_FILE,
-        mention_pagination_provenance_is_valid=mention_pagination_provenance_is_valid,
+        receipt_values=receipt_values,
         mention_pagination_has_canonical_page_ownership=mention_pagination_has_canonical_page_ownership,
         _reset_mention_candidate_authority=_reset_mention_candidate_authority,
         _emit_mention_authority_recovery=_emit_mention_authority_recovery,
@@ -210,7 +211,7 @@ def _mention_pagination_to_preserve(
     candidate_source: str,
     InvalidConfirmedReplyReceipt: type[Exception],
     STATE_FILE: Path,
-    mention_pagination_provenance_is_valid: Callable,
+    receipt_values: ReplyReceiptValues,
     mention_pagination_has_canonical_page_ownership: Callable,
     _reset_mention_candidate_authority: Callable,
     _emit_mention_authority_recovery: Callable,
@@ -221,7 +222,7 @@ def _mention_pagination_to_preserve(
         pagination = receipt.get("mention_pagination")
         if (
             candidate_source != "mention"
-            or not mention_pagination_provenance_is_valid(pagination)
+            or not receipt_values.pagination_is_valid(pagination)
         ):
             raise InvalidConfirmedReplyReceipt(
                 "Confirmed reply receipt has invalid mention pagination provenance"
@@ -240,7 +241,7 @@ def _mention_pagination_to_preserve(
         pagination = state.get("mention_pagination")
         current_since_id = str(state.get("last_seen_mention_id") or "")
         if not (
-            mention_pagination_provenance_is_valid(pagination)
+            receipt_values.pagination_is_valid(pagination)
             and str(pagination["base_since_id"]) == current_since_id
         ):
             return None
@@ -399,20 +400,19 @@ def confirmed_reply_emergency_representation_is_complete(
     receipt: dict,
     state: dict,
     *,
-    confirmed_reply_receipt_is_semantically_valid: Callable,
-    conversational_reply_confirmation_epoch: Callable,
+    receipt_values: ReplyReceiptValues,
     InvalidConfirmedReplyReceipt: type[Exception],
     receipt_int: Callable,
     has_target_draft: Callable[[dict, str, str], bool],
 ) -> bool:
     """Return whether state alone durably suppresses a confirmed reply replay."""
-    if not confirmed_reply_receipt_is_semantically_valid(receipt):
+    if not receipt_values.confirmed_is_valid(receipt):
         return False
     target_id = str(receipt["target_id"])
     reply_post_id = str(receipt["reply_post_id"])
     candidate_source = str(receipt.get("candidate_source") or "mention")
     try:
-        reply_epoch = conversational_reply_confirmation_epoch(receipt)
+        reply_epoch = receipt_values.confirmation_epoch(receipt)
     except InvalidConfirmedReplyReceipt:
         return False
     state_reply_epoch = receipt_int(state.get("last_reply_epoch"))
