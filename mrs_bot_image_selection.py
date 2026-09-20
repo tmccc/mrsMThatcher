@@ -8,8 +8,8 @@ Legacy normalization saves through the supplied root callback before checking fo
 remaining integer entries. Durable persistence, receipt implementations, publishing
 and configuration authority stay in the coordinator. Importing this module does
 no runtime work. ImageSelection binds current external policy/helpers per root
-call, then invokes its owned eligibility and logging directly without retaining
-caller state. Pair orchestration keeps the root matched-image callback so each
+call, then invokes owned eligibility, scored-pool choice and logging directly
+without retaining caller state. Pair orchestration keeps the root matched-image callback so each
 attempt binds current image policy after quotation selection.
 """
 
@@ -216,6 +216,18 @@ class ImageSelection:
         if not scored:
             raise self.QuoteSpecificImageMismatch("No metadata-eligible regular-post images matched the selected quote")
 
+        return self._select_scored_image(
+            quote_choice, scored, selection_phase=selection_phase,
+        )
+
+    def _select_scored_image(
+        self,
+        quote_choice: dict,
+        scored: list[dict],
+        *,
+        selection_phase: str,
+    ) -> dict:
+        """Choose once from the scored pool, then apply and report editorial policy."""
         best_score = max(float(item["score"]) for item in scored)
         tied = [item for item in scored if float(item["score"]) == best_score]
         baseline_choice = random.choice(tied)

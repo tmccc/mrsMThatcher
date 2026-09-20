@@ -426,3 +426,33 @@ def test_pair_binds_matched_image_policy_after_each_quote_selection(monkeypatch)
     chosen_quote, chosen_image, attempts = bot.choose_regular_quote_image_pair(lines, images, state)
     assert chosen_quote is quotes[1] and chosen_image is result and attempts == 2
     assert observed == [("attempt-0", policies[0]), ("attempt-1", policies[1])]
+
+
+def test_editorial_failure_preserves_chosen_pool_and_stops_selection_diagnostics(monkeypatch):
+    quote = {"quote_hash": "current"}
+    components = {"base": 1.0}
+    scored = [{"score": 1.0, "components": components}]
+    failure = RuntimeError("editorial selection failed")
+    apply = Mock(side_effect=failure)
+    logger, shadow = Mock(), Mock()
+    choose = Mock(return_value=scored[0])
+    monkeypatch.setattr(bot, "log", logger)
+    monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", False)
+    monkeypatch.setattr(bot, "apply_original_editorial_selection", apply)
+    monkeypatch.setattr(bot, "log_original_editorial_shadow_result", shadow)
+    monkeypatch.setattr(selection.random, "choice", choose)
+
+    with pytest.raises(RuntimeError) as caught:
+        bot._image_selection_owner()._select_scored_image(
+            quote, scored, selection_phase="normal",
+        )
+    assert caught.value is failure
+    choose.assert_called_once_with(scored)
+    assert choose.call_args.args[0][0] is scored[0]
+    assert apply.call_args.args[0] is quote
+    assert apply.call_args.args[1] is scored[0]
+    assert apply.call_args.args[2] is scored
+    assert scored[0]["components"] is components
+    logger.info.assert_not_called()
+    logger.debug.assert_not_called()
+    shadow.assert_not_called()
