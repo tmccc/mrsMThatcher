@@ -16,6 +16,8 @@ from logging import Logger
 from pathlib import Path
 from types import ModuleType
 
+from mrs_bot_state_generation import receipt_commit_records_are_valid
+
 
 def validate_meme_schedule_state(
     state: dict,
@@ -177,13 +179,7 @@ def normalise_state_candidate(
     """Normalise state candidate."""
     minimum_reader_version = require_compatible_state_reader(state, path=path)
     commits = state.get('_confirmed_receipt_commits', {})
-    if (not isinstance(commits, dict)
-            or any(not isinstance(key, str) or len(key) != 64
-                   or any(character not in '0123456789abcdef' for character in key)
-                   or not isinstance(value, dict)
-                   or set(value) != {'quote_hash', 'image_basename'}
-                   or any(not isinstance(item, str) for item in value.values())
-                   for key, value in commits.items())):
+    if not receipt_commit_records_are_valid(commits):
         log.error('State candidate %s has invalid confirmed receipt commit identities', path)
         return None
     list_keys = {

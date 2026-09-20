@@ -108,6 +108,21 @@ def file_identity(path: Path) -> tuple[int, ...]:
         'st_ctime_ns', 'st_mtime_ns'))
 
 
+def receipt_commit_records_are_valid(commits: object) -> bool:
+    """Validate the exact durable receipt-commit record shape without copying it."""
+    return not (
+        not isinstance(commits, dict)
+        or any(
+            not isinstance(key, str) or len(key) != 64
+            or any(character not in '0123456789abcdef' for character in key)
+            or not isinstance(value, dict)
+            or set(value) != {'quote_hash', 'image_basename'}
+            or any(not isinstance(item, str) for item in value.values())
+            for key, value in commits.items()
+        )
+    )
+
+
 def record_receipt_commit(state: dict, receipt: dict) -> None:
     """Bind exact receipt retirement to the state which records its confirmed effect.
 

@@ -16,7 +16,7 @@ from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time
+import builtins, collections.abc, dataclasses, hashlib, io, json, logging, os, random, socket, stat, sys, time
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -24,7 +24,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name != 'mrs_bot_state_candidate_validation':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_state_candidate_validation', 'mrs_bot_state_generation'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -394,3 +394,57 @@ def test_legacy_counter_is_optional_and_schedule_gate_precedes_final_pruning(mon
     assert result["original_regular_posts_since_generated_image"] == 4
     assert [c[0] for c in trace.mock_calls] == ["schedule", "prune"]
     assert trace.schedule.call_args.args[0] is trace.prune.call_args.args[0] is result
+
+
+@pytest.mark.parametrize("commits", [
+    None,
+    [],
+    {"short": {"quote_hash": "", "image_basename": ""}},
+    {"A" * 64: {"quote_hash": "", "image_basename": ""}},
+    {"a" * 64: []},
+    {"a" * 64: {"quote_hash": ""}},
+    {"a" * 64: {"quote_hash": 1, "image_basename": ""}},
+])
+def test_commit_record_grammar_rejects_before_defaults_without_changing_input(monkeypatch, tmp_path, commits):
+    from mrs_bot_state_generation import receipt_commit_records_are_valid
+
+    state = {"_confirmed_receipt_commits": commits}
+    defaults, logger = Mock(), Mock()
+    monkeypatch.setattr(bot, "default_state", defaults)
+    monkeypatch.setattr(bot, "log", logger)
+    assert not receipt_commit_records_are_valid(commits)
+    assert bot.normalise_state_candidate(state, path=tmp_path) is None
+    assert state["_confirmed_receipt_commits"] is commits
+    defaults.assert_not_called()
+    logger.error.assert_called_once_with(
+        'State candidate %s has invalid confirmed receipt commit identities', tmp_path,
+    )
+
+
+def test_commit_record_writer_validator_and_normalizer_keep_same_record_references(tmp_path):
+    from mrs_bot_state_generation import record_receipt_commit, receipt_commit_records_are_valid
+
+    state = {}
+    record_receipt_commit(state, {"selected_identity": {"quote_hash": "quote", "image_basename": "image.jpg"}})
+    commits = state["_confirmed_receipt_commits"]
+    identity = next(iter(commits.values()))
+    assert receipt_commit_records_are_valid(commits)
+    assert identity == {"quote_hash": "quote", "image_basename": "image.jpg"}
+    normalized = bot.normalise_state_candidate(state, path=tmp_path)
+    assert normalized["_confirmed_receipt_commits"] is commits
+    assert next(iter(normalized["_confirmed_receipt_commits"].values())) is identity
+
+
+def test_commit_record_validation_keeps_native_mapping_error_before_defaults(monkeypatch, tmp_path):
+    failure = LookupError("commit-record inspection failed")
+
+    class BrokenRecords(dict):
+        def items(self):
+            raise failure
+
+    defaults = Mock()
+    monkeypatch.setattr(bot, "default_state", defaults)
+    with pytest.raises(LookupError) as caught:
+        bot.normalise_state_candidate({"_confirmed_receipt_commits": BrokenRecords()}, path=tmp_path)
+    assert caught.value is failure
+    defaults.assert_not_called()
