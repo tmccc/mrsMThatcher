@@ -3,8 +3,9 @@
 Six explicit root adapters supply current callbacks, settings, modules and
 exception authorities on each call. Original bodies preserve legacy and lineage
 validation, native failures, bound calendar replay, reference/copy boundaries,
-payload identity and final validation gates. Sibling calls use current root
-callbacks, including the validation bypass that avoids materialization recursion.
+payload identity and final validation gates. Fixed payload reconstruction and
+hashing come directly from their inert owner. Policy and validation calls use
+current root callbacks, including the bypass that avoids materialization recursion.
 Builders, stores, transport, recovery, application and scheduling primitives stay
 in their existing locations. This owner retains no runtime dependencies or state
 and performs no import-time runtime work or reverse bot import.
@@ -16,6 +17,11 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from types import ModuleType
 
+from mrs_bot_main_post_attempt_values import (
+    canonical_remote_post_payload_sha256,
+    main_post_attempt_payload,
+)
+
 
 def main_post_attempt_is_semantically_valid(
     data: object,
@@ -24,9 +30,7 @@ def main_post_attempt_is_semantically_valid(
     MAIN_POST_SCHEDULE_TIMEZONE: str,
     MEME_SCHEDULE_VERSION: int,
     bound_meme_schedule_state_is_valid: Callable[..., bool],
-    canonical_remote_post_payload_sha256: Callable[..., str],
     hashlib: ModuleType,
-    main_post_attempt_payload: Callable[..., dict],
     quote_text_hash: Callable[..., str],
     re: ModuleType,
     receipt_int: Callable[..., int | None],

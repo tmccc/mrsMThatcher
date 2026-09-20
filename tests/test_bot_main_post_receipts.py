@@ -21,7 +21,7 @@ from tests.helpers.bot_fixtures import (
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, datetime, io, logging, os, random, socket, sys, time
+import builtins, collections.abc, datetime, hashlib, io, json, logging, os, random, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -29,7 +29,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name != 'mrs_bot_main_post_receipts':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_main_post_receipts', 'mrs_bot_main_post_attempt_values'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -57,7 +57,7 @@ assert 'single_call_reply' not in sys.modules
 @pytest.mark.parametrize(
     "name, signature, dependency_count",
     [
-        ("main_post_attempt_is_semantically_valid", "(data: 'object') -> 'bool'", 13),
+        ("main_post_attempt_is_semantically_valid", "(data: 'object') -> 'bool'", 11),
         ("regular_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 17),
         (
             "confirmed_pending_schedule_receipt_is_semantically_valid",
@@ -137,7 +137,7 @@ def test_attempt_history_native_errors_precede_payload_but_confirmed_history_rej
     attempt = schema_current_main_attempt("quote_image")
     attempt["recovery_plan"]["quote_history_after"] = history
     payload = Mock(side_effect=AssertionError("history must precede payload"))
-    monkeypatch.setattr(bot, "main_post_attempt_payload", payload)
+    monkeypatch.setattr(receipts, "main_post_attempt_payload", payload)
     with pytest.raises(TypeError):
         bot.main_post_attempt_is_semantically_valid(attempt)
     payload.assert_not_called()

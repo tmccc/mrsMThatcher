@@ -10,6 +10,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrsMThatcher2 as bot
+import mrs_bot_transport_source_preparation as preparation
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
@@ -55,7 +56,6 @@ DEPENDENCIES = {'remote_write_transport_journal_paths': ['CONFIRMED_REPLY_RECEIP
                                   'bind_lane_transport_source',
                                   'current_main_post_attempt_is_semantically_valid',
                                   'main_post_attempt_path',
-                                  'main_post_attempt_payload',
                                   'mark_main_post_attempt_attempting'],
  'validate_confirmed_media_upload_metadata': ['ConfirmedMediaUpload',
                                                 'MediaUploadReceiptError',
@@ -80,7 +80,7 @@ SIGNATURES = {'remote_write_transport_journal_paths': "() -> 'tuple[Path, ...]'"
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time, typing
+import builtins, collections.abc, hashlib, io, json, logging, os, random, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -88,7 +88,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt'} or name.startswith('mrs_bot_') and name != 'mrs_bot_transport_source_preparation':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_transport_source_preparation', 'mrs_bot_main_post_attempt_values'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -484,7 +484,8 @@ def _preparation_trace(monkeypatch, *, failure_at=None, alias=False):
                              ("mark", "mark_main_post_attempt_attempting"),
                              ("path", "main_post_attempt_path"), ("payload", "main_post_attempt_payload"),
                              ("bind", "bind_lane_transport_source"), ("begin", "begin_transport_transaction")):
-        monkeypatch.setattr(bot, dependency, getattr(trace, name))
+        target = preparation if dependency == "main_post_attempt_payload" else bot
+        monkeypatch.setattr(target, dependency, getattr(trace, name))
     if failure_at in {"mark", "path", "payload", "lane_str", "bind", "begin"}:
         getattr(trace, failure_at).side_effect = failure
     order = [call.validate(original), call.get("original", "lifecycle_state"), call.mark(original),

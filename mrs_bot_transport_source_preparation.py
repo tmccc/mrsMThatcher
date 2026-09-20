@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from mrs_bot_main_post_attempt_values import main_post_attempt_payload
+
 
 def remote_write_transport_journal_paths(
     *,
@@ -259,7 +261,6 @@ def prepare_main_tweet_transport(
     bind_lane_transport_source: Any,
     current_main_post_attempt_is_semantically_valid: Any,
     main_post_attempt_path: Any,
-    main_post_attempt_payload: Any,
     mark_main_post_attempt_attempting: Any,
 ) -> tuple[dict, SourceReceiptBinding, TransportAuthority]:
     """Publish a prepared tweet owner before retiring confirmed media state."""

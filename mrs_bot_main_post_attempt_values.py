@@ -1,20 +1,19 @@
 """Main-post payload, bound-plan, attempt and confirmation values.
 
-The root supplies current runtime dependencies explicitly on each call. This
-module performs no runtime work at import and retains no runtime authority.
+Canonical payload reconstruction and hashing are fixed local operations. The
+root supplies current runtime dependencies explicitly on each call. This module
+performs no runtime work at import and retains no runtime authority.
 """
 from __future__ import annotations
+
+import hashlib
+import json
 
 from collections.abc import Callable
 from typing import Any
 
 
-def canonical_remote_post_payload_sha256(
-    payload: dict,
-    *,
-    hashlib: Any,
-    json: Any,
-) -> str:
+def canonical_remote_post_payload_sha256(payload: dict) -> str:
     """Return the stable identity of one exact X create payload."""
     encoded = json.dumps(
         payload,
@@ -154,9 +153,7 @@ def main_post_attempt_binds_payload(
     attempt: dict,
     payload: dict,
     *,
-    canonical_remote_post_payload_sha256: Callable[..., str],
     current_main_post_attempt_is_semantically_valid: Callable[..., bool],
-    main_post_attempt_payload: Callable[..., dict],
 ) -> bool:
     """Return whether an attempt authorises exactly one remote payload."""
     return bool(
@@ -192,7 +189,6 @@ def build_main_post_attempt(
     recovery_plan: dict,
     attempt_epoch: int | None = None,
     MAIN_POST_SCHEDULE_TIMEZONE: str,
-    canonical_remote_post_payload_sha256: Callable[..., str],
     copy: Any,
     current_main_post_attempt_is_semantically_valid: Callable[..., bool],
     hashlib: Any,

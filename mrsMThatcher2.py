@@ -5268,11 +5268,7 @@ def valid_receipt_basename(value: object) -> bool:
 
 def canonical_remote_post_payload_sha256(payload: dict) -> str:
     """Return the stable identity of one exact X create payload."""
-    return _main_post_attempt_values.canonical_remote_post_payload_sha256(
-        payload,
-        hashlib=hashlib,
-        json=json,
-    )
+    return _main_post_attempt_values.canonical_remote_post_payload_sha256(payload)
 
 
 main_post_attempt_payload = _main_post_attempt_values.main_post_attempt_payload
@@ -5334,9 +5330,7 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
         MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
         MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
         bound_meme_schedule_state_is_valid=bound_meme_schedule_state_is_valid,
-        canonical_remote_post_payload_sha256=canonical_remote_post_payload_sha256,
         hashlib=hashlib,
-        main_post_attempt_payload=main_post_attempt_payload,
         quote_text_hash=quote_text_hash,
         re=re,
         receipt_int=receipt_int,
@@ -5351,9 +5345,7 @@ def main_post_attempt_binds_payload(attempt: dict, payload: dict) -> bool:
     return _main_post_attempt_values.main_post_attempt_binds_payload(
         attempt,
         payload,
-        canonical_remote_post_payload_sha256=canonical_remote_post_payload_sha256,
         current_main_post_attempt_is_semantically_valid=current_main_post_attempt_is_semantically_valid,
-        main_post_attempt_payload=main_post_attempt_payload,
     )
 
 
@@ -5385,7 +5377,6 @@ def build_main_post_attempt(
         recovery_plan=recovery_plan,
         attempt_epoch=attempt_epoch,
         MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
-        canonical_remote_post_payload_sha256=canonical_remote_post_payload_sha256,
         copy=copy,
         current_main_post_attempt_is_semantically_valid=current_main_post_attempt_is_semantically_valid,
         hashlib=hashlib,
@@ -5432,7 +5423,6 @@ def prepare_main_tweet_transport(
         bind_lane_transport_source=bind_lane_transport_source,
         current_main_post_attempt_is_semantically_valid=current_main_post_attempt_is_semantically_valid,
         main_post_attempt_path=main_post_attempt_path,
-        main_post_attempt_payload=main_post_attempt_payload,
         mark_main_post_attempt_attempting=mark_main_post_attempt_attempting,
     )
 

@@ -21,7 +21,7 @@ from tests.helpers.bot_fixtures import (
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time, typing
+import builtins, collections.abc, hashlib, io, json, logging, os, random, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -57,12 +57,12 @@ assert 'single_call_reply' not in sys.modules
 @pytest.mark.parametrize(
     "name, dependencies",
     [
-        ('canonical_remote_post_payload_sha256', ('hashlib', 'json')),
+        ('canonical_remote_post_payload_sha256', ()),
         ('bound_meme_schedule_state', ('MAIN_POST_SCHEDULE_TIMEZONE', 'MEME_SCHEDULE_VERSION', 'safe_bound_schedule_date_str')),
         ('bound_meme_schedule_state_is_valid', ('BOUND_MEME_SCHEDULE_STATE_KEYS', 'MAIN_POST_SCHEDULE_TIMEZONE', 'MEME_SCHEDULE_MODES', 'MEME_SCHEDULE_VERSION', 'safe_bound_schedule_date_str', 'valid_receipt_epoch')),
-        ('main_post_attempt_binds_payload', ('canonical_remote_post_payload_sha256', 'current_main_post_attempt_is_semantically_valid', 'main_post_attempt_payload')),
+        ('main_post_attempt_binds_payload', ('current_main_post_attempt_is_semantically_valid',)),
         ('current_main_post_attempt_is_semantically_valid', ('main_post_attempt_is_semantically_valid',)),
-        ('build_main_post_attempt', ('MAIN_POST_SCHEDULE_TIMEZONE', 'canonical_remote_post_payload_sha256', 'copy', 'current_main_post_attempt_is_semantically_valid', 'hashlib', 'now_epoch', 'os')),
+        ('build_main_post_attempt', ('MAIN_POST_SCHEDULE_TIMEZONE', 'copy', 'current_main_post_attempt_is_semantically_valid', 'hashlib', 'now_epoch', 'os')),
         ('confirmed_receipt_matches_main_attempt', ('main_post_attempt_is_semantically_valid',)),
         ('build_confirmed_pending_schedule_receipt', ('confirmed_pending_schedule_receipt_is_semantically_valid', 'copy', 'main_post_attempt_is_semantically_valid', 'valid_post_id', 'valid_receipt_epoch')),
         ('confirmation_epoch_for_main_attempt', ('log',)),
@@ -127,8 +127,8 @@ def test_payload_hash_preserves_json_options_utf8_and_error_boundary(monkeypatch
     trace = Mock()
     trace.dumps.side_effect = json.dumps
     trace.sha256.return_value.hexdigest.return_value = object()
-    monkeypatch.setattr(bot, "json", SimpleNamespace(dumps=trace.dumps))
-    monkeypatch.setattr(bot, "hashlib", SimpleNamespace(sha256=trace.sha256))
+    monkeypatch.setattr(values, "json", SimpleNamespace(dumps=trace.dumps))
+    monkeypatch.setattr(values, "hashlib", SimpleNamespace(sha256=trace.sha256))
     assert bot.canonical_remote_post_payload_sha256(payload) is trace.sha256.return_value.hexdigest.return_value
     assert trace.mock_calls == [
         call.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True),
@@ -250,8 +250,8 @@ def test_writable_payload_and_matching_predicates_preserve_short_circuits(monkey
     trace.payload.return_value = {"text": "different"}
     trace.hash.return_value = "hash"
     monkeypatch.setattr(bot, "current_main_post_attempt_is_semantically_valid", trace.valid)
-    monkeypatch.setattr(bot, "main_post_attempt_payload", trace.payload)
-    monkeypatch.setattr(bot, "canonical_remote_post_payload_sha256", trace.hash)
+    monkeypatch.setattr(values, "main_post_attempt_payload", trace.payload)
+    monkeypatch.setattr(values, "canonical_remote_post_payload_sha256", trace.hash)
     attempt, payload = {"payload_sha256": "hash"}, {"text": "bound"}
     assert not bot.main_post_attempt_binds_payload(attempt, payload)
     assert trace.mock_calls == [call.valid(attempt)]
@@ -299,7 +299,7 @@ def test_attempt_construction_order_copies_truthiness_and_final_validator(monkey
     monkeypatch.setattr(bot, "os", SimpleNamespace(urandom=entropy))
     monkeypatch.setattr(bot, "hashlib", SimpleNamespace(sha256=sha256))
     monkeypatch.setattr(bot, "now_epoch", lambda: (events.append(("clock",)), 88)[1])
-    monkeypatch.setattr(bot, "canonical_remote_post_payload_sha256", payload_hash)
+    monkeypatch.setattr(values, "canonical_remote_post_payload_sha256", payload_hash)
     monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=copied))
     monkeypatch.setattr(bot, "current_main_post_attempt_is_semantically_valid", validate)
     options = dict(lane="quote_image", text=_ObservedValue(events, "text", "téxt"),
@@ -427,3 +427,22 @@ def test_confirmation_epoch_conversion_and_current_logging_order(monkeypatch, ob
     with pytest.raises(ValueError):
         bot.confirmation_epoch_for_main_attempt({"attempt_epoch": "invalid"}, _ObservedValue(events, "observed", observed))
     assert events == []
+
+
+def test_fixed_payload_operations_do_not_bounce_through_root(monkeypatch):
+    attempt = schema_current_main_attempt("quote_image")
+    payload = values.main_post_attempt_payload(attempt)
+    original_hash = values.canonical_remote_post_payload_sha256(payload)
+    forbidden = Mock(side_effect=AssertionError("fixed payload operation bounced through root"))
+    monkeypatch.setattr(bot, "main_post_attempt_payload", forbidden)
+    monkeypatch.setattr(bot, "canonical_remote_post_payload_sha256", forbidden)
+    assert bot.main_post_attempt_binds_payload(attempt, payload)
+    assert bot.main_post_attempt_is_semantically_valid(attempt)
+    rebuilt = bot.build_main_post_attempt(
+        lane=attempt["lane"], text=attempt["text"], media_ids=attempt["media_ids"],
+        made_with_ai=attempt["made_with_ai"], selected_identity=attempt["selected_identity"],
+        recovery_plan=attempt["recovery_plan"], attempt_epoch=attempt["attempt_epoch"],
+    )
+    assert rebuilt["payload_sha256"] == original_hash
+    assert values.main_post_attempt_payload(rebuilt) == payload
+    forbidden.assert_not_called()
