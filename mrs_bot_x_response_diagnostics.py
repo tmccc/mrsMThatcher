@@ -300,3 +300,49 @@ class XCreateDiagnostics:
         )
         self.log.error("%s %s", X_CREATE_RESPONSE_ANOMALY_EVENT, canonical_event)
         return event
+
+
+def raise_x_create_anomaly_outcome(
+    reason: str,
+    *,
+    diagnostic: dict[str, object],
+    response: object,
+    decoded: object,
+    request_method: str,
+    request_path: str,
+    ambiguous_outcome: type[Exception],
+    json_error: json.JSONDecodeError | None = None,
+) -> None:
+    """Raise the ambiguous outcome described by already emitted anomaly evidence."""
+    if reason == "json_decode_error":
+        outcome_summary = (
+            "X may have accepted the post but returned a non-JSON "
+            "successful response"
+        )
+    elif reason == "decoded_top_level_not_object":
+        outcome_summary = (
+            "X may have accepted the post but its successful response "
+            f"was not a JSON object: {type(decoded).__name__}"
+        )
+    else:
+        outcome_summary = (
+            "X may have accepted the post but its successful response "
+            "could not confirm a valid numeric data.id"
+        )
+    error = ambiguous_outcome(
+        f"{outcome_summary}; "
+        f"reason={reason} "
+        f"diagnostic_event={X_CREATE_RESPONSE_ANOMALY_EVENT} "
+        f"diagnostic_sha256={diagnostic['diagnostic_sha256']}",
+        service="x",
+        status_code=response.status_code,
+        request_method=request_method,
+        request_path=request_path,
+        response_body_length=diagnostic["raw_body_length"],
+        response_body_sha256=diagnostic["raw_body_sha256"],
+        diagnostic_sha256=diagnostic["diagnostic_sha256"],
+        diagnostic_event=X_CREATE_RESPONSE_ANOMALY_EVENT,
+    )
+    if json_error is not None:
+        raise error from json_error
+    raise error

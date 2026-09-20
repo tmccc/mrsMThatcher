@@ -32,7 +32,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name != 'mrs_bot_x_request':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_x_request', 'mrs_bot_x_response_diagnostics'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -63,7 +63,7 @@ assert 'single_call_reply' not in sys.modules
         "DeterministicReplyCreateRejectionProof MEDIA_UPLOAD_RECEIPT_FILE "
         "MediaUploadAuthority MediaUploadReceiptError Path ProvedRemotePostNonSuccess "
         "ReceiptBoundMediaPayload TransportAuthority TransportJournalError "
-        "ValidatedXErrorResponse XErrorResponseValidationError X_CREATE_RESPONSE_ANOMALY_EVENT "
+        "ValidatedXErrorResponse XErrorResponseValidationError "
         "_activate_coordinator_reply_create_rejection_proof "
         "_bind_transport_authority_to_configured_x_request "
         "block_if_unrelated_receipt_appeared_for_media_transport "

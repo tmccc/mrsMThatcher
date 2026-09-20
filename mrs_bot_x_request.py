@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from mrs_bot_x_response_diagnostics import raise_x_create_anomaly_outcome
+
 
 def x_request(
     method: str,
@@ -32,7 +34,6 @@ def x_request(
     TransportJournalError: Any,
     ValidatedXErrorResponse: Any,
     XErrorResponseValidationError: Any,
-    X_CREATE_RESPONSE_ANOMALY_EVENT: Any,
     _activate_coordinator_reply_create_rejection_proof: Any,
     _bind_transport_authority_to_configured_x_request: Any,
     block_if_unrelated_receipt_appeared_for_media_transport: Any,
@@ -468,38 +469,16 @@ def x_request(
                 decoded=decoded,
                 json_error=json_error,
             )
-            if reason == "json_decode_error":
-                outcome_summary = (
-                    "X may have accepted the post but returned a non-JSON "
-                    "successful response"
-                )
-            elif reason == "decoded_top_level_not_object":
-                outcome_summary = (
-                    "X may have accepted the post but its successful response "
-                    f"was not a JSON object: {type(decoded).__name__}"
-                )
-            else:
-                outcome_summary = (
-                    "X may have accepted the post but its successful response "
-                    "could not confirm a valid numeric data.id"
-                )
-            error = AmbiguousRemotePostOutcome(
-                f"{outcome_summary}; "
-                f"reason={reason} "
-                f"diagnostic_event={X_CREATE_RESPONSE_ANOMALY_EVENT} "
-                f"diagnostic_sha256={diagnostic['diagnostic_sha256']}",
-                service="x",
-                status_code=response.status_code,
+            raise_x_create_anomaly_outcome(
+                reason,
+                diagnostic=diagnostic,
+                response=response,
+                decoded=decoded,
                 request_method=method,
                 request_path=path,
-                response_body_length=diagnostic["raw_body_length"],
-                response_body_sha256=diagnostic["raw_body_sha256"],
-                diagnostic_sha256=diagnostic["diagnostic_sha256"],
-                diagnostic_event=X_CREATE_RESPONSE_ANOMALY_EVENT,
+                ambiguous_outcome=AmbiguousRemotePostOutcome,
+                json_error=json_error,
             )
-            if json_error is not None:
-                raise error from json_error
-            raise error
 
         if is_post_create and not raw_create_body:
             log.debug("X tweet-create response has empty body")

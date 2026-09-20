@@ -306,3 +306,33 @@ def test_emitter_native_json_and_log_failures_keep_final_side_effect_order(monke
     assert caught.value is failure
     assert [entry[0] for entry in calls.mock_calls] == ["sha256", "dumps", "sha256", "dumps", "error"]
     calls.error.assert_called_once()
+
+
+def test_anomaly_outcome_keeps_emitted_evidence_authority_and_decoding_cause():
+    diagnostic = {"diagnostic_sha256": "diagnostic", "raw_body_length": 2, "raw_body_sha256": "body"}
+    outcome = bot.AmbiguousRemotePostOutcome("fixture outcome", service="x")
+    constructor = Mock(return_value=outcome)
+    cause = json.JSONDecodeError("fixture decoding failure", "?", 0)
+    with pytest.raises(bot.AmbiguousRemotePostOutcome) as caught:
+        diagnostics.raise_x_create_anomaly_outcome(
+            "json_decode_error", diagnostic=diagnostic, response=SimpleNamespace(status_code=201),
+            decoded=None, request_method="POST", request_path="/2/tweets",
+            ambiguous_outcome=constructor, json_error=cause,
+        )
+    assert caught.value is outcome and caught.value.__cause__ is cause
+    constructor.assert_called_once_with(
+        "X may have accepted the post but returned a non-JSON successful response; "
+        "reason=json_decode_error diagnostic_event=X_CREATE_RESPONSE_ANOMALY_V1 "
+        "diagnostic_sha256=diagnostic",
+        service="x", status_code=201, request_method="POST", request_path="/2/tweets",
+        response_body_length=2, response_body_sha256="body", diagnostic_sha256="diagnostic",
+        diagnostic_event=diagnostics.X_CREATE_RESPONSE_ANOMALY_EVENT,
+    )
+    failure = ValueError("native constructor failure")
+    constructor.side_effect = failure
+    with pytest.raises(ValueError) as caught:
+        diagnostics.raise_x_create_anomaly_outcome(
+            "data_id_not_numeric", diagnostic=diagnostic, response=SimpleNamespace(status_code=201),
+            decoded={}, request_method="POST", request_path="/2/tweets", ambiguous_outcome=constructor,
+        )
+    assert caught.value is failure

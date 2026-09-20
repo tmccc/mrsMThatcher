@@ -3225,7 +3225,6 @@ def x_request(
         TransportJournalError=TransportJournalError,
         ValidatedXErrorResponse=ValidatedXErrorResponse,
         XErrorResponseValidationError=XErrorResponseValidationError,
-        X_CREATE_RESPONSE_ANOMALY_EVENT=X_CREATE_RESPONSE_ANOMALY_EVENT,
         _activate_coordinator_reply_create_rejection_proof=_activate_coordinator_reply_create_rejection_proof,
         _bind_transport_authority_to_configured_x_request=_bind_transport_authority_to_configured_x_request,
         block_if_unrelated_receipt_appeared_for_media_transport=block_if_unrelated_receipt_appeared_for_media_transport,
