@@ -83,8 +83,6 @@ OWNER_INPUTS = {
     "reply_type": "ValidatedReply", "now_epoch": "now_epoch",
     "decision_telemetry": "single_call_decision_telemetry", "log_event": "log_event",
     "model": "SINGLE_CALL_MODEL", "strategy_version": "SINGLE_CALL_STRATEGY_VERSION",
-    "provider_health_categories": "_OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES",
-    "terminal_candidate_categories": "_TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES",
 }
 
 
@@ -120,8 +118,6 @@ def test_generation_owner_binds_current_boundaries_without_runtime_access(monkey
 
 def test_generation_adapters_preserve_call_shapes_references_and_errors(monkeypatch):
     for root_name, method in (
-        ("_is_openai_provider_health_failure", "is_provider_health_failure"),
-        ("_is_terminal_candidate_local_failure", "is_terminal_candidate_failure"),
         ("_record_single_call_result", "record_result"),
         ("evaluate_single_call_reply", "evaluate"),
     ):
@@ -154,9 +150,12 @@ def test_generation_adapters_preserve_call_shapes_references_and_errors(monkeypa
             assert caught.value is failure
 
 
-def test_failure_predicates_use_current_distinct_category_sets(monkeypatch):
-    monkeypatch.setattr(bot, "_OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES", frozenset({"current_health"}))
-    monkeypatch.setattr(bot, "_TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES", frozenset({"current_local"}))
+def test_failure_predicates_use_owned_distinct_category_sets(monkeypatch):
+    assert bot._is_openai_provider_health_failure is generation._is_openai_provider_health_failure
+    assert bot._is_terminal_candidate_local_failure is generation._is_terminal_candidate_local_failure
+    monkeypatch.setattr(bot, "_reply_generation_owner", Mock(side_effect=AssertionError("pure classifier built runtime owner")))
+    monkeypatch.setattr(generation, "_OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES", frozenset({"current_health"}))
+    monkeypatch.setattr(generation, "_TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES", frozenset({"current_local"}))
     assert bot._is_openai_provider_health_failure("current_health")
     assert not bot._is_openai_provider_health_failure("provider_transport")
     assert not bot._is_openai_provider_health_failure("current_local")

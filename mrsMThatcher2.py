@@ -7366,19 +7366,13 @@ def _reply_generation_owner() -> _reply_generation.ReplyGeneration:
         log_event=log_event,
         model=SINGLE_CALL_MODEL,
         strategy_version=SINGLE_CALL_STRATEGY_VERSION,
-        provider_health_categories=_OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES,
-        terminal_candidate_categories=_TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES,
     )
 
 
-def _is_openai_provider_health_failure(category: object) -> bool:
-    """Return whether a failure is evidence about OpenAI service health."""
-    return _reply_generation_owner().is_provider_health_failure(category)
+_is_openai_provider_health_failure = _reply_generation._is_openai_provider_health_failure
 
 
-def _is_terminal_candidate_local_failure(outcome: PipelineResult | dict[str, object]) -> bool:
-    """Return whether one permanent local failure should retire its candidate."""
-    return _reply_generation_owner().is_terminal_candidate_failure(outcome)
+_is_terminal_candidate_local_failure = _reply_generation._is_terminal_candidate_local_failure
 
 
 def openai_responses_reply_call(
@@ -8046,7 +8040,6 @@ def maybe_reply_to_mentions(
         SINGLE_CALL_STRATEGY_VERSION=SINGLE_CALL_STRATEGY_VERSION,
         UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
         ValidatedReply=ValidatedReply,
-        _is_terminal_candidate_local_failure=_is_terminal_candidate_local_failure,
         _log_validated_single_call_reply=_log_validated_single_call_reply,
         _record_single_call_result=_record_single_call_result,
         api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
@@ -8236,7 +8229,6 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         SINGLE_CALL_STRATEGY_VERSION=SINGLE_CALL_STRATEGY_VERSION,
         UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
         ValidatedReply=ValidatedReply,
-        _is_terminal_candidate_local_failure=_is_terminal_candidate_local_failure,
         _log_validated_single_call_reply=_log_validated_single_call_reply,
         _record_single_call_result=_record_single_call_result,
         api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,

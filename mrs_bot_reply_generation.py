@@ -1,7 +1,7 @@
 """Orchestrate the current single-call reply decision.
 
 ReplyGeneration binds current callbacks, settings and application classes on each
-root invocation. Evaluation calls owned health classification and telemetry
+root invocation. Evaluation calls fixed health classification and owned telemetry
 directly. Explicit calls collect images through the media boundary, send the existing
 Responses request through the model transport, emit outcome and usage events,
 return the typed decision result and account for provider failures through the
@@ -86,6 +86,29 @@ def log_ai_reply_posting_outcome(
     )
 
 
+def _is_openai_provider_health_failure(category: object) -> bool:
+    """Return whether a failure is evidence about OpenAI service health."""
+
+    value = str(category or "")
+    if value in _OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES:
+        return True
+    prefix = "provider_http_"
+    status = value.removeprefix(prefix)
+    return value.startswith(prefix) and len(status) == 3 and status.isdigit()
+
+
+def _is_terminal_candidate_local_failure(
+    outcome: PipelineResult | dict[str, object],
+) -> bool:
+    """Return whether one permanent local failure should retire its candidate."""
+
+    status = outcome.get("status") if isinstance(outcome, Mapping) else outcome.status
+    if status != "operational_failure":
+        return False
+    category = outcome.get("error_category") if isinstance(outcome, Mapping) else outcome.error_category
+    return category in _TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES
+
+
 @dataclass(frozen=True)
 class ReplyGeneration:
     """Own decisions, health classification and telemetry with current boundaries."""
@@ -110,29 +133,9 @@ class ReplyGeneration:
     log_event: Callable
     model: str
     strategy_version: str
-    provider_health_categories: frozenset[str]
-    terminal_candidate_categories: frozenset[str]
 
-    def is_provider_health_failure(self, category: object) -> bool:
-        """Return whether a failure is evidence about OpenAI service health."""
-
-        value = str(category or "")
-        if value in self.provider_health_categories:
-            return True
-        prefix = "provider_http_"
-        status = value.removeprefix(prefix)
-        return value.startswith(prefix) and len(status) == 3 and status.isdigit()
-
-    def is_terminal_candidate_failure(
-        self, outcome: PipelineResult | Mapping[str, object],
-    ) -> bool:
-        """Return whether one permanent local failure should retire its candidate."""
-
-        status = outcome.get("status") if isinstance(outcome, Mapping) else outcome.status
-        if status != "operational_failure":
-            return False
-        category = outcome.get("error_category") if isinstance(outcome, Mapping) else outcome.error_category
-        return category in self.terminal_candidate_categories
+    is_provider_health_failure = staticmethod(_is_openai_provider_health_failure)
+    is_terminal_candidate_failure = staticmethod(_is_terminal_candidate_local_failure)
 
     def record_result(
         self, result: PipelineResult, *, lane: str, target_id: str,
@@ -261,7 +264,7 @@ class ReplyGeneration:
             category = "provider_http_429"
             status_code = 429
         elif result.status == "operational_failure":
-            provider_health_failure = self.is_provider_health_failure(result.error_category)
+            provider_health_failure = _is_openai_provider_health_failure(result.error_category)
             prior_rate_limit = result.provider_status_code == 429
             if not provider_health_failure and not prior_rate_limit:
                 self.log.warning(

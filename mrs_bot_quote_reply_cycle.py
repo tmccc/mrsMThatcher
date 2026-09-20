@@ -28,6 +28,7 @@ from mrs_bot_reply_state import mark_quote_tweet_replied, mark_quote_tweet_skipp
 
 from mrs_bot_daily_reply_accounting import daily_author_reply_counts
 from mrs_bot_reply_context import clean_text_for_reply_context
+from mrs_bot_reply_generation import _is_terminal_candidate_local_failure
 from mrs_bot_reply_cycle_interfaces import (
     QUOTE_CHECK_STATUS_CHECKED,
     QUOTE_CHECK_STATUS_DISABLED,
@@ -198,7 +199,6 @@ def maybe_reply_to_quote_tweets(
     SINGLE_CALL_STRATEGY_VERSION: str,
     UnrecoverableConfirmedReplyPersistenceError: type[Exception],
     ValidatedReply: type,
-    _is_terminal_candidate_local_failure: Callable,
     _log_validated_single_call_reply: Callable,
     _record_single_call_result: Callable,
     api_error_is_permanent_target_failure: Callable,
@@ -425,7 +425,6 @@ def maybe_reply_to_quote_tweets(
                 evaluation,
                 state,
                 ValidatedReply=ValidatedReply,
-                _is_terminal_candidate_local_failure=_is_terminal_candidate_local_failure,
                 log=log,
                 reply_evaluations=reply_evaluations,
                 persistence=persistence,
@@ -896,7 +895,6 @@ def _resolve_reply_evaluation(
     state: dict,
     *,
     ValidatedReply: type,
-    _is_terminal_candidate_local_failure: Callable,
     log: Logger,
     reply_evaluations: ReplyEvaluations,
     persistence: ReplyCyclePersistence,

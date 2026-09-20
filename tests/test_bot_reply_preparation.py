@@ -103,7 +103,6 @@ def preparation(request, monkeypatch):
             decision = quote_cycle._resolve_reply_evaluation(
                 "105", SimpleNamespace(reply=case.reply), state,
                 ValidatedReply=ApprovedReply,
-                _is_terminal_candidate_local_failure=Mock(),
                 log=common["log"],
                 reply_evaluations=SimpleNamespace(record=Mock()), persistence=persistence,
             )

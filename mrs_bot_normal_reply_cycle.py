@@ -31,6 +31,7 @@ from mrs_bot_author_quarantines import clear_author_evaluation_quarantine_histor
 from mrs_bot_mention_authority import mention_receipt_pagination
 from mrs_bot_daily_reply_accounting import daily_author_reply_counts
 from mrs_bot_reply_context import trim_context_text
+from mrs_bot_reply_generation import _is_terminal_candidate_local_failure
 from mrs_bot_reply_cycle_interfaces import (
     NORMAL_CHECK_STATUS_API_ERROR,
     NORMAL_CHECK_STATUS_CHECKED,
@@ -129,7 +130,6 @@ def maybe_reply_to_mentions(
     SINGLE_CALL_STRATEGY_VERSION: str,
     UnrecoverableConfirmedReplyPersistenceError: type[Exception],
     ValidatedReply: type,
-    _is_terminal_candidate_local_failure: Callable,
     _log_validated_single_call_reply: Callable,
     _record_single_call_result: Callable,
     api_error_is_reply_not_allowed: Callable,
@@ -380,12 +380,12 @@ def maybe_reply_to_mentions(
         if not reply_text:
             outcome = _retire_or_defer_no_reply(
                 state, candidate, evaluation_result, current,
-                _is_terminal_candidate_local_failure=_is_terminal_candidate_local_failure, log=log,
                 log_event=log_event, mention_queue=mention_queue,
                 maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
                 author_quarantines=author_quarantines,
                 reply_evaluations=reply_evaluations,
                 persistence=persistence,
+                log=log,
             )
             if isinstance(outcome, FinishReplyCheck):
                 return outcome.status
@@ -859,7 +859,6 @@ def _retire_or_defer_no_reply(
     evaluation: PipelineResult,
     current: int,
     *,
-    _is_terminal_candidate_local_failure: Callable,
     log: Logger,
     log_event: Callable,
     mention_queue: MentionQueue,

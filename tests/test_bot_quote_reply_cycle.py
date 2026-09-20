@@ -40,7 +40,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_quote_reply_cycle', 'mrs_bot_runtime_state_helpers', 'mrs_bot_reply_context', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines', 'mrs_bot_daily_reply_accounting', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history', 'mrs_bot_durable_json_io'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_quote_reply_cycle', 'mrs_bot_runtime_state_helpers', 'mrs_bot_reply_context', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_generation', 'mrs_bot_reply_native_media', 'mrs_bot_reply_delivery', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines', 'mrs_bot_daily_reply_accounting', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history', 'mrs_bot_durable_json_io'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -85,11 +85,12 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         if count is None:
             assert tuple(public) == ("state",)
             assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
-            assert len(parameters) == 42
-            assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 41
+            assert len(parameters) == 41
+            assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 40
             removed = {
                 key for key in vars(interfaces) if key.startswith("QUOTE_CHECK_STATUS_")
             } | {
+                "_is_terminal_candidate_local_failure",
                 "mark_quote_tweet_skipped",
                 "terminal_reply_evaluation", "quote_author_profile_text",
                 "clean_text_for_reply_context",
