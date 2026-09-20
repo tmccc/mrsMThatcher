@@ -1790,10 +1790,8 @@ def parse_control_time(value: object) -> int:
     """Parse a runtime-control timestamp into an epoch value."""
     return _runtime_control.parse_control_time(
         value,
-        Decimal=Decimal,
         MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
         datetime=datetime,
-        math=math,
     )
 
 
@@ -1804,7 +1802,6 @@ def validate_control_document(data: object) -> dict:
         CONTROL_ALLOWED_KEYS=CONTROL_ALLOWED_KEYS,
         CONTROL_BOOLEAN_KEYS=CONTROL_BOOLEAN_KEYS,
         CONTROL_TIME_KEYS=CONTROL_TIME_KEYS,
-        Decimal=Decimal,
         parse_control_time=parse_control_time,
     )
 
@@ -1816,7 +1813,6 @@ def _runtime_controls_owner() -> _runtime_control.RuntimeControls:
         cache=_CONTROL_CACHE,
         maximum_bytes=RUNTIME_CONTROL_MAX_BYTES,
         absent_error=_RuntimeControlAbsent,
-        hashlib=hashlib,
         os=os,
         stat=stat,
         log=log,

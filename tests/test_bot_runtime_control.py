@@ -55,7 +55,7 @@ assert 'single_call_reply' not in sys.modules
 
 def test_adapters_forward_current_dependencies_starred_arguments_references_and_errors(monkeypatch):
     for name, count in (
-        ("parse_control_time", 4), ("validate_control_document", 5),
+        ("parse_control_time", 2), ("validate_control_document", 4),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
@@ -124,7 +124,7 @@ def test_owned_adapters_preserve_public_shapes_references_and_errors(monkeypatch
 
 
 def test_composition_binds_fresh_current_control_authorities_without_access(monkeypatch):
-    fields = {'CONTROL_FILE': 'control_file', '_CONTROL_CACHE': 'cache', 'RUNTIME_CONTROL_MAX_BYTES': 'maximum_bytes', '_RuntimeControlAbsent': 'absent_error', 'hashlib': 'hashlib', 'os': 'os', 'stat': 'stat', 'log': 'log', 'log_json_debug': 'log_json_debug', 'validate_control_document': 'validate_document', 'now_epoch': 'now_epoch', 'parse_control_time': 'parse_time', 'datetime': 'datetime', 'log_event': 'log_event'}
+    fields = {'CONTROL_FILE': 'control_file', '_CONTROL_CACHE': 'cache', 'RUNTIME_CONTROL_MAX_BYTES': 'maximum_bytes', '_RuntimeControlAbsent': 'absent_error', 'os': 'os', 'stat': 'stat', 'log': 'log', 'log_json_debug': 'log_json_debug', 'validate_control_document': 'validate_document', 'now_epoch': 'now_epoch', 'parse_control_time': 'parse_time', 'datetime': 'datetime', 'log_event': 'log_event'}
     previous = None
     for _ in range(2):
         current = {name: object() for name in fields}
@@ -316,7 +316,7 @@ def test_stable_reader_keeps_real_syscall_order_and_closes_before_hash_or_error(
         setattr(proxy, name, tracked(name, getattr(os, name)))
     proxy.path = SimpleNamespace(abspath=tracked("abspath", os.path.abspath))
     monkeypatch.setattr(bot, "os", proxy)
-    monkeypatch.setattr(bot, "hashlib", SimpleNamespace(sha256=tracked("sha256", bot.hashlib.sha256)))
+    monkeypatch.setattr(control, "hashlib", SimpleNamespace(sha256=tracked("sha256", bot.hashlib.sha256)))
     if final_path_failure:
         with pytest.raises(FileNotFoundError) as caught:
             bot._read_stable_runtime_control()

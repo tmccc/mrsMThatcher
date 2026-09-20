@@ -13,6 +13,7 @@ no file, environment, provider, clock or RNG work.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 from collections.abc import Callable
@@ -40,7 +41,6 @@ class RuntimeControls:
     cache: dict[str, object]
     maximum_bytes: int
     absent_error: type[FileNotFoundError]
-    hashlib: ModuleType
     os: ModuleType
     stat: ModuleType
     log: logging.Logger
@@ -162,7 +162,7 @@ class RuntimeControls:
         signature: tuple[object, ...] = (
             control_path,
             *self.stat_identity(after_fd),
-            self.hashlib.sha256(document).hexdigest(),
+            hashlib.sha256(document).hexdigest(),
         )
         return document, signature
 

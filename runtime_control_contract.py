@@ -2,14 +2,15 @@
 
 Own supported keys, timestamp bounds and value validation. Callers retain their
 file readers, strict JSON parsing, clocks, caches and failure policies. Explicit
-parser dependencies preserve the bot's current date and numeric authorities;
+parser dependencies preserve current date and epoch policy; fixed numeric grammar is local;
 importing this module performs no runtime I/O.
 """
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
-from types import ModuleType
+from decimal import Decimal
 
 
 MAX_CONTROL_EPOCH = 4_102_531_200
@@ -49,10 +50,8 @@ CONTROL_ALLOWED_KEYS = (
 def parse_control_time(
     value: object,
     *,
-    Decimal: type,
     MAX_REASONABLE_STATE_EPOCH: int,
     datetime: type,
-    math: ModuleType,
 ) -> int:
     """Parse a runtime-control timestamp into an epoch value."""
     if isinstance(value, bool) or value is None:
@@ -116,7 +115,6 @@ def validate_control_values(
     *,
     CONTROL_BOOLEAN_KEYS: frozenset[str],
     CONTROL_TIME_KEYS: frozenset[str],
-    Decimal: type,
     parse_control_time: Callable,
 ) -> dict:
     """Validate pause values after metadata, copying integral Decimal epochs."""
@@ -142,7 +140,6 @@ def validate_control_document(
     CONTROL_ALLOWED_KEYS: frozenset[str],
     CONTROL_BOOLEAN_KEYS: frozenset[str],
     CONTROL_TIME_KEYS: frozenset[str],
-    Decimal: type,
     parse_control_time: Callable,
 ) -> dict:
     """Validate one complete control document without changing caller data."""
@@ -151,6 +148,5 @@ def validate_control_document(
         data,
         CONTROL_BOOLEAN_KEYS=CONTROL_BOOLEAN_KEYS,
         CONTROL_TIME_KEYS=CONTROL_TIME_KEYS,
-        Decimal=Decimal,
         parse_control_time=parse_control_time,
     )

@@ -11,10 +11,8 @@ with the digest; this module imports neither it, Markdown nor the bot.
 from __future__ import annotations
 
 import hashlib
-import math
 import os
 from datetime import datetime
-from decimal import Decimal
 from pathlib import Path
 from typing import AbstractSet, Any, Callable, Dict, List, Optional, Tuple
 
@@ -186,10 +184,8 @@ def _control_epoch(value: Any) -> int:
     """Parse one control timestamp using the same contract as the running bot."""
     return parse_control_time(
         value,
-        Decimal=Decimal,
         MAX_REASONABLE_STATE_EPOCH=MAX_CONTROL_EPOCH,
         datetime=datetime,
-        math=math,
     )
 
 
@@ -242,7 +238,6 @@ def runtime_control_snapshot(
             value,
             CONTROL_BOOLEAN_KEYS=REMOTE_WRITE_CONTROL_BOOLEAN_KEYS,
             CONTROL_TIME_KEYS=REMOTE_WRITE_CONTROL_TIME_KEYS,
-            Decimal=Decimal,
             parse_control_time=_control_epoch,
         )
         active: List[str] = []
