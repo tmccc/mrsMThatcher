@@ -14,8 +14,8 @@ import mrsMThatcher2 as bot
 import mrs_bot_receipt_primitives as owner
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
-DEPENDENCIES = {'valid_post_id': ['re'],
- 'valid_string_post_id': ['valid_post_id'],
+DEPENDENCIES = {'valid_post_id': [],
+ 'valid_string_post_id': [],
  'valid_receipt_epoch': ['MAX_CONFIRMATION_EPOCH', 'MIN_CONFIRMATION_EPOCH'],
  'receipt_int': [],
  'receipt_bool': [],
@@ -24,11 +24,10 @@ DEPENDENCIES = {'valid_post_id': ['re'],
  'main_post_schedule_zone': ['MAIN_POST_SCHEDULE_TIMEZONE', 'ZoneInfo', 'ZoneInfoNotFoundError'],
  'bound_schedule_datetime': ['datetime', 'main_post_schedule_zone'],
  'safe_bound_schedule_date_str': ['bound_schedule_datetime'],
- 'valid_receipt_basename': ['Path'],
+ 'valid_receipt_basename': [],
  'confirmation_epoch_after_remote_success': ['TransportJournalError',
                                              'log',
                                              'now_epoch',
-                                             'receipt_int',
                                              'valid_receipt_epoch'],
  'epoch_date_str': ['datetime', 'now_epoch'],
  'reply_cap_date_str': ['MAIN_POST_SCHEDULE_TIMEZONE', 'ZoneInfo', 'datetime', 'now_epoch']}
@@ -51,7 +50,7 @@ SIGNATURES = {'valid_post_id': "(value: 'object') -> 'bool'",
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, datetime, io, logging, os, random, socket, sys, time, typing, zoneinfo
+import builtins, collections.abc, re, datetime, io, logging, os, random, socket, sys, time, typing, zoneinfo
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -100,7 +99,7 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
                   if p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD]
     keyword_only = [p.name for p in signature.parameters.values()
                     if p.kind is inspect.Parameter.KEYWORD_ONLY]
-    if not DEPENDENCIES[name]:
+    if name in {"receipt_int", "receipt_bool"}:
         assert adapter is getattr(owner, name)
         assert adapter.__annotations__ == getattr(owner, name).__annotations__
         return
@@ -150,7 +149,7 @@ def test_post_ids_keep_unicode_digits_fullmatch_and_exact_string_gate(monkeypatc
         assert bot.valid_post_id(value) is expected
     result = object()
     validator = Mock(return_value=result)
-    monkeypatch.setattr(bot, "valid_post_id", validator)
+    monkeypatch.setattr(owner, "valid_post_id", validator)
     for value in (Text("123"), 123, True, None):
         assert bot.valid_string_post_id(value) is False
     validator.assert_not_called()
@@ -193,7 +192,7 @@ def test_post_id_truth_conversion_and_match_keep_native_order(monkeypatch, failu
         assert pattern == r"\d{1,30}" and value == "١2"
         return Match()
 
-    monkeypatch.setattr(bot, "re", SimpleNamespace(fullmatch=fullmatch))
+    monkeypatch.setattr(owner, "re", SimpleNamespace(fullmatch=fullmatch))
     order = ["truth", "text", "match", "match_truth"]
     if failure_at is None:
         assert bot.valid_post_id(Value()) is True
@@ -205,7 +204,7 @@ def test_post_id_truth_conversion_and_match_keep_native_order(monkeypatch, failu
         assert events == order[:order.index(failure_at) + 1]
 
     empty_match = Mock(return_value=None)
-    monkeypatch.setattr(bot, "re", SimpleNamespace(fullmatch=empty_match))
+    monkeypatch.setattr(owner, "re", SimpleNamespace(fullmatch=empty_match))
     assert bot.valid_post_id(0) is False
     empty_match.assert_called_once_with(r"\d{1,30}", "")
 
@@ -338,7 +337,7 @@ def test_basename_keeps_exact_type_path_name_and_native_reference_predicate(monk
             return result
 
     path = Mock(return_value=SimpleNamespace(name=Name()))
-    monkeypatch.setattr(bot, "Path", path)
+    monkeypatch.setattr(owner, "Path", path)
     assert bot.valid_receipt_basename("") is False
     path.assert_not_called()
     assert bot.valid_receipt_basename("x") is result
@@ -559,7 +558,8 @@ def _confirmation_trace(monkeypatch, values, observed=1_800_000_005):
         ("receipt_int", trace.integer), ("valid_receipt_epoch", trace.valid),
         ("now_epoch", trace.clock),
     ]:
-        monkeypatch.setattr(bot, name, callback)
+        target = owner if name == "receipt_int" else bot
+        monkeypatch.setattr(target, name, callback)
     monkeypatch.setattr(bot, "log", SimpleNamespace(critical=trace.critical))
     return SimpleNamespace(get=trace.get), trace
 

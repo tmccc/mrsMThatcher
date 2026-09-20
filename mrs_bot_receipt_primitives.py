@@ -5,13 +5,13 @@ module performs no runtime work at import and retains no runtime authority.
 """
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from typing import Any
 
 
 def valid_post_id(
     value: object,
-    *,
-    re: Any,
 ) -> bool:
     """Return whether valid post ID."""
     return bool(re.fullmatch(r"\d{1,30}", str(value or "")))
@@ -19,8 +19,6 @@ def valid_post_id(
 
 def valid_string_post_id(
     value: object,
-    *,
-    valid_post_id: Any,
 ) -> bool:
     """Return whether a durable receipt stores an exact string post ID."""
     return type(value) is str and valid_post_id(value)
@@ -129,8 +127,6 @@ def safe_bound_schedule_date_str(
 
 def valid_receipt_basename(
     value: object,
-    *,
-    Path: Any,
 ) -> bool:
     """Return whether valid receipt basename."""
     if type(value) is not str:
@@ -145,7 +141,6 @@ def confirmation_epoch_after_remote_success(
     TransportJournalError: Any,
     log: Any,
     now_epoch: Any,
-    receipt_int: Any,
     valid_receipt_epoch: Any,
 ) -> int:
     """Return a usable confirmation time without losing a known post ID.

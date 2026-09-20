@@ -4708,7 +4708,6 @@ def confirmation_epoch_after_remote_success(source_receipt: dict) -> int:
         TransportJournalError=TransportJournalError,
         log=log,
         now_epoch=now_epoch,
-        receipt_int=receipt_int,
         valid_receipt_epoch=valid_receipt_epoch,
     )
 
@@ -5142,7 +5141,6 @@ def valid_post_id(value: object) -> bool:
     """Return whether valid post ID."""
     return _receipt_primitives.valid_post_id(
         value,
-        re=re,
     )
 
 
@@ -5150,7 +5148,6 @@ def valid_string_post_id(value: object) -> bool:
     """Return whether a durable receipt stores an exact string post ID."""
     return _receipt_primitives.valid_string_post_id(
         value,
-        valid_post_id=valid_post_id,
     )
 
 
@@ -5221,7 +5218,6 @@ def valid_receipt_basename(value: object) -> bool:
     """Return whether valid receipt basename."""
     return _receipt_primitives.valid_receipt_basename(
         value,
-        Path=Path,
     )
 
 
