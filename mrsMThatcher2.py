@@ -2515,9 +2515,7 @@ def _mention_authority_owner() -> _mention_authority.MentionAuthority:
         maximum_epoch=MAX_REASONABLE_STATE_EPOCH,
         token_limit=MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT,
         log=log,
-        valid_provenance=mention_pagination_provenance_is_valid,
         log_event=log_event,
-        terminal_evaluation=terminal_reply_evaluation,
     )
 
 
@@ -7601,9 +7599,7 @@ def _reply_receipt_values_owner() -> _reply_receipt_values.ReplyReceiptValues:
     )
 
 
-def mention_pagination_provenance_is_valid(value: object) -> bool:
-    """Validate the exact mention continuation bound to a reply receipt."""
-    return _reply_receipt_values_owner().pagination_is_valid(value)
+mention_pagination_provenance_is_valid = _mention_authority.mention_pagination_provenance_is_valid
 
 
 def _conversational_reply_receipt_is_semantically_valid(
@@ -8061,7 +8057,6 @@ def maybe_reply_to_mentions(
         mention_queue=_mention_queue_owner(),
         maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
         maybe_reply_to_mentions=maybe_reply_to_mentions,
-        mention_pagination_provenance_is_valid=mention_pagination_provenance_is_valid,
         now_epoch=now_epoch,
         reply_evaluations=_reply_evaluation_owner(),
         record_api_error=record_api_error,

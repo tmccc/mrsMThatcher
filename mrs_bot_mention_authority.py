@@ -20,6 +20,30 @@ from logging import Logger
 from pathlib import Path
 
 from mrs_bot_state_value_normalisation import bounded_tweet_id_value
+from mrs_bot_reply_evaluation_state import terminal_reply_evaluation
+
+
+def mention_pagination_provenance_is_valid(value: object) -> bool:
+    """Validate the exact mention continuation bound to a reply receipt."""
+    if not isinstance(value, dict):
+        return False
+    if set(value) != {"base_since_id", "next_token"}:
+        return False
+    base_since_id = value.get("base_since_id")
+    next_token = value.get("next_token")
+    if (
+        not isinstance(base_since_id, str)
+        or bounded_tweet_id_value(base_since_id, allow_empty=True) is None
+    ):
+        return False
+    if (
+        not isinstance(next_token, str)
+        or not next_token
+        or next_token != next_token.strip()
+        or any(character.isspace() for character in next_token)
+    ):
+        return False
+    return True
 
 
 def active_mention_backlog_reset_guard(state: dict) -> dict[str, object] | None:
@@ -61,9 +85,7 @@ class MentionAuthority:
     maximum_epoch: int
     token_limit: int
     log: Logger
-    valid_provenance: Callable[[object], bool]
     log_event: Callable
-    terminal_evaluation: Callable
 
     def normalise_pagination(self, value: object, *, path: Path) -> dict[str, str] | None:
         """Normalise mention pagination."""
@@ -93,7 +115,7 @@ class MentionAuthority:
             "base_since_id": base_since_id,
             "next_token": next_token,
         }
-        if not self.valid_provenance(candidate):
+        if not mention_pagination_provenance_is_valid(candidate):
             self.log.error(
                 "State candidate %s has invalid mention pagination token; ignoring",
                 path,
@@ -321,7 +343,7 @@ class MentionAuthority:
             mention_id: candidate
             for mention_id, candidate in pending.items()
             if mention_id not in replied_ids
-            and self.terminal_evaluation(state, mention_id) is None
+            and terminal_reply_evaluation(state, mention_id) is None
         }
         if deduplicated != pending:
             self.log.info(
@@ -503,7 +525,7 @@ class MentionAuthority:
 
     def owns_page(self, state: dict, pagination: object, *, target_id: str) -> bool:
         """Return whether canonical state owns the page bound into a receipt."""
-        if not self.valid_provenance(pagination):
+        if not mention_pagination_provenance_is_valid(pagination):
             return False
         if state.get("mention_pagination") != pagination:
             return False
@@ -534,8 +556,6 @@ def mention_receipt_pagination(
     state: dict,
     candidate: dict,
     candidate_source: str,
-    *,
-    mention_pagination_provenance_is_valid: Callable[[object], bool],
 ) -> dict | None:
     """Copy a mention receipt's continuation only while it matches durable state.
 

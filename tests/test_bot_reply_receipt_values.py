@@ -11,6 +11,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_reply_receipt_values as values
+import mrs_bot_mention_authority as authority
 from tests.helpers.legacy_reply_fixtures import (
     CASE_IDS,
     _confirmed_receipt,
@@ -35,7 +36,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_receipt_values', 'mrs_bot_durable_json_io', 'mrs_bot_state_value_normalisation'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_receipt_values', 'mrs_bot_durable_json_io', 'mrs_bot_state_value_normalisation', 'mrs_bot_mention_authority', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -102,7 +103,6 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
 
 def test_adapters_preserve_defaults_arguments_result_identity_and_errors(monkeypatch):
     methods = {
-        "mention_pagination_provenance_is_valid": "pagination_is_valid",
         "_conversational_reply_receipt_is_semantically_valid": "validate",
         "conversational_sending_receipt_from_confirmed": "sending_from_confirmed",
         "confirmed_reply_receipt_is_semantically_valid": "confirmed_is_valid",
@@ -394,19 +394,18 @@ def test_best_confirmation_time_uses_current_converter_and_exception(make_owner,
     assert str(caught.value) == message
 
 
-def test_pagination_uses_owned_id_parser_before_token_validation(make_owner, monkeypatch):
+def test_pagination_uses_owned_id_parser_before_token_validation(monkeypatch):
     bounded = Mock(return_value=0)
-    monkeypatch.setattr(values, "bounded_tweet_id_value", bounded)
-    owner = make_owner()
-    assert owner.pagination_is_valid({"base_since_id": "", "next_token": "page-2"})
+    monkeypatch.setattr(authority, "bounded_tweet_id_value", bounded)
+    assert authority.mention_pagination_provenance_is_valid({"base_since_id": "", "next_token": "page-2"})
     bounded.assert_called_once_with("", allow_empty=True)
     bounded.reset_mock()
-    assert not owner.pagination_is_valid({"base_since_id": ""})
+    assert not authority.mention_pagination_provenance_is_valid({"base_since_id": ""})
     bounded.assert_not_called()
     failure = ValueError("current ID validator failed")
     bounded.side_effect = failure
     with pytest.raises(ValueError) as caught:
-        owner.pagination_is_valid({"base_since_id": "", "next_token": None})
+        authority.mention_pagination_provenance_is_valid({"base_since_id": "", "next_token": None})
     assert caught.value is failure
 
 

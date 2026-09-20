@@ -152,7 +152,6 @@ def maybe_reply_to_mentions(
     mention_queue: MentionQueue,
     maybe_mark_hot_post_reply_skipped: Callable,
     maybe_reply_to_mentions: Callable,
-    mention_pagination_provenance_is_valid: Callable,
     now_epoch: Callable,
     reply_evaluations: ReplyEvaluations,
     record_api_error: Callable,
@@ -398,7 +397,6 @@ def maybe_reply_to_mentions(
             _log_validated_single_call_reply=_log_validated_single_call_reply,
             delivery=delivery,
             log=log, log_event=log_event,
-            mention_pagination_provenance_is_valid=mention_pagination_provenance_is_valid,
             persistence=persistence,
         )
         if isinstance(receipt_template, FinishReplyCheck):
@@ -960,7 +958,6 @@ def _prepare_reply_receipt(
     delivery: ReplyCycleDelivery,
     log: Logger,
     log_event: Callable,
-    mention_pagination_provenance_is_valid: Callable,
     persistence: ReplyCyclePersistence,
 ) -> dict | FinishReplyCheck:
     """Persist the validated draft and bind receipt provenance before transport handling."""
@@ -1013,7 +1010,6 @@ def _prepare_reply_receipt(
     )
     mention_pagination = mention_receipt_pagination(
         state, candidate.mention, candidate.source,
-        mention_pagination_provenance_is_valid=mention_pagination_provenance_is_valid,
     )
     if mention_pagination is not None:
         receipt_template["mention_pagination"] = mention_pagination

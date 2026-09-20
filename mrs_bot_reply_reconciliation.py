@@ -27,6 +27,7 @@ from mrs_bot_runtime_state_helpers import append_unique_capped, append_unique_du
 from mrs_bot_reply_state import mark_quote_tweet_replied
 from mrs_bot_mention_authority import (
     active_mention_backlog_reset_guard,
+    mention_pagination_provenance_is_valid,
     _reset_mention_candidate_authority,
 )
 
@@ -96,7 +97,6 @@ def apply_confirmed_reply_receipt(
         state, receipt, target_id=target_id, candidate_source=candidate_source,
         InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
         STATE_FILE=STATE_FILE,
-        receipt_values=receipt_values,
         mention_pagination_has_canonical_page_ownership=mention_pagination_has_canonical_page_ownership,
         _emit_mention_authority_recovery=_emit_mention_authority_recovery,
         log=log,
@@ -216,7 +216,6 @@ def _mention_pagination_to_preserve(
     candidate_source: str,
     InvalidConfirmedReplyReceipt: type[Exception],
     STATE_FILE: Path,
-    receipt_values: ReplyReceiptValues,
     mention_pagination_has_canonical_page_ownership: Callable,
     _emit_mention_authority_recovery: Callable,
     log: logging.Logger,
@@ -226,7 +225,7 @@ def _mention_pagination_to_preserve(
         pagination = receipt.get("mention_pagination")
         if (
             candidate_source != "mention"
-            or not receipt_values.pagination_is_valid(pagination)
+            or not mention_pagination_provenance_is_valid(pagination)
         ):
             raise InvalidConfirmedReplyReceipt(
                 "Confirmed reply receipt has invalid mention pagination provenance"
@@ -245,7 +244,7 @@ def _mention_pagination_to_preserve(
         pagination = state.get("mention_pagination")
         current_since_id = str(state.get("last_seen_mention_id") or "")
         if not (
-            receipt_values.pagination_is_valid(pagination)
+            mention_pagination_provenance_is_valid(pagination)
             and str(pagination["base_since_id"]) == current_since_id
         ):
             return None

@@ -16,7 +16,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from mrs_bot_state_value_normalisation import bounded_tweet_id_value
+from mrs_bot_mention_authority import mention_pagination_provenance_is_valid
 
 from mrs_bot_durable_json_io import canonical_atomic_json_bytes
 
@@ -38,27 +38,6 @@ class ReplyReceiptValues:
     log: logging.Logger
     invalid_receipt: type[Exception]
 
-    def pagination_is_valid(self, value: object) -> bool:
-        """Validate the exact mention continuation bound to a reply receipt."""
-        if not isinstance(value, dict):
-            return False
-        if set(value) != {"base_since_id", "next_token"}:
-            return False
-        base_since_id = value.get("base_since_id")
-        next_token = value.get("next_token")
-        if (
-            not isinstance(base_since_id, str)
-            or bounded_tweet_id_value(base_since_id, allow_empty=True) is None
-        ):
-            return False
-        if (
-            not isinstance(next_token, str)
-            or not next_token
-            or next_token != next_token.strip()
-            or any(character.isspace() for character in next_token)
-        ):
-            return False
-        return True
 
     def validate(
         self,
@@ -104,7 +83,7 @@ class ReplyReceiptValues:
             mention_pagination = data.get("mention_pagination")
             if schema_version not in {3, 4} or source != "mention":
                 return False
-            if not self.pagination_is_valid(mention_pagination):
+            if not mention_pagination_provenance_is_valid(mention_pagination):
                 return False
         text = data.get("reply_text")
         if not isinstance(text, str) or not text:

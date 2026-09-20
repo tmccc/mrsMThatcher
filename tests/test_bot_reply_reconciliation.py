@@ -46,7 +46,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_reconciliation', 'mrs_bot_runtime_state_helpers', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history', 'mrs_bot_mention_authority', 'mrs_bot_state_value_normalisation'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_reconciliation', 'mrs_bot_runtime_state_helpers', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history', 'mrs_bot_mention_authority', 'mrs_bot_state_value_normalisation', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -200,7 +200,7 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
         values = supplied["receipt_values"]
         assert isinstance(values, reply_receipt_values.ReplyReceiptValues)
         assert values.now_epoch is clock
-        assert values.bounded_tweet_id_value is bounded_id
+        assert not hasattr(values, "bounded_tweet_id_value")
         assert values.receipt_int is receipt_integer
         assert values.invalid_receipt is current["InvalidConfirmedReplyReceipt"]
         assert values.reply_cap_date_str is current["reply_cap_date_str"]
@@ -268,7 +268,7 @@ def test_emergency_adapter_binds_current_owners_and_preserves_arguments_and_erro
         assert isinstance(values, reply_receipt_values.ReplyReceiptValues)
         assert values.receipt_int is current["receipt_int"]
         assert values.invalid_receipt is current["InvalidConfirmedReplyReceipt"]
-        assert values.bounded_tweet_id_value is bounded_id
+        assert not hasattr(values, "bounded_tweet_id_value")
         assert values.draft_is_valid is validator
         bounded_id.assert_not_called()
         validator.assert_not_called()
@@ -837,6 +837,7 @@ def test_pagination_preservation_resets_missing_ownership_before_copy_and_legacy
         "mention_pending_candidates": {"104": {}, "105": {}},
     }
     receipt = {} if legacy else {"mention_pagination": pagination}
+    monkeypatch.setattr(reconciliation, "mention_pagination_provenance_is_valid", trace.provenance)
     trace.provenance.return_value = True
     trace.ownership.return_value = False
 
@@ -851,7 +852,6 @@ def test_pagination_preservation_resets_missing_ownership_before_copy_and_legacy
         state, receipt, target_id="105", candidate_source="mention",
         InvalidConfirmedReplyReceipt=bot.InvalidConfirmedReplyReceipt,
         STATE_FILE=bot.STATE_FILE,
-        receipt_values=Mock(pagination_is_valid=trace.provenance),
         mention_pagination_has_canonical_page_ownership=trace.ownership,
         _emit_mention_authority_recovery=trace.recovery,
         log=trace.log,
