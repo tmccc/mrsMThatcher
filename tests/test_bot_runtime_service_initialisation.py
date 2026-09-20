@@ -27,7 +27,6 @@ DEPENDENCIES = {'initialise_bot_health_reporting': ['BASE_DIR',
                                      '_set_bot_health_reporter',
                                      'health_file_path_from_environment'],
  'reply_evidence_repository': ['BASE_DIR',
-                               'Path',
                                'ReplyEvidenceUnavailable',
                                'SINGLE_CALL_REPLY_RESEARCH_CORPUS_PATH',
                                '_get_bot_logger',
@@ -372,7 +371,7 @@ def test_evidence_path_order_and_live_success_properties(monkeypatch, absolute):
 
     _imports(monkeypatch, trace, {"reply_evidence": SimpleNamespace(EvidenceRepository=construct)})
     monkeypatch.setattr(bot, "SINGLE_CALL_REPLY_RESEARCH_CORPUS_PATH", input_path)
-    monkeypatch.setattr(bot, "Path", path)
+    monkeypatch.setattr(owner, "Path", path)
     monkeypatch.setattr(bot, "BASE_DIR", Base())
     assert bot.reply_evidence_repository() is final
     assert trace == [("import", "reply_evidence"), "path", "absolute"] + (
@@ -450,7 +449,7 @@ def test_evidence_native_failures_keep_constructor_only_catch(monkeypatch, tmp_p
                 return fail()
         module = MissingModule()
     _imports(monkeypatch, trace, {"reply_evidence": module})
-    monkeypatch.setattr(bot, "Path", lambda _value: fail() if boundary == "path" else research)
+    monkeypatch.setattr(owner, "Path", lambda _value: fail() if boundary == "path" else research)
     monkeypatch.setattr(bot, "BASE_DIR", Base())
     with pytest.raises(type(error)) as caught:
         bot.reply_evidence_repository()

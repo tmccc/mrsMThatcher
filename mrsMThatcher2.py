@@ -1508,7 +1508,6 @@ def reply_evidence_repository():
     """Load claim evidence on first use and cache a fail-closed load failure."""
     return _runtime_service_initialisation.reply_evidence_repository(
         BASE_DIR=BASE_DIR,
-        Path=Path,
         ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
         SINGLE_CALL_REPLY_RESEARCH_CORPUS_PATH=SINGLE_CALL_REPLY_RESEARCH_CORPUS_PATH,
         _get_bot_logger=_get_bot_logger,

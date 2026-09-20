@@ -1,10 +1,12 @@
 """Runtime health, lazy reply evidence and historical-context gate initialisation.
 
-The root supplies current runtime dependencies explicitly on each call. This
-module performs no runtime work at import and retains no runtime authority.
+Fixed evidence-path construction belongs here; the root supplies current
+runtime dependencies explicitly on each call. Import performs no runtime work
+and retains no runtime authority.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from mrs_bot_historical_context_delivery import historical_context_formatter_options
@@ -57,7 +59,6 @@ def initialise_bot_health_reporting(
 def reply_evidence_repository(
     *,
     BASE_DIR: Any,
-    Path: Any,
     ReplyEvidenceUnavailable: Any,
     SINGLE_CALL_REPLY_RESEARCH_CORPUS_PATH: Any,
     _get_bot_logger: Any,
