@@ -239,6 +239,24 @@ class ReplyModelTransport:
             if callable(close_response):
                 close_response()
 
+    def _envelope_error(
+        self,
+        message: str,
+        *,
+        attempt: int,
+        first_429_seen: bool,
+        first_429_retry_metadata: tuple[int | None, int | None],
+    ) -> Exception:
+        """Build a decoding/shape error after cleanup, preserving prior rate limits."""
+        return self.error(
+            message,
+            category="provider_envelope",
+            status_code=429 if first_429_seen else None,
+            reset_epoch=first_429_retry_metadata[0] if first_429_seen else None,
+            retry_after_seconds=first_429_retry_metadata[1] if first_429_seen else None,
+            request_attempt_count=attempt,
+        )
+
     def _decode_response(
         self,
         response: object,
@@ -273,17 +291,11 @@ class ReplyModelTransport:
             # context if closing or the provider error factory itself fails.
             if exc is not json_error:
                 raise
-            raise self.error(
+            raise self._envelope_error(
                 "OpenAI single-call reply returned malformed JSON",
-                category="provider_envelope",
-                status_code=429 if first_429_seen else None,
-                reset_epoch=(
-                    first_429_retry_metadata[0] if first_429_seen else None
-                ),
-                retry_after_seconds=(
-                    first_429_retry_metadata[1] if first_429_seen else None
-                ),
-                request_attempt_count=attempt,
+                attempt=attempt,
+                first_429_seen=first_429_seen,
+                first_429_retry_metadata=first_429_retry_metadata,
             ) from exc
         if http_error:
             raise self.error(
@@ -302,16 +314,10 @@ class ReplyModelTransport:
                 request_attempt_count=attempt,
             )
         if not isinstance(data, dict):
-            raise self.error(
+            raise self._envelope_error(
                 "OpenAI single-call reply response is not an object",
-                category="provider_envelope",
-                status_code=429 if first_429_seen else None,
-                reset_epoch=(
-                    first_429_retry_metadata[0] if first_429_seen else None
-                ),
-                retry_after_seconds=(
-                    first_429_retry_metadata[1] if first_429_seen else None
-                ),
-                request_attempt_count=attempt,
+                attempt=attempt,
+                first_429_seen=first_429_seen,
+                first_429_retry_metadata=first_429_retry_metadata,
             )
         return data
