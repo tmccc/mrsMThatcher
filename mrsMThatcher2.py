@@ -3209,13 +3209,17 @@ _X_CREATE_RESPONSE_TOP_LEVEL_KEY_LIMIT = _x_response_diagnostics._X_CREATE_RESPO
 _X_CREATE_RESPONSE_TOP_LEVEL_KEY_MAX_CHARACTERS = _x_response_diagnostics._X_CREATE_RESPONSE_TOP_LEVEL_KEY_MAX_CHARACTERS
 
 
+def _x_create_diagnostics_owner() -> _x_response_diagnostics.XCreateDiagnostics:
+    """Bind diagnostic capabilities without observing time or runtime state."""
+    return _x_response_diagnostics.XCreateDiagnostics(
+        valid_post_id=valid_post_id, log=log, now_epoch=now_epoch,
+    )
+
+
 def x_create_response_anomaly_reason(decoded: object) -> str | None:
     """Return why one decoded tweet-create response cannot confirm success."""
 
-    return _x_response_diagnostics.x_create_response_anomaly_reason(
-        decoded,
-        valid_post_id=valid_post_id,
-    )
+    return _x_create_diagnostics_owner().anomaly_reason(decoded)
 
 
 _x_create_diagnostic_json_type = _x_response_diagnostics._x_create_diagnostic_json_type
@@ -3224,13 +3228,7 @@ _x_create_diagnostic_json_type = _x_response_diagnostics._x_create_diagnostic_js
 _bounded_x_create_diagnostic_text = _x_response_diagnostics._bounded_x_create_diagnostic_text
 
 
-def _x_create_response_elapsed_ms(response: requests.Response) -> int | None:
-    """Return a finite non-negative Requests elapsed duration in milliseconds."""
-
-    return _x_response_diagnostics._x_create_response_elapsed_ms(
-        response,
-        math=math,
-    )
+_x_create_response_elapsed_ms = _x_response_diagnostics._x_create_response_elapsed_ms
 
 
 def emit_x_create_response_anomaly(
@@ -3251,7 +3249,7 @@ def emit_x_create_response_anomaly(
     when it is no larger than ``X_CREATE_RESPONSE_ANOMALY_BODY_MAX_BYTES``.
     """
 
-    return _x_response_diagnostics.emit_x_create_response_anomaly(
+    return _x_create_diagnostics_owner().emit_anomaly(
         response=response,
         transport_authority=transport_authority,
         request_payload=request_payload,
@@ -3260,23 +3258,6 @@ def emit_x_create_response_anomaly(
         json_decode_succeeded=json_decode_succeeded,
         decoded=decoded,
         json_error=json_error,
-        X_CREATE_RESPONSE_ANOMALY_BODY_MAX_BYTES=X_CREATE_RESPONSE_ANOMALY_BODY_MAX_BYTES,
-        X_CREATE_RESPONSE_ANOMALY_EVENT=X_CREATE_RESPONSE_ANOMALY_EVENT,
-        X_CREATE_RESPONSE_ANOMALY_SCHEMA_VERSION=X_CREATE_RESPONSE_ANOMALY_SCHEMA_VERSION,
-        X_CREATE_RESPONSE_SAFE_CORRELATION_HEADERS=X_CREATE_RESPONSE_SAFE_CORRELATION_HEADERS,
-        _X_CREATE_RESPONSE_HEADER_MAX_CHARACTERS=_X_CREATE_RESPONSE_HEADER_MAX_CHARACTERS,
-        _X_CREATE_RESPONSE_ID_VALUE_MAX_CHARACTERS=_X_CREATE_RESPONSE_ID_VALUE_MAX_CHARACTERS,
-        _X_CREATE_RESPONSE_TOP_LEVEL_KEY_LIMIT=_X_CREATE_RESPONSE_TOP_LEVEL_KEY_LIMIT,
-        _X_CREATE_RESPONSE_TOP_LEVEL_KEY_MAX_CHARACTERS=_X_CREATE_RESPONSE_TOP_LEVEL_KEY_MAX_CHARACTERS,
-        _bounded_x_create_diagnostic_text=_bounded_x_create_diagnostic_text,
-        _x_create_diagnostic_json_type=_x_create_diagnostic_json_type,
-        _x_create_response_elapsed_ms=_x_create_response_elapsed_ms,
-        base64=base64,
-        hashlib=hashlib,
-        json=json,
-        log=log,
-        math=math,
-        now_epoch=now_epoch,
     )
 
 

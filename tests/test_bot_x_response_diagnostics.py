@@ -56,41 +56,52 @@ assert 'single_call_reply' not in sys.modules
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-def test_adapters_forward_current_dependencies_arguments_references_and_errors(monkeypatch):
-    for name in ("_x_create_diagnostic_json_type", "_bounded_x_create_diagnostic_text"):
+def test_owner_and_adapters_keep_current_boundaries_arguments_references_and_errors(monkeypatch):
+    for name in ("_x_create_diagnostic_json_type", "_bounded_x_create_diagnostic_text", "_x_create_response_elapsed_ms"):
         assert getattr(bot, name) is getattr(diagnostics, name)
     for name in vars(diagnostics):
         if name.startswith(("X_CREATE_RESPONSE_", "_X_CREATE_RESPONSE_")):
             assert getattr(bot, name) is getattr(diagnostics, name)
-    for name, count in (
-        ("x_create_response_anomaly_reason", 1),
-        ("_x_create_response_elapsed_ms", 1),
-        ("emit_x_create_response_anomaly", 17),
-    ):
+    snapshots = []
+    for _ in range(2):
+        current = {name: Mock() for name in ("valid_post_id", "log", "now_epoch")}
+        for name, value in current.items():
+            monkeypatch.setattr(bot, name, value)
+        owner = bot._x_create_diagnostics_owner()
+        snapshots.append(owner)
+        for name, value in current.items():
+            assert getattr(owner, name) is value
+            value.assert_not_called()
+    assert snapshots[0] is not snapshots[1]
+    for name, method in (("x_create_response_anomaly_reason", "anomaly_reason"), ("emit_x_create_response_anomaly", "emit_anomaly")):
         adapter = getattr(bot, name)
-        public = inspect.signature(adapter).parameters
-        dependencies = inspect.signature(getattr(diagnostics, name)).parameters.keys() - public.keys()
-        assert len(dependencies) == count, name
-        args = tuple(object() for param in public.values() if param.kind == param.POSITIONAL_OR_KEYWORD)
+        public = inspect.signature(adapter)
+        owned = inspect.signature(getattr(diagnostics.XCreateDiagnostics, method))
+        assert list(public.parameters.values()) == list(owned.parameters.values())[1:]
+        assert public.return_annotation == owned.return_annotation
+        args = tuple(object() for param in public.parameters.values() if param.kind == param.POSITIONAL_OR_KEYWORD)
+        required = {key: object() for key, param in public.parameters.items()
+                    if param.kind == param.KEYWORD_ONLY and param.default is param.empty}
         result = object()
-        owner = Mock(return_value=result)
+        owner = Mock(spec=diagnostics.XCreateDiagnostics)
+        factory = Mock(return_value=owner)
         with monkeypatch.context() as patch:
-            patch.setattr(bot, "_x_response_diagnostics", SimpleNamespace(**{name: owner}))
-            required = {key: object() for key, param in public.items()
-                        if param.kind == param.KEYWORD_ONLY and param.default is param.empty}
-            for options in (required, {key: object() for key, param in public.items() if param.kind == param.KEYWORD_ONLY}):
-                current = {key: object() for key in dependencies}
-                for key, value in current.items():
-                    patch.setattr(bot, key, value)
+            patch.setattr(bot, "_x_create_diagnostics_owner", factory)
+            implementation = getattr(owner, method)
+            implementation.return_value = result
+            for options in (required, {key: object() for key, param in public.parameters.items() if param.kind == param.KEYWORD_ONLY}):
                 assert adapter(*args, **options) is result
-                expected = {key: options.get(key, param.default) for key, param in public.items() if param.kind == param.KEYWORD_ONLY} | current
-                actual_args, actual_kwargs = owner.call_args
-                assert len(actual_args) == len(args)
+                bound = public.bind(*args, **options)
+                bound.apply_defaults()
+                expected = {key: value for key, value in bound.arguments.items() if public.parameters[key].kind == inspect.Parameter.KEYWORD_ONLY}
+                actual_args, actual_kwargs = implementation.call_args
                 assert all(actual is original for actual, original in zip(actual_args, args))
+                assert len(actual_args) == len(args)
                 assert actual_kwargs.keys() == expected.keys()
                 assert all(actual_kwargs[key] is value for key, value in expected.items())
+            assert factory.call_count == 2
             failure = TypeError("current owner failure")
-            owner.side_effect = failure
+            implementation.side_effect = failure
             with pytest.raises(TypeError) as caught:
                 adapter(*args, **options)
             assert caught.value is failure
@@ -135,7 +146,7 @@ def test_classification_type_distinctions_and_native_text_conversion(monkeypatch
 
 def test_elapsed_uses_current_math_and_keeps_native_failure_boundaries(monkeypatch):
     finite = Mock(wraps=math.isfinite)
-    monkeypatch.setattr(bot, "math", SimpleNamespace(isfinite=finite))
+    monkeypatch.setattr(diagnostics, "math", SimpleNamespace(isfinite=finite))
     seconds = Mock(return_value=0.0025)
     response = SimpleNamespace(elapsed=SimpleNamespace(total_seconds=seconds))
     assert bot._x_create_response_elapsed_ms(response) == 2
@@ -194,7 +205,7 @@ def test_emitter_current_constants_callbacks_order_and_event_identity(monkeypatc
         "_X_CREATE_RESPONSE_TOP_LEVEL_KEY_MAX_CHARACTERS": 4,
     }
     for name, value in current.items():
-        monkeypatch.setattr(bot, name, value)
+        monkeypatch.setattr(diagnostics, name, value)
     calls = Mock()
     for name, function in (
         ("bounded", bot._bounded_x_create_diagnostic_text),
@@ -215,7 +226,7 @@ def test_emitter_current_constants_callbacks_order_and_event_identity(monkeypatc
         "math": SimpleNamespace(isfinite=calls.finite),
         "now_epoch": calls.clock, "log": SimpleNamespace(error=calls.error),
     }.items():
-        monkeypatch.setattr(bot, name, value)
+        monkeypatch.setattr(bot if name in {"now_epoch", "log"} else diagnostics, name, value)
 
     event = bot.emit_x_create_response_anomaly(**diagnostic_arguments)
     assert [entry[0] for entry in calls.mock_calls] == [
@@ -253,9 +264,9 @@ def test_emitter_current_constants_callbacks_order_and_event_identity(monkeypatc
     assert event["diagnostic_sha256"] == hashlib.sha256(canonical).hexdigest()
     calls.error.assert_called_once_with("%s %s", "fixture-anomaly", json.dumps(event, **options))
 
-    monkeypatch.setattr(bot, "X_CREATE_RESPONSE_ANOMALY_BODY_MAX_BYTES", 1)
-    monkeypatch.setattr(bot, "_X_CREATE_RESPONSE_ID_VALUE_MAX_CHARACTERS", 1)
-    monkeypatch.setattr(bot, "_X_CREATE_RESPONSE_TOP_LEVEL_KEY_LIMIT", 1)
+    monkeypatch.setattr(diagnostics, "X_CREATE_RESPONSE_ANOMALY_BODY_MAX_BYTES", 1)
+    monkeypatch.setattr(diagnostics, "_X_CREATE_RESPONSE_ID_VALUE_MAX_CHARACTERS", 1)
+    monkeypatch.setattr(diagnostics, "_X_CREATE_RESPONSE_TOP_LEVEL_KEY_LIMIT", 1)
     event = bot.emit_x_create_response_anomaly(**diagnostic_arguments)
     assert event["raw_body_complete"] is False and event["raw_body_base64"] is None
     assert event["raw_body_sha256"] == hashlib.sha256(b"\x00\xff").hexdigest()
@@ -268,8 +279,8 @@ def test_emitter_native_json_and_log_failures_keep_final_side_effect_order(monke
     calls = Mock()
     calls.attach_mock(Mock(wraps=json.dumps), "dumps")
     calls.attach_mock(Mock(wraps=hashlib.sha256), "sha256")
-    monkeypatch.setattr(bot, "json", SimpleNamespace(dumps=calls.dumps))
-    monkeypatch.setattr(bot, "hashlib", SimpleNamespace(sha256=calls.sha256))
+    monkeypatch.setattr(diagnostics, "json", SimpleNamespace(dumps=calls.dumps))
+    monkeypatch.setattr(diagnostics, "hashlib", SimpleNamespace(sha256=calls.sha256))
     monkeypatch.setattr(bot, "log", SimpleNamespace(error=calls.error))
     monkeypatch.setattr(bot, "now_epoch", lambda: float("nan"))
     with pytest.raises(ValueError, match="Out of range float"):
