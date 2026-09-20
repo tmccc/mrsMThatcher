@@ -16,9 +16,10 @@ import mrs_bot_daily_reply_accounting as accounting_owner
 import mrs_bot_reply_context as context_owner
 import mrs_bot_reply_cycle_interfaces as interfaces
 import mrs_bot_reply_evaluation_state as evaluation_state
-from tests.helpers.bot_runtime import SOURCE_GET_TWEET_BY_ID, bot
+from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import (
+    restore_tweet_lookup_fetch,
     configure_quote_cycle as _configure_cycle,
     patch_reply_owner_method,
     patch_reply_draft_method,
@@ -484,7 +485,7 @@ def test_original_http_errors_skip_targets_or_stop_at_shared_cooldown(
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
     monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
     monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda _state: ["900", "901", "902", "903"])
-    monkeypatch.setattr(bot, "get_tweet_by_id", SOURCE_GET_TWEET_BY_ID)
+    restore_tweet_lookup_fetch(monkeypatch)
     discoveries = Mock(return_value={target: [{"id": "910"}] for target in ["900", "901", "902", "903"]})
     monkeypatch.setattr(bot, "get_quote_tweets_for_posts", discoveries)
     health = Mock(wraps=bot.record_api_error)

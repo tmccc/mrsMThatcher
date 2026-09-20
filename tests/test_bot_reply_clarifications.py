@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+
 import copy
 from dataclasses import FrozenInstanceError, replace
 import inspect
@@ -19,7 +20,7 @@ import mrs_bot_reply_lane_policy as policy
 from tests.helpers.mention_fixtures import mention
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
-from tests.helpers.reply_fixtures import unit_confirmed_reply_receipt
+from tests.helpers.reply_fixtures import unit_confirmed_reply_receipt, patch_tweet_lookup_method
 
 
 OWNER_INPUTS = {
@@ -260,7 +261,7 @@ def test_clarification_refreshes_legacy_question_before_looking_for_question_mar
     original.pop("text_is_complete")
     fresh = {**original, "note_tweet": {"text": full}}
     fetch = Mock(return_value=fresh)
-    monkeypatch.setattr(bot, "get_tweet_by_id", fetch)
+    patch_tweet_lookup_method(monkeypatch, "fetch", fetch)
     result = owner.context(state, candidate, current=2_000_000_001)
     assert result["question_text"] == full
     assert result["trigger"] == "explicit_correction"
@@ -275,7 +276,7 @@ def test_clarification_legacy_refresh_distinguishes_deleted_from_transient(monke
     state, candidate = confirmed_question
     state["tweet_cache"]["100"].pop("text_is_complete")
     error = bot.ApiError("lookup failed", service="x", status_code=status, request_method="GET", request_path="/2/tweets/100")
-    monkeypatch.setattr(bot, "get_tweet_by_id", Mock(side_effect=error))
+    patch_tweet_lookup_method(monkeypatch, "fetch", Mock(side_effect=error))
     if status == 404:
         assert owner.context(state, candidate, current=2_000_000_001) is None
     else:

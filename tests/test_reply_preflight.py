@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
+
 import copy
 import json
 from unittest.mock import Mock
 
 import pytest
 
-from tests.helpers.bot_runtime import SOURCE_GET_TWEET_BY_ID, bot
+from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.mention_fixtures import mention, queue_active_mention
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
 from tests.helpers.reply_fixtures import (
+    restore_tweet_lookup_fetch,
     configure_normal_cycle,
     configure_quote_cycle,
     unit_approved_reply,
@@ -49,7 +51,7 @@ def test_reply_preflight_and_create_keep_separate_outcomes(monkeypatch, lane, ou
     monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(generate))
     monkeypatch.setattr(bot, "x_request", source_request)
     monkeypatch.setattr(bot, "create_post", Mock(wraps=source_create))
-    monkeypatch.setattr(bot, "get_tweet_by_id", SOURCE_GET_TWEET_BY_ID)
+    restore_tweet_lookup_fetch(monkeypatch)
     health = Mock(wraps=bot.record_api_error)
     monkeypatch.setattr(bot, "record_api_error", health)
 

@@ -12,7 +12,7 @@ from unittest.mock import Mock
 import pytest
 
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
-from tests.helpers.bot_runtime import SCENARIOS, bot
+from tests.helpers.bot_runtime import SCENARIOS, SOURCE_TWEET_LOOKUP_FETCH, bot
 from tests.fake_api_server import load_scenario
 from tests.helpers.mention_fixtures import editorial_no_reply
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
@@ -90,6 +90,16 @@ def patch_reply_owner_method(monkeypatch, owner_type, method: str, callback) -> 
         return callback(*args, **kwargs)
 
     monkeypatch.setattr(owner_type, method, invoke)
+
+
+def patch_tweet_lookup_method(monkeypatch, method: str, callback) -> None:
+    """Replace an owned lookup/cache operation while preserving observed arguments."""
+    patch_reply_owner_method(monkeypatch, bot._tweet_lookup_cache.TweetLookupCache, method, callback)
+
+
+def restore_tweet_lookup_fetch(monkeypatch) -> None:
+    """Restore real isolated transport lookup after the shared fixture's fake fetch."""
+    monkeypatch.setattr(bot._tweet_lookup_cache.TweetLookupCache, "fetch", SOURCE_TWEET_LOOKUP_FETCH)
 
 
 def patch_reply_draft_method(monkeypatch, method: str, callback) -> None:

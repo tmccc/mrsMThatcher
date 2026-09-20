@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+
 import copy
 import json
 import hashlib
@@ -11,7 +12,6 @@ from pathlib import Path
 import pytest
 
 from tests.helpers.bot_runtime import (
-    SOURCE_GET_TWEET_BY_ID,
     bot,
 )
 from tests.helpers.bot_fixtures import (
@@ -19,6 +19,8 @@ from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,
 )
 from tests.helpers.reply_fixtures import (
+    patch_tweet_lookup_method,
+    restore_tweet_lookup_fetch,
     UNIT_REPLY_REPOSITORY,
     patch_reply_context_method,
     unit_reply_context,
@@ -51,7 +53,7 @@ def test_direct_tweet_lookup_rejects_a_mismatched_response_identity(
             }
         },
     )
-    monkeypatch.setattr(bot, "get_tweet_by_id", SOURCE_GET_TWEET_BY_ID)
+    restore_tweet_lookup_fetch(monkeypatch)
 
     with pytest.raises(bot.ApiError, match="mismatched post") as raised:
         bot.get_tweet_by_id("900")
@@ -75,11 +77,7 @@ def test_cached_tweet_lookup_rejects_a_mismatched_row_identity(
             "cached_epoch": bot.now_epoch(),
         }
     }
-    monkeypatch.setattr(
-        bot,
-        "get_tweet_by_id",
-        lambda *_args, **_kwargs: pytest.fail("a mismatched cache hit must fail closed"),
-    )
+    patch_tweet_lookup_method(monkeypatch, "fetch", lambda *_args, **_kwargs: pytest.fail("a mismatched cache hit must fail closed"))
 
     with pytest.raises(bot.ApiError, match="mismatched post") as raised:
         bot.get_tweet_by_id_cached("900", state)
@@ -717,13 +715,9 @@ def test_fifteen_turn_linear_thread_reaches_root_then_bounds_visible_path(
         row["id"]: {**row, "text_is_complete": True, "cached_epoch": cache_epoch} for row in chain
     }
     monkeypatch.setattr(bot, "MY_USER_ID", "12345")
-    monkeypatch.setattr(
-        bot,
-        "get_tweet_by_id",
-        lambda *_args, **_kwargs: pytest.fail(
+    patch_tweet_lookup_method(monkeypatch, "fetch", lambda *_args, **_kwargs: pytest.fail(
             "the verified cached parent path should be sufficient"
-        ),
-    )
+        ))
 
     prepared_context = bot.build_context_for_reply_ai(
         mention,
@@ -775,7 +769,7 @@ def test_uncached_parent_chain_performs_at_most_three_direct_lookups(
         lookups.append(str(tweet_id))
         return copy.deepcopy(parents[str(tweet_id)])
 
-    monkeypatch.setattr(bot, "get_tweet_by_id", direct_lookup)
+    patch_tweet_lookup_method(monkeypatch, "fetch", direct_lookup)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     chain = bot.build_parent_chain(mention, bot.default_state())
@@ -856,11 +850,7 @@ def test_context_uses_only_parent_contiguous_path_not_cached_siblings(
             "referenced_tweets": [],
         },
     }
-    monkeypatch.setattr(
-        bot,
-        "get_tweet_by_id",
-        lambda *_args, **_kwargs: pytest.fail("context must use tweet_cache"),
-    )
+    patch_tweet_lookup_method(monkeypatch, "fetch", lambda *_args, **_kwargs: pytest.fail("context must use tweet_cache"))
 
     prepared_context = bot.build_context_for_reply_ai(mention, state)
     assert prepared_context is not None
@@ -911,7 +901,7 @@ def test_author_cap_context_quote_commentary_refreshes_original_with_media(
             ],
         }
 
-    monkeypatch.setattr(bot, "get_tweet_by_id", fetch)
+    patch_tweet_lookup_method(monkeypatch, "fetch", fetch)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     prepared_context = bot.build_context_for_reply_ai(mention, state)
@@ -1116,7 +1106,7 @@ def test_direct_quote_refreshes_cache_without_replacing_the_reply_path(
             ],
         }
 
-    monkeypatch.setattr(bot, "get_tweet_by_id", fetch)
+    patch_tweet_lookup_method(monkeypatch, "fetch", fetch)
 
     prepared_context = bot.build_context_for_reply_ai(mention, state)
     assert prepared_context is not None
@@ -1299,11 +1289,7 @@ def test_non_contiguous_cached_author_cap_context_is_not_invented_into_path(
             for tweet_id in (920, 930, 940, 950)
         },
     }
-    monkeypatch.setattr(
-        bot,
-        "get_tweet_by_id",
-        lambda *_args, **_kwargs: pytest.fail("cached cap context must not fetch from X"),
-    )
+    patch_tweet_lookup_method(monkeypatch, "fetch", lambda *_args, **_kwargs: pytest.fail("cached cap context must not fetch from X"))
 
     prepared_context = bot.build_context_for_reply_ai(mention, state)
     assert prepared_context is not None

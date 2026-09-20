@@ -2574,25 +2574,35 @@ def record_qualifying_author_no_reply(
 clear_author_evaluation_quarantine_history = _author_quarantines.clear_author_evaluation_quarantine_history
 
 
+def _tweet_lookup_cache_owner() -> _tweet_lookup_cache.TweetLookupCache:
+    """Bind current lookup/cache boundaries without clocks, requests or state access."""
+    return _tweet_lookup_cache.TweetLookupCache(
+        normalise_state_epoch=normalise_state_epoch,
+        maximum_age_seconds=TWEET_CACHE_MAX_AGE_SECONDS,
+        maximum_items=TWEET_CACHE_MAX_ITEMS,
+        log=log,
+        now_epoch=now_epoch,
+        maximum_recent_own_posts=RECENT_OWN_POST_IDS_MAX,
+        user_id=MY_USER_ID,
+        state_file=STATE_FILE,
+        current_datetime=current_datetime,
+        api_error=ApiError,
+        attach_media_to_tweets=attach_media_to_tweets,
+        log_json_debug=log_json_debug,
+        request=x_request,
+        is_permanent_target_failure=api_error_is_permanent_target_failure,
+        save_state=save_state,
+    )
+
+
 def normalise_tweet_cache_entry(tweet_id: object, entry: dict, *, path: Path) -> dict[str, object] | None:
     """Delegate tweet lookup/cache work with current root dependencies."""
-    return _tweet_lookup_cache.normalise_tweet_cache_entry(
-        tweet_id,
-        entry,
-        path=path,
-        log=log,
-        normalise_state_epoch=normalise_state_epoch,
-    )
+    return _tweet_lookup_cache_owner().normalise_entry(tweet_id, entry, path=path)
 
 
 def normalise_tweet_cache(value: object, *, path: Path) -> dict[str, dict] | None:
     """Delegate tweet lookup/cache work with current root dependencies."""
-    return _tweet_lookup_cache.normalise_tweet_cache(
-        value,
-        path=path,
-        log=log,
-        normalise_tweet_cache_entry=normalise_tweet_cache_entry,
-    )
+    return _tweet_lookup_cache_owner().normalise(value, path=path)
 
 
 def normalise_mention_pagination(value: object, *, path: Path) -> dict[str, str] | None:
@@ -3517,33 +3527,17 @@ tweet_text_is_complete = _tweet_lookup_cache.tweet_text_is_complete
 
 def prune_tweet_cache(state: dict) -> None:
     """Delegate tweet lookup/cache work with current root dependencies."""
-    return _tweet_lookup_cache.prune_tweet_cache(
-        state,
-        TWEET_CACHE_MAX_AGE_SECONDS=TWEET_CACHE_MAX_AGE_SECONDS,
-        TWEET_CACHE_MAX_ITEMS=TWEET_CACHE_MAX_ITEMS,
-        log=log,
-        now_epoch=now_epoch,
-    )
+    return _tweet_lookup_cache_owner().prune(state)
 
 
 def record_recent_own_post(state: dict, tweet_id: str) -> None:
     """Delegate tweet lookup/cache work with current root dependencies."""
-    return _tweet_lookup_cache.record_recent_own_post(
-        state,
-        tweet_id,
-        RECENT_OWN_POST_IDS_MAX=RECENT_OWN_POST_IDS_MAX,
-        log=log,
-    )
+    return _tweet_lookup_cache_owner().record_recent_own_post(state, tweet_id)
 
 
 def seed_recent_own_post_ids_from_cache(state: dict) -> None:
     """Delegate tweet lookup/cache work with current root dependencies."""
-    return _tweet_lookup_cache.seed_recent_own_post_ids_from_cache(
-        state,
-        MY_USER_ID=MY_USER_ID,
-        RECENT_OWN_POST_IDS_MAX=RECENT_OWN_POST_IDS_MAX,
-        log=log,
-    )
+    return _tweet_lookup_cache_owner().seed_recent_own_posts(state)
 
 
 def cache_tweet(
@@ -3559,22 +3553,10 @@ def cache_tweet(
     post_type: str | None = None,
 ) -> dict:
     """Delegate tweet lookup/cache work with current root dependencies."""
-    return _tweet_lookup_cache.cache_tweet(
-        state,
-        tweet_id=tweet_id,
-        text=text,
-        author_id=author_id,
-        conversation_id=conversation_id,
-        referenced_tweets=referenced_tweets,
-        created_at=created_at,
-        image_summary=image_summary,
-        post_type=post_type,
-        STATE_FILE=STATE_FILE,
-        current_datetime=current_datetime,
-        log=log,
-        normalise_tweet_cache_entry=normalise_tweet_cache_entry,
-        now_epoch=now_epoch,
-        prune_tweet_cache=prune_tweet_cache,
+    return _tweet_lookup_cache_owner().store(
+        state, tweet_id=tweet_id, text=text, author_id=author_id,
+        conversation_id=conversation_id, referenced_tweets=referenced_tweets,
+        created_at=created_at, image_summary=image_summary, post_type=post_type,
     )
 
 
@@ -3619,11 +3601,7 @@ def _verified_tweet_lookup_row(
     requested_tweet_id: str,
 ) -> dict | None:
     """Delegate tweet lookup/cache work with current root dependencies."""
-    return _tweet_lookup_cache._verified_tweet_lookup_row(
-        tweet,
-        requested_tweet_id=requested_tweet_id,
-        ApiError=ApiError,
-    )
+    return _tweet_lookup_cache_owner().verified_row(tweet, requested_tweet_id=requested_tweet_id)
 
 
 def get_tweet_by_id(
@@ -3632,26 +3610,12 @@ def get_tweet_by_id(
     include_media: bool = False,
 ) -> dict | None:
     """Delegate tweet lookup/cache work with current root dependencies."""
-    return _tweet_lookup_cache.get_tweet_by_id(
-        tweet_id,
-        include_media=include_media,
-        _verified_tweet_lookup_row=_verified_tweet_lookup_row,
-        attach_media_to_tweets=attach_media_to_tweets,
-        log=log,
-        log_json_debug=log_json_debug,
-        x_request=x_request,
-    )
+    return _tweet_lookup_cache_owner().fetch(tweet_id, include_media=include_media)
 
 
 def reply_target_is_available_immediately_before_send(target_id: str) -> bool:
     """Delegate tweet lookup/cache work with current root dependencies."""
-    return _tweet_lookup_cache.reply_target_is_available_immediately_before_send(
-        target_id,
-        ApiError=ApiError,
-        api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
-        get_tweet_by_id=get_tweet_by_id,
-        log=log,
-    )
+    return _tweet_lookup_cache_owner().target_is_available(target_id)
 
 
 def get_tweet_by_id_cached(
@@ -3661,18 +3625,7 @@ def get_tweet_by_id_cached(
     include_media: bool = False,
 ) -> dict | None:
     """Delegate tweet lookup/cache work with current root dependencies."""
-    return _tweet_lookup_cache.get_tweet_by_id_cached(
-        tweet_id,
-        state,
-        include_media=include_media,
-        _verified_tweet_lookup_row=_verified_tweet_lookup_row,
-        cache_tweet=cache_tweet,
-        copy=copy,
-        get_tweet_by_id=get_tweet_by_id,
-        log=log,
-        prune_tweet_cache=prune_tweet_cache,
-        save_state=save_state,
-    )
+    return _tweet_lookup_cache_owner().get_cached(tweet_id, state, include_media=include_media)
 
 
 clean_text_for_reply_context = _reply_context.clean_text_for_reply_context

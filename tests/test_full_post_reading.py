@@ -1,13 +1,15 @@
 """Regressions for full X post text at discovery, cache and restart boundaries."""
 from __future__ import annotations
 
+
 import copy
 import json
 from unittest.mock import Mock
 
 import pytest
 
-from tests.helpers.bot_runtime import bot, SOURCE_GET_TWEET_BY_ID
+from tests.helpers.bot_runtime import bot
+from tests.helpers.reply_fixtures import patch_tweet_lookup_method, restore_tweet_lookup_fetch
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.mention_fixtures import mention
 
@@ -50,7 +52,7 @@ def test_legacy_cache_refresh_persists_full_text_once_and_retains_local_metadata
     full = 'Background ' * 40 + 'The British Nationality Act 1981 is the measure I mean.'
     request = Mock(return_value={'data': {'id': '100', 'text': 'Incomplete prefix', 'author_id': '200', 'note_tweet': {'text': full}}})
     monkeypatch.setattr(bot, 'x_request', request)
-    monkeypatch.setattr(bot, 'get_tweet_by_id', SOURCE_GET_TWEET_BY_ID)
+    restore_tweet_lookup_fetch(monkeypatch)
     first = bot.get_tweet_by_id_cached('100', state)
     assert first['text'] == full
     assert first['image_summary'] == 'An existing image description'
@@ -70,7 +72,7 @@ def test_legacy_cache_never_falls_back_to_incomplete_text(monkeypatch, failure):
     fetch = Mock(return_value=None)
     if failure:
         fetch.side_effect = bot.ApiError('lookup failed', service='x', status_code=failure)
-    monkeypatch.setattr(bot, 'get_tweet_by_id', fetch)
+    patch_tweet_lookup_method(monkeypatch, "fetch", fetch)
     if failure:
         with pytest.raises(bot.ApiError):
             bot.get_tweet_by_id_cached('100', state)
@@ -104,7 +106,8 @@ def test_legacy_pending_mention_is_refreshed_and_saved_before_return(monkeypatch
     fresh = mention(100, 200, 'Old incomplete prefix')
     full = 'Background ' * 40 + 'Here is the actual question at the end.'
     fresh['note_tweet'] = {'text': full}
-    monkeypatch.setattr(bot, 'get_tweet_by_id', Mock(return_value=fresh))
+    fetch = Mock(return_value=fresh)
+    patch_tweet_lookup_method(monkeypatch, "fetch", fetch)
     rows = bot.get_mentions(state)
     assert len(rows) == 1 and rows[0]['text'] == full
     saved = json.loads(bot.STATE_FILE.read_text())
@@ -112,7 +115,7 @@ def test_legacy_pending_mention_is_refreshed_and_saved_before_return(monkeypatch
     assert saved['tweet_cache']['100']['text'] == full
     assert saved['last_seen_mention_id'] == '100'
     bot.get_mentions(saved)
-    bot.get_tweet_by_id.assert_called_once_with('100', include_media=True)
+    fetch.assert_called_once_with('100', include_media=True)
 
 
 @pytest.mark.parametrize('status', [404, 503])
@@ -122,7 +125,7 @@ def test_legacy_queue_handles_deleted_and_transient_lookup_failures(monkeypatch,
     candidate.pop('text_is_complete')
     state['last_seen_mention_id'] = '100'
     state['mention_pending_candidates'] = {'100': candidate}
-    monkeypatch.setattr(bot, 'get_tweet_by_id', Mock(side_effect=bot.ApiError('lookup failed', service='x', status_code=status, request_method='GET', request_path='/2/tweets/100')))
+    patch_tweet_lookup_method(monkeypatch, "fetch", Mock(side_effect=bot.ApiError('lookup failed', service='x', status_code=status, request_method='GET', request_path='/2/tweets/100')))
     if status == 503:
         with pytest.raises(bot.ApiError):
             bot.get_mentions(state)

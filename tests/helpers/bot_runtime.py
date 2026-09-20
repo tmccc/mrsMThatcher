@@ -40,6 +40,7 @@ try:
 
     SOURCE_DEFAULT_SINGLE_CALL_REPLY = copy.deepcopy(bot.single_call_reply)
     SOURCE_GET_TWEET_BY_ID = bot.get_tweet_by_id
+    SOURCE_TWEET_LOOKUP_FETCH = bot._tweet_lookup_cache.TweetLookupCache.fetch
     bot.single_call_reply = {
         **bot.single_call_reply,
         "enabled": True,

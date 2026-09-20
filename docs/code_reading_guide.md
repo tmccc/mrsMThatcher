@@ -38,6 +38,7 @@ need. A recovered draft can bypass model evaluation.
 | Quote-tweet orchestration | [mrs_bot_quote_reply_cycle.py](../mrs_bot_quote_reply_cycle.py) |
 | Candidate discovery and durable mention queue (`MentionQueue` owns access and retirement) | [mrs_bot_mention_discovery.py](../mrs_bot_mention_discovery.py), [mrs_bot_hot_post_discovery.py](../mrs_bot_hot_post_discovery.py), [mrs_bot_quote_discovery.py](../mrs_bot_quote_discovery.py) |
 | Watched and recent original selection | `QuoteWatchPosts` in [mrs_bot_quote_discovery.py](../mrs_bot_quote_discovery.py) |
+| Verified tweet lookup, cache refresh and recent own-post index | `TweetLookupCache` in [mrs_bot_tweet_lookup_cache.py](../mrs_bot_tweet_lookup_cache.py) |
 | Verified normal context and two-turn quote context | `ReplyContext.build` and `build_quote` in [mrs_bot_reply_context.py](../mrs_bot_reply_context.py) |
 | Native photo selection, retrieval and byte validation | `ReplyMedia` in [mrs_bot_reply_native_media.py](../mrs_bot_reply_native_media.py) |
 | Read, write, quote and provider cooldowns | `ApiCooldowns` in [mrs_bot_api_cooldowns.py](../mrs_bot_api_cooldowns.py) |
@@ -91,6 +92,14 @@ source bytes and replacement authority remain in delivery. Root compatibility
 entry points and receipt-removal commit-proof checks are unchanged.
 Sending and confirmed receipt publication also share one operation, keeping
 retirement, namespace, validation and exclusive-create checks in that order.
+
+`TweetLookupCache` owns cache normalization, pruning, storage, verified fetches
+and the recent own-post index. Cached context preserves row identity on a hit;
+legacy text refresh saves canonical text while media-only refresh stays transient.
+Pre-send availability uses a fresh lookup. Root adapters construct current owners;
+clocks, provider requests and saves remain inside their original operations.
+Lookup tests patch `fetch` on the owner; `restore_tweet_lookup_fetch` restores its
+real transport operation when an isolated test server supplies the response.
 
 For a change to saved-draft behaviour, start with `ReplyDrafts`. Its `store`,
 `recover` and `receipt_draft_is_valid` methods call its own `validate` method;

@@ -17,7 +17,7 @@ import pytest
 
 from tests.helpers.bot_runtime import bot
 from tests.helpers.protocol_activation import create_test_protocol_activation
-from tests.helpers.reply_fixtures import UNIT_REPLY_REPOSITORY
+from tests.helpers.reply_fixtures import UNIT_REPLY_REPOSITORY, patch_tweet_lookup_method
 import remote_write_transport_journal as transport_journal_module
 
 
@@ -107,11 +107,7 @@ def isolate_bot_runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     )
     monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
-    monkeypatch.setattr(
-        bot,
-        "get_tweet_by_id",
-        lambda tweet_id, **_kwargs: {"id": str(tweet_id)},
-    )
+    patch_tweet_lookup_method(monkeypatch, "fetch", lambda tweet_id, **_kwargs: {"id": str(tweet_id)})
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
     monkeypatch.setattr(
         bot,

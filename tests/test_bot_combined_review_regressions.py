@@ -5,7 +5,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from tests.helpers.bot_runtime import SOURCE_GET_TWEET_BY_ID, bot
+from tests.helpers.bot_runtime import bot
+from tests.helpers.reply_fixtures import restore_tweet_lookup_fetch
 from tests.helpers.bot_fixtures import (
     _configure_test_x_base,
     isolate_bot_runtime,  # noqa: F401
@@ -50,7 +51,7 @@ def test_quote_confirmation_prevents_second_public_reply(tmp_path, monkeypatch, 
         _configure_test_x_base(monkeypatch, server.url)
         monkeypatch.setattr(bot, "OPENAI_BASE", server.url + "/v1")
         # Restore the real lookup, replaced by the existing unit isolation fixture.
-        monkeypatch.setattr(bot, "get_tweet_by_id", SOURCE_GET_TWEET_BY_ID)
+        restore_tweet_lookup_fetch(monkeypatch)
         monkeypatch.setattr(bot, "single_call_reply", {**bot.single_call_reply, "enabled": True})
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)

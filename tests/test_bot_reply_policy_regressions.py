@@ -26,6 +26,7 @@ from tests.helpers.bot_fixtures import (
     install_receipt_bound_x_request_stub,
 )
 from tests.helpers.reply_fixtures import (
+    patch_tweet_lookup_method,
     UNIT_REPLY_REPOSITORY,
     patch_reply_draft_method,
     unit_reply_context,
@@ -385,13 +386,9 @@ def test_strategy_persistence_failure_blocks_quote_tweet_x_write(
         monkeypatch.setattr(bot, "MY_USER_ID", "12345")
         monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
         monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
-        monkeypatch.setattr(
-            bot,
-            "get_tweet_by_id",
-            lambda tweet_id, **_kwargs: copy.deepcopy(
+        patch_tweet_lookup_method(monkeypatch, "fetch", lambda tweet_id, **_kwargs: copy.deepcopy(
                 scenario["tweets"].get(str(tweet_id))
-            ),
-        )
+            ))
         monkeypatch.setattr(
             bot,
             "evaluate_single_call_reply",
@@ -686,15 +683,11 @@ def test_author_cap_context_is_terminal_but_available_to_next_eligible_reply(
     monkeypatch.setattr(bot, "get_mentions", lambda _state: list(current_candidates))
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
-    monkeypatch.setattr(
-        bot,
-        "get_tweet_by_id",
-        lambda tweet_id, **_kwargs: (
+    patch_tweet_lookup_method(monkeypatch, "fetch", lambda tweet_id, **_kwargs: (
             {"id": "201"}
             if str(tweet_id) == "201"
             else pytest.fail("parent context must use tweet_cache")
-        ),
-    )
+        ))
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
 
     def answer(context: dict[str, object], *_args: object, **_kwargs: object) -> ValidatedReply:
@@ -1162,7 +1155,7 @@ def test_pre_send_reply_target_revalidation_bypasses_cache(
         calls.append(target_id)
         return {"id": target_id}
 
-    monkeypatch.setattr(bot, "get_tweet_by_id", fresh_lookup)
+    patch_tweet_lookup_method(monkeypatch, "fetch", fresh_lookup)
 
     assert bot.reply_target_is_available_immediately_before_send("123") is True
     assert calls == ["123"]
@@ -1178,17 +1171,13 @@ def test_pre_send_reply_target_revalidation_returns_false_for_confirmed_missing_
         request_method="GET",
         request_path="/2/tweets/123",
     )
-    monkeypatch.setattr(
-        bot,
-        "get_tweet_by_id",
-        lambda _target_id: (_ for _ in ()).throw(unavailable),
-    )
+    patch_tweet_lookup_method(monkeypatch, "fetch", lambda _target_id: (_ for _ in ()).throw(unavailable))
 
     assert bot.reply_target_is_available_immediately_before_send("123") is False
 
 
 def test_pre_send_reply_target_revalidation_retries_missing_data(monkeypatch):
-    monkeypatch.setattr(bot, "get_tweet_by_id", lambda _target_id: None)
+    patch_tweet_lookup_method(monkeypatch, "fetch", lambda _target_id: None)
 
     with pytest.raises(bot.ApiError, match="missing, mismatched or malformed") as caught:
         bot.reply_target_is_available_immediately_before_send("123")
@@ -1207,11 +1196,7 @@ def test_pre_send_reply_target_revalidation_propagates_global_lookup_failure(
         request_method="GET",
         request_path="/2/tweets/123",
     )
-    monkeypatch.setattr(
-        bot,
-        "get_tweet_by_id",
-        lambda _target_id: (_ for _ in ()).throw(denial),
-    )
+    patch_tweet_lookup_method(monkeypatch, "fetch", lambda _target_id: (_ for _ in ()).throw(denial))
 
     with pytest.raises(bot.ApiError, match="expired token"):
         bot.reply_target_is_available_immediately_before_send("123")
@@ -1431,9 +1416,7 @@ def test_deleted_target_after_generation_is_retired_before_any_x_write(
         "X API error 404: post not found", service="x", status_code=404,
         request_method="GET", request_path="/2/tweets/100",
     )
-    monkeypatch.setattr(
-        bot, "get_tweet_by_id", lambda _target_id: (_ for _ in ()).throw(unavailable),
-    )
+    patch_tweet_lookup_method(monkeypatch, "fetch", lambda _target_id: (_ for _ in ()).throw(unavailable))
     monkeypatch.setattr(
         bot,
         "post_conversational_reply_with_durable_identity",

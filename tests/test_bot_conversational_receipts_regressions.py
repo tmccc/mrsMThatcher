@@ -25,6 +25,7 @@ from tests.helpers.bot_fixtures import (
     install_receipt_bound_x_request_stub,
 )
 from tests.helpers.reply_fixtures import (
+    patch_tweet_lookup_method,
     UNIT_REPLY_REPOSITORY,
     patch_reply_owner_method,
     unit_reply_context,
@@ -2330,16 +2331,12 @@ def test_confirmed_quote_tweet_reply_save_failure_replays_after_restart(
         monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
         _configure_test_x_base(monkeypatch, server.url)
-        monkeypatch.setattr(
-            bot,
-            "get_tweet_by_id",
-            lambda tweet_id, **_kwargs: copy.deepcopy(
+        patch_tweet_lookup_method(monkeypatch, "fetch", lambda tweet_id, **_kwargs: copy.deepcopy(
                 scenario["tweets"].get(str(tweet_id))
                 or scenario["quote_tweets"]["900"]["data"][0]
                 if str(tweet_id) == "910"
                 else scenario["tweets"].get(str(tweet_id))
-            ),
-        )
+            ))
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
         monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
@@ -2434,16 +2431,12 @@ def test_quote_tweet_receipt_reconciled_by_mention_lane_counts_quote_reply(
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
         _configure_test_x_base(monkeypatch, server.url)
-        monkeypatch.setattr(
-            bot,
-            "get_tweet_by_id",
-            lambda tweet_id, **_kwargs: copy.deepcopy(
+        patch_tweet_lookup_method(monkeypatch, "fetch", lambda tweet_id, **_kwargs: copy.deepcopy(
                 scenario["tweets"].get(str(tweet_id))
                 or scenario["quote_tweets"]["900"]["data"][0]
                 if str(tweet_id) == "910"
                 else scenario["tweets"].get(str(tweet_id))
-            ),
-        )
+            ))
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
         monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)

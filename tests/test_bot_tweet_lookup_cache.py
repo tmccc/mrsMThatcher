@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+
 import copy
+from dataclasses import FrozenInstanceError
 import inspect
 import json
 from pathlib import Path
@@ -12,13 +14,14 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_tweet_lookup_cache as lookup_cache
-from tests.helpers.bot_runtime import SOURCE_GET_TWEET_BY_ID, bot
+from tests.helpers.bot_runtime import bot
+from tests.helpers.reply_fixtures import patch_tweet_lookup_method, restore_tweet_lookup_fetch
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time
+import builtins, collections.abc, copy, dataclasses, io, logging, os, random, socket, sys, time
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -50,46 +53,77 @@ assert 'requests' not in sys.modules
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-def test_adapters_forward_current_dependencies_defaults_references_and_native_errors(monkeypatch):
-    monkeypatch.setattr(bot, "get_tweet_by_id", SOURCE_GET_TWEET_BY_ID)
-    for name, count in (
-        ("normalise_tweet_cache_entry", 2), ("normalise_tweet_cache", 2),
-        ("prune_tweet_cache", 4), ("record_recent_own_post", 2),
-        ("seed_recent_own_post_ids_from_cache", 3), ("cache_tweet", 6),
-        ("_verified_tweet_lookup_row", 1), ("get_tweet_by_id", 5),
-        ("reply_target_is_available_immediately_before_send", 4),
-        ("get_tweet_by_id_cached", 7),
+OWNER_INPUTS = {
+    "normalise_state_epoch": "normalise_state_epoch",
+    "maximum_age_seconds": "TWEET_CACHE_MAX_AGE_SECONDS", "maximum_items": "TWEET_CACHE_MAX_ITEMS",
+    "log": "log", "now_epoch": "now_epoch", "maximum_recent_own_posts": "RECENT_OWN_POST_IDS_MAX",
+    "user_id": "MY_USER_ID", "state_file": "STATE_FILE", "current_datetime": "current_datetime",
+    "api_error": "ApiError", "attach_media_to_tweets": "attach_media_to_tweets",
+    "log_json_debug": "log_json_debug", "request": "x_request",
+    "is_permanent_target_failure": "api_error_is_permanent_target_failure", "save_state": "save_state",
+}
+
+
+def test_owner_binds_fresh_boundaries_without_runtime_access(monkeypatch):
+    owners = []
+    for _ in range(2):
+        current = {field: Mock() for field in OWNER_INPUTS}
+        for field, name in OWNER_INPUTS.items():
+            monkeypatch.setattr(bot, name, current[field])
+        owner = bot._tweet_lookup_cache_owner()
+        assert isinstance(owner, lookup_cache.TweetLookupCache)
+        for field, value in current.items():
+            assert getattr(owner, field) is value
+            value.assert_not_called()
+        owners.append(owner)
+    assert owners[0] is not owners[1]
+    assert all(getattr(owners[0], field) is not getattr(owners[1], field) for field in OWNER_INPUTS)
+    with pytest.raises(FrozenInstanceError):
+        owners[0].maximum_items = 1
+    assert bot.normalise_tweet_text is lookup_cache.normalise_tweet_text
+    assert bot.tweet_text_is_complete is lookup_cache.tweet_text_is_complete
+
+
+def test_adapters_preserve_defaults_arguments_results_and_native_errors(monkeypatch):
+    restore_tweet_lookup_fetch(monkeypatch)
+    for name, method in (
+        ("normalise_tweet_cache_entry", "normalise_entry"), ("normalise_tweet_cache", "normalise"),
+        ("prune_tweet_cache", "prune"), ("record_recent_own_post", "record_recent_own_post"),
+        ("seed_recent_own_post_ids_from_cache", "seed_recent_own_posts"), ("cache_tweet", "store"),
+        ("_verified_tweet_lookup_row", "verified_row"), ("get_tweet_by_id", "fetch"),
+        ("reply_target_is_available_immediately_before_send", "target_is_available"),
+        ("get_tweet_by_id_cached", "get_cached"),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
-        dependencies = inspect.signature(getattr(lookup_cache, name)).parameters.keys() - public.keys()
-        assert len(dependencies) == count
+        owned = inspect.signature(getattr(lookup_cache.TweetLookupCache, method)).parameters
+        assert [(p.name, p.kind, p.default) for p in public.values()] == [
+            (p.name, p.kind, p.default) for p in list(owned.values())[1:]
+        ]
         args = tuple(object() for param in public.values() if param.kind == param.POSITIONAL_OR_KEYWORD)
-        result = object()
-        owner = Mock(return_value=result)
-        with monkeypatch.context() as patch:
-            patch.setattr(lookup_cache, name, owner)
-            for use_defaults in (True, False):
-                current = {key: object() for key in dependencies}
-                for key, value in current.items():
-                    patch.setattr(bot, key, value)
-                options = {
-                    key: object() for key, param in public.items()
-                    if param.kind == param.KEYWORD_ONLY
-                    and (not use_defaults or param.default is param.empty)
-                }
-                expected = {
-                    key: param.default for key, param in public.items()
-                    if param.kind == param.KEYWORD_ONLY and param.default is not param.empty
-                } | options | current
-                assert adapter(*args, **options) is result
-                actual_args, actual_kwargs = owner.call_args
-                assert len(actual_args) == len(args)
-                assert all(actual is original for actual, original in zip(actual_args, args))
-                assert actual_kwargs.keys() == expected.keys()
-                assert all(actual_kwargs[key] is value for key, value in expected.items())
+        for use_defaults in (True, False):
+            owner = Mock(spec=lookup_cache.TweetLookupCache)
+            factory = Mock(return_value=owner)
+            monkeypatch.setattr(bot, "_tweet_lookup_cache_owner", factory)
+            implementation = getattr(owner, method)
+            options = {
+                key: object() for key, param in public.items()
+                if param.kind == param.KEYWORD_ONLY
+                and (not use_defaults or param.default is param.empty)
+            }
+            expected = {
+                key: param.default for key, param in public.items()
+                if param.kind == param.KEYWORD_ONLY and param.default is not param.empty
+            } | options
+            assert adapter(*args, **options) is implementation.return_value
+            factory.assert_called_once_with()
+            actual_args, actual_kwargs = implementation.call_args
+            assert len(actual_args) == len(args)
+            assert all(actual is original for actual, original in zip(actual_args, args))
+            assert actual_kwargs.keys() == expected.keys()
+            assert all(actual_kwargs[key] is value for key, value in expected.items())
             failure = TypeError(name)
-            owner.side_effect = failure
+            implementation.side_effect = failure
             with pytest.raises(TypeError) as caught:
                 adapter(*args, **options)
             assert caught.value is failure
@@ -128,7 +162,7 @@ def test_normalization_epoch_failure_precedes_refs_and_map_stops_at_first_reject
     epoch.assert_called_once_with(0, key="tweet_cache.1.cached_epoch", path=tmp_path)
     logger.error.assert_not_called()
     normalizer = Mock(side_effect=[{"id": "different"}, None])
-    monkeypatch.setattr(bot, "normalise_tweet_cache_entry", normalizer)
+    patch_tweet_lookup_method(monkeypatch, "normalise_entry", normalizer)
     rows = {1: {}, 2: {}, 3: {}}
     assert bot.normalise_tweet_cache(rows, path=tmp_path) is None
     assert normalizer.call_args_list == [call(1, rows[1], path=tmp_path), call(2, rows[2], path=tmp_path)]
@@ -200,7 +234,11 @@ def test_cache_write_uses_post_prune_map_clock_path_and_normalized_record_refere
     trace.attach_mock(Mock(), "log")
     for name, callback in (("prune_tweet_cache", trace.prune), ("current_datetime", trace.date),
                            ("now_epoch", trace.epoch), ("normalise_tweet_cache_entry", trace.normalize)):
-        monkeypatch.setattr(bot, name, callback)
+        owned_method = {"prune_tweet_cache": "prune", "normalise_tweet_cache_entry": "normalise_entry"}.get(name)
+        if owned_method is not None:
+            patch_tweet_lookup_method(monkeypatch, owned_method, callback)
+        else:
+            monkeypatch.setattr(bot, name, callback)
     monkeypatch.setattr(bot, "log", SimpleNamespace(info=trace.log))
     save = Mock(side_effect=AssertionError("cache write must not save"))
     monkeypatch.setattr(bot, "save_state", save)
@@ -222,7 +260,7 @@ def test_cache_write_uses_post_prune_map_clock_path_and_normalized_record_refere
 def test_direct_lookup_keeps_provider_verify_media_debug_order_and_row_identity(monkeypatch):
     row, includes, trace = {"id": "123"}, {"media": []}, Mock()
     trace.attach_mock(Mock(return_value={"data": row, "includes": includes}), "request")
-    trace.attach_mock(Mock(wraps=bot._verified_tweet_lookup_row), "verify")
+    trace.attach_mock(Mock(wraps=bot._tweet_lookup_cache_owner().verified_row), "verify")
 
     def attach(rows, actual_includes):
         assert rows[0] is row and actual_includes is includes
@@ -230,10 +268,13 @@ def test_direct_lookup_keeps_provider_verify_media_debug_order_and_row_identity(
 
     trace.attach_mock(Mock(side_effect=attach), "media")
     trace.attach_mock(Mock(), "debug")
-    monkeypatch.setattr(bot, "get_tweet_by_id", SOURCE_GET_TWEET_BY_ID)
+    restore_tweet_lookup_fetch(monkeypatch)
     for name, callback in (("x_request", trace.request), ("_verified_tweet_lookup_row", trace.verify),
                            ("attach_media_to_tweets", trace.media), ("log_json_debug", trace.debug)):
-        monkeypatch.setattr(bot, name, callback)
+        if name == "_verified_tweet_lookup_row":
+            patch_tweet_lookup_method(monkeypatch, "verified_row", callback)
+        else:
+            monkeypatch.setattr(bot, name, callback)
     assert bot.get_tweet_by_id("123", include_media=True) is row
     assert [c[0] for c in trace.mock_calls] == ["request", "verify", "media", "debug"]
     trace.request.assert_called_once_with("GET", "/2/tweets/123", params={
@@ -260,9 +301,10 @@ def test_cache_hit_and_media_refresh_preserve_stored_record_without_write_or_sav
     monkeypatch.setattr(bot, "now_epoch", lambda: 100)
     monkeypatch.setattr(bot, "TWEET_CACHE_MAX_AGE_SECONDS", 10)
     fetch = Mock(return_value=fresh)
-    monkeypatch.setattr(bot, "get_tweet_by_id", fetch)
-    for name in ("cache_tweet", "save_state"):
-        monkeypatch.setattr(bot, name, Mock(side_effect=AssertionError("cache hit must not write or save")))
+    patch_tweet_lookup_method(monkeypatch, "fetch", fetch)
+    store = Mock(side_effect=AssertionError("cache hit must not write"))
+    patch_tweet_lookup_method(monkeypatch, "store", store)
+    monkeypatch.setattr(bot, "save_state", Mock(side_effect=AssertionError("cache hit must not save")))
     assert bot.get_tweet_by_id_cached(123, state) is cached
     fetch.assert_not_called()
     assert state["tweet_cache"] is not original and list(state["tweet_cache"]) == ["123"]
@@ -274,7 +316,7 @@ def test_cache_hit_and_media_refresh_preserve_stored_record_without_write_or_sav
     assert result["attachments"]["media_keys"] is not fresh["attachments"]["media_keys"]
     assert result["_attached_media"][0] is not fresh["_attached_media"][0]
     assert cached == before
-    bot.cache_tweet.assert_not_called()
+    store.assert_not_called()
     bot.save_state.assert_not_called()
 
 
@@ -282,7 +324,7 @@ def test_media_refresh_rejects_cached_identity_before_fresh_lookup(monkeypatch):
     monkeypatch.setattr(bot, "now_epoch", lambda: 100)
     state = {"tweet_cache": {"123": {"id": "124", "cached_epoch": 100}}}
     fetch = Mock(side_effect=AssertionError("bad cache identity precedes media lookup"))
-    monkeypatch.setattr(bot, "get_tweet_by_id", fetch)
+    patch_tweet_lookup_method(monkeypatch, "fetch", fetch)
     with pytest.raises(bot.ApiError, match="mismatched post") as caught:
         bot.get_tweet_by_id_cached("123", state, include_media=True)
     assert caught.value.request_path == "/2/tweets/123"
@@ -293,7 +335,7 @@ def test_cache_miss_saves_canonical_record_before_current_copy_and_media_decorat
     state = bot.default_state()
     fresh = {"id": "123", "text": "fresh", "author_id": "456", "created_at": "provided",
              "attachments": {"media_keys": ["photo"]}, "_attached_media": [{"media_key": "photo"}]}
-    monkeypatch.setattr(bot, "get_tweet_by_id", Mock(return_value=fresh))
+    patch_tweet_lookup_method(monkeypatch, "fetch", Mock(return_value=fresh))
     trace, saved = [], []
     original_save = bot.save_state
 
@@ -311,7 +353,7 @@ def test_cache_miss_saves_canonical_record_before_current_copy_and_media_decorat
         return copy.deepcopy(value)
 
     monkeypatch.setattr(bot, "save_state", save)
-    monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=current_copy))
+    monkeypatch.setattr(lookup_cache, "copy", SimpleNamespace(deepcopy=current_copy))
     result = bot.get_tweet_by_id_cached("123", state, include_media=True)
     assert trace == ["save", "copy", "copy", "copy"]
     cached = state["tweet_cache"]["123"]
@@ -331,9 +373,9 @@ def test_cache_miss_errors_preserve_pruning_insertion_and_no_copy_boundary(monke
     fetch = Mock(return_value={"id": "123"}, side_effect=failure if boundary == "provider" else None)
     save = Mock(side_effect=failure)
     copier = Mock(side_effect=AssertionError("copy must follow successful save"))
-    monkeypatch.setattr(bot, "get_tweet_by_id", fetch)
+    patch_tweet_lookup_method(monkeypatch, "fetch", fetch)
     monkeypatch.setattr(bot, "save_state", save)
-    monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=copier))
+    monkeypatch.setattr(lookup_cache, "copy", SimpleNamespace(deepcopy=copier))
     with pytest.raises(ValueError) as caught:
         bot.get_tweet_by_id_cached("123", state)
     assert caught.value is failure
@@ -341,3 +383,32 @@ def test_cache_miss_errors_preserve_pruning_insertion_and_no_copy_boundary(monke
     fetch.assert_called_once_with("123")
     assert save.call_count == (1 if boundary == "save" else 0)
     copier.assert_not_called()
+
+
+def test_cached_lookup_uses_owned_steps_and_pre_send_bypasses_stored_row(monkeypatch):
+    restore_tweet_lookup_fetch(monkeypatch)
+    state = bot.default_state()
+    row = {"id": "123", "author_id": "456", "text": "verified", "created_at": "provided"}
+    request = Mock(return_value={"data": row})
+    monkeypatch.setattr(bot, "x_request", request)
+    saves = Mock()
+    monkeypatch.setattr(bot, "save_state", saves)
+    clock = Mock(return_value=100)
+    monkeypatch.setattr(bot, "now_epoch", clock)
+    forbidden = Mock(side_effect=AssertionError("cache operation returned through a root-owned step"))
+    for name in ("prune_tweet_cache", "normalise_tweet_cache_entry", "cache_tweet",
+                 "_verified_tweet_lookup_row", "get_tweet_by_id"):
+        monkeypatch.setattr(bot, name, forbidden)
+    result = bot.get_tweet_by_id_cached("123", state)
+    cached = state["tweet_cache"]["123"]
+    assert result == cached and result is not cached
+    assert clock.call_count == 3  # Initial prune, store prune, then the stored epoch.
+    saves.assert_called_once_with(state)
+    assert saves.call_args.args[0] is state
+    assert request.call_count == 1
+    assert bot.get_tweet_by_id_cached("123", state) is cached
+    assert request.call_count == 1 and saves.call_count == 1
+    assert bot.reply_target_is_available_immediately_before_send("123") is True
+    assert request.call_count == 2  # Pre-send availability always performs a fresh request.
+    assert saves.call_count == 1
+    forbidden.assert_not_called()
