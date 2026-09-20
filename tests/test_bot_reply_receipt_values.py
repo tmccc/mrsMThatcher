@@ -6,6 +6,7 @@ import inspect
 from pathlib import Path
 import subprocess
 import sys
+from types import SimpleNamespace
 from unittest.mock import Mock, call
 
 import pytest
@@ -62,19 +63,31 @@ assert 'single_call_reply' not in sys.modules
 
 
 OWNER_INPUTS = {
-    "valid_receipt_epoch": "valid_receipt_epoch", "safe_reply_cap_date_str": "safe_reply_cap_date_str",
+    "valid_receipt_epoch": "valid_receipt_epoch", "dates": "_receipt_dates_owner",
     "legacy_draft_is_valid": "_legacy_ai_reply_receipt_draft_is_valid",
     "draft_is_valid": "ai_reply_receipt_draft_is_valid",
-    "now_epoch": "now_epoch", "reply_cap_date_str": "reply_cap_date_str",
+    "now_epoch": "now_epoch",
     "log": "log", "invalid_receipt": "InvalidConfirmedReplyReceipt",
 }
+
+
+def date_owner(*, reply=None, safe=None):
+    """Build a narrow date owner while retaining the unmodified sibling method."""
+    current = bot._receipt_dates_owner()
+    return SimpleNamespace(
+        reply_cap_date=reply or current.reply_cap_date,
+        safe_reply_cap_date=safe or current.safe_reply_cap_date,
+    )
 
 
 @pytest.fixture
 def make_owner():
     """Compose receipt values with the existing isolated validation boundaries."""
     def build(**overrides):
-        current = {field: getattr(bot, name) for field, name in OWNER_INPUTS.items()}
+        current = {
+            field: getattr(bot, name)() if field == "dates" else getattr(bot, name)
+            for field, name in OWNER_INPUTS.items()
+        }
         return values.ReplyReceiptValues(**{**current, **overrides})
     return build
 
@@ -84,7 +97,11 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
     for _ in range(2):
         current = {field: Mock() for field in OWNER_INPUTS}
         for field, name in OWNER_INPUTS.items():
-            monkeypatch.setattr(bot, name, current[field])
+            monkeypatch.setattr(
+                bot,
+                name,
+                Mock(return_value=current[field]) if field == "dates" else current[field],
+            )
         owner = bot._reply_receipt_values_owner()
         assert isinstance(owner, values.ReplyReceiptValues)
         for field, value in current.items():
@@ -96,6 +113,26 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
     assert all(getattr(first, field) is value for field, value in inputs.items())
     with pytest.raises(FrozenInstanceError):
         first.log = "changed"
+
+
+def test_receipt_values_use_receipt_dates_without_root_date_relays(monkeypatch):
+    epoch = 2_000_000_000
+    monkeypatch.setattr(bot, "now_epoch", lambda: epoch)
+    for name in ("reply_cap_date_str", "safe_reply_cap_date_str"):
+        monkeypatch.setattr(
+            bot,
+            name,
+            Mock(side_effect=AssertionError(f"receipt values bounced through {name}")),
+        )
+    template = unit_v4_reply_receipt_template()
+    reply = unit_approved_reply(template["reply_context"], text=template["reply_text"])
+    template["reply_text"], template["ai_reply_draft"] = reply, reply.draft_record
+    prepared = bot._reply_receipt_values_owner().bind_attempt(template)
+    expected = bot.datetime.fromtimestamp(
+        epoch,
+        tz=bot.ZoneInfo(bot.MAIN_POST_SCHEDULE_TIMEZONE),
+    ).strftime("%Y-%m-%d")
+    assert prepared["daily_reply_date"] == expected
 
 
 def test_adapters_preserve_defaults_arguments_result_identity_and_errors(monkeypatch):
@@ -258,7 +295,7 @@ def test_attempt_binding_preserves_references_and_clock_date_validation_order(mo
     trace = Mock()
     trace.clock.return_value = 2_000_000_000
     trace.date = Mock(wraps=bot.reply_cap_date_str)
-    owner = make_owner(now_epoch=trace.clock, reply_cap_date_str=trace.date)
+    owner = make_owner(now_epoch=trace.clock, dates=date_owner(reply=trace.date))
     trace.validate = Mock(wraps=owner.sending_is_valid)
     monkeypatch.setattr(values.ReplyReceiptValues, "sending_is_valid", trace.validate)
 
@@ -292,7 +329,7 @@ def test_projection_and_reconstruction_keep_shallow_copies_and_exact_hash_input(
     canonical = Mock(return_value=b"exact current canonical sending bytes\n")
     date = Mock(return_value="confirmation-date")
     monkeypatch.setattr(values, "canonical_atomic_json_bytes", canonical)
-    owner = make_owner(reply_cap_date_str=date)
+    owner = make_owner(dates=date_owner(reply=date))
     confirmed = owner.confirmed_from_sending(
         sending, reply_post_id=999, confirmation_epoch=2_000_000_005,
     )
@@ -310,7 +347,7 @@ def test_projection_and_reconstruction_keep_shallow_copies_and_exact_hash_input(
     integer = Mock(wraps=bot.receipt_int)
     safe_date = Mock(return_value="attempt-date")
     monkeypatch.setattr(values, "receipt_int", integer)
-    owner = replace(owner, safe_reply_cap_date_str=safe_date)
+    owner = replace(owner, dates=date_owner(reply=owner.dates.reply_cap_date, safe=safe_date))
     reconstructed = owner.sending_from_confirmed(confirmed)
     integer.assert_called_once_with(confirmed["attempt_epoch"])
     safe_date.assert_called_once_with(2_000_000_000)

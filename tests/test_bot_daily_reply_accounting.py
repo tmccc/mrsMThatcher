@@ -18,14 +18,14 @@ from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
-OWNER_INPUTS = ("log", "reply_cap_date_str")
+OWNER_INPUTS = ("log", "dates")
 
 
 @pytest.fixture
 def make_owner():
     """Compose daily accounting with isolated runtime boundaries."""
     def build(**overrides):
-        current = {name: getattr(bot, name) for name in OWNER_INPUTS}
+        current = {"log": bot.log, "dates": bot._receipt_dates_owner()}
         return accounting.DailyReplyAccounting(**{**current, **overrides})
     return build
 
@@ -68,13 +68,15 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
     snapshots = []
     for _ in range(2):
         current = {name: Mock() for name in OWNER_INPUTS}
-        for name, value in current.items():
-            monkeypatch.setattr(bot, name, value)
+        monkeypatch.setattr(bot, "log", current["log"])
+        dates_factory = Mock(return_value=current["dates"])
+        monkeypatch.setattr(bot, "_receipt_dates_owner", dates_factory)
         owner = bot._daily_reply_accounting_owner()
         assert isinstance(owner, accounting.DailyReplyAccounting)
         for name, value in current.items():
             assert getattr(owner, name) is value
             value.assert_not_called()
+        dates_factory.assert_called_once_with()
         snapshots.append((owner, current))
     first, inputs = snapshots[0]
     assert first is not snapshots[1][0]
@@ -116,6 +118,26 @@ def test_root_adapters_preserve_arguments_result_identity_and_errors(monkeypatch
             assert caught.value is failure
 
 
+def test_accounting_uses_receipt_dates_without_root_date_relays(monkeypatch):
+    epoch = 1_800_000_000
+    monkeypatch.setattr(bot, "now_epoch", lambda: epoch)
+    for name in ("reply_cap_date_str", "safe_reply_cap_date_str"):
+        monkeypatch.setattr(
+            bot,
+            name,
+            Mock(side_effect=AssertionError(f"accounting bounced through {name}")),
+        )
+    owner = bot._daily_reply_accounting_owner()
+    state = {"daily_reply_date": "stale", "daily_reply_count": 4}
+    owner.reset(state)
+    expected = bot.datetime.fromtimestamp(
+        epoch,
+        tz=bot.ZoneInfo(bot.MAIN_POST_SCHEDULE_TIMEZONE),
+    ).strftime("%Y-%m-%d")
+    assert state["daily_reply_date"] == expected
+    assert state["daily_reply_count"] == 0
+
+
 @pytest.mark.parametrize("lane", ["reply", "quote_reply"])
 def test_resets_sample_current_date_once_and_log_before_mutation(make_owner, lane):
     ids, counts, ledger = ["200"], {"200": 2}, {"700": None}
@@ -127,15 +149,15 @@ def test_resets_sample_current_date_once_and_log_before_mutation(make_owner, lan
     }
     before = copy.deepcopy(state)
     trace = Mock()
-    trace.date.return_value = "current date"
-    owner = make_owner(reply_cap_date_str=trace.date, log=trace.log)
+    trace.dates.reply_cap_date.return_value = "current date"
+    owner = make_owner(dates=trace.dates, log=trace.log)
     reset = owner.reset if lane == "reply" else owner.reset_quotes
     failure = RuntimeError("current logger failed")
     trace.log.info.side_effect = failure
     with pytest.raises(RuntimeError) as caught:
         reset(state)
     assert caught.value is failure and state == before
-    assert [entry[0] for entry in trace.mock_calls] == ["date", "log.info"]
+    assert [entry[0] for entry in trace.mock_calls] == ["dates.reply_cap_date", "log.info"]
     assert trace.log.info.call_args.args[1:] == ("old", "current date", before[f"daily_{lane}_count"])
     trace.reset_mock()
 
@@ -144,7 +166,7 @@ def test_resets_sample_current_date_once_and_log_before_mutation(make_owner, lan
 
     trace.log.info.side_effect = before_reset
     assert reset(state) is None
-    assert [entry[0] for entry in trace.mock_calls] == ["date", "log.info"]
+    assert [entry[0] for entry in trace.mock_calls] == ["dates.reply_cap_date", "log.info"]
     assert state[f"daily_{lane}_date"] == "current date"
     assert state[f"daily_{lane}_count"] == 0
     assert state["clarification_reply_records"] is ledger
@@ -158,7 +180,7 @@ def test_resets_sample_current_date_once_and_log_before_mutation(make_owner, lan
     retained = dict(state)
     trace.reset_mock()
     reset(state)
-    assert trace.mock_calls == [call.date()]
+    assert trace.mock_calls == [call.dates.reply_cap_date()]
     assert all(state[key] is value for key, value in retained.items())
 
 
@@ -236,7 +258,8 @@ def test_confirmation_advance_never_rewinds_newer_buckets_but_daily_reset_does(m
              "daily_replied_author_ids": ids, "daily_replied_author_counts": counts}
     before = dict(state)
     date, logger = Mock(return_value="2024-01-01"), Mock()
-    owner = make_owner(reply_cap_date_str=date, log=logger)
+    dates = Mock(reply_cap_date=date)
+    owner = make_owner(dates=dates, log=logger)
     owner.advance(state, "2024-01-01", include_quote_lane=True)
     assert all(state[key] is value for key, value in before.items())
     date.assert_not_called()

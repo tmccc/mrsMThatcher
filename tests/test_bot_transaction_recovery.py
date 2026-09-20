@@ -15,7 +15,7 @@ import mrs_bot_transaction_recovery as recovery
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
-DEPENDENCIES = {'ensure_reconciled_regular_receipt_schedule_is_future': ['log', 'schedule_next_quote_post'],
+DEPENDENCIES = {'ensure_reconciled_regular_receipt_schedule_is_future': ['log', 'quote_schedule'],
  'block_if_unresolved_regular_post_receipt': ['InvalidRegularPostReceipt',
                                               'REGULAR_POST_RECEIPT_FILE',
                                               'UnresolvedRegularPostReceipt',
@@ -117,7 +117,10 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
         with monkeypatch.context() as patch:
             current = {dep: object() for dep in DEPENDENCIES[name]}
             for dep, value in current.items():
-                patch.setattr(bot, dep, value)
+                if dep == "quote_schedule":
+                    patch.setattr(bot, "_quote_schedule_owner", Mock(return_value=value))
+                else:
+                    patch.setattr(bot, dep, value)
             result = {"original": []}
             expected = {}
 
@@ -186,7 +189,16 @@ def test_schedule_conversion_short_circuit_order_references_and_native_errors(mo
             raise failure
 
     monkeypatch.setattr(bot, "log", SimpleNamespace(warning=warning))
-    monkeypatch.setattr(bot, "schedule_next_quote_post", schedule)
+    monkeypatch.setattr(
+        bot,
+        "_quote_schedule_owner",
+        Mock(return_value=SimpleNamespace(schedule=schedule)),
+    )
+    monkeypatch.setattr(
+        bot,
+        "schedule_next_quote_post",
+        Mock(side_effect=AssertionError("quote schedule bounced through root")),
+    )
     if case.endswith("_error"):
         with pytest.raises(ValueError) as caught:
             bot.ensure_reconciled_regular_receipt_schedule_is_future(receipt, state, 11)

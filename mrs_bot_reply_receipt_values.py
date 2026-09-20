@@ -1,7 +1,8 @@
 """Own conversational reply receipt validation and in-memory projections.
 
 ReplyReceiptValues binds current draft, time and error boundaries without
-retaining caller state. Fixed identity checks, continuation grammar and
+retaining caller state and calls its ReceiptDates owner directly. Fixed identity
+checks, continuation grammar and
 canonical receipt encoding come directly from their inert owners.
 Current and frozen recovery validation dispatch through owned methods,
 preserving shallow references, source lineage, timing rules and exact exception
@@ -16,6 +17,7 @@ import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from mrs_bot_mention_authority import mention_pagination_provenance_is_valid
 from mrs_bot_durable_json_io import canonical_atomic_json_bytes
@@ -26,16 +28,19 @@ from mrs_bot_legacy_reply_validation import (
 )
 
 
+if TYPE_CHECKING:
+    from mrs_bot_receipt_primitives import ReceiptDates
+
+
 @dataclass(frozen=True)
 class ReplyReceiptValues:
     """Validate and project receipt values using current external boundaries."""
 
     valid_receipt_epoch: Callable
-    safe_reply_cap_date_str: Callable
+    dates: ReceiptDates
     legacy_draft_is_valid: Callable
     draft_is_valid: Callable
     now_epoch: Callable
-    reply_cap_date_str: Callable
     log: logging.Logger
     invalid_receipt: type[Exception]
 
@@ -209,7 +214,7 @@ class ReplyReceiptValues:
                 ):
                     return False
                 effective_epoch = confirmation_epoch
-            expected_date = self.safe_reply_cap_date_str(effective_epoch)
+            expected_date = self.dates.safe_reply_cap_date(effective_epoch)
             if expected_date is None or data.get("daily_reply_date") != expected_date:
                 return False
             if source == "quote_tweet":
@@ -277,7 +282,7 @@ class ReplyReceiptValues:
         source["lifecycle_state"] = "sending"
         if attempt_epoch is None:
             raise ValueError("confirmed conversational receipt lacks attempt time")
-        attempt_date = self.safe_reply_cap_date_str(attempt_epoch)
+        attempt_date = self.dates.safe_reply_cap_date(attempt_epoch)
         if attempt_date is None:
             raise ValueError("confirmed conversational attempt time is invalid")
         source["reply_epoch"] = attempt_epoch
@@ -365,7 +370,7 @@ class ReplyReceiptValues:
         if timing_fields.intersection(receipt_template):
             raise RuntimeError("Reply attempt template already contains timing fields")
         attempt_epoch = self.now_epoch()
-        attempt_date = self.reply_cap_date_str(attempt_epoch)
+        attempt_date = self.dates.reply_cap_date(attempt_epoch)
         prepared = {
             **receipt_template,
             "attempt_epoch": attempt_epoch,
@@ -392,7 +397,7 @@ class ReplyReceiptValues:
             "reply_post_id": str(reply_post_id),
         }
         if sending_receipt.get("schema_version") == 4:
-            confirmed_date = self.reply_cap_date_str(confirmation_epoch)
+            confirmed_date = self.dates.reply_cap_date(confirmation_epoch)
             confirmed.update(
                 {
                     "confirmation_epoch": confirmation_epoch,

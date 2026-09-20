@@ -1,16 +1,17 @@
 """Daily meme selection, calendar scheduling and transactional posting.
 
-The coordinator supplies current callbacks, configuration, logger and exception
-authority on every call. MainPostPublication owns shared publication and partial
-transaction progress with authorities bound at cycle entry. Named stages,
+The coordinator supplies current owners, callbacks, configuration, logger and
+exception authority on every call. MainPostPublication owns shared publication
+and partial transaction progress with authorities bound at cycle entry. The
+posting lane calls its MemeCatalog and MemeSchedule directly. Named stages,
 preparation exception boundaries, schedule projections and meme-specific recovery
 remain explicit here; metadata, receipt storage and persistence retain their
 owners. Explicit runtime calls
 may scan the supplied meme directory and mutate/save the caller's state or publish
 through supplied callbacks. Imports perform no runtime work or configuration
 access. MemeCatalog owns asset discovery, history-reset selection and summaries.
-MemeSchedule binds current calendar/persistence policy for each root call
-and invokes its owned operations directly without retaining caller state.
+MemeSchedule binds current calendar/persistence policy for each root call and
+invokes its owned operations directly without retaining caller state.
 Standard-library regex, calendar and random
 imports preserve the existing behavior and shared random stream.
 """
@@ -453,6 +454,8 @@ def post_next_meme(
     state: dict,
     *,
     publication: MainPostPublication,
+    catalog: MemeCatalog,
+    schedule: MemeSchedule,
     log: Logger,
     run_daily_meme_stage: Callable,
     block_if_ambiguous_remote_post: Callable,
@@ -462,13 +465,8 @@ def post_next_meme(
     InvalidMemePostReceipt: type[Exception],
     reconcile_meme_post_receipt: Callable,
     now_epoch: Callable,
-    meme_posted_on_date: Callable,
-    meme_schedule_date_str: Callable,
-    schedule_next_meme_post: Callable,
     block_if_unresolved_regular_post_receipt: Callable,
-    choose_next_meme: Callable,
     load_meme_analysis_index: Callable,
-    build_meme_cache_summary: Callable,
     upload_media: Callable,
     build_main_post_attempt: Callable,
     MEME_POST_TEXT: str,
@@ -524,14 +522,14 @@ def post_next_meme(
         log.warning("Reconciled meme post receipt; not creating a second meme post in the same call")
         return
     current_meme_epoch = now_epoch()
-    if meme_posted_on_date(state, meme_schedule_date_str(current_meme_epoch)):
+    if schedule.posted_on_date(state, schedule.date_str(current_meme_epoch)):
         log.warning(
             "Daily meme already confirmed on the current local date; "
             "scheduling the next fallback without another X request"
         )
         run_daily_meme_stage(
             "same_day_duplicate_barrier",
-            lambda: schedule_next_meme_post(
+            lambda: schedule.schedule_next(
                 state,
                 current_meme_epoch,
                 mode="fallback",
@@ -545,14 +543,14 @@ def post_next_meme(
 
     meme_path = run_daily_meme_stage(
         "meme_eligibility_and_asset_selection",
-        lambda: choose_next_meme(state),
+        lambda: catalog.choose(state),
     )
 
     if not meme_path:
         log.info("No meme available to post")
         run_daily_meme_stage(
             "schedule_update",
-            lambda: schedule_next_meme_post(state),
+            lambda: schedule.schedule_next(state),
         )
         return
 
@@ -562,7 +560,7 @@ def post_next_meme(
     )
     image_summary = run_daily_meme_stage(
         "x_request_preparation",
-        lambda: build_meme_cache_summary(meme_path, analysis_index),
+        lambda: catalog.summary(meme_path, analysis_index),
     )
 
     log.info("Posting meme image: %s", meme_path)

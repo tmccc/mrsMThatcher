@@ -22,7 +22,7 @@ DEPENDENCIES = {'default_state': ['STATE_MINIMUM_READER_VERSION'],
                         'load_state',
                         'sanitize_next_reply_lane_priority'],
  'apply_state_fields': [],
- 'prepare_test_main_post_state': ['ENABLE_DAILY_MEME_POSTS', 'ensure_meme_schedule_initialized']}
+ 'prepare_test_main_post_state': ['ENABLE_DAILY_MEME_POSTS', 'meme_schedule']}
 
 SIGNATURES = {'default_state': "() -> 'dict'",
  'append_unique_capped': "(values: 'object', item: 'object', max_items: 'int') -> 'list[str]'",
@@ -98,6 +98,8 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
             for dep, value in current.items():
                 if dep == "cooldowns":
                     patch.setattr(bot, "_api_cooldown_owner", Mock(return_value=value))
+                elif dep == "meme_schedule":
+                    patch.setattr(bot, "_meme_schedule_owner", Mock(return_value=value))
                 else:
                     patch.setattr(bot, dep, value)
             result = {"original": []}
@@ -745,7 +747,14 @@ def test_test_preparation_keeps_current_truth_callback_same_state_and_implicit_n
         return object()
 
     monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", Enabled())
-    monkeypatch.setattr(bot, "ensure_meme_schedule_initialized", prepare)
+    schedule = Mock()
+    schedule.ensure_initialized.side_effect = prepare
+    monkeypatch.setattr(bot, "_meme_schedule_owner", Mock(return_value=schedule))
+    monkeypatch.setattr(
+        bot,
+        "ensure_meme_schedule_initialized",
+        Mock(side_effect=AssertionError("test preparation bounced through root")),
+    )
     save = Mock(side_effect=AssertionError("unexpected save"))
     monkeypatch.setattr(bot, "save_state", save)
     if failure_at:

@@ -1,15 +1,20 @@
 """Local transaction recovery and startup receipt gates.
 
-The root supplies current runtime dependencies explicitly on each call. This
-module owns fixed receipt hashing and performs no runtime work at import; it
-retains no runtime authority.
+The root supplies current runtime dependencies explicitly on each call. Due
+regular-receipt repair calls its QuoteSchedule owner directly. This module owns
+fixed receipt hashing and performs no runtime work at import; it retains no
+runtime authority.
 """
 from __future__ import annotations
 
 import hashlib
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from mrs_bot_receipt_retirement import confirmed_context_outbox_matches_receipt
+
+
+if TYPE_CHECKING:
+    from mrs_bot_runtime_state_helpers import QuoteSchedule
 
 
 def ensure_reconciled_regular_receipt_schedule_is_future(
@@ -18,7 +23,7 @@ def ensure_reconciled_regular_receipt_schedule_is_future(
     current: int,
     *,
     log: Any,
-    schedule_next_quote_post: Any,
+    quote_schedule: QuoteSchedule,
 ) -> bool:
     """Persist a future quote schedule before completing current-receipt replay."""
     if int(state.get("last_quote_post_epoch", 0) or 0) != int(
@@ -32,7 +37,7 @@ def ensure_reconciled_regular_receipt_schedule_is_future(
         "Reconciled regular receipt has a due quote schedule; deferring the next "
         "regular post before completing receipt replay"
     )
-    schedule_next_quote_post(state, current, save=False)
+    quote_schedule.schedule(state, current, save=False)
     return True
 
 

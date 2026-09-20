@@ -70,15 +70,23 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
             patch.setattr(meme, name, owner)
             for _ in range(2):
                 current = {key: object() for key in dependencies}
-                if "publication" in current:
-                    publication_factory = Mock(return_value=current["publication"])
-                    patch.setattr(bot, "_main_post_publication_owner", publication_factory)
+                factories = {}
+                for key, factory_name, factory_args in (
+                    ("publication", "_main_post_publication_owner", ("daily_meme",)),
+                    ("catalog", "_meme_catalog_owner", ()),
+                    ("schedule", "_meme_schedule_owner", ()),
+                ):
+                    if key in current:
+                        factories[key] = Mock(return_value=current[key])
+                        patch.setattr(bot, factory_name, factories[key])
                 for key, value in current.items():
-                    if key != "publication":
+                    if key not in factories:
                         patch.setattr(bot, key, value)
                 assert adapter(*args, **options) is result, name
-                if "publication" in current:
-                    publication_factory.assert_called_once_with("daily_meme")
+                for key, factory in factories.items():
+                    factory.assert_called_once_with(
+                        *(("daily_meme",) if key == "publication" else ())
+                    )
                 actual_args, actual_kwargs = owner.call_args
                 assert len(actual_args) == len(args)
                 assert all(actual is expected for actual, expected in zip(actual_args, args)), name
@@ -486,7 +494,29 @@ def test_posting_closures_keep_assets_prepared_transport_and_named_stage_order(t
         return mock_confirmed_main_post(kwargs, {"data": {"id": "970001"}})
 
     monkeypatch.setattr(bot, "run_daily_meme_stage", stage)
-    monkeypatch.setattr(bot, "choose_next_meme", lambda current: path if current is state else pytest.fail("copied state"))
+    patch_catalog(
+        monkeypatch,
+        "choose",
+        lambda current: path if current is state else pytest.fail("copied state"),
+    )
+    monkeypatch.setattr(
+        bot,
+        "choose_next_meme",
+        Mock(side_effect=AssertionError("catalog choice bounced through root")),
+    )
+    monkeypatch.setattr(
+        bot,
+        "build_meme_cache_summary",
+        Mock(side_effect=AssertionError("catalog summary bounced through root")),
+    )
+    for name in (
+        "meme_posted_on_date", "meme_schedule_date_str", "schedule_next_meme_post",
+    ):
+        monkeypatch.setattr(
+            bot,
+            name,
+            Mock(side_effect=AssertionError(f"meme schedule bounced through {name}")),
+        )
     monkeypatch.setattr(bot, "load_meme_analysis_index", lambda: index)
     monkeypatch.setattr(bot, "prepare_main_tweet_transport", prepare)
     monkeypatch.setattr(bot, "upload_media", upload)

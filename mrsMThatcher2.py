@@ -2743,11 +2743,15 @@ def save_state(state: dict, *, durable: bool = False) -> StateCommitProof:
     )
 
 
-def _daily_reply_accounting_owner() -> _daily_reply_accounting.DailyReplyAccounting:
+def _daily_reply_accounting_owner(
+    *, dates: _receipt_primitives.ReceiptDates | None = None,
+) -> _daily_reply_accounting.DailyReplyAccounting:
     """Bind current daily accounting boundaries without reading dates or state."""
+    if dates is None:
+        dates = _receipt_dates_owner()
     return _daily_reply_accounting.DailyReplyAccounting(
         log=log,
-        reply_cap_date_str=reply_cap_date_str,
+        dates=dates,
     )
 
 
@@ -5503,7 +5507,7 @@ def apply_meme_post_receipt(receipt: dict, state: dict) -> None:
         MY_USER_ID=MY_USER_ID,
         cache_tweet=cache_tweet,
         log=log,
-        meme_schedule_date_str=meme_schedule_date_str,
+        meme_schedule=_meme_schedule_owner(),
         record_recent_own_post=record_recent_own_post,
     )
 
@@ -5538,8 +5542,7 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
         MY_USER_ID=MY_USER_ID,
         cache_tweet=cache_tweet,
         log=log,
-        maybe_schedule_meme_after_quote_post=maybe_schedule_meme_after_quote_post,
-        meme_schedule_date_str=meme_schedule_date_str,
+        meme_schedule=_meme_schedule_owner(),
         record_recent_own_post=record_recent_own_post,
     )
 
@@ -5892,7 +5895,7 @@ def ensure_reconciled_regular_receipt_schedule_is_future(
         state,
         current,
         log=log,
-        schedule_next_quote_post=schedule_next_quote_post,
+        quote_schedule=_quote_schedule_owner(),
     )
 
 
@@ -6719,6 +6722,8 @@ def post_next_meme(state: dict) -> None:
     return _daily_meme.post_next_meme(
         state,
         publication=_main_post_publication_owner("daily_meme"),
+        catalog=_meme_catalog_owner(),
+        schedule=_meme_schedule_owner(),
         log=log,
         run_daily_meme_stage=run_daily_meme_stage,
         block_if_ambiguous_remote_post=block_if_ambiguous_remote_post,
@@ -6728,13 +6733,8 @@ def post_next_meme(state: dict) -> None:
         InvalidMemePostReceipt=InvalidMemePostReceipt,
         reconcile_meme_post_receipt=reconcile_meme_post_receipt,
         now_epoch=now_epoch,
-        meme_posted_on_date=meme_posted_on_date,
-        meme_schedule_date_str=meme_schedule_date_str,
-        schedule_next_meme_post=schedule_next_meme_post,
         block_if_unresolved_regular_post_receipt=block_if_unresolved_regular_post_receipt,
-        choose_next_meme=choose_next_meme,
         load_meme_analysis_index=load_meme_analysis_index,
-        build_meme_cache_summary=build_meme_cache_summary,
         upload_media=upload_media,
         build_main_post_attempt=build_main_post_attempt,
         MEME_POST_TEXT=MEME_POST_TEXT,
@@ -7323,15 +7323,18 @@ def _legacy_ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
     )
 
 
-def _reply_receipt_values_owner() -> _reply_receipt_values.ReplyReceiptValues:
+def _reply_receipt_values_owner(
+    *, dates: _receipt_primitives.ReceiptDates | None = None,
+) -> _reply_receipt_values.ReplyReceiptValues:
     """Bind current receipt value boundaries without reading the clock or state."""
+    if dates is None:
+        dates = _receipt_dates_owner()
     return _reply_receipt_values.ReplyReceiptValues(
         valid_receipt_epoch=valid_receipt_epoch,
-        safe_reply_cap_date_str=safe_reply_cap_date_str,
+        dates=dates,
         legacy_draft_is_valid=_legacy_ai_reply_receipt_draft_is_valid,
         draft_is_valid=ai_reply_receipt_draft_is_valid,
         now_epoch=now_epoch,
-        reply_cap_date_str=reply_cap_date_str,
         log=log,
         invalid_receipt=InvalidConfirmedReplyReceipt,
     )
@@ -7537,14 +7540,15 @@ def _advance_reply_counters_to_confirmation_date(
 
 def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
     """Apply confirmed reply receipt."""
+    dates = _receipt_dates_owner()
     return _reply_reconciliation.apply_confirmed_reply_receipt(
         state, receipt,
-        receipt_values=_reply_receipt_values_owner(),
+        receipt_values=_reply_receipt_values_owner(dates=dates),
         validate_pending_mention_candidate_authority=validate_pending_mention_candidate_authority,
         STATE_FILE=STATE_FILE,
         InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
-        reply_cap_date_str=reply_cap_date_str,
-        accounting=_daily_reply_accounting_owner(),
+        dates=dates,
+        accounting=_daily_reply_accounting_owner(dates=dates),
         mention_pagination_has_canonical_page_ownership=mention_pagination_has_canonical_page_ownership,
         _emit_mention_authority_recovery=_emit_mention_authority_recovery,
         log=log,
@@ -8101,6 +8105,7 @@ def _run_due_quote_post_for_tick(
     """Handle quote timing and retries after the main loop's safety gates."""
     cooldowns = _api_cooldown_owner()
     controls = _runtime_controls_owner()
+    quote_schedule = _quote_schedule_owner()
     next_quote_epoch = int(state.get("next_quote_post_epoch", 0))
     if current >= next_quote_epoch:
         log.info("Due to post quote/image")
@@ -8111,7 +8116,7 @@ def _run_due_quote_post_for_tick(
             save_state(state)
         elif cooldowns.active(state, scope="write"):
             log.warning("Skipping quote/image post due to X write API cooldown")
-            schedule_next_quote_post(state, current)
+            quote_schedule.schedule(state, current)
         else:
             quote_posted = False
             report_bot_health_progress("quote_post")
@@ -8141,7 +8146,7 @@ def _run_due_quote_post_for_tick(
             report_bot_health_progress("main_loop")
 
             if not quote_posted:
-                schedule_next_quote_post(state, current)
+                quote_schedule.schedule(state, current)
     else:
         log.debug(
             "Not due to post quote/image. seconds_until_next=%s",
@@ -8154,6 +8159,7 @@ def _run_due_meme_post_for_tick(state: dict, current: int) -> None:
     cooldowns = _api_cooldown_owner()
     controls = _runtime_controls_owner()
     if ENABLE_DAILY_MEME_POSTS:
+        meme_schedule = _meme_schedule_owner()
         next_meme_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
 
         if current >= next_meme_epoch:
@@ -8163,16 +8169,16 @@ def _run_due_meme_post_for_tick(state: dict, current: int) -> None:
 
             if controls.lane_paused("disable_meme_posts"):
                 log.warning("Skipping daily meme post due to runtime control file; retrying in 5 minutes")
-                set_meme_delay_schedule(state, epoch=current + 300, mode="delayed_runtime_control")
+                meme_schedule.set_delay(state, epoch=current + 300, mode="delayed_runtime_control")
             elif seconds_since_quote < MEME_MIN_SECONDS_AFTER_QUOTE_POST:
                 log.info(
                     "Meme post due, but delaying because last quote post was %d seconds ago",
                     seconds_since_quote,
                 )
-                set_meme_delay_schedule(state, epoch=current + 1800, mode="delayed_recent_quote")
+                meme_schedule.set_delay(state, epoch=current + 1800, mode="delayed_recent_quote")
             elif cooldowns.active(state, scope="write"):
                 log.warning("Skipping daily meme post due to X write API cooldown")
-                set_meme_delay_schedule(state, epoch=current + 3600, mode="delayed_write_api_cooldown")
+                meme_schedule.set_delay(state, epoch=current + 3600, mode="delayed_write_api_cooldown")
             else:
                 report_bot_health_progress("meme_post")
                 try:
@@ -8192,10 +8198,10 @@ def _run_due_meme_post_for_tick(state: dict, current: int) -> None:
                 except ApiError as e:
                     log.exception("Daily meme posting failed due to API error")
                     cooldowns.record_error(state, e, "x", scope="write")
-                    set_meme_delay_schedule(state, epoch=current + 3600, mode="delayed_api_error")
+                    meme_schedule.set_delay(state, epoch=current + 3600, mode="delayed_api_error")
                 except Exception:
                     log.exception("Daily meme posting failed unexpectedly")
-                    set_meme_delay_schedule(state, epoch=current + 3600, mode="delayed_exception")
+                    meme_schedule.set_delay(state, epoch=current + 3600, mode="delayed_exception")
                 report_bot_health_progress("main_loop")
         else:
             log.debug(
@@ -8313,7 +8319,7 @@ def main() -> None:
     log.info("Images found at startup=%d", len(images_at_start))
 
     if ENABLE_DAILY_MEME_POSTS:
-        meme_candidates_at_start = list_meme_candidates()
+        meme_candidates_at_start = _meme_catalog_owner().candidates()
         log.info("Meme candidates found at startup=%d", len(meme_candidates_at_start))
 
     validate_original_editorial_shadow_startup()
@@ -8391,7 +8397,7 @@ def main() -> None:
         )
 
     if ENABLE_DAILY_MEME_POSTS:
-        ensure_meme_schedule_initialized(state)
+        _meme_schedule_owner().ensure_initialized(state)
 
     log.info("Bot started successfully")
     report_bot_health_progress("main_loop")
@@ -8651,7 +8657,7 @@ def prepare_test_main_post_state(state: dict) -> None:
     return _runtime_state_helpers.prepare_test_main_post_state(
         state,
         ENABLE_DAILY_MEME_POSTS=ENABLE_DAILY_MEME_POSTS,
-        ensure_meme_schedule_initialized=ensure_meme_schedule_initialized,
+        meme_schedule=_meme_schedule_owner(),
     )
 
 

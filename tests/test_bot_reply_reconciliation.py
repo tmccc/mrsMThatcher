@@ -138,23 +138,28 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
         "mark_daily_author_replied", "conversational_reply_confirmation_epoch",
         "mention_pagination_provenance_is_valid", "append_unique_capped", "append_unique_durable",
     }.isdisjoint(parameters)
-    assert {"clarifications", "accounting", "receipt_values"} <= parameters.keys()
+    assert {"clarifications", "accounting", "receipt_values", "dates"} <= parameters.keys()
     assert "clear_pending_ai_reply" not in parameters
-    dependencies = parameters.keys() - public.keys() - {"record_reply_history", "clarifications", "accounting", "clear_target_drafts", "receipt_values"}
+    dependencies = parameters.keys() - public.keys() - {
+        "record_reply_history", "clarifications", "accounting", "clear_target_drafts",
+        "receipt_values", "dates",
+    }
     implementation = Mock(return_value=object())
     history_factory = Mock(wraps=bot._reply_history_owner)
     clarification_factory = Mock(wraps=bot._clarification_reply_owner)
     accounting_factory = Mock(wraps=bot._daily_reply_accounting_owner)
     draft_factory = Mock(wraps=bot._reply_draft_owner)
     values_factory = Mock(wraps=bot._reply_receipt_values_owner)
+    dates_factory = Mock(wraps=bot._receipt_dates_owner)
     monkeypatch.setattr(reconciliation, "apply_confirmed_reply_receipt", implementation)
     monkeypatch.setattr(bot, "_reply_history_owner", history_factory)
     monkeypatch.setattr(bot, "_clarification_reply_owner", clarification_factory)
     monkeypatch.setattr(bot, "_daily_reply_accounting_owner", accounting_factory)
     monkeypatch.setattr(bot, "_reply_draft_owner", draft_factory)
     monkeypatch.setattr(bot, "_reply_receipt_values_owner", values_factory)
+    monkeypatch.setattr(bot, "_receipt_dates_owner", dates_factory)
     state, receipt, histories, clarification_owners, accounting_owners, draft_owners = {}, {}, [], [], [], []
-    value_owners = []
+    value_owners, date_owners = [], []
     for index in range(2):
         current = {name: object() for name in dependencies}
         for name, value in current.items():
@@ -173,9 +178,13 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
         assert accounting_factory.call_count == index + 1
         assert draft_factory.call_count == index + 1
         assert values_factory.call_count == index + 1
+        assert dates_factory.call_count == index + 1
         args, supplied = implementation.call_args
         assert len(args) == 2 and args[0] is state and args[1] is receipt
-        assert supplied.keys() == {*current, "record_reply_history", "clarifications", "accounting", "clear_target_drafts", "receipt_values"}
+        assert supplied.keys() == {
+            *current, "record_reply_history", "clarifications", "accounting",
+            "clear_target_drafts", "receipt_values", "dates",
+        }
         assert all(supplied[name] is value for name, value in current.items())
         callback = supplied["record_reply_history"]
         assert callback.__func__ is reply_history.ReplyHistory.record_confirmation
@@ -190,8 +199,8 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
         assert clarification_owner.window_seconds == 1000 + index
         accounting_owner = supplied["accounting"]
         assert isinstance(accounting_owner, daily_accounting.DailyReplyAccounting)
-        for field in ("log", "reply_cap_date_str"):
-            assert getattr(accounting_owner, field) is current[field]
+        assert accounting_owner.log is current["log"]
+        assert accounting_owner.dates is supplied["dates"]
         accounting_owners.append(accounting_owner)
         draft_callback = supplied["clear_target_drafts"]
         assert draft_callback.__func__ is reply_drafts.ReplyDrafts.clear_target
@@ -209,10 +218,11 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
         assert not hasattr(values, "bounded_tweet_id_value")
         assert not hasattr(values, "receipt_int")
         assert values.invalid_receipt is current["InvalidConfirmedReplyReceipt"]
-        assert values.reply_cap_date_str is current["reply_cap_date_str"]
+        assert values.dates is supplied["dates"]
         bounded_id.assert_not_called()
         receipt_integer.assert_not_called()
         value_owners.append(values)
+        date_owners.append(supplied["dates"])
         clock.assert_not_called()
         histories.append(history)
         clarification_owners.append(clarification_owner)
@@ -222,7 +232,7 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
     assert clarification_owners[0].log_event is not clarification_owners[1].log_event
     assert clarification_owners[0].window_seconds == 1000
     assert accounting_owners[0] is not accounting_owners[1]
-    assert accounting_owners[0].reply_cap_date_str is not accounting_owners[1].reply_cap_date_str
+    assert accounting_owners[0].dates is not accounting_owners[1].dates
     assert draft_owners[0] is not draft_owners[1]
     first_draft_history = draft_owners[0].comparison_replies.__self__
     second_draft_history = draft_owners[1].comparison_replies.__self__
@@ -230,6 +240,8 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
     assert first_draft_history.now_epoch is not second_draft_history.now_epoch
     assert value_owners[0] is not value_owners[1]
     assert value_owners[0].now_epoch is not value_owners[1].now_epoch
+    assert date_owners[0] is not date_owners[1]
+    assert value_owners[0].dates is accounting_owners[0].dates is date_owners[0]
     failure = TypeError("current application failure")
     implementation.side_effect = failure
     with pytest.raises(TypeError) as caught:
@@ -392,7 +404,8 @@ def test_accounting_calls_preserve_positions_snapshots_and_native_failures(monke
         assert caught.value is failure
     else:
         bot.apply_confirmed_reply_receipt(state, receipt)
-    factory.assert_called_once_with()
+    factory.assert_called_once()
+    assert factory.call_args.kwargs.keys() == {"dates"}
     order = (["advance"] if version == 4 else []) + ["identities", "record", "cache", "event"]
     if failure_stage:
         order = order[:order.index(failure_stage) + 1]

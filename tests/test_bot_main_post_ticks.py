@@ -22,16 +22,35 @@ def tick(monkeypatch):
     )
     for name in (
         "post_random_quote", "post_next_meme", "save_state",
-        "schedule_next_quote_post", "set_meme_delay_schedule",
-        "record_api_error", "report_bot_health_progress", "log",
+        "report_bot_health_progress", "log",
     ):
         value = Mock()
         setattr(context, name, value)
         monkeypatch.setattr(bot, name, value)
-    for name in ("lane_paused", "in_api_cooldown"):
-        value = Mock(return_value=False)
-        setattr(context, name, value)
-        monkeypatch.setattr(bot, name, value)
+    context.controls = Mock()
+    context.controls.lane_paused.return_value = False
+    context.lane_paused = context.controls.lane_paused
+    monkeypatch.setattr(bot, "_runtime_controls_owner", Mock(return_value=context.controls))
+    context.cooldowns = Mock()
+    context.cooldowns.active.return_value = False
+    context.in_api_cooldown = context.cooldowns.active
+    context.record_api_error = context.cooldowns.record_error
+    monkeypatch.setattr(bot, "_api_cooldown_owner", Mock(return_value=context.cooldowns))
+    context.quote_schedule = Mock()
+    context.schedule_next_quote_post = context.quote_schedule.schedule
+    monkeypatch.setattr(bot, "_quote_schedule_owner", Mock(return_value=context.quote_schedule))
+    context.meme_schedule = Mock()
+    context.set_meme_delay_schedule = context.meme_schedule.set_delay
+    monkeypatch.setattr(bot, "_meme_schedule_owner", Mock(return_value=context.meme_schedule))
+    for name in (
+        "lane_paused", "in_api_cooldown", "record_api_error",
+        "schedule_next_quote_post", "set_meme_delay_schedule",
+    ):
+        monkeypatch.setattr(
+            bot,
+            name,
+            Mock(side_effect=AssertionError(f"tick bounced through root {name}")),
+        )
     monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", True)
     monkeypatch.setattr(bot, "MEME_MIN_SECONDS_AFTER_QUOTE_POST", 90)
     monkeypatch.setattr(
@@ -47,6 +66,47 @@ def run_lane(lane, tick):
         )
     else:
         bot._run_due_meme_post_for_tick(tick.state, tick.current)
+
+
+def test_due_ticks_use_real_schedule_owners_without_root_relays(monkeypatch):
+    current = 10_000
+    saves = []
+    monkeypatch.setattr(bot, "save_state", lambda state: saves.append(dict(state)))
+    monkeypatch.setattr(bot, "POST_SLEEP_MIN", 600)
+    monkeypatch.setattr(bot, "POST_SLEEP_MAX", 600)
+    monkeypatch.setattr(bot.random, "randint", Mock(return_value=600))
+    quote_schedule = bot._quote_schedule_owner()
+    monkeypatch.setattr(bot, "_quote_schedule_owner", lambda: quote_schedule)
+    controls = Mock()
+    controls.lane_paused.return_value = False
+    cooldowns = Mock()
+    cooldowns.active.return_value = True
+    monkeypatch.setattr(bot, "_runtime_controls_owner", lambda: controls)
+    monkeypatch.setattr(bot, "_api_cooldown_owner", lambda: cooldowns)
+    for name in ("schedule_next_quote_post", "set_meme_delay_schedule"):
+        monkeypatch.setattr(
+            bot,
+            name,
+            Mock(side_effect=AssertionError(f"due tick bounced through {name}")),
+        )
+
+    quote_state = {"next_quote_post_epoch": current}
+    bot._run_due_quote_post_for_tick(set(), set(), quote_state, current)
+    assert quote_state["next_quote_post_epoch"] == current + 600
+    assert saves[-1]["next_quote_post_epoch"] == current + 600
+
+    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", True)
+    meme_schedule = bot._meme_schedule_owner()
+    monkeypatch.setattr(bot, "_meme_schedule_owner", lambda: meme_schedule)
+    controls.lane_paused.return_value = True
+    meme_state = {
+        "next_meme_post_epoch": current,
+        "last_quote_post_epoch": 0,
+    }
+    bot._run_due_meme_post_for_tick(meme_state, current)
+    assert meme_state["next_meme_post_epoch"] == current + 300
+    assert meme_state["next_meme_schedule_mode"] == "delayed_runtime_control"
+    assert saves[-1]["next_meme_post_epoch"] == current + 300
 
 
 @pytest.mark.parametrize("lane", ["quote", "meme"])

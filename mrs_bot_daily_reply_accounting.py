@@ -1,7 +1,7 @@
 """Own daily reply buckets, per-author counts and confirmed-reply accounting.
 
-DailyReplyAccounting binds current date and logging boundaries without retaining
-caller state. Daily reset and confirmation-date
+DailyReplyAccounting binds an invocation-scoped ReceiptDates owner and current
+logging boundary without retaining caller state. Daily reset and confirmation-date
 advancement deliberately keep their distinct time rules. Confirmation recording
 uses the caller's prior idempotency decision and resolved receipt dates at its
 existing position in reconciliation. Counter normalization preserves replacement
@@ -13,11 +13,15 @@ owners. Import and construction perform no runtime access.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from mrs_bot_runtime_state_helpers import append_unique_capped
+
+
+if TYPE_CHECKING:
+    from mrs_bot_receipt_primitives import ReceiptDates
 
 
 def daily_author_reply_counts(state: dict) -> dict[str, int]:
@@ -47,11 +51,11 @@ class DailyReplyAccounting:
     """Maintain daily reply accounting with explicit state and resolved dates."""
 
     log: logging.Logger
-    reply_cap_date_str: Callable
+    dates: ReceiptDates
 
     def reset(self, state: dict) -> None:
         """Reset daily reply count if needed."""
-        today = self.reply_cap_date_str()
+        today = self.dates.reply_cap_date()
 
         if state.get("daily_reply_date") != today:
             self.log.info(
@@ -67,7 +71,7 @@ class DailyReplyAccounting:
 
     def reset_quotes(self, state: dict) -> None:
         """Reset daily quote reply count if needed."""
-        today = self.reply_cap_date_str()
+        today = self.dates.reply_cap_date()
 
         if state.get("daily_quote_reply_date") != today:
             self.log.info(

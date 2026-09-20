@@ -295,7 +295,7 @@ def test_main_total_persistence_loss_latch_stops_later_remote_lanes(
     monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
     monkeypatch.setattr(bot, "glob", lambda _pattern: [])
     monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", True)
-    monkeypatch.setattr(bot, "list_meme_candidates", lambda: [])
+    monkeypatch.setattr(bot._daily_meme.MemeCatalog, "candidates", lambda _owner: [])
     monkeypatch.setattr(bot, "validate_original_editorial_shadow_startup", lambda: None)
     monkeypatch.setattr(bot, "load_quote_used_hashes", lambda _lines: set())
     monkeypatch.setattr(bot, "load_image_used_basenames", lambda _paths: set())
@@ -309,7 +309,11 @@ def test_main_total_persistence_loss_latch_stops_later_remote_lanes(
     monkeypatch.setattr(bot, "reconcile_startup_main_post_receipts", lambda *_args: None)
     monkeypatch.setattr(bot._tweet_lookup_cache.TweetLookupCache, "seed_recent_own_posts", lambda _owner, _state: None)
     monkeypatch.setattr(bot, "save_state", lambda _state, **_kwargs: None)
-    monkeypatch.setattr(bot, "ensure_meme_schedule_initialized", lambda _state: None)
+    monkeypatch.setattr(
+        bot._daily_meme.MemeSchedule,
+        "ensure_initialized",
+        lambda _owner, _state: None,
+    )
     clock_must_not_run = False
 
     def controlled_clock() -> int:
@@ -414,7 +418,7 @@ def test_main_routes_remote_safety_failures_without_error_retry_bookkeeping(
     monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
     monkeypatch.setattr(bot, "glob", lambda _pattern: [])
     monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", True)
-    monkeypatch.setattr(bot, "list_meme_candidates", lambda: [])
+    monkeypatch.setattr(bot._daily_meme.MemeCatalog, "candidates", lambda _owner: [])
     monkeypatch.setattr(bot, "validate_original_editorial_shadow_startup", lambda: None)
     monkeypatch.setattr(bot, "load_quote_used_hashes", lambda _lines: set())
     monkeypatch.setattr(bot, "load_image_used_basenames", lambda _paths: set())
@@ -429,7 +433,11 @@ def test_main_routes_remote_safety_failures_without_error_retry_bookkeeping(
     monkeypatch.setattr(bot, "reconcile_startup_main_post_receipts", lambda *_args: None)
     monkeypatch.setattr(bot._tweet_lookup_cache.TweetLookupCache, "seed_recent_own_posts", lambda _owner, _state: None)
     monkeypatch.setattr(bot, "save_state", lambda _state, **_kwargs: None)
-    monkeypatch.setattr(bot, "ensure_meme_schedule_initialized", lambda _state: None)
+    monkeypatch.setattr(
+        bot._daily_meme.MemeSchedule,
+        "ensure_initialized",
+        lambda _owner, _state: None,
+    )
     monkeypatch.setattr(bot, "now_epoch", lambda: current)
     monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: False)
     monkeypatch.setattr(
@@ -980,7 +988,7 @@ def test_main_reply_safety_failure_reaches_top_of_loop_barrier(
     monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
     monkeypatch.setattr(bot, "REPLY_CHECK_EVERY_SECONDS", 1)
     monkeypatch.setattr(bot, "QUOTE_CHECK_EVERY_SECONDS", 1)
-    monkeypatch.setattr(bot, "list_meme_candidates", lambda: [])
+    monkeypatch.setattr(bot._daily_meme.MemeCatalog, "candidates", lambda _owner: [])
     monkeypatch.setattr(bot, "validate_original_editorial_shadow_startup", lambda: None)
     monkeypatch.setattr(bot, "load_quote_used_hashes", lambda _lines: set())
     monkeypatch.setattr(bot, "load_image_used_basenames", lambda _paths: set())
@@ -989,7 +997,11 @@ def test_main_reply_safety_failure_reaches_top_of_loop_barrier(
     monkeypatch.setattr(bot, "reconcile_startup_main_post_receipts", lambda *_args: None)
     monkeypatch.setattr(bot._tweet_lookup_cache.TweetLookupCache, "seed_recent_own_posts", lambda _owner, _state: None)
     monkeypatch.setattr(bot, "save_state", lambda _state, **_kwargs: None)
-    monkeypatch.setattr(bot, "ensure_meme_schedule_initialized", lambda _state: None)
+    monkeypatch.setattr(
+        bot._daily_meme.MemeSchedule,
+        "ensure_initialized",
+        lambda _owner, _state: None,
+    )
     monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: False)
     monkeypatch.setattr(
         bot,

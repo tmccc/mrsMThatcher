@@ -5186,9 +5186,9 @@ def test_meme_failure_stage_preserves_quote_state_and_ignores_context_state(
         lambda event, **fields: events.append((event, fields)),
     )
     monkeypatch.setattr(
-        bot,
-        "choose_next_meme",
-        lambda _state: (_ for _ in ()).throw(
+        bot._daily_meme.MemeCatalog,
+        "choose",
+        lambda _owner, _state: (_ for _ in ()).throw(
             RuntimeError("meme asset index unavailable")
         ),
     )
@@ -5214,11 +5214,11 @@ def test_meme_failure_stage_preserves_quote_state_and_ignores_context_state(
 
     events.clear()
     schedule_calls: list[dict] = []
-    monkeypatch.setattr(bot, "choose_next_meme", lambda _state: None)
+    monkeypatch.setattr(bot._daily_meme.MemeCatalog, "choose", lambda _owner, _state: None)
     monkeypatch.setattr(
-        bot,
-        "schedule_next_meme_post",
-        lambda state: schedule_calls.append(copy.deepcopy(state)),
+        bot._daily_meme.MemeSchedule,
+        "schedule_next",
+        lambda _owner, state: schedule_calls.append(copy.deepcopy(state)),
     )
     bot.post_next_meme(quote_state)
 

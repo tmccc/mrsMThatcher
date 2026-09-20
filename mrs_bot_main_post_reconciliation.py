@@ -1,15 +1,21 @@
 """Main-post receipt application, emergency completeness and local reconciliation.
 
-The root supplies current runtime dependencies explicitly on each call. This
-module performs no runtime work at import and retains no runtime authority.
+The root supplies current runtime dependencies explicitly on each call.
+Receipt application calls its invocation-scoped MemeSchedule directly for
+legacy date projection and quote-anchored fallback scheduling. This module
+performs no runtime work at import and retains no runtime authority.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from mrs_bot_regular_post_completion import complete_regular_post_persistence
 
 from mrs_bot_receipt_primitives import receipt_int, valid_post_id
+
+
+if TYPE_CHECKING:
+    from mrs_bot_daily_meme import MemeSchedule
 
 
 def apply_meme_post_receipt(
@@ -21,7 +27,7 @@ def apply_meme_post_receipt(
     MY_USER_ID: Any,
     cache_tweet: Any,
     log: Any,
-    meme_schedule_date_str: Any,
+    meme_schedule: MemeSchedule,
     record_recent_own_post: Any,
 ) -> None:
     """Apply meme post receipt."""
@@ -92,7 +98,7 @@ def apply_meme_post_receipt(
                 receipt["next_meme_schedule_date"]
             )
         else:
-            state["next_meme_schedule_date"] = meme_schedule_date_str(
+            state["next_meme_schedule_date"] = meme_schedule.date_str(
                 next_meme_post_epoch
             )
         state["meme_anchor_quote_post_epoch"] = 0
@@ -197,8 +203,7 @@ def apply_regular_post_receipt(
     MY_USER_ID: Any,
     cache_tweet: Any,
     log: Any,
-    maybe_schedule_meme_after_quote_post: Any,
-    meme_schedule_date_str: Any,
+    meme_schedule: MemeSchedule,
     record_recent_own_post: Any,
 ) -> None:
     """Apply regular post receipt."""
@@ -300,11 +305,11 @@ def apply_regular_post_receipt(
             state["next_meme_schedule_mode"] = str(receipt.get("next_meme_schedule_mode") or state.get("next_meme_schedule_mode") or "")
             state["next_meme_schedule_date"] = str(
                 receipt.get("next_meme_schedule_date")
-                or meme_schedule_date_str(int(receipt["next_meme_post_epoch"]))
+                or meme_schedule.date_str(int(receipt["next_meme_post_epoch"]))
             )
             state["meme_anchor_quote_post_epoch"] = int(receipt.get("meme_anchor_quote_post_epoch") or 0)
         else:
-            maybe_schedule_meme_after_quote_post(state, quote_post_epoch, save=False)
+            meme_schedule.maybe_after_quote(state, quote_post_epoch, save=False)
     if text and receipt_is_newest_main:
         cache_tweet(
             state,

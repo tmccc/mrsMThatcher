@@ -25,7 +25,7 @@ DEPENDENCIES = {'apply_meme_post_receipt': ['MEME_POST_TEXT',
                              'MY_USER_ID',
                              'cache_tweet',
                              'log',
-                             'meme_schedule_date_str',
+                             'meme_schedule',
                              'record_recent_own_post'],
  'reconcile_meme_post_receipt': ['InvalidMemePostReceipt',
                                  'MEME_POST_RECEIPT_FILE',
@@ -43,8 +43,7 @@ DEPENDENCIES = {'apply_meme_post_receipt': ['MEME_POST_TEXT',
                                 'MY_USER_ID',
                                 'cache_tweet',
                                 'log',
-                                'maybe_schedule_meme_after_quote_post',
-                                'meme_schedule_date_str',
+                                'meme_schedule',
                                 'record_recent_own_post'],
  'confirmed_regular_emergency_representation_is_complete': ['build_confirmed_pending_schedule_receipt',
                                                             'materialize_bound_regular_schedule_receipt',
@@ -156,7 +155,10 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
         with monkeypatch.context() as patch:
             current = {dep: object() for dep in DEPENDENCIES[name]}
             for dep, value in current.items():
-                patch.setattr(bot, dep, value)
+                if dep == "meme_schedule":
+                    patch.setattr(bot, "_meme_schedule_owner", Mock(return_value=value))
+                else:
+                    patch.setattr(bot, dep, value)
             result = {"original": []}
             expected = {}
 
@@ -271,6 +273,32 @@ def test_application_native_errors_keep_original_partial_mutation(monkeypatch):
     with pytest.raises(KeyError, match="meme_basename"):
         bot.apply_meme_post_receipt({"post_id": "970001"}, state)
     assert state == {}
+
+
+def test_legacy_receipt_application_uses_meme_schedule_without_root_relays(monkeypatch):
+    next_meme_epoch = 1_800_010_000
+    receipt = {
+        **valid_regular_receipt_v2(schema_version=1),
+        "next_meme_post_epoch": next_meme_epoch,
+        "next_meme_schedule_date": "",
+    }
+    receipt.pop("quote_history_after")
+    receipt.pop("image_history_after")
+    for name in ("meme_schedule_date_str", "maybe_schedule_meme_after_quote_post"):
+        monkeypatch.setattr(
+            bot,
+            name,
+            Mock(side_effect=AssertionError(f"receipt application bounced through {name}")),
+        )
+    monkeypatch.setattr(bot, "cache_tweet", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(bot, "record_recent_own_post", lambda *_args, **_kwargs: None)
+    state = {}
+    bot.apply_regular_post_receipt(receipt, set(), set(), state)
+    expected = bot.bound_schedule_datetime(
+        next_meme_epoch,
+        bot.MAIN_POST_SCHEDULE_TIMEZONE,
+    ).strftime("%Y-%m-%d")
+    assert state["next_meme_schedule_date"] == expected
 
 
 

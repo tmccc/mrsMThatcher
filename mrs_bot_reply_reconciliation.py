@@ -1,7 +1,8 @@
 """Apply and reconcile already-confirmed conversational reply state.
 
-Root adapters supply current receipt-value, clarification and accounting owners,
-helpers, settings, paths, logger and application exception classes on every call.
+Root adapters supply current receipt-value, date, clarification and accounting
+owners, helpers, settings, paths, logger and application exception classes on
+every call. Receipt fallback dates call the shared ReceiptDates owner directly.
 ReplyCompletion owns durable commit and ordered cleanup for fresh, restarted and
 emergency completion, preserving their distinct error boundaries. Bodies retain
 mutation, callback, reference and error order, including source
@@ -36,6 +37,7 @@ from mrs_bot_mention_authority import (
 if TYPE_CHECKING:
     from mrs_bot_reply_clarifications import ClarificationReplies
     from mrs_bot_daily_reply_accounting import DailyReplyAccounting
+    from mrs_bot_receipt_primitives import ReceiptDates
     from mrs_bot_reply_receipt_values import ReplyReceiptValues
     from mrs_bot_state_generation import StateCommitProof
 
@@ -48,7 +50,7 @@ def apply_confirmed_reply_receipt(
     validate_pending_mention_candidate_authority: Callable,
     STATE_FILE: Path,
     InvalidConfirmedReplyReceipt: type[Exception],
-    reply_cap_date_str: Callable,
+    dates: ReceiptDates,
     accounting: DailyReplyAccounting,
     mention_pagination_has_canonical_page_ownership: Callable,
     _emit_mention_authority_recovery: Callable,
@@ -84,7 +86,9 @@ def apply_confirmed_reply_receipt(
                 "Confirmed mention receipt cannot be reconciled without a "
                 "bounded pending-candidate authority base"
             )
-    receipt_reply_date = str(receipt.get("daily_reply_date") or reply_cap_date_str(reply_epoch))
+    receipt_reply_date = str(
+        receipt.get("daily_reply_date") or dates.reply_cap_date(reply_epoch)
+    )
     receipt_quote_reply_date = str(receipt.get("daily_quote_reply_date") or receipt_reply_date)
     if receipt.get("schema_version") == 4:
         accounting.advance(

@@ -88,6 +88,28 @@ callbacks with the typed selection owner. Hand-off tests block the obsolete
 relays while exercising real metadata validation, source-verified migration,
 editorial comparison and bounded pair recovery.
 
+Daily meme posting similarly receives one invocation-scoped `MemeCatalog` and
+`MemeSchedule`: selection, summary construction, same-day checks and fallback
+scheduling call those owners directly. Main-post receipt application uses a
+current `MemeSchedule` for legacy date projection and quote-anchored fallback;
+due-post ticks and reconciled regular-receipt repair call `MemeSchedule` and
+`QuoteSchedule` directly. The public catalogue and scheduling adapters remain
+available outside these internal paths. `MemeCatalog`, `MemeSchedule` and
+`QuoteSchedule` retain 4, 13 and 5 constructor dependencies respectively. The
+daily-meme implementation entry point falls from 46 parameters (45 injected)
+to 43 (42), and regular receipt application falls from 11 (7) to 10 (6).
+
+Conversational receipt composition shares one current `ReceiptDates` across
+`ReplyReceiptValues`, `DailyReplyAccounting` and confirmed-state application.
+London daily-cap conversion therefore bypasses the public date adapters while
+ambient `epoch_date_str` and receipt-bound main-post timezone conversion remain
+separate. `DailyReplyAccounting` stays at 2 constructor dependencies but drops
+its callback-typed dependency from 1 to 0; `ReplyReceiptValues` falls from 8
+dependencies (6 callback-typed) to 7 (4). Construction remains inert: file
+catalogues, clocks, random draws and state saves begin only in invoked methods.
+Hand-off tests make obsolete relays raise while exercising real owners, DST/date
+conversion, same-day guards, retry scheduling and receipt accounting.
+
 [mrs_bot_reply_cycle_interfaces.py](../mrs_bot_reply_cycle_interfaces.py) describes
 the settings and callback groups supplied to both reply lanes, and re-exports
 the delivery owner from its behavior module. Its

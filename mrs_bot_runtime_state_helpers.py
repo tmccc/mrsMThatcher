@@ -2,7 +2,8 @@
 
 QuoteSchedule owns delay selection and schedule application with current clock,
 configuration, logger and persistence inputs. Runtime loading calls the supplied
-cooldown owner directly before priority sanitisation. Fixed random/calendar
+cooldown owner directly before priority sanitisation; one-shot main-post
+preparation calls its MemeSchedule directly. Fixed random/calendar
 helpers and state-field application stay local. Other maintenance boundaries
 remain supplied per call. Import and owner construction perform no runtime work.
 """
@@ -19,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from mrs_bot_api_cooldowns import ApiCooldowns
+    from mrs_bot_daily_meme import MemeSchedule
 
 
 def default_state(
@@ -177,11 +179,11 @@ def prepare_test_main_post_state(
     state: dict,
     *,
     ENABLE_DAILY_MEME_POSTS: Any,
-    ensure_meme_schedule_initialized: Any,
+    meme_schedule: MemeSchedule,
 ) -> None:
     """Prepare test main post state."""
     if ENABLE_DAILY_MEME_POSTS:
-        ensure_meme_schedule_initialized(state)
+        meme_schedule.ensure_initialized(state)
 
 
 @dataclass(frozen=True)
