@@ -61,7 +61,7 @@ assert 'single_call_reply' not in sys.modules
     ("x_request", (
         "AUTH AmbiguousRemotePostOutcome ApiError "
         "DeterministicReplyCreateRejectionProof MEDIA_UPLOAD_RECEIPT_FILE "
-        "MediaUploadAuthority MediaUploadReceiptError Path ProvedRemotePostNonSuccess "
+        "MediaUploadAuthority MediaUploadReceiptError ProvedRemotePostNonSuccess "
         "ReceiptBoundMediaPayload TransportAuthority TransportJournalError "
         "ValidatedXErrorResponse XErrorResponseValidationError "
         "_activate_coordinator_reply_create_rejection_proof "
@@ -70,15 +70,15 @@ assert 'single_call_reply' not in sys.modules
         "block_if_unrelated_receipt_appeared_for_tweet_transport "
         "canonical_transport_receipt_path_for_lane consume_media_upload_authority "
         "emit_x_create_response_anomaly frozen_strict_json_object "
-        "invalidate_reply_create_rejection_proof json log log_json_debug "
+        "invalidate_reply_create_rejection_proof log log_json_debug "
         "parse_validated_x_error_response "
         "perform_consumed_x_request prepared_x_create_route print_rate_limit_headers "
         "report_bot_health_progress request_timeout requests require_remote_operation_unpaused "
-        "sys x_create_response_anomaly_reason "
+        "x_create_response_anomaly_reason "
         "x_request_base_url"
     ).split()),
     ("x_bearer_request", (
-        "AmbiguousRemotePostOutcome ApiError X_BASE X_BEARER_TOKEN json log "
+        "AmbiguousRemotePostOutcome ApiError X_BASE X_BEARER_TOKEN log "
         "log_json_debug print_rate_limit_headers report_bot_health_progress "
         "request_timeout requests"
     ).split()),
@@ -156,7 +156,7 @@ def test_read_request_logging_health_transport_and_response_references(monkeypat
         "requests": SimpleNamespace(request=trace.request, RequestException=bot.requests.RequestException),
         "AUTH": auth, "X_BASE": "http://current.invalid", "X_BEARER_TOKEN": token,
     }.items():
-        target = owner if key == "exact_x_create_route" else bot
+        target = owner if key in {"exact_x_create_route", "Path", "sys"} else bot
         monkeypatch.setattr(target, key, value)
     options = {"params": {}, "json": {"nested": []}, "data": {}, "files": {"part": object()},
                "requests": object(), "AUTH": object(), "kwargs": object()}
@@ -301,7 +301,7 @@ def test_tweet_freeze_pause_binding_and_coordinator_dictionary_order(monkeypatch
         "perform_consumed_x_request": trace.perform, "x_create_response_anomaly_reason": trace.reason,
         "sys": SimpleNamespace(exc_info=trace.exc_info),
     }.items():
-        target = owner if key == "exact_x_create_route" else bot
+        target = owner if key in {"exact_x_create_route", "Path", "sys"} else bot
         monkeypatch.setattr(target, key, value)
 
     failure = bot.TransportJournalError("canonical failure") if stop == "journal" else ValueError("boundary failure")
@@ -382,7 +382,7 @@ def test_media_metadata_references_and_consumption_precede_transport(monkeypatch
         "requests": SimpleNamespace(request=trace.request, RequestException=bot.requests.RequestException),
         "sys": SimpleNamespace(exc_info=trace.exc_info),
     }.items():
-        target = owner if key in {"media_upload_payload_metadata", "validate_media_upload_payload_metadata", "exact_x_create_route"} else bot
+        target = owner if key in {"media_upload_payload_metadata", "validate_media_upload_payload_metadata", "exact_x_create_route", "sys"} else bot
         monkeypatch.setattr(target, key, value)
 
     def pause(*args, **kwargs):
@@ -420,7 +420,7 @@ def test_media_metadata_references_and_consumption_precede_transport(monkeypatch
 
 
 @pytest.mark.parametrize("escaping", ["actual", "different_proof", "probe_interruption"])
-def test_actual_issued_proof_finally_uses_current_sys_and_exact_identity(monkeypatch, escaping):
+def test_actual_issued_proof_finally_uses_owned_exception_inspection_and_exact_identity(monkeypatch, escaping):
     payload = {"text": "reply", "reply": {"in_reply_to_tweet_id": "100"}}
     authority = _armed_x_create_authority(payload)
     monkeypatch.setattr(bot.requests, "request", lambda *args, **kwargs: _x_response(403, PRODUCTION_DELETED_REPLY_ERROR))
@@ -445,7 +445,7 @@ def test_actual_issued_proof_finally_uses_current_sys_and_exact_identity(monkeyp
                 selected.remote_non_success_proof = object()
         return type(selected), selected, None
 
-    monkeypatch.setattr(bot, "sys", SimpleNamespace(exc_info=current_exc_info))
+    monkeypatch.setattr(owner, "sys", SimpleNamespace(exc_info=current_exc_info))
     with pytest.raises(bot.ProvedRemotePostNonSuccess) as caught:
         bot.x_request("POST", "/2/tweets", json=payload, ambiguous_write=True,
                       _remote_write_authorization=authority)

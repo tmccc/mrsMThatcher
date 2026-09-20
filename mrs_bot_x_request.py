@@ -1,11 +1,15 @@
 """Authenticated X request execution and response handling.
 
-The root supplies current runtime dependencies and its collected request kwargs
+Fixed JSON parsing, path values and exception inspection use local standard
+library operations. The root supplies current runtime dependencies and its collected request kwargs
 explicitly on each call. Importing this module performs no runtime work and
 retains no runtime authority.
 """
 from __future__ import annotations
 
+import json
+import sys
+from pathlib import Path
 from typing import Any
 
 from mrs_bot_post_creation import (
@@ -33,7 +37,6 @@ def x_request(
     MEDIA_UPLOAD_RECEIPT_FILE: Any,
     MediaUploadAuthority: Any,
     MediaUploadReceiptError: Any,
-    Path: Any,
     ProvedRemotePostNonSuccess: Any,
     ReceiptBoundMediaPayload: Any,
     TransportAuthority: Any,
@@ -49,7 +52,6 @@ def x_request(
     emit_x_create_response_anomaly: Any,
     frozen_strict_json_object: Any,
     invalidate_reply_create_rejection_proof: Any,
-    json: Any,
     log: Any,
     log_json_debug: Any,
     parse_validated_x_error_response: Any,
@@ -60,7 +62,6 @@ def x_request(
     request_timeout: Any,
     requests: Any,
     require_remote_operation_unpaused: Any,
-    sys: Any,
     x_create_response_anomaly_reason: Any,
     x_request_base_url: Any,
 ) -> dict:
@@ -594,7 +595,6 @@ def x_bearer_request(
     ApiError: Any,
     X_BASE: Any,
     X_BEARER_TOKEN: Any,
-    json: Any,
     log: Any,
     log_json_debug: Any,
     print_rate_limit_headers: Any,
