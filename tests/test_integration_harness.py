@@ -11326,11 +11326,13 @@ def test_combined_five_post_search_preserves_watch_priority_and_restart_dedupe(t
         assert requests[0]["query"]["query"] == ["(" + " OR ".join("quotes_of_tweet_id:" + parent for parent in parents) + ") -is:retweet"]
         assert not any(request["path"].endswith("/quote_tweets") for request in server.requests)
         assert not any(request["path"] in ["/2/tweets/901", "/2/tweets/902", "/2/tweets/903"] for request in server.requests)
+        assert set(read_json(base_dir / "bot_state.json")["quote_pending_candidates"]) == {"910"}
         second = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000002"})
         assert second.returncode == 0, second.stderr + second.stdout
         assert fake_server_post_replies(server) == ["920", "910"]
-        assert len(quote_search_requests(server)) == 2
+        assert len(quote_search_requests(server)) == 1
         state = read_json(base_dir / "bot_state.json")
+        assert state["quote_pending_candidates"] == {}
         assert set(state["replied_to_quote_post_ids"]) == {"910", "920"}
         assert state["daily_quote_reply_count"] == 2
     finally:

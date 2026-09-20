@@ -168,7 +168,7 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
         monkeypatch.setattr(bot, "AI_REPLY_HISTORY_MAX_RECORDS", 10 + index)
         monkeypatch.setattr(bot, "CLARIFICATION_REPLY_WINDOW_SECONDS", 1000 + index)
         assert adapter(state, receipt) is implementation.return_value
-        assert history_factory.call_count == index + 1
+        assert history_factory.call_count == 2 * (index + 1)
         assert clarification_factory.call_count == index + 1
         assert accounting_factory.call_count == index + 1
         assert draft_factory.call_count == index + 1
@@ -196,6 +196,12 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
         draft_callback = supplied["clear_target_drafts"]
         assert draft_callback.__func__ is reply_drafts.ReplyDrafts.clear_target
         assert draft_callback.__self__.log_event is current["log_event"]
+        comparison_callback = draft_callback.__self__.comparison_replies
+        assert comparison_callback.__func__ is reply_history.ReplyHistory.recovery_replies
+        draft_history = comparison_callback.__self__
+        assert draft_history.now_epoch is clock
+        assert draft_history.maximum_age_seconds == 100 + index
+        assert draft_history.maximum_records == 10 + index
         draft_owners.append(draft_callback.__self__)
         values = supplied["receipt_values"]
         assert isinstance(values, reply_receipt_values.ReplyReceiptValues)
@@ -218,6 +224,10 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
     assert accounting_owners[0] is not accounting_owners[1]
     assert accounting_owners[0].reply_cap_date_str is not accounting_owners[1].reply_cap_date_str
     assert draft_owners[0] is not draft_owners[1]
+    first_draft_history = draft_owners[0].comparison_replies.__self__
+    second_draft_history = draft_owners[1].comparison_replies.__self__
+    assert first_draft_history is not second_draft_history
+    assert first_draft_history.now_epoch is not second_draft_history.now_epoch
     assert value_owners[0] is not value_owners[1]
     assert value_owners[0].now_epoch is not value_owners[1].now_epoch
     failure = TypeError("current application failure")

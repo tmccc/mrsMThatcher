@@ -43,7 +43,7 @@ need. A recovered draft can bypass model evaluation.
 | Meme catalog discovery, cycle selection and image summaries | `MemeCatalog` in [mrs_bot_daily_meme.py](../mrs_bot_daily_meme.py) |
 | Shared quote/meme attempt publication, guarded send and durable confirmation | `MainPostPublication` in [mrs_bot_main_post_publication.py](../mrs_bot_main_post_publication.py); lane owners retain rollback, schedule projections and emergency recovery |
 | Historical-context queue selection, recovery, claims and durable outcomes | [mrs_bot_historical_context_queue.py](../mrs_bot_historical_context_queue.py); its coordinator keeps gates and loop decisions, with local helpers for sending a claim and applying exception/returned outcomes |
-| Candidate discovery and durable mention queue (`MentionQueue` owns access and retirement) | [mrs_bot_mention_discovery.py](../mrs_bot_mention_discovery.py), [mrs_bot_hot_post_discovery.py](../mrs_bot_hot_post_discovery.py), [mrs_bot_quote_discovery.py](../mrs_bot_quote_discovery.py) |
+| Candidate discovery and durable mention/quote queues (`MentionQueue` owns mention access and retirement) | [mrs_bot_mention_discovery.py](../mrs_bot_mention_discovery.py), [mrs_bot_hot_post_discovery.py](../mrs_bot_hot_post_discovery.py), [mrs_bot_quote_discovery.py](../mrs_bot_quote_discovery.py) |
 | Watched and recent original selection | `QuoteWatchPosts` in [mrs_bot_quote_discovery.py](../mrs_bot_quote_discovery.py) |
 | Verified tweet lookup, cache refresh and recent own-post index | `TweetLookupCache` in [mrs_bot_tweet_lookup_cache.py](../mrs_bot_tweet_lookup_cache.py) |
 | Verified normal context and two-turn quote context | `ReplyContext.build` and `build_quote` in [mrs_bot_reply_context.py](../mrs_bot_reply_context.py) |
@@ -124,10 +124,21 @@ clocks, provider requests and saves remain inside their original operations.
 Lookup tests patch `fetch` on the owner; `restore_tweet_lookup_fetch` restores its
 real transport operation when an isolated test server supplies the response.
 
+Quote discovery saves fetched candidates in `quote_pending_candidates` before
+advancing recent-search cursors. Pending work is returned before further search,
+even if its original leaves the watch list. The quote cycle keeps young and
+retryable candidates queued; terminal markers and confirmed receipt reconciliation
+remove handled targets through `mrs_bot_reply_state`. A queued quote with no
+usable creation time gets a bounded metadata refresh rather than waiting forever.
+The discovery-to-cycle restart, candidate-budget and posting hand-offs are tested
+in `tests/test_quote_pending_candidates.py`.
+
 For a change to saved-draft behaviour, start with `ReplyDrafts`. Its `store`,
 `recover` and `receipt_draft_is_valid` methods call its own `validate` method;
 internal draft operations do not return through root adapters. Each validation
-acquires current evidence. Recovery distinguishes an absent draft, an obsolete
+acquires current evidence. Storage also checks current confirmed reply history,
+so a fresh draft cannot repeat a response posted after its target was created.
+Recovery distinguishes an absent draft, an obsolete
 draft, a terminal validation failure and a reusable reply with zero model calls.
 Confirmation uses `clear_target` to retire drafts across reply lanes;
 emergency replay checks use `has_target` with the same lane coverage. Both
@@ -148,7 +159,8 @@ tests retain budget, save-order and terminal-retirement checks.
 For a change to which previous replies influence a candidate, start with
 `ReplyHistory`. Its `for_evaluation` operation selects recent replies and prior
 same-author interactions using the target's timestamp; `recovery_replies` uses
-current confirmed history to revalidate a pending draft. Both share the owner's
+current confirmed history to validate fresh draft storage and pending-draft
+recovery. Both share the owner's
 filtering and exclusion rules. `record_confirmation` builds a confirmed record,
 removes duplicates and applies retention limits. Reconciliation invokes it after
 caching the reply and before confirmation telemetry, and continues to control

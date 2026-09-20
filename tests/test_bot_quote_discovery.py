@@ -449,9 +449,100 @@ def test_single_quote_search_continuation_survives_reload(monkeypatch):
     state = bot.load_state()
     query = "(quotes_of_tweet_id:900) -is:retweet"
     assert state["quote_search_pagination_tokens"] == {query: "A"}
+    assert bot.get_quote_tweets_for_posts(["900"], state)["900"] == [first]
+    assert request.call_count == 1
+    bot.mark_quote_tweet_skipped(state, "910")
+    bot.save_state(state, durable=True)
+    state = bot.load_state()
     assert bot.get_quote_tweets_for_posts(["900"], state)["900"] == [second]
     assert [call.args[1].get("pagination_token") for call in request.call_args_list] == [None, "A"]
     assert bot.load_state()["quote_search_pagination_tokens"] == {}
+
+
+def test_search_commits_enriched_candidates_before_continuation(monkeypatch):
+    monkeypatch.setattr(bot, "QUOTE_LOOKUP_MAX_PAGES_PER_POST", 1)
+    quote = _search_quote("912", "900", attachments={"media_keys": ["m1"]})
+    author = {"id": "700", "description": "reader"}
+    media = {"media_key": "m1", "type": "photo", "url": "https://example.test/image"}
+    monkeypatch.setattr(bot, "x_quote_lookup_request", Mock(return_value={
+        "data": [quote], "includes": {"users": [author], "media": [media]},
+        "meta": {"next_token": "A"},
+    }))
+    saved = []
+    save = bot.save_state
+
+    def observe(state, **kwargs):
+        assert kwargs == {"durable": True}
+        saved.append(copy.deepcopy(state))
+        return save(state, **kwargs)
+
+    monkeypatch.setattr(bot, "save_state", observe)
+    state = bot.default_state()
+    result = bot.get_quote_tweets_for_posts(["900"], state)
+    assert result["900"][0] is quote
+    assert state["quote_pending_candidates"]["912"] is quote
+    assert len(saved) == 2
+    assert saved[0]["quote_search_pagination_tokens"] == {}
+    assert saved[0]["quote_pending_candidates"]["912"]["_author_user"] == author
+    assert saved[0]["quote_pending_candidates"]["912"]["_attached_media"] == [media]
+    assert saved[1]["quote_search_pagination_tokens"] == {"(quotes_of_tweet_id:900) -is:retweet": "A"}
+    assert bot.load_state()["quote_pending_candidates"] == state["quote_pending_candidates"]
+
+
+@pytest.mark.parametrize("failed_save", [1, 2])
+def test_search_save_failure_cannot_advance_past_unqueued_candidates(monkeypatch, failed_save):
+    monkeypatch.setattr(bot, "QUOTE_LOOKUP_MAX_PAGES_PER_POST", 1)
+    quote = _search_quote("912", "900")
+    request = Mock(return_value={"data": [quote], "meta": {"next_token": "A"}})
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    state = bot.default_state()
+    bot.save_state(state, durable=True)
+    save = bot.save_state
+    attempts = 0
+
+    def fail_once(current, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == failed_save:
+            raise OSError("injected save failure")
+        return save(current, **kwargs)
+
+    monkeypatch.setattr(bot, "save_state", fail_once)
+    with pytest.raises(OSError, match="injected save failure"):
+        bot.get_quote_tweets_for_posts(["900"], state)
+    durable = bot.load_state()
+    assert durable["quote_search_pagination_tokens"] == {}
+    assert bool(durable["quote_pending_candidates"]) == (failed_save == 2)
+    # A failed first save leaves pending work in memory. A later call must
+    # make that queue durable before exposing it, without fetching another page.
+    assert bot.get_quote_tweets_for_posts([], state) == {"900": [quote]}
+    assert request.call_count == 1
+    assert bot.load_state()["quote_pending_candidates"] == {"912": quote}
+
+
+def test_last_search_page_is_durable_even_without_cursor_change(monkeypatch):
+    quote = _search_quote("912", "900")
+    request = Mock(return_value={"data": [quote]})
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    state = bot.default_state()
+    bot.get_quote_tweets_for_posts(["900"], state)
+    state = bot.load_state()
+    assert state["quote_search_pagination_tokens"] == {}
+    assert bot.get_quote_tweets_for_posts(["901"], state) == {"900": [quote]}
+    assert request.call_count == 1
+
+
+@pytest.mark.parametrize("pending", [[], {"912": {}}, {"912": _search_quote("913", "900")},
+                                        {"912": _search_quote("912", "bad")}])
+def test_invalid_pending_quotes_block_discovery_without_discarding_queue(monkeypatch, pending):
+    state = bot.default_state()
+    state["quote_pending_candidates"] = pending
+    request = Mock()
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    with pytest.raises(ValueError):
+        bot.get_quote_tweets_for_posts(["900"], state)
+    assert state["quote_pending_candidates"] is pending
+    request.assert_not_called()
 
 
 def test_combined_search_changed_watch_set_discards_previous_continuation(monkeypatch):

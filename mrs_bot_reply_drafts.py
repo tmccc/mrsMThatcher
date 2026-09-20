@@ -1,6 +1,6 @@
 """Own the validation, storage, recovery and clearing of pending reply drafts.
 
-ReplyDrafts receives the current validator, evidence access, telemetry and result
+ReplyDrafts receives the current validator, history/evidence access, telemetry and result
 vocabulary when composed by the root. Its operations call each other directly,
 acquire current evidence for each validation and mutate only explicit caller
 state. Failed local recovery keeps retirement before owned zero-call result
@@ -43,6 +43,7 @@ class ReplyDrafts:
 
     validate_persisted_draft: Callable
     evidence_repository: Callable
+    comparison_replies: Callable
     record_result: Callable
     log_event: Callable
     log: logging.Logger
@@ -78,7 +79,7 @@ class ReplyDrafts:
         *,
         context: dict[str, object],
     ) -> bool:
-        """Store a mechanically validated single-call draft."""
+        """Store a draft only after checking it against current confirmed replies."""
 
         if not isinstance(reply, self.reply_type):
             return False
@@ -86,6 +87,7 @@ class ReplyDrafts:
             validated = self.validate(
                 reply.draft_record,
                 context=context,
+                recent_replies=self.comparison_replies(state, context=context),
             )
         except (KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
             self.log.warning(

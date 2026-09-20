@@ -6813,6 +6813,7 @@ def _reply_draft_owner() -> _reply_drafts.ReplyDrafts:
     return _reply_drafts.ReplyDrafts(
         validate_persisted_draft=validate_single_call_persisted_draft,
         evidence_repository=reply_evidence_repository,
+        comparison_replies=_reply_history_owner().recovery_replies,
         record_result=_record_single_call_result,
         log_event=log_event,
         log=log,
@@ -7950,6 +7951,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         mark_quote_spam_author=mark_quote_spam_author,
         now_epoch=now_epoch,
         quote_tweet_is_old_enough=quote_tweet_is_old_enough,
+        parse_x_datetime_to_epoch=parse_x_datetime_to_epoch,
         record_api_error=record_api_error,
         reply_evaluations=_reply_evaluation_owner(),
         recovery_comparison_account_replies=_reply_history_owner().recovery_replies,

@@ -3,7 +3,8 @@
 QuoteWatchPosts owns fresh watch-file reads, recent-original selection and their
 priority merge. Its methods call each other directly with current root settings
 and cache seeding. Discovery adapters supply current request, state and runtime
-boundaries. Recent search batches watched originals and groups direct quotes;
+boundaries. Recent search durably queues direct quotes before advancing cursors
+and returns unfinished candidates before fetching more watched originals;
 the legacy per-post lookup remains a diagnostic helper.
 
 Shared pagination, request/authentication, ID validation, cache seeding, media,
@@ -505,6 +506,43 @@ def get_quote_tweets_for_post(
     return quote_tweets
 
 
+def pending_quote_candidates(state: dict) -> dict[str, list[dict]]:
+    """Group durable unfinished quotes by original, independent of the watch set.
+
+    Invalid queue records fail closed rather than letting discovery advance past
+    work whose identity cannot be recovered. Returned tweets retain their queue
+    references, including the fetched author and media expansions.
+    """
+    pending = state.get("quote_pending_candidates", {})
+    if not isinstance(pending, dict):
+        raise ValueError("Invalid pending quote candidate queue")
+    grouped: dict[str, list[dict]] = {}
+    for quote_id, tweet in pending.items():
+        if (
+            not isinstance(tweet, dict)
+            or not isinstance(quote_id, str)
+            or not quote_id.isascii()
+            or (bounded_tweet_id_value(quote_id) or 0) <= 0
+            or str(tweet.get("id", "")) != quote_id
+        ):
+            raise ValueError("Invalid pending quote candidate identity")
+        refs = tweet.get("referenced_tweets")
+        if (
+            not isinstance(refs, list)
+            or any(not isinstance(ref, dict) for ref in refs)
+            or any(ref.get("type") == "retweeted" for ref in refs)
+        ):
+            raise ValueError("Invalid pending quote candidate references")
+        parents = {str(ref.get("id")) for ref in refs if ref.get("type") == "quoted"}
+        if len(parents) != 1:
+            raise ValueError("Pending quote must identify one original")
+        parent_id = next(iter(parents))
+        if not parent_id.isascii() or (bounded_tweet_id_value(parent_id) or 0) <= 0:
+            raise ValueError("Invalid pending quote original identity")
+        grouped.setdefault(parent_id, []).append(tweet)
+    return grouped
+
+
 def get_quote_tweets_for_posts(
     post_ids: list[str],
     state: dict | None = None,
@@ -516,12 +554,21 @@ def get_quote_tweets_for_posts(
     x_paginated_get: Callable,
     x_quote_lookup_request: Callable,
 ) -> dict[str, list[dict]]:
-    """Search recent direct quotes together, retaining query-specific continuations.
+    """Drain durable quotes before discovering and committing another search batch.
 
     Recent search covers quotes created in the last seven days, including quotes
     of older watched originals. Do not advance a since_id: young, deferred and
-    unprocessed quotes must remain discoverable on later checks.
+    unprocessed quotes remain queued until terminal or confirmed handling.
     """
+    if state is not None:
+        pending = pending_quote_candidates(state)
+        if pending:
+            # Also retry a prior failed queue save before exposing candidates to
+            # delivery in the same process. No provider access is needed here.
+            save_state(state, durable=True)
+            log.info("Using %d durably queued quote candidate(s) before further pagination",
+                     sum(len(quotes) for quotes in pending.values()))
+            return pending
     clean_ids = list(dict.fromkeys(str(post_id).strip() for post_id in post_ids))
     clean_ids = [
         post_id for post_id in clean_ids
@@ -608,7 +655,8 @@ def get_quote_tweets_for_posts(
             quote_id = str(quote.get("id", ""))
             refs = quote.get("referenced_tweets", [])
             if (
-                bounded_tweet_id_value(quote_id) is None
+                not quote_id.isascii()
+                or (bounded_tweet_id_value(quote_id) or 0) <= 0
                 or quote_id in seen_ids
                 or not isinstance(refs, list)
                 or any(not isinstance(ref, dict) for ref in refs)
@@ -649,6 +697,13 @@ def get_quote_tweets_for_posts(
 
     # Do not advance an earlier batch if a later search fails and the caller
     # receives none of its candidates. Invalid cursors are still cleared early.
+    if state is not None and seen_ids:
+        state["quote_pending_candidates"] = {
+            str(quote["id"]): quote
+            for quotes in quotes_by_post.values()
+            for quote in quotes
+        }
+        save_state(state, durable=True)
     tokens = completed_tokens
     persist_tokens()
     log.info("Fetched %d direct quote tweet(s) by recent search for %d own post(s)", len(seen_ids), len(clean_ids))

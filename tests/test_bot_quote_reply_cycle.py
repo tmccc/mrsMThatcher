@@ -85,8 +85,8 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         if count is None:
             assert tuple(public) == ("state",)
             assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
-            assert len(parameters) == 36
-            assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 35
+            assert len(parameters) == 37
+            assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 36
             removed = {
                 key for key in vars(interfaces) if key.startswith("QUOTE_CHECK_STATUS_")
             } | {
@@ -427,8 +427,9 @@ def test_reused_draft_keeps_context_references_durability_and_pre_send_availabil
     assert names.index("recovery_comparison_account_replies") < names.index("recover_pending_ai_reply")
     store_index = names.index("store_pending_ai_reply")
     send_names = [name for name in names[store_index:] if name != "reply_evidence_repository"]
-    assert send_names[:4] == [
-        "store_pending_ai_reply", "save_state", "bind_conversational_reply_attempt_time", "available",
+    assert send_names[:5] == [
+        "store_pending_ai_reply", "recovery_comparison_account_replies", "save_state",
+        "bind_conversational_reply_attempt_time", "available",
     ]
     assert [c.kwargs for c in trace.save_state.call_args_list] == [{}, {"durable": True}, {"durable": True}]
     live_context = trace.recover_pending_ai_reply.call_args.kwargs["context"]

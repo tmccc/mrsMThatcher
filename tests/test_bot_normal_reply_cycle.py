@@ -530,6 +530,41 @@ def test_clarification_refresh_failure_defers_without_losing_candidate(monkeypat
     bot.create_post.assert_not_called()
 
 
+def test_fresh_duplicate_draft_is_rejected_before_delivery(monkeypatch):
+    _configure_cycle(monkeypatch)
+    state = bot.default_state()
+    candidate = mention(105, 205)
+    context = unit_reply_context(
+        target_id="105", target_author_id="205", contribution=candidate["text"],
+    )
+    reply = unit_approved_reply(context, text="Responsibility matters more than rhetoric.")
+    state["ai_reply_history"] = [{
+        "target_id": "104",
+        "reply_post_id": "9000",
+        "candidate_source": "mention",
+        "reply_epoch": bot.now_epoch() - 1,
+        "proposed_reply": str(reply),
+    }]
+    monkeypatch.setattr(bot, "get_mentions", Mock(return_value=[candidate]))
+    evaluator = Mock(return_value=bot.PipelineResult(
+        status="reply", reason="useful_reply", reply=reply, model_call_count=1,
+    ))
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", evaluator)
+    preflight = Mock()
+    monkeypatch.setattr(bot, "reply_target_is_available_immediately_before_send", preflight)
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
+
+    evaluator.assert_called_once()
+    assert not state.get("pending_ai_reply_drafts")
+    assert state["daily_reply_count"] == 0
+    assert "105" not in state.get("reply_evaluation_records", {})
+    assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
+    preflight.assert_not_called()
+    bot.x_request.assert_not_called()
+    bot.create_post.assert_not_called()
+
+
 @pytest.mark.parametrize("recovered", [False, True])
 def test_prepared_context_preserves_clarification_and_media_through_recovery(monkeypatch, recovered):
     _configure_cycle(monkeypatch)

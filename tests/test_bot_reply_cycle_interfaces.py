@@ -94,7 +94,7 @@ def test_cycle_boundaries_capture_current_callbacks_and_config_between_calls(mon
         assert config.enabled is bool(index)
         assert config.maximum_daily_replies == 20 + index
         assert factory.call_count == index + 1
-        assert history_factory.call_count == index + 1
+        assert history_factory.call_count == 2 * (index + 1)
         history_callback = supplied["recovery_comparison_account_replies"]
         history = history_callback.__self__
         assert history_callback.__func__ is type(history).recovery_replies
@@ -103,6 +103,10 @@ def test_cycle_boundaries_capture_current_callbacks_and_config_between_calls(mon
         clock.assert_not_called()
         histories.append(history)
         drafts = draft_owners[-1]
+        draft_history = drafts.comparison_replies.__self__
+        assert drafts.comparison_replies.__func__ is type(draft_history).recovery_replies
+        assert draft_history.now_epoch is clock
+        assert draft_history.maximum_recent_replies == 10 + index
         assert persistence.save is save
         for method in ("recover", "store", "clear", "retire_ineligible"):
             bound_method = getattr(persistence, method)

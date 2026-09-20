@@ -208,6 +208,7 @@ def normalise_state_candidate(
     record_map_keys = {
         "skipped_hot_reply_records",
         "pending_ai_reply_drafts",
+        "quote_pending_candidates",
         "reply_evaluation_records",
         "clarification_reply_records",
     }

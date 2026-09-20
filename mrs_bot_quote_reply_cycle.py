@@ -24,7 +24,10 @@ from logging import Logger
 from typing import TYPE_CHECKING
 
 from mrs_bot_runtime_state_helpers import append_unique_capped
-from mrs_bot_reply_state import mark_quote_tweet_replied, mark_quote_tweet_skipped
+from mrs_bot_reply_state import (
+    mark_quote_tweet_replied, mark_quote_tweet_skipped,
+    remove_pending_quote_candidate,
+)
 
 from mrs_bot_daily_reply_accounting import daily_author_reply_counts
 from mrs_bot_reply_context import clean_text_for_reply_context
@@ -215,6 +218,7 @@ def maybe_reply_to_quote_tweets(
     log_event: Callable,
     mark_quote_spam_author: Callable,
     now_epoch: Callable,
+    parse_x_datetime_to_epoch: Callable,
     quote_tweet_is_old_enough: Callable,
     record_api_error: Callable,
     reply_evaluations: ReplyEvaluations,
@@ -279,7 +283,7 @@ def maybe_reply_to_quote_tweets(
 
     own_post_ids_for_quote_lookup = build_quote_lookup_post_ids(state)
 
-    if not own_post_ids_for_quote_lookup:
+    if not own_post_ids_for_quote_lookup and not state.get("quote_pending_candidates"):
         log.info("No own posts available for quote lookup")
         return QUOTE_CHECK_STATUS_CHECKED
 
@@ -303,7 +307,8 @@ def maybe_reply_to_quote_tweets(
     # except for newly discovered spam authors.
     processed_candidates = 0
 
-    for original_post_id in own_post_ids_for_quote_lookup:
+    # Fetched work remains ours even after its original leaves the watched set.
+    for original_post_id in dict.fromkeys([*own_post_ids_for_quote_lookup, *quotes_by_post]):
         if processed_candidates >= config.maximum_candidates:
             break
         quote_tweets = quotes_by_post.get(original_post_id, [])
@@ -319,6 +324,7 @@ def maybe_reply_to_quote_tweets(
             get_tweet_by_id_cached=get_tweet_by_id_cached,
             in_api_cooldown=in_api_cooldown,
             log=log,
+            parse_x_datetime_to_epoch=parse_x_datetime_to_epoch,
             record_api_error=record_api_error,
             persistence=persistence,
         )
@@ -484,6 +490,7 @@ def _lookup_quote_candidates(
     get_tweet_by_id_cached: Callable,
     in_api_cooldown: Callable,
     log: Logger,
+    parse_x_datetime_to_epoch: Callable,
     record_api_error: Callable,
     persistence: ReplyCyclePersistence,
 ) -> tuple[dict, list] | SkipReplyCandidate | FinishReplyCheck:
@@ -493,6 +500,9 @@ def _lookup_quote_candidates(
     except ApiError as e:
         if api_error_is_permanent_target_failure(e):
             log.info("Original own post %s is unavailable; skipping quote lookup", original_post_id)
+            for quote in quote_tweets:
+                mark_quote_tweet_skipped(state, str(quote["id"]))
+            persistence.save(state, durable=True)
             return SkipReplyCandidate()
         log.exception("Failed to fetch original own post %s", original_post_id)
         record_api_error(state, e, "x", scope="quote")
@@ -507,9 +517,43 @@ def _lookup_quote_candidates(
 
     if not original_tweet:
         log.info("Could not find/fetch original own post %s", original_post_id)
+        for quote in quote_tweets:
+            mark_quote_tweet_skipped(state, str(quote["id"]))
+        persistence.save(state, durable=True)
         return SkipReplyCandidate()
 
-    return original_tweet, quote_tweets
+    # A frozen malformed timestamp must not block every subsequent search.
+    # Refresh only affected queued targets; ordinary young quotes keep waiting.
+    retained = []
+    for quote in quote_tweets:
+        quote_id = str(quote.get("id", ""))
+        if (
+            quote_id in state.get("quote_pending_candidates", {})
+            and parse_x_datetime_to_epoch(quote.get("created_at")) is None
+        ):
+            try:
+                fresh = get_tweet_by_id_cached(quote_id, state, include_media=True)
+            except ApiError as exc:
+                if not api_error_is_permanent_target_failure(exc):
+                    record_api_error(state, exc, "x", scope="quote")
+                    persistence.save(state, durable=True)
+                    return FinishReplyCheck(QUOTE_CHECK_STATUS_CHECKED)
+                fresh = None
+            except Exception:
+                log.exception("Could not refresh queued quote timestamp target_id=%s", quote_id)
+                persistence.save(state, durable=True)
+                return FinishReplyCheck(QUOTE_CHECK_STATUS_CHECKED)
+            if fresh is not None and str(fresh.get("id", "")) != quote_id:
+                raise ValueError("Queued quote refresh returned a different target")
+            if fresh is None or parse_x_datetime_to_epoch(fresh.get("created_at")) is None:
+                log.warning("Retiring queued quote with unavailable creation time target_id=%s", quote_id)
+                mark_quote_tweet_skipped(state, quote_id)
+                persistence.save(state, durable=True)
+                continue
+            quote.update(fresh)
+            persistence.save(state, durable=True)
+        retained.append(quote)
+    return original_tweet, retained
 
 
 def _candidate_is_eligible(
@@ -556,6 +600,8 @@ def _candidate_is_eligible(
         or quote_id in scan_history.skipped_quote_ids
     ):
         log.info("Skipping quote tweet %s: already seen/replied/skipped", quote_id)
+        if remove_pending_quote_candidate(state, quote_id):
+            persistence.save(state, durable=True)
         return False
 
     prior_evaluation = terminal_reply_evaluation(state, quote_id)

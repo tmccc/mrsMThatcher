@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import FrozenInstanceError
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 import inspect
 import json
@@ -216,7 +216,7 @@ def test_quote_context_preserves_budget_roles_reference_boundaries_and_media_bef
         incoming_maximum_chars=30, maximum_visible_chars=60,
         bound_visible_conversation=trace.bound_visible_conversation,
         reply_media_context_for_candidate=trace.media,
-        current_utc_datetime=lambda: datetime(2030, 2, 3),
+        current_utc_datetime=lambda: datetime(2030, 2, 3, tzinfo=timezone.utc),
     )
     trace.attach_mock(Mock(wraps=owner.post), "post")
     trace.attach_mock(Mock(wraps=owner.log_summary), "log_summary")
@@ -347,7 +347,7 @@ def test_context_keeps_usable_suffix_raw_ancestor_quote_and_media_copy_metadata_
         return result
 
     trace.media.side_effect = prepare_media
-    trace.clock.return_value = datetime(2030, 2, 3)
+    trace.clock.return_value = datetime(2030, 2, 3, tzinfo=timezone.utc)
     owner = make_owner(
         get_tweet_by_id_cached=lookup, always_fetch_parent=True, skip_own_auto_replies=False,
         bound_visible_conversation=trace.bound_visible_conversation,

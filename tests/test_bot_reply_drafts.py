@@ -33,6 +33,7 @@ def make_owner():
         options = dict(
             validate_persisted_draft=bot.validate_single_call_persisted_draft,
             evidence_repository=lambda: UNIT_REPLY_REPOSITORY,
+            comparison_replies=bot._reply_history_owner().recovery_replies,
             record_result=bot._record_single_call_result,
             log_event=bot.log_event,
             log=bot.log,
@@ -101,10 +102,14 @@ def test_root_owner_binds_current_dependencies_without_accessing_evidence(monkey
         current["evidence_repository"] = Mock()
         for field, root_name in names.items():
             monkeypatch.setattr(bot, root_name, current[field])
+        current["comparison_replies"] = Mock()
+        history = Mock(recovery_replies=current["comparison_replies"])
+        monkeypatch.setattr(bot, "_reply_history_owner", Mock(return_value=history))
         owner = bot._reply_draft_owner()
         assert isinstance(owner, reply_drafts.ReplyDrafts)
         assert all(getattr(owner, field) is value for field, value in current.items())
         current["evidence_repository"].assert_not_called()
+        current["comparison_replies"].assert_not_called()
         snapshots.append((owner, current))
     first, first_inputs = snapshots[0]
     assert all(getattr(first, field) is value for field, value in first_inputs.items())
@@ -205,6 +210,23 @@ def test_store_respects_reply_type_and_deep_copies_validated_record(make_owner):
     assert list(drafts) == ["mention:101"] and drafts["mention:101"] is retained
     owner.clear(state, "101", "mention")
     assert "pending_ai_reply_drafts" not in state
+
+
+def test_store_acquires_current_history_each_time_and_preserves_references(make_owner):
+    context = unit_reply_context()
+    reply = unit_approved_reply(context)
+    recent = [{"post_id": "9000", "text": "An earlier reply."}]
+    comparisons = Mock(return_value=recent)
+    validate = Mock(return_value=reply.draft_record)
+    owner = make_owner(comparison_replies=comparisons, validate_persisted_draft=validate)
+    state = {}
+    for _ in range(2):
+        assert owner.store(state, "100", "mention", reply, context=context)
+        assert comparisons.call_args.args[0] is state
+        assert comparisons.call_args.kwargs["context"] is context
+        assert validate.call_args.kwargs["recent_account_replies"] is recent
+        recent.append({"post_id": "9001", "text": "A newer confirmed reply."})
+    assert comparisons.call_count == 2
 
 
 def test_store_keeps_warning_native_exception_boundary_and_malformed_container(make_owner):

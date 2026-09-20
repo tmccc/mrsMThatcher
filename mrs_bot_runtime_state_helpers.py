@@ -69,6 +69,7 @@ def default_state(
         "seen_quote_post_ids": [],
         "replied_to_quote_post_ids": [],
         "skipped_quote_post_ids": [],
+        "quote_pending_candidates": {},
         "quote_lookup_pagination_tokens": {},
         "quote_search_pagination_tokens": {},
         "quote_lookup_repeated_cursor_suppressions": {},

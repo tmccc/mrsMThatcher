@@ -229,6 +229,53 @@ def test_pending_ai_reply_is_retired_if_confirmed_replies_now_duplicate_it() -> 
     }
 
 
+@pytest.mark.parametrize("lane", ["mention", "hot_post_reply", "quote_tweet"])
+def test_fresh_draft_checks_current_history_without_changing_model_context(
+    monkeypatch: pytest.MonkeyPatch,
+    lane: str,
+) -> None:
+    """Queued posts retain chronological context but cannot repeat newer replies."""
+
+    current = 2_000_000_000
+    text = "Responsibility matters more than rhetoric."
+    context = unit_reply_context(target_id="102", lane=lane)
+    state = bot.default_state()
+    state["ai_reply_history"] = [{
+        "target_id": "101",
+        "reply_post_id": "9000",
+        "candidate_source": "mention",
+        "reply_epoch": current - 1,
+        "proposed_reply": text,
+    }]
+    monkeypatch.setattr(bot, "now_epoch", lambda: current)
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
+    same_author, recent = bot._reply_history_owner().for_evaluation(
+        state, context=context, target_id="102",
+    )
+    assert same_author == [] and recent == []
+    transport = Mock(return_value={"response": response_envelope(raw_decision(
+        kind="principle", reply=text,
+    ))})
+    result = pipeline.run_reply_pipeline(
+        context=context,
+        config=enabled_config(),
+        repository=UNIT_REPLY_REPOSITORY,
+        transport=transport,
+        same_author_interactions=same_author,
+        recent_account_replies=recent,
+    )
+    assert result.status == "reply"
+    assert result.reply == text
+    before = copy.deepcopy(state)
+
+    assert not bot.store_pending_ai_reply(
+        state, "102", lane, result.reply, context=context,
+    )
+
+    assert state == before
+    assert transport.call_count == 1
+
+
 def test_duplicate_pending_draft_is_retired_and_later_mention_proceeds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

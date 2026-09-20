@@ -59,6 +59,17 @@ def retire_ineligible_reply_draft(
     )
 
 
+def remove_pending_quote_candidate(state: dict, quote_id: str) -> bool:
+    """Remove a handled quote from the fetched queue before its caller saves."""
+    pending = state.get("quote_pending_candidates")
+    if not isinstance(pending, dict) or str(quote_id) not in pending:
+        return False
+    pending = dict(pending)
+    pending.pop(str(quote_id))
+    state["quote_pending_candidates"] = pending
+    return True
+
+
 def mark_quote_tweet_skipped(
     state: dict,
     quote_id: str,
@@ -76,6 +87,7 @@ def mark_quote_tweet_skipped(
         quote_id,
         2000,
     )
+    remove_pending_quote_candidate(state, quote_id)
 
 
 def mark_quote_tweet_replied(
@@ -94,3 +106,4 @@ def mark_quote_tweet_replied(
         state.get("replied_to_quote_post_ids", []),
         quote_id,
     )
+    remove_pending_quote_candidate(state, quote_id)
