@@ -74,6 +74,20 @@ def canonical_transport_receipt_path_for_lane(
     }.get(str(lane))
 
 
+def _reply_payload_matches_receipt(
+    receipt: dict,
+    payload: dict,
+    expected_keys: set[str],
+) -> bool:
+    """Match one validated reply receipt to its exact allowed tweet fields."""
+    return (
+        set(payload) == expected_keys
+        and payload.get("text") == receipt.get("reply_text")
+        and payload.get("reply")
+        == {"in_reply_to_tweet_id": str(receipt.get("target_id"))}
+    )
+
+
 def transport_source_semantic_validator(
     lane: str,
     receipt: dict,
@@ -96,10 +110,7 @@ def transport_source_semantic_validator(
             expected_keys.add("made_with_ai")
         return bool(
             sending_reply_receipt_is_semantically_valid(receipt)
-            and set(payload) == expected_keys
-            and payload.get("text") == receipt.get("reply_text")
-            and payload.get("reply")
-            == {"in_reply_to_tweet_id": str(receipt.get("target_id"))}
+            and _reply_payload_matches_receipt(receipt, payload, expected_keys)
         )
     if lane == "historical_context_reply":
         from historical_context_formatter import HistoricalContextReplyStore
@@ -130,10 +141,7 @@ def _legacy_conversational_transport_source_semantic_validator(
         expected_keys.add("made_with_ai")
     return bool(
         _legacy_sending_reply_receipt_is_semantically_valid(receipt)
-        and set(payload) == expected_keys
-        and payload.get("text") == receipt.get("reply_text")
-        and payload.get("reply")
-        == {"in_reply_to_tweet_id": str(receipt.get("target_id"))}
+        and _reply_payload_matches_receipt(receipt, payload, expected_keys)
     )
 
 
