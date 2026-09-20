@@ -9,6 +9,16 @@ import re
 from typing import Any, Callable
 
 
+def historical_context_formatter_options(config: dict) -> dict[str, int | bool]:
+    """Project the same ordered options for semantic review and public formatting."""
+    return {
+        "maximum_length": int(config["maximum_length"]),
+        "include_meaning": bool(config["include_meaning"]),
+        "include_source": bool(config["include_source"]),
+        "include_verification": bool(config["include_verification"]),
+    }
+
+
 def context_reply_research_is_complete(packet: dict[str, Any]) -> bool:
     """Require supported attribution and a usable source before public delivery.
 
@@ -164,10 +174,7 @@ def maybe_post_historical_context_reply(
             }
         formatted = format_context_reply_public(
             packet,
-            maximum_length=int(historical_context_reply["maximum_length"]),
-            include_meaning=bool(historical_context_reply["include_meaning"]),
-            include_source=bool(historical_context_reply["include_source"]),
-            include_verification=bool(historical_context_reply["include_verification"]),
+            **historical_context_formatter_options(historical_context_reply),
         )
         if formatted is None:
             log.warning("Canonical packet could not produce a safe context reply quote_id=%s", packet["quote_id"])

@@ -64,7 +64,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'engagement_question_experiment', 'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt', 'reply_evidence', 'historical_context_reply_semantic_gate', 'bot_health'} or name.startswith('mrs_bot_') and name != 'mrs_bot_runtime_service_initialisation':
+    if name in {'engagement_question_experiment', 'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt', 'reply_evidence', 'historical_context_reply_semantic_gate', 'bot_health'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_runtime_service_initialisation', 'mrs_bot_historical_context_delivery'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 

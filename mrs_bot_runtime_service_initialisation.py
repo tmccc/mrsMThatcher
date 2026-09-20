@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from mrs_bot_historical_context_delivery import historical_context_formatter_options
+
 
 def initialise_bot_health_reporting(
     *,
@@ -132,14 +134,7 @@ def initialise_historical_context_semantic_gate(
     gate = load_historical_context_semantic_gate(
         root=BASE_DIR,
         eligible_quote_ids=eligible_quote_ids,
-        formatter_options={
-            "maximum_length": int(historical_context_reply["maximum_length"]),
-            "include_meaning": bool(historical_context_reply["include_meaning"]),
-            "include_source": bool(historical_context_reply["include_source"]),
-            "include_verification": bool(
-                historical_context_reply["include_verification"]
-            ),
-        },
+        formatter_options=historical_context_formatter_options(historical_context_reply),
     )
     _set_historical_context_semantic_gate(gate)
     if gate.available:
