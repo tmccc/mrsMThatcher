@@ -2,17 +2,17 @@
 
 Daily accounting and clarification behavior live in their respective owners;
 legacy helper names remain re-exported here for compatibility. Root adapters
-supply current eligibility and logging dependencies. Import performs no file,
+supply current identity, mutable patterns and logging; fixed regex operations
+use the standard library directly. Import performs no file,
 environment, clock, provider or RNG work.
 """
 
 from __future__ import annotations
 
 import logging
-from types import ModuleType
+import re
 
 from mrs_bot_daily_reply_accounting import daily_author_reply_counts
-
 from mrs_bot_reply_clarifications import (
     CLARIFICATION_CUE_RE,
     CLARIFICATION_TOKEN_RE,
@@ -26,7 +26,6 @@ def reply_target_is_directly_eligible(
     *,
     MY_USERNAME: str,
     MY_USER_ID: str,
-    re: ModuleType,
 ) -> bool:
     """Check only the target post itself for X reply eligibility evidence."""
     if str(tweet.get("author_id") or "") == str(MY_USER_ID):
@@ -61,7 +60,6 @@ def is_probably_spam_or_not_worth_replying(
     *,
     SPAMMY_PATTERNS: list[str],
     log: logging.Logger,
-    re: ModuleType,
 ) -> bool:
     """Return whether is probably spam or not worth replying."""
     low = text.lower().strip()

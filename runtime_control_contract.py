@@ -2,8 +2,8 @@
 
 Own supported keys, timestamp bounds and value validation. Callers retain their
 file readers, strict JSON parsing, clocks, caches and failure policies. Explicit
-parser dependencies preserve current date and epoch policy; fixed numeric grammar is local;
-importing this module performs no runtime I/O.
+parser dependencies preserve current date and epoch policy; fixed numeric
+grammar is local. Importing this module performs no runtime I/O.
 """
 
 from __future__ import annotations

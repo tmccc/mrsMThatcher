@@ -2,8 +2,9 @@
 
 Each root invocation binds current paths, file authorities and analysis loaders
 to UsedHistory. Load/save and source-verified migrations call owned operations
-directly. Pure coercion/sorting and fixed JSON, hashing, regex and basename transforms stay local; the shared image-normalization leaf
-also supports the historical simulator's deliberately different corpus proof.
+directly. Pure coercion/sorting and fixed JSON, hashing, regex and basename
+transforms stay local. The shared image-normalization leaf also supports the
+historical simulator's deliberately different corpus proof.
 No caller history is retained and import performs no runtime work.
 """
 from __future__ import annotations
@@ -11,7 +12,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path

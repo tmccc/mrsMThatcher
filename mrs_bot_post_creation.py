@@ -1,7 +1,9 @@
 """Receipt-bound media upload and public-post creation.
 
 Fixed media metadata, path values, post-ID checks and copying are owned here.
-The root supplies current runtime boundaries explicitly on each call. Import
+Private receipt-validation and payload-projection steps keep source checks
+separate from transaction orchestration. The root supplies current runtime
+boundaries explicitly on each call. Import
 performs no runtime work and retains no runtime authority.
 """
 from __future__ import annotations

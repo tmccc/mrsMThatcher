@@ -52,8 +52,8 @@ assert 'single_call_reply' not in sys.modules
 
 def test_adapters_forward_current_dependencies_arguments_references_and_errors(monkeypatch):
     for name, count in (
-        ("reply_target_is_directly_eligible", 3),
-        ("is_probably_spam_or_not_worth_replying", 3),
+        ("reply_target_is_directly_eligible", 2),
+        ("is_probably_spam_or_not_worth_replying", 2),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
@@ -82,11 +82,11 @@ def test_adapters_forward_current_dependencies_arguments_references_and_errors(m
             assert caught.value is failure
 
 
-def test_target_own_author_and_structured_entities_precede_current_text_regex(monkeypatch):
+def test_target_own_author_and_structured_entities_precede_text_regex(monkeypatch):
     monkeypatch.setattr(bot, "MY_USER_ID", "42")
     monkeypatch.setattr(bot, "MY_USERNAME", "Current")
     current_re = SimpleNamespace(search=Mock(wraps=re.search), escape=re.escape, IGNORECASE=re.IGNORECASE)
-    monkeypatch.setattr(bot, "re", current_re)
+    monkeypatch.setattr(policy, "re", current_re)
     assert bot.reply_target_is_directly_eligible({"author_id": 42, "entities": {}}) is True
     assert bot.reply_target_is_directly_eligible({"text": "@Current", "entities": {"mentions": None}}) is False
     current_re.search.assert_not_called()
@@ -102,7 +102,7 @@ def test_target_own_author_and_structured_entities_precede_current_text_regex(mo
 def test_spam_preserves_current_pattern_order_raw_logs_and_thresholds(monkeypatch):
     trace = Mock()
     trace.search.side_effect = [None, True]
-    monkeypatch.setattr(bot, "re", SimpleNamespace(search=trace.search))
+    monkeypatch.setattr(policy, "re", SimpleNamespace(search=trace.search))
     monkeypatch.setattr(bot, "log", trace.log)
     monkeypatch.setattr(bot, "SPAMMY_PATTERNS", ["first", "second", "unreached"])
     raw = "  CURRENT Text!!!!! "

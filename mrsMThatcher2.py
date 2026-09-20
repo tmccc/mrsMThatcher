@@ -3512,7 +3512,6 @@ def reply_target_is_directly_eligible(tweet: dict) -> bool:
         tweet,
         MY_USERNAME=MY_USERNAME,
         MY_USER_ID=MY_USER_ID,
-        re=re,
     )
 
 
@@ -6932,7 +6931,6 @@ def is_probably_spam_or_not_worth_replying(text: str) -> bool:
         text,
         SPAMMY_PATTERNS=SPAMMY_PATTERNS,
         log=log,
-        re=re,
     )
 
 

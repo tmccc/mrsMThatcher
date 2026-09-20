@@ -1,7 +1,7 @@
 """Own confirmed reply history recording and the history supplied to replies.
 
-ReplyHistory binds current limits and external identity/clock helpers without
-retaining caller state. Recording preserves confirmed receipt metadata and
+ReplyHistory binds current limits, quoted-post lookup and clocks without
+retaining caller state. Fixed post-ID validation comes from receipt primitives. Recording preserves confirmed receipt metadata and
 retention rules; evaluation and recovery use their distinct time boundaries.
 Selectors call each other directly and retain existing row references and
 ordering. Reconciliation owns durable saves, posting telemetry and receipt

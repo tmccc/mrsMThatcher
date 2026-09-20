@@ -1,7 +1,8 @@
 """Transport source preparation and final receipt gates.
 
-The root supplies current runtime dependencies explicitly on each call. This
-module performs no runtime work at import and retains no runtime authority.
+Current and frozen reply validators share exact payload matching after their
+separate receipt checks. The root supplies current runtime dependencies on each
+call. Import performs no runtime work and retains no runtime authority.
 """
 from __future__ import annotations
 
