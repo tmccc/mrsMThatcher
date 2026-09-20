@@ -20,6 +20,8 @@ from logging import Logger
 from pathlib import Path
 from types import ModuleType
 
+from mrs_bot_reply_state import handled_reply_target_ids
+
 
 def pending_mention_candidates(
     state: dict,
@@ -281,11 +283,7 @@ def get_mentions(
                 if isinstance(state.get("mention_backlog"), dict)
                 else ""
             )
-            replied_ids = {
-                str(value)
-                for key in ("replied_to_ids", "replied_to_quote_post_ids")
-                for value in state.get(key, [])
-            }
+            replied_ids = handled_reply_target_ids(state)
             for mention in valid_page:
                 mention_id = str(mention["id"])
                 if (

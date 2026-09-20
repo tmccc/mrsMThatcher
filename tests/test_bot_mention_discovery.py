@@ -11,6 +11,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_mention_discovery as discovery
+import mrs_bot_reply_state as reply_state
 from tests.helpers.mention_fixtures import (
     install_mention_pages,
     mention,
@@ -31,7 +32,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name != 'mrs_bot_mention_discovery':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_mention_discovery', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -52,6 +53,7 @@ assert 'requests' not in sys.modules
         capture_output=True, text=True, timeout=20,
     )
     assert result.returncode == 0, result.stderr + result.stdout
+    assert discovery.handled_reply_target_ids is reply_state.handled_reply_target_ids
 
 
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
