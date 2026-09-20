@@ -65,8 +65,6 @@ assert 'single_call_reply' not in sys.modules
 
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
     names = (
-        "write_confirmed_reply_receipt",
-        "write_sending_reply_receipt",
         "retire_proved_rejected_conversational_reply_receipt",
     )
     assert_adapters_forward_current_dependencies(
@@ -77,15 +75,20 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
 @pytest.mark.parametrize("name", [
     "load_confirmed_reply_receipt", "post_conversational_reply_with_durable_identity",
     "promote_sending_reply_receipt", "_promote_legacy_sending_reply_receipt_from_confirmed_transport",
+    "write_confirmed_reply_receipt", "write_sending_reply_receipt",
 ])
 def test_value_adapters_bind_current_owner_and_preserve_dependencies_and_results(monkeypatch, name):
     adapter = getattr(bot, name)
     legacy_recovery = name == "_promote_legacy_sending_reply_receipt_from_confirmed_transport"
-    implementation_name = "promote_sending_reply_receipt" if legacy_recovery else name
+    implementation_name = {
+        "_promote_legacy_sending_reply_receipt_from_confirmed_transport": "promote_sending_reply_receipt",
+        "write_confirmed_reply_receipt": "write_reply_receipt",
+        "write_sending_reply_receipt": "write_reply_receipt",
+    }.get(name, name)
     public = inspect.signature(adapter).parameters
     dependencies = (
         inspect.signature(getattr(delivery, implementation_name)).parameters.keys()
-        - public.keys() - {"receipt_values", "legacy_recovery"}
+        - public.keys() - {"receipt_values", "legacy_recovery", "confirmed"}
     )
     args = tuple(object() for parameter in public.values()
                  if parameter.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD)
@@ -114,6 +117,8 @@ def test_value_adapters_bind_current_owner_and_preserve_dependencies_and_results
         expected = {**options, **current, "receipt_values": owner}
         if implementation_name == "promote_sending_reply_receipt":
             expected["legacy_recovery"] = legacy_recovery
+        elif implementation_name == "write_reply_receipt":
+            expected["confirmed"] = name == "write_confirmed_reply_receipt"
         assert actual_kwargs.keys() == expected.keys()
         assert all(actual_kwargs[key] is value for key, value in expected.items())
         assert not owner.mock_calls
@@ -186,7 +191,10 @@ def test_writer_checks_retirement_namespace_validation_then_create_and_preserves
     ):
         callback = Mock(return_value=result)
         trace.attach_mock(callback, label)
-        monkeypatch.setattr(bot, name, callback)
+        if label == "validation":
+            patch_reply_owner_method(monkeypatch, values.ReplyReceiptValues, f"{lifecycle}_is_valid", callback)
+        else:
+            monkeypatch.setattr(bot, name, callback)
     writer = getattr(bot, f"write_{lifecycle}_reply_receipt")
     writer(receipt)
     assert trace.mock_calls == [call.retirement(), call.namespace(bot.CONFIRMED_REPLY_RECEIPT_FILE),
@@ -203,7 +211,21 @@ def test_writer_checks_retirement_namespace_validation_then_create_and_preserves
     with pytest.raises(bot.InvalidConfirmedReplyReceipt, match="unresolved"):
         writer(receipt)
     assert [entry[0] for entry in trace.mock_calls] == ["retirement", "namespace"]
+    trace.reset_mock()
     trace.namespace.return_value = False
+    trace.validation.return_value = False
+    with pytest.raises(RuntimeError, match="failed .*validation"):
+        writer(receipt)
+    assert [entry[0] for entry in trace.mock_calls] == ["retirement", "namespace", "validation"]
+    trace.reset_mock()
+    failure = TypeError("receipt validation failed")
+    trace.validation.side_effect = failure
+    with pytest.raises(TypeError) as caught:
+        writer(receipt)
+    assert caught.value is failure
+    assert [entry[0] for entry in trace.mock_calls] == ["retirement", "namespace", "validation"]
+    trace.validation.side_effect = None
+    trace.validation.return_value = True
     race = FileExistsError("entry appeared")
     trace.create.side_effect = race
     with pytest.raises(bot.InvalidConfirmedReplyReceipt, match="appeared during publication") as caught:

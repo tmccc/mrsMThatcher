@@ -87,6 +87,8 @@ fresh outer mapping. Current and frozen legacy source promotions use the same
 transaction operation with their separate validators; journal binding, exact
 source bytes and replacement authority remain in delivery. Root compatibility
 entry points and receipt-removal commit-proof checks are unchanged.
+Sending and confirmed receipt publication also share one operation, keeping
+retirement, namespace, validation and exclusive-create checks in that order.
 
 For a change to saved-draft behaviour, start with `ReplyDrafts`. Its `store`,
 `recover` and `receipt_draft_is_valid` methods call its own `validate` method;

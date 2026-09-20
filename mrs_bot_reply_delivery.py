@@ -203,82 +203,64 @@ def load_confirmed_reply_receipt(
     return "valid", data
 
 
-def write_confirmed_reply_receipt(
+def write_reply_receipt(
     receipt: dict,
     *,
+    confirmed: bool,
     remote_receipt_retirement_is_blocking: Callable,
     InvalidConfirmedReplyReceipt: type[Exception],
     receipt_namespace_entry_exists: Callable,
     CONFIRMED_REPLY_RECEIPT_FILE: Path,
-    confirmed_reply_receipt_is_semantically_valid: Callable,
+    receipt_values: ReplyReceiptValues,
     durable_create_receipt_json: Callable,
     log: logging.Logger,
 ) -> None:
-    """Write confirmed reply receipt."""
+    """Publish a validated sending or confirmed receipt without overwriting recovery.
+
+    Retirement and namespace checks precede value validation. Exclusive creation
+    handles a namespace race without replacing the competing receipt; each
+    lifecycle retains its existing diagnostic and confirmation log fields.
+    """
+    receipt_label = "confirmed-reply" if confirmed else "conversational-reply"
     if remote_receipt_retirement_is_blocking():
         raise InvalidConfirmedReplyReceipt(
-            "Refusing confirmed-reply publication during source-receipt retirement"
+            f"Refusing {receipt_label} publication during source-receipt retirement"
         )
     if receipt_namespace_entry_exists(CONFIRMED_REPLY_RECEIPT_FILE):
         raise InvalidConfirmedReplyReceipt(
-            f"Refusing to overwrite unresolved confirmed-reply receipt: {CONFIRMED_REPLY_RECEIPT_FILE}"
+            f"Refusing to overwrite unresolved {receipt_label} receipt: {CONFIRMED_REPLY_RECEIPT_FILE}"
         )
-    if not confirmed_reply_receipt_is_semantically_valid(receipt):
-        raise RuntimeError("Internal error: generated confirmed-reply receipt failed semantic validation")
+    valid = (
+        receipt_values.confirmed_is_valid(receipt)
+        if confirmed else receipt_values.sending_is_valid(receipt)
+    )
+    if not valid:
+        raise RuntimeError(
+            "Internal error: generated confirmed-reply receipt failed semantic validation"
+            if confirmed else "Internal error: generated sending-reply receipt failed validation"
+        )
     try:
         durable_create_receipt_json(CONFIRMED_REPLY_RECEIPT_FILE, receipt)
     except FileExistsError as exc:
         raise InvalidConfirmedReplyReceipt(
-            "Refusing to overwrite a confirmed-reply namespace entry which "
+            f"Refusing to overwrite a {receipt_label} namespace entry which "
             "appeared during publication"
         ) from exc
-    log.warning(
-        "Wrote confirmed reply receipt pending local reconciliation source=%s target_id=%s reply_post_id=%s path=%s",
-        receipt.get("candidate_source", "mention"),
-        receipt.get("target_id"),
-        receipt.get("reply_post_id"),
-        CONFIRMED_REPLY_RECEIPT_FILE,
-    )
-
-
-def write_sending_reply_receipt(
-    receipt: dict,
-    *,
-    remote_receipt_retirement_is_blocking: Callable,
-    InvalidConfirmedReplyReceipt: type[Exception],
-    receipt_namespace_entry_exists: Callable,
-    CONFIRMED_REPLY_RECEIPT_FILE: Path,
-    sending_reply_receipt_is_semantically_valid: Callable,
-    durable_create_receipt_json: Callable,
-    log: logging.Logger,
-) -> None:
-    """Durably record a reply transaction before its remote create request."""
-    if remote_receipt_retirement_is_blocking():
-        raise InvalidConfirmedReplyReceipt(
-            "Refusing conversational-reply publication during source-receipt retirement"
+    if confirmed:
+        log.warning(
+            "Wrote confirmed reply receipt pending local reconciliation source=%s target_id=%s reply_post_id=%s path=%s",
+            receipt.get("candidate_source", "mention"),
+            receipt.get("target_id"),
+            receipt.get("reply_post_id"),
+            CONFIRMED_REPLY_RECEIPT_FILE,
         )
-    if receipt_namespace_entry_exists(CONFIRMED_REPLY_RECEIPT_FILE):
-        raise InvalidConfirmedReplyReceipt(
-            "Refusing to overwrite unresolved conversational-reply receipt: "
-            f"{CONFIRMED_REPLY_RECEIPT_FILE}"
+    else:
+        log.warning(
+            "Wrote conversational reply sending receipt source=%s target_id=%s path=%s",
+            receipt.get("candidate_source", "mention"),
+            receipt.get("target_id"),
+            CONFIRMED_REPLY_RECEIPT_FILE,
         )
-    if not sending_reply_receipt_is_semantically_valid(receipt):
-        raise RuntimeError(
-            "Internal error: generated sending-reply receipt failed validation"
-        )
-    try:
-        durable_create_receipt_json(CONFIRMED_REPLY_RECEIPT_FILE, receipt)
-    except FileExistsError as exc:
-        raise InvalidConfirmedReplyReceipt(
-            "Refusing to overwrite a conversational-reply namespace entry "
-            "which appeared during publication"
-        ) from exc
-    log.warning(
-        "Wrote conversational reply sending receipt source=%s target_id=%s path=%s",
-        receipt.get("candidate_source", "mention"),
-        receipt.get("target_id"),
-        CONFIRMED_REPLY_RECEIPT_FILE,
-    )
 
 
 def promote_sending_reply_receipt(

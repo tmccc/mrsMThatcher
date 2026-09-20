@@ -8276,13 +8276,14 @@ def load_confirmed_reply_receipt() -> tuple[str, dict | None]:
 
 def write_confirmed_reply_receipt(receipt: dict) -> None:
     """Write confirmed reply receipt."""
-    return _reply_delivery.write_confirmed_reply_receipt(
+    return _reply_delivery.write_reply_receipt(
         receipt,
+        confirmed=True,
         remote_receipt_retirement_is_blocking=remote_receipt_retirement_is_blocking,
         InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
         receipt_namespace_entry_exists=receipt_namespace_entry_exists,
         CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
-        confirmed_reply_receipt_is_semantically_valid=confirmed_reply_receipt_is_semantically_valid,
+        receipt_values=_reply_receipt_values_owner(),
         durable_create_receipt_json=durable_create_receipt_json,
         log=log,
     )
@@ -8290,13 +8291,14 @@ def write_confirmed_reply_receipt(receipt: dict) -> None:
 
 def write_sending_reply_receipt(receipt: dict) -> None:
     """Durably record a reply transaction before its remote create request."""
-    return _reply_delivery.write_sending_reply_receipt(
+    return _reply_delivery.write_reply_receipt(
         receipt,
+        confirmed=False,
         remote_receipt_retirement_is_blocking=remote_receipt_retirement_is_blocking,
         InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
         receipt_namespace_entry_exists=receipt_namespace_entry_exists,
         CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
-        sending_reply_receipt_is_semantically_valid=sending_reply_receipt_is_semantically_valid,
+        receipt_values=_reply_receipt_values_owner(),
         durable_create_receipt_json=durable_create_receipt_json,
         log=log,
     )
