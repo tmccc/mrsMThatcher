@@ -17,7 +17,7 @@ import mrs_bot_daily_reply_accounting as accounting_owner
 import mrs_bot_reply_cycle_interfaces as interfaces
 from mrs_bot_reply_clarifications import ClarificationReplies
 import mrs_bot_reply_evaluation_state as evaluation_state
-import mrs_bot_reply_state as reply_state
+import mrs_bot_reply_drafts as reply_drafts
 from tests.helpers.mention_fixtures import (
     editorial_no_reply,
     mention,
@@ -156,7 +156,6 @@ def test_fixed_statuses_and_dependency_free_helpers_use_their_owners():
         assert getattr(cycle, name) is value
         assert getattr(bot, name) is value
     for name, owner in (
-        ("pending_ai_reply_draft_key", reply_state),
         ("completed_mention_watermark_covers_target", evaluation_state),
         ("terminal_reply_evaluation", evaluation_state),
         ("clear_author_evaluation_quarantine_history", quarantine_owner),
@@ -306,8 +305,8 @@ def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_sa
         "strategy_version": "stored-strategy", "reply_kind": "direct_reply",
         "reason_code": "answer_question", "validated_draft_hash": "stored-hash",
     }}
-    key = Mock(wraps=cycle.pending_ai_reply_draft_key)
-    monkeypatch.setattr(cycle, "pending_ai_reply_draft_key", key)
+    key = Mock(wraps=reply_drafts.pending_ai_reply_draft_key)
+    monkeypatch.setattr(reply_drafts, "pending_ai_reply_draft_key", key)
     trace = []
 
     for label, name in (
@@ -346,7 +345,7 @@ def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_sa
         ("terminal", None), ("mark", None), ("reply_target_terminal", None),
         ("seen", None), ("save", True), ("save", None),
     ]
-    key.assert_called_once_with("105", "mention")
+    assert key.call_args_list == [call("105", "mention"), call("105", "mention")]
     saved = json.loads(bot.STATE_FILE.read_text())
     assert "pending_ai_reply_drafts" not in saved
     assert saved["mention_pending_candidates"] == {}

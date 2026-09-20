@@ -16,7 +16,7 @@ from tests.helpers.bot_fixtures import (
     invalid_pagination_cursor_error,
     isolate_bot_runtime,  # noqa: F401
 )
-from tests.helpers.reply_fixtures import unit_approved_reply, unit_reply_context
+from tests.helpers.reply_fixtures import patch_reply_draft_method, unit_approved_reply, unit_reply_context
 
 
 def test_import_needs_no_runtime_access():
@@ -55,7 +55,7 @@ assert 'requests' not in sys.modules
 
 def test_adapters_forward_current_dependencies_arguments_defaults_results_and_errors(monkeypatch):
     counts = {
-        "get_hot_post_reply_candidates": 27,
+        "get_hot_post_reply_candidates": 26,
         "mark_hot_post_reply_skipped": 3,
         "maybe_mark_hot_post_reply_skipped": 1,
         "dedupe_reply_candidates": 2,
@@ -73,9 +73,16 @@ def test_adapters_forward_current_dependencies_arguments_defaults_results_and_er
             patch.setattr(discovery, name, owner)
             for _ in range(2):
                 current = {key: object() for key in dependencies}
+                factory = None
                 for key, value in current.items():
-                    patch.setattr(bot, key, value)
+                    if key == "retire_ineligible_draft":
+                        factory = Mock(return_value=Mock(retire_ineligible=value))
+                        patch.setattr(bot, "_reply_draft_owner", factory)
+                    else:
+                        patch.setattr(bot, key, value)
                 assert adapter(*args, **kwargs) is result
+                if factory is not None:
+                    factory.assert_called_once_with()
                 actual_args, actual_kwargs = owner.call_args
                 assert len(actual_args) == len(args)
                 assert all(actual is expected for actual, expected in zip(actual_args, args))
@@ -175,7 +182,7 @@ def test_discovery_keeps_draft_terminal_media_cache_and_save_order_and_reference
         ("terminal", "record_terminal_reply_evaluation"), ("mark", "mark_hot_post_reply_skipped"),
         ("cache", "cache_tweet"), ("save", "save_state"),
     ):
-        original = getattr(bot, name)
+        original = bot._reply_draft_owner().clear if label == "clear" else getattr(bot, name)
 
         def observe(*args, _label=label, _callback=original, **kwargs):
             trace.append(_label)
@@ -188,7 +195,10 @@ def test_discovery_keeps_draft_terminal_media_cache_and_save_order_and_reference
 
         callback = Mock(side_effect=observe)
         calls[label] = callback
-        monkeypatch.setattr(bot, name, callback)
+        if label == "clear":
+            patch_reply_draft_method(monkeypatch, "clear", callback)
+        else:
+            monkeypatch.setattr(bot, name, callback)
 
     def event(name, **values):
         trace.append(name)

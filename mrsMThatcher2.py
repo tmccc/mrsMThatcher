@@ -3914,7 +3914,7 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
         attach_media_to_tweets=attach_media_to_tweets,
         normalise_tweet_text=normalise_tweet_text,
         cache_tweet=cache_tweet,
-        clear_pending_ai_reply=clear_pending_ai_reply,
+        retire_ineligible_draft=_reply_draft_owner().retire_ineligible,
         in_api_cooldown=in_api_cooldown,
         lane_paused=lane_paused,
         load_extra_quote_watch_post_ids=load_extra_quote_watch_post_ids,
@@ -3922,7 +3922,6 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
         log_event=log_event,
         log_json_debug=log_json_debug,
         mark_hot_post_reply_skipped=mark_hot_post_reply_skipped,
-        pending_ai_reply_draft_key=pending_ai_reply_draft_key,
         record_terminal_reply_evaluation=record_terminal_reply_evaluation,
         reply_target_is_directly_eligible=reply_target_is_directly_eligible,
         save_state=save_state,
@@ -8634,6 +8633,7 @@ def _reply_cycle_persistence() -> _reply_cycle_interfaces.ReplyCyclePersistence:
     return _reply_cycle_interfaces.ReplyCyclePersistence(
         save=save_state, recover=drafts.recover,
         store=drafts.store, clear=drafts.clear,
+        retire_ineligible=drafts.retire_ineligible,
     )
 
 

@@ -8,7 +8,7 @@ import inspect
 from pathlib import Path
 import subprocess
 import sys
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -19,6 +19,7 @@ from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import (
     UNIT_REPLY_REPOSITORY,
+    patch_reply_draft_method,
     unit_approved_reply,
     unit_confirmed_reply_receipt,
     unit_reply_context,
@@ -463,3 +464,65 @@ def test_receipt_validation_keeps_short_circuit_direct_equality_and_exception_bo
     validate.return_value = {}
     with pytest.raises(KeyError, match="proposed_reply"):
         owner.receipt_draft_is_valid(receipt, "42")
+
+
+@pytest.mark.parametrize("drafts", [None, [], {}, {"custom-key": None}, {"custom-key": "obsolete"}, {"custom-key": {}}])
+def test_ineligible_retirement_keeps_missing_and_malformed_draft_behavior(make_owner, monkeypatch, drafts):
+    state = {} if drafts is None else {"pending_ai_reply_drafts": drafts}
+    before = copy.deepcopy(state)
+    trace = Mock()
+    trace.key.return_value = "custom-key"
+    monkeypatch.setattr(reply_drafts, "pending_ai_reply_draft_key", trace.key)
+    patch_reply_draft_method(monkeypatch, "clear", trace.clear)
+    evidence = Mock()
+    owner = make_owner(log_event=trace.event, evidence_repository=evidence)
+    owner.retire_ineligible(state, "101", "hot_post_reply")
+    expected = [call.key("101", "hot_post_reply")]
+    if drafts == {"custom-key": {}}:
+        expected.extend([
+            call.event(
+                "single_call_reply_posting_outcome",
+                status="posting_failed_terminal", lane="hot_post_reply",
+                target_id="101", reply_post_id="", strategy_version=None,
+                reply_kind=None, reason_code=None, validated_draft_hash=None,
+                failure_reason="reply_not_permitted_preflight",
+            ),
+            call.clear(state, "101", "hot_post_reply"),
+        ])
+    assert trace.mock_calls == expected
+    assert state == before
+    evidence.assert_not_called()
+
+
+@pytest.mark.parametrize("boundary", [None, "key", "event", "clear"])
+def test_ineligible_retirement_preserves_metadata_order_and_failures(make_owner, monkeypatch, boundary):
+    draft = {
+        "strategy_version": "stored-strategy", "reply_kind": "direct_reply",
+        "reason_code": "answer_question", "validated_draft_hash": "stored-hash",
+    }
+    state = {"pending_ai_reply_drafts": {"custom-key": draft}}
+    trace = Mock()
+    trace.key.return_value = "custom-key"
+    monkeypatch.setattr(reply_drafts, "pending_ai_reply_draft_key", trace.key)
+    patch_reply_draft_method(monkeypatch, "clear", trace.clear)
+    owner = make_owner(log_event=trace.event)
+    failure = RuntimeError("retirement callback failed")
+    if boundary:
+        getattr(trace, boundary).side_effect = failure
+        with pytest.raises(RuntimeError) as caught:
+            owner.retire_ineligible(state, "101", "mention")
+        assert caught.value is failure
+    else:
+        owner.retire_ineligible(state, "101", "mention")
+    expected = [
+        call.key("101", "mention"),
+        call.event(
+            "single_call_reply_posting_outcome", status="posting_failed_terminal",
+            lane="mention", target_id="101", reply_post_id="", **draft,
+            failure_reason="reply_not_permitted_preflight",
+        ),
+        call.clear(state, "101", "mention"),
+    ]
+    if boundary:
+        expected = expected[:["key", "event", "clear"].index(boundary) + 1]
+    assert trace.mock_calls == expected

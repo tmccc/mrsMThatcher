@@ -89,7 +89,7 @@ def test_cycle_boundaries_capture_current_callbacks_and_config_between_calls(mon
         histories.append(history)
         drafts = draft_owners[-1]
         assert persistence.save is save
-        for method in ("recover", "store", "clear"):
+        for method in ("recover", "store", "clear", "retire_ineligible"):
             bound_method = getattr(persistence, method)
             assert bound_method.__self__ is drafts
             assert bound_method.__func__ is getattr(type(drafts), method)

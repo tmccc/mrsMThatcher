@@ -78,6 +78,7 @@ def preparation(request, monkeypatch):
     trace.bind.return_value = bound
     persistence = ReplyCyclePersistence(
         save=trace.save, store=trace.store, recover=Mock(), clear=Mock(),
+        retire_ineligible=Mock(),
     )
     delivery = ReplyCycleDelivery(
         load_receipt=Mock(), reconcile_receipt=Mock(), block_ambiguous=Mock(),

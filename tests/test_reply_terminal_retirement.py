@@ -77,6 +77,7 @@ def prepare_delivery(lane, outcome, *, save_failure=None, retirement_failure=Non
     trace.append.side_effect = lambda values, target_id: [*values, target_id]
     persistence = ReplyCyclePersistence(
         save=trace.save, recover=Mock(), store=Mock(), clear=trace.clear,
+        retire_ineligible=Mock(),
     )
     delivery = ReplyCycleDelivery(
         load_receipt=Mock(), reconcile_receipt=Mock(), block_ambiguous=Mock(),

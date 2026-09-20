@@ -25,34 +25,16 @@ def retire_ineligible_reply_draft(
     candidate_source: str,
     *,
     reason: str,
-    pending_ai_reply_draft_key: Callable,
-    log_event: Callable,
-    clear_pending_ai_reply: Callable,
+    retire_draft: Callable[[dict, str, str], None],
     record_terminal_reply_evaluation: Callable,
 ) -> None:
-    """Log and clear a dict-shaped draft, then record ineligible evaluation.
+    """Retire the draft through its owner, then record ineligible evaluation.
 
     Missing or malformed drafts still receive the terminal evaluation. Caller
     callbacks retain their order and failures propagate before later callbacks;
     candidate bookkeeping and durable saves remain with the calling lane.
     """
-    drafts = state.get("pending_ai_reply_drafts", {})
-    pending_key = pending_ai_reply_draft_key(target_id, candidate_source)
-    pending_record = drafts.get(pending_key) if isinstance(drafts, dict) else None
-    if isinstance(pending_record, dict):
-        log_event(
-            "single_call_reply_posting_outcome",
-            status="posting_failed_terminal",
-            lane=candidate_source,
-            target_id=target_id,
-            reply_post_id="",
-            strategy_version=pending_record.get("strategy_version"),
-            reply_kind=pending_record.get("reply_kind"),
-            reason_code=pending_record.get("reason_code"),
-            validated_draft_hash=pending_record.get("validated_draft_hash"),
-            failure_reason="reply_not_permitted_preflight",
-        )
-        clear_pending_ai_reply(state, target_id, candidate_source)
+    retire_draft(state, target_id, candidate_source)
     record_terminal_reply_evaluation(
         state,
         target_id=target_id,

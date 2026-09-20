@@ -39,7 +39,7 @@ def get_hot_post_reply_candidates(
     attach_media_to_tweets: Callable,
     normalise_tweet_text: Callable,
     cache_tweet: Callable,
-    clear_pending_ai_reply: Callable,
+    retire_ineligible_draft: Callable[[dict, str, str], None],
     in_api_cooldown: Callable,
     lane_paused: Callable,
     load_extra_quote_watch_post_ids: Callable,
@@ -47,7 +47,6 @@ def get_hot_post_reply_candidates(
     log_event: Callable,
     log_json_debug: Callable,
     mark_hot_post_reply_skipped: Callable,
-    pending_ai_reply_draft_key: Callable,
     record_terminal_reply_evaluation: Callable,
     reply_target_is_directly_eligible: Callable,
     save_state: Callable,
@@ -289,9 +288,7 @@ def get_hot_post_reply_candidates(
                     reply_id,
                     "hot_post_reply",
                     reason=reason,
-                    pending_ai_reply_draft_key=pending_ai_reply_draft_key,
-                    log_event=log_event,
-                    clear_pending_ai_reply=clear_pending_ai_reply,
+                    retire_draft=retire_ineligible_draft,
                     record_terminal_reply_evaluation=record_terminal_reply_evaluation,
                 )
                 mark_hot_post_reply_skipped(

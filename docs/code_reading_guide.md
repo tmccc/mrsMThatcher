@@ -74,9 +74,12 @@ draft, a terminal validation failure and a reusable reply with zero model calls.
 Confirmation uses `clear_target` to retire drafts across reply lanes;
 emergency replay checks use `has_target` with the same lane coverage. Both
 operations retain other drafts and require no evidence access or durable save.
+`retire_ineligible` logs and clears a rejected target's saved draft before the
+reply-state coordinator records the terminal evaluation; each lane still owns
+candidate bookkeeping and saving.
 The root's `_reply_draft_owner()` binds current dependencies without loading
 evidence. `_reply_cycle_persistence()` creates one owner per cycle invocation
-and supplies its bound `recover`, `store` and `clear` methods alongside the
+and supplies its bound `recover`, `store`, `clear` and `retire_ineligible` methods alongside the
 existing durable-save callback. Root draft functions remain compatibility entry
 points. Draft behaviour tests live in `tests/test_bot_reply_drafts.py`; cycle
 tests retain budget, save-order and terminal-retirement checks.

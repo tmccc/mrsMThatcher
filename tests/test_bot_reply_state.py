@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 from pathlib import Path
 import subprocess
 import sys
@@ -51,61 +50,18 @@ assert 'single_call_reply' not in sys.modules
         assert getattr(bot, name) is getattr(reply_state, name)
 
 
-@pytest.mark.parametrize("drafts", [None, [], {}, {"custom-key": None}, {"custom-key": "obsolete"}, {"custom-key": {}}])
-def test_ineligible_draft_retirement_keeps_missing_and_malformed_draft_behavior(drafts):
-    state = {} if drafts is None else {"pending_ai_reply_drafts": drafts}
-    before = copy.deepcopy(state)
+@pytest.mark.parametrize("boundary", [None, "retire", "terminal"])
+def test_ineligible_retirement_delegates_before_terminal_record_and_preserves_errors(boundary):
+    state, target, source, reason = {}, object(), object(), object()
     trace = Mock()
-    trace.key.return_value = "custom-key"
-
-    reply_state.retire_ineligible_reply_draft(
-        state, "101", "hot_post_reply",
-        reason="target_does_not_directly_mention_account",
-        pending_ai_reply_draft_key=trace.key,
-        log_event=trace.event,
-        clear_pending_ai_reply=trace.clear,
-        record_terminal_reply_evaluation=trace.terminal,
-    )
-
-    expected = [call.key("101", "hot_post_reply")]
-    if drafts == {"custom-key": {}}:
-        expected.extend([
-            call.event(
-                "single_call_reply_posting_outcome",
-                status="posting_failed_terminal", lane="hot_post_reply",
-                target_id="101", reply_post_id="", strategy_version=None,
-                reply_kind=None, reason_code=None, validated_draft_hash=None,
-                failure_reason="reply_not_permitted_preflight",
-            ),
-            call.clear(state, "101", "hot_post_reply"),
-        ])
-    expected.append(call.terminal(
-        state, target_id="101", lane="hot_post_reply",
-        reason="target_does_not_directly_mention_account", outcome="reply_not_permitted",
-    ))
-    assert trace.mock_calls == expected
-    assert state == before  # State mutation belongs to the supplied callbacks.
-
-
-@pytest.mark.parametrize("boundary", [None, "key", "event", "clear", "terminal"])
-def test_ineligible_draft_retirement_preserves_metadata_order_and_callback_failures(boundary):
-    draft = {
-        "strategy_version": "stored-strategy", "reply_kind": "direct_reply",
-        "reason_code": "answer_question", "validated_draft_hash": "stored-hash",
-    }
-    state = {"pending_ai_reply_drafts": {"custom-key": draft}}
-    trace = Mock()
-    trace.key.return_value = "custom-key"
     failure = RuntimeError("retirement callback failed")
     if boundary:
         getattr(trace, boundary).side_effect = failure
 
     def retire():
         reply_state.retire_ineligible_reply_draft(
-            state, "101", "mention", reason="ineligible-reason",
-            pending_ai_reply_draft_key=trace.key,
-            log_event=trace.event,
-            clear_pending_ai_reply=trace.clear,
+            state, target, source, reason=reason,
+            retire_draft=trace.retire,
             record_terminal_reply_evaluation=trace.terminal,
         )
 
@@ -115,20 +71,12 @@ def test_ineligible_draft_retirement_preserves_metadata_order_and_callback_failu
         assert caught.value is failure
     else:
         retire()
-
-    expected = [
-        call.key("101", "mention"),
-        call.event(
-            "single_call_reply_posting_outcome", status="posting_failed_terminal",
-            lane="mention", target_id="101", reply_post_id="", **draft,
-            failure_reason="reply_not_permitted_preflight",
-        ),
-        call.clear(state, "101", "mention"),
-        call.terminal(
-            state, target_id="101", lane="mention", reason="ineligible-reason",
+    expected = [call.retire(state, target, source)]
+    if boundary != "retire":
+        expected.append(call.terminal(
+            state, target_id=target, lane=source, reason=reason,
             outcome="reply_not_permitted",
-        ),
-    ]
-    if boundary:
-        expected = expected[:["key", "event", "clear", "terminal"].index(boundary) + 1]
+        ))
     assert trace.mock_calls == expected
+    assert trace.retire.call_args.args[0] is state
+    assert state == {}

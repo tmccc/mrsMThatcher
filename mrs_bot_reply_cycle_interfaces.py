@@ -103,6 +103,7 @@ class ReplyCyclePersistence:
     recover: RecoverReplyDraft
     store: StoreReplyDraft
     clear: Callable[[dict, str, str], None]
+    retire_ineligible: Callable[[dict, str, str], None]
 
 
 class EvaluateReply(Protocol):

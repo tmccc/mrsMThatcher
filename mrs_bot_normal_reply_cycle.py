@@ -47,10 +47,7 @@ from mrs_bot_reply_preparation import (
     build_sending_reply_receipt,
     persist_validated_reply_draft,
 )
-from mrs_bot_reply_state import (
-    pending_ai_reply_draft_key,
-    retire_ineligible_reply_draft,
-)
+from mrs_bot_reply_state import retire_ineligible_reply_draft
 
 if TYPE_CHECKING:
     from mrs_bot_author_quarantines import AuthorQuarantines
@@ -538,9 +535,7 @@ def _candidate_is_eligible(
             candidate.mention_id,
             str(candidate.source),
             reason=reason,
-            pending_ai_reply_draft_key=pending_ai_reply_draft_key,
-            log_event=log_event,
-            clear_pending_ai_reply=persistence.clear,
+            retire_draft=persistence.retire_ineligible,
             record_terminal_reply_evaluation=reply_evaluations.record,
         )
         maybe_mark_hot_post_reply_skipped(state, candidate.mention, reason="reply_not_permitted")

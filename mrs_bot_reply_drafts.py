@@ -261,6 +261,26 @@ class ReplyDrafts:
         if not drafts:
             state.pop("pending_ai_reply_drafts", None)
 
+    def retire_ineligible(self, state: dict, target_id: str, candidate_source: str) -> None:
+        """Log and clear a mapping-shaped draft after preflight rejects its target."""
+        drafts = state.get("pending_ai_reply_drafts", {})
+        pending_key = pending_ai_reply_draft_key(target_id, candidate_source)
+        pending_record = drafts.get(pending_key) if isinstance(drafts, dict) else None
+        if isinstance(pending_record, dict):
+            self.log_event(
+                "single_call_reply_posting_outcome",
+                status="posting_failed_terminal",
+                lane=candidate_source,
+                target_id=target_id,
+                reply_post_id="",
+                strategy_version=pending_record.get("strategy_version"),
+                reply_kind=pending_record.get("reply_kind"),
+                reason_code=pending_record.get("reason_code"),
+                validated_draft_hash=pending_record.get("validated_draft_hash"),
+                failure_reason="reply_not_permitted_preflight",
+            )
+            self.clear(state, target_id, candidate_source)
+
     def receipt_draft_is_valid(self, data: dict, text: object) -> bool:
         """Return whether a receipt carries a valid current single-call draft."""
 
