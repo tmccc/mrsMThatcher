@@ -1,7 +1,9 @@
 """Own bounded single-call model transport, retries and provider error metadata.
 
-Each root call supplies current transport settings and runtime boundaries. This
-module only imports the standard library and performs no runtime access.
+Each root call supplies current transport settings and runtime boundaries.
+Retry control delegates transport-failure classification while preserving prior
+429 evidence, exception causes and health-progress completion. This module only
+imports the standard library and performs no runtime access.
 """
 
 from __future__ import annotations
@@ -157,29 +159,9 @@ class ReplyModelTransport:
                         target_id,
                     )
                     continue
-                if first_429_seen:
-                    reset_epoch, retry_after_seconds = first_429_retry_metadata
-                    raise self.error(
-                        "OpenAI single-call reply transport failed after an "
-                        "earlier HTTP 429",
-                        category=(
-                            "provider_ambiguous_timeout"
-                            if isinstance(exc, self.requests.Timeout)
-                            else "provider_transport"
-                        ),
-                        status_code=429,
-                        reset_epoch=reset_epoch,
-                        retry_after_seconds=retry_after_seconds,
-                        request_attempt_count=attempt,
-                    ) from exc
-                raise self.error(
-                    "OpenAI single-call reply transport failed",
-                    category=(
-                        "provider_ambiguous_timeout"
-                        if isinstance(exc, self.requests.Timeout)
-                        else "provider_transport"
-                    ),
-                    request_attempt_count=attempt,
+                raise self._transport_error(
+                    exc, attempt=attempt, first_429_seen=first_429_seen,
+                    first_429_retry_metadata=first_429_retry_metadata,
                 ) from exc
             finally:
                 self.report_bot_health_progress("ai_call")
@@ -227,6 +209,40 @@ class ReplyModelTransport:
                 )
             return result
         raise AssertionError("unreachable OpenAI request retry state")
+
+    def _transport_error(
+        self,
+        exc: Exception,
+        *,
+        attempt: int,
+        first_429_seen: bool,
+        first_429_retry_metadata: tuple[int | None, int | None],
+    ) -> Exception:
+        """Classify a failed request while retaining earlier rate-limit evidence."""
+        if first_429_seen:
+            reset_epoch, retry_after_seconds = first_429_retry_metadata
+            return self.error(
+                "OpenAI single-call reply transport failed after an "
+                "earlier HTTP 429",
+                category=(
+                    "provider_ambiguous_timeout"
+                    if isinstance(exc, self.requests.Timeout)
+                    else "provider_transport"
+                ),
+                status_code=429,
+                reset_epoch=reset_epoch,
+                retry_after_seconds=retry_after_seconds,
+                request_attempt_count=attempt,
+            )
+        return self.error(
+            "OpenAI single-call reply transport failed",
+            category=(
+                "provider_ambiguous_timeout"
+                if isinstance(exc, self.requests.Timeout)
+                else "provider_transport"
+            ),
+            request_attempt_count=attempt,
+        )
 
     @contextmanager
     def _closing_response(self, response: object) -> Iterator[None]:

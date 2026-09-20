@@ -9,8 +9,8 @@ remaining integer entries. Durable persistence, receipt implementations, publish
 and configuration authority stay in the coordinator. Importing this module does
 no runtime work. ImageSelection binds current external policy/helpers per root
 call, then invokes owned eligibility, scored-pool choice and logging directly
-without retaining caller state. Pair orchestration keeps the root matched-image callback so each
-attempt binds current image policy after quotation selection.
+without retaining caller state. Pair orchestration keeps the root matched-image
+callback so each attempt binds current image policy after quotation selection.
 """
 
 from __future__ import annotations

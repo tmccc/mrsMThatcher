@@ -4,8 +4,9 @@ ReplyDrafts receives the current validator, evidence access, telemetry and resul
 vocabulary when composed by the root. Its operations call each other directly,
 acquire current evidence for each validation and mutate only explicit caller
 state. Failed local recovery keeps retirement before owned zero-call result
-construction and telemetry. Durable saves, candidate retirement and receipt authority stay
-with their existing owners. Import and construction perform no runtime access.
+construction and telemetry. Durable saves, candidate retirement and receipt
+authority stay with their existing owners. Import and construction perform no
+runtime access.
 """
 
 from __future__ import annotations

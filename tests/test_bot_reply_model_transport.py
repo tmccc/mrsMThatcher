@@ -341,3 +341,40 @@ def test_retry_metadata_uses_current_clock_and_largest_bounded_delay(monkeypatch
     with pytest.raises(RuntimeError) as caught:
         owner.retry_metadata(response)
     assert caught.value is failure
+
+
+@pytest.mark.parametrize("prior_rate_limit", [False, True])
+def test_transport_error_factory_failure_keeps_cause_and_completes_health_progress(make_owner, prior_rate_limit):
+    limited = FakeHttpResponse(429, headers={"Retry-After": "0"})
+    transport_error = bot.requests.ReadTimeout("ambiguous transmission")
+    factory_error = RuntimeError("provider error construction failed")
+    trace = Mock()
+    trace.post.side_effect = [limited, transport_error] if prior_rate_limit else [transport_error]
+    trace.factory.side_effect = factory_error
+    owner = make_owner(
+        requests=SimpleNamespace(
+            post=trace.post, RequestException=bot.requests.RequestException,
+            Timeout=bot.requests.Timeout, ConnectTimeout=bot.requests.ConnectTimeout,
+            ConnectionError=bot.requests.ConnectionError,
+        ),
+        require_remote_operation_unpaused=trace.pause,
+        report_bot_health_progress=trace.health, sleep=trace.sleep,
+        now_epoch=lambda: 100, error_type=trace.factory, log=Mock(),
+    )
+
+    with pytest.raises(RuntimeError) as caught:
+        owner.call(request={}, timeout_seconds=23, lane="mention", target_id="target")
+    assert caught.value is factory_error
+    assert caught.value.__context__ is transport_error
+    assert trace.post.call_count == 1 + int(prior_rate_limit)
+    assert trace.health.call_count == 2 * trace.post.call_count
+    assert trace.mock_calls[-1] == call.health("ai_call")
+    assert trace.factory.call_args.kwargs == {
+        "service": "openai", "status_code": 429 if prior_rate_limit else None,
+        "reset_epoch": 100 if prior_rate_limit else None,
+    }
+    if prior_rate_limit:
+        assert limited.closed
+        trace.sleep.assert_called_once_with(0)
+    else:
+        trace.sleep.assert_not_called()

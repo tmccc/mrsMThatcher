@@ -3,8 +3,9 @@
 Four root adapters supply current callbacks, settings, clock and logger per
 call. Fixed copying and bounded-list transformations are local. Original bodies
 stage watched tracking maps in an owned operation before search and preserve
-check counts, full rescans, nested invalid-cursor cleanup, eligibility before the candidate
-cap, draft/terminal ordering, in-place annotations and conservative watermarks.
+check counts, full rescans, nested invalid-cursor cleanup, eligibility before
+the candidate cap, draft/terminal ordering, in-place annotations and conservative
+watermarks.
 Skip records and mention/hot-post merges retain their bounded and copy behavior.
 
 Watched-ID reading, pagination/authentication, target eligibility, draft and

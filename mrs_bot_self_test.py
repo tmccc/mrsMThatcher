@@ -1,8 +1,8 @@
 """Local self-test orchestration and result logging.
 
 Local JSON decoding belongs here. The root supplies current runtime
-dependencies explicitly on each call. This
-module performs no runtime work at import and retains no runtime authority.
+dependencies explicitly on each call. Import performs no runtime work and
+retains no runtime authority.
 """
 from __future__ import annotations
 
