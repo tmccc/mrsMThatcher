@@ -9,6 +9,7 @@ from unittest.mock import Mock, call
 
 import pytest
 
+import mrs_bot_mention_authority as mention_authority
 import mrs_bot_normal_reply_cycle as normal_cycle
 import mrs_bot_quote_reply_cycle as quote_cycle
 from mrs_bot_reply_cycle_interfaces import (
@@ -52,6 +53,7 @@ def preparation(request, monkeypatch):
     lane = request.param
     trace = Mock()
     monkeypatch.setattr(normal_cycle, "clear_author_evaluation_quarantine_history", trace.clear_quarantine)
+    monkeypatch.setattr(mention_authority, "mention_pagination_provenance_is_valid", trace.valid_pagination)
     shared = {"values": []}
     context = CopyProbe({"shared": shared, "alias": shared}, trace.copy_context)
     reply = ApprovedReply("A validated reply.")
@@ -118,7 +120,6 @@ def preparation(request, monkeypatch):
             normal_cycle._ReplyCandidate(target, "105", "205", "Incoming text", lane, lane),
             case.reply, context, clarification,
             ValidatedReply=ApprovedReply,
-            mention_pagination_provenance_is_valid=trace.valid_pagination,
             **common,
         )
 

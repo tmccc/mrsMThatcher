@@ -78,7 +78,7 @@ SIGNATURES = {'remote_write_transport_journal_paths': "() -> 'tuple[Path, ...]'"
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, hashlib, io, json, logging, os, random, socket, sys, time, typing
+import builtins, collections.abc, dataclasses, hashlib, io, json, logging, os, random, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -86,7 +86,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_transport_source_preparation', 'mrs_bot_main_post_attempt_values', 'mrs_bot_post_creation', 'mrs_bot_durable_json_io'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_transport_source_preparation', 'mrs_bot_main_post_attempt_values', 'mrs_bot_post_creation', 'mrs_bot_durable_json_io', 'mrs_bot_receipt_primitives'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
