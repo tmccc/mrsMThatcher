@@ -1,11 +1,11 @@
 """Orchestrate the current single-call reply decision.
 
-ReplyGeneration binds current callbacks, settings and application classes on each
-root invocation. Evaluation calls fixed health classification and owned telemetry
-directly. Explicit calls collect images through the media boundary, send the existing
-Responses request through the model transport, emit outcome and usage events,
-return the typed decision result and account for provider failures through the
-root callback. Evidence lookup, draft/history helpers, cooldown persistence,
+ReplyGeneration receives current media, history and model-transport owners on each
+root invocation. Evaluation calls those owners directly, alongside fixed health
+classification and owned telemetry. It collects images, selects confirmed history,
+sends the existing Responses request, emits outcome and usage events, returns the
+typed decision result and accounts for provider failures without returning through
+root compatibility relays. Evidence lookup, draft helpers, cooldown persistence,
 terminal evaluation, posting and durable state retain their existing authority.
 
 Import uses the standard library and inert media and validation owners. It
@@ -25,6 +25,9 @@ from single_call_reply_validation import normalise_validation_error_codes
 
 
 if TYPE_CHECKING:
+    from mrs_bot_reply_history import ReplyHistory
+    from mrs_bot_reply_model_transport import ReplyModelTransport
+    from mrs_bot_reply_native_media import ReplyMedia
     from single_call_reply import PipelineResult
 
 
@@ -113,25 +116,21 @@ def _is_terminal_candidate_local_failure(
 class ReplyGeneration:
     """Own decisions, media disposition, health and telemetry with current boundaries."""
 
-    collect_reply_images: Callable
+    media: ReplyMedia
     remote_operations_paused: type[Exception]
-    media_unavailable: type[Exception]
-    media_transient_unavailable: type[Exception]
     result_type: type
     log: logging.Logger
-    history_for_evaluation: Callable
+    history: ReplyHistory
     require_remote_operation_unpaused: Callable
     run_pipeline: Callable
     config: dict[str, object]
     evidence_repository: Callable
-    transport: Callable
+    model_transport: ReplyModelTransport
     record_api_error: Callable
-    provider_error: Callable
     reply_type: type
     now_epoch: Callable
     decision_telemetry: Callable
     log_event: Callable
-    model: str
     strategy_version: str
 
     is_provider_health_failure = staticmethod(_is_openai_provider_health_failure)
@@ -164,7 +163,7 @@ class ReplyGeneration:
             usage = dict(result.provider_usage)
             self.log.info(
                 "Single-call reply provider=OpenAI model=%s usage=%s",
-                self.model,
+                self.model_transport.model,
                 usage,
             )
             self.log_event(
@@ -172,7 +171,7 @@ class ReplyGeneration:
                 lane=lane,
                 target_id=target_id,
                 strategy_version=self.strategy_version,
-                model=self.model,
+                model=self.model_transport.model,
                 provider_response_id=result.provider_response_id,
                 provider_latency_ms=result.provider_latency_ms,
                 request_attempt_count=result.provider_request_attempt_count,
@@ -196,15 +195,15 @@ class ReplyGeneration:
             if isinstance(turn, dict)
         ]
         try:
-            supplied_images = self.collect_reply_images(media_context)
+            supplied_images = self.media.collect(media_context)
         except self.remote_operations_paused:
             raise
-        except self.media_unavailable as exc:
+        except self.media.media_unavailable as exc:
             return self._media_failure_result(
                 exc, visible_turns, lane=lane, target_id=target_id,
             )
 
-        same_author, recent_replies = self.history_for_evaluation(
+        same_author, recent_replies = self.history.for_evaluation(
             state, context=context, target_id=target_id,
         )
         self.require_remote_operation_unpaused(
@@ -214,7 +213,7 @@ class ReplyGeneration:
             context=context,
             config=self.config,
             repository=self.evidence_repository(),
-            transport=self.transport,
+            transport=self.model_transport.call,
             same_author_interactions=same_author,
             recent_account_replies=recent_replies,
             supplied_images=supplied_images,
@@ -243,7 +242,7 @@ class ReplyGeneration:
         """Classify failed material-image collection before any provider work."""
         error_category = (
             "image_transport"
-            if isinstance(exc, self.media_transient_unavailable)
+            if isinstance(exc, self.media.media_transient_unavailable)
             else "image_input"
         )
         result = self.result_type(
@@ -295,7 +294,7 @@ class ReplyGeneration:
             return
         self.record_api_error(
             state,
-            self.provider_error(
+            self.model_transport.error(
                 message,
                 category=category,
                 status_code=status_code,

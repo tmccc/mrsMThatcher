@@ -12,7 +12,7 @@ from unittest.mock import Mock
 import pytest
 
 from tests.helpers.bot_runtime import bot
-from tests.helpers.reply_fixtures import patch_reply_context_method
+from tests.helpers.reply_fixtures import patch_reply_context_method, patch_reply_owner_method
 from tests.helpers.single_call_fixtures import FakeHttpResponse, FakeRepository, context, enabled_config, raw_decision, response_envelope, valid_png
 from tests.test_single_call_conversation_contract import NATURAL_REPLIES
 
@@ -33,7 +33,9 @@ def configure(monkeypatch, responses):
 
     monkeypatch.setattr(bot, 'single_call_reply', enabled_config())
     monkeypatch.setattr(bot, 'now_epoch', lambda: 2_000_000_000)
-    monkeypatch.setattr(bot, 'collect_reply_images', lambda _: [])
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _: [],
+    )
     monkeypatch.setattr(bot, 'reply_evidence_repository', FakeRepository)
     monkeypatch.setattr(bot, 'require_remote_operation_unpaused', lambda *_: None)
     monkeypatch.setattr(bot, 'report_bot_health_progress', lambda *_: None)

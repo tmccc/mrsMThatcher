@@ -7093,27 +7093,23 @@ _TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES = _reply_generation._TERMINAL_CANDI
 
 
 def _reply_generation_owner() -> _reply_generation.ReplyGeneration:
-    """Bind current generation boundaries without collecting evidence or media."""
+    """Compose current generation owners without collecting evidence or media."""
     return _reply_generation.ReplyGeneration(
-        collect_reply_images=collect_reply_images,
+        media=_reply_media_owner(),
         remote_operations_paused=RemoteOperationsPaused,
-        media_unavailable=ReplyMediaUnavailable,
-        media_transient_unavailable=ReplyMediaTransientUnavailable,
         result_type=PipelineResult,
         log=log,
-        history_for_evaluation=_reply_history_owner().for_evaluation,
+        history=_reply_history_owner(),
         require_remote_operation_unpaused=require_remote_operation_unpaused,
         run_pipeline=run_single_call_reply_pipeline,
         config=single_call_reply,
         evidence_repository=reply_evidence_repository,
-        transport=openai_responses_reply_call,
+        model_transport=_reply_model_transport_owner(),
         record_api_error=record_api_error,
-        provider_error=_openai_api_error,
         reply_type=ValidatedReply,
         now_epoch=now_epoch,
         decision_telemetry=single_call_decision_telemetry,
         log_event=log_event,
-        model=SINGLE_CALL_MODEL,
         strategy_version=SINGLE_CALL_STRATEGY_VERSION,
     )
 

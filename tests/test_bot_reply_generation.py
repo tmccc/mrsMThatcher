@@ -14,6 +14,8 @@ from tests.helpers.adapter_assertions import assert_adapters_forward_current_dep
 
 import mrs_bot_reply_generation as generation
 import mrs_bot_reply_history as reply_history
+import mrs_bot_reply_model_transport as model_transport
+import mrs_bot_reply_native_media as reply_media
 from tests.helpers.single_call_fixtures import (
     FakeRepository,
     context as pipeline_context,
@@ -73,16 +75,13 @@ assert 'single_call_reply' not in sys.modules
 
 
 OWNER_INPUTS = {
-    "collect_reply_images": "collect_reply_images", "remote_operations_paused": "RemoteOperationsPaused",
-    "media_unavailable": "ReplyMediaUnavailable", "media_transient_unavailable": "ReplyMediaTransientUnavailable",
-    "result_type": "PipelineResult", "log": "log",
+    "remote_operations_paused": "RemoteOperationsPaused", "result_type": "PipelineResult", "log": "log",
     "require_remote_operation_unpaused": "require_remote_operation_unpaused",
     "run_pipeline": "run_single_call_reply_pipeline", "config": "single_call_reply",
-    "evidence_repository": "reply_evidence_repository", "transport": "openai_responses_reply_call",
-    "record_api_error": "record_api_error", "provider_error": "_openai_api_error",
+    "evidence_repository": "reply_evidence_repository", "record_api_error": "record_api_error",
     "reply_type": "ValidatedReply", "now_epoch": "now_epoch",
     "decision_telemetry": "single_call_decision_telemetry", "log_event": "log_event",
-    "model": "SINGLE_CALL_MODEL", "strategy_version": "SINGLE_CALL_STRATEGY_VERSION",
+    "strategy_version": "SINGLE_CALL_STRATEGY_VERSION",
 }
 
 
@@ -100,20 +99,29 @@ def test_generation_owner_binds_current_boundaries_without_runtime_access(monkey
         for field, name in OWNER_INPUTS.items():
             monkeypatch.setattr(bot, name, current[field])
         monkeypatch.setattr(bot, "MAX_RECENT_ACCOUNT_REPLIES", 10 + index)
+        monkeypatch.setattr(bot, "SINGLE_CALL_MODEL", f"current-model-{index}")
         owner = bot._reply_generation_owner()
         assert isinstance(owner, generation.ReplyGeneration)
         for field, value in current.items():
             assert getattr(owner, field) is value
             value.assert_not_called()
-        callback = owner.history_for_evaluation
-        assert callback.__func__ is reply_history.ReplyHistory.for_evaluation
-        assert callback.__self__.maximum_recent_replies == 10 + index
-        assert callback.__self__.now_epoch is current["now_epoch"]
+        assert isinstance(owner.media, reply_media.ReplyMedia)
+        assert owner.media.require_remote_operation_unpaused is current["require_remote_operation_unpaused"]
+        assert isinstance(owner.history, reply_history.ReplyHistory)
+        assert owner.history.maximum_recent_replies == 10 + index
+        assert owner.history.now_epoch is current["now_epoch"]
+        assert isinstance(owner.model_transport, model_transport.ReplyModelTransport)
+        assert owner.model_transport.model == f"current-model-{index}"
+        assert owner.model_transport.now_epoch is current["now_epoch"]
+        assert owner.model_transport.require_remote_operation_unpaused is current["require_remote_operation_unpaused"]
         owners.append(owner)
     assert owners[0] is not owners[1]
-    assert owners[0].history_for_evaluation.__self__ is not owners[1].history_for_evaluation.__self__
+    for field in ("media", "history", "model_transport"):
+        assert getattr(owners[0], field) is not getattr(owners[1], field)
+    assert len(inspect.signature(generation.ReplyGeneration).parameters) == 16
+    assert sum("Callable" in str(field.type) for field in generation.ReplyGeneration.__dataclass_fields__.values()) == 7
     with pytest.raises(FrozenInstanceError):
-        owners[0].model = "changed"
+        owners[0].history = owners[1].history
 
 
 def test_generation_adapters_preserve_call_shapes_references_and_errors(monkeypatch):
@@ -188,18 +196,24 @@ def test_generation_preserves_order_and_references_through_the_current_pipeline(
 
     monkeypatch.setattr(generation.ReplyGeneration, "record_result", record)
     for root_name, callback in {
-        "collect_reply_images": trace.images,
         "require_remote_operation_unpaused": trace.pause,
         "reply_evidence_repository": trace.repository,
-        "openai_responses_reply_call": trace.transport,
         "run_single_call_reply_pipeline": trace.pipeline,
         "log_event": trace.event,
         "record_api_error": trace.error,
     }.items():
         monkeypatch.setattr(bot, root_name, callback)
+    patch_reply_owner_method(monkeypatch, reply_media.ReplyMedia, "collect", trace.images)
     patch_reply_history_method(monkeypatch, "for_evaluation", trace.history)
+    patch_reply_owner_method(monkeypatch, model_transport.ReplyModelTransport, "call", trace.transport)
     monkeypatch.setattr(bot, "single_call_reply", config)
     monkeypatch.setattr(bot, "log", SimpleNamespace(info=trace.info, warning=trace.warning))
+    obsolete_relays = {
+        name: Mock(side_effect=AssertionError(f"root relay used: {name}"))
+        for name in ("collect_reply_images", "openai_responses_reply_call", "_openai_api_error")
+    }
+    for name, relay in obsolete_relays.items():
+        monkeypatch.setattr(bot, name, relay)
 
     reply = bot.generate_single_call_reply(context, media, state=state, evaluation_outcome=outcome)
     result = trace.record.call_args.args[0]
@@ -219,10 +233,13 @@ def test_generation_preserves_order_and_references_through_the_current_pipeline(
     assert trace.history.call_args.args[0] is state
     assert trace.history.call_args.kwargs["context"] is context
     supplied = trace.pipeline.call_args.kwargs
-    for name, value in {"context": context, "config": config, "repository": repository, "transport": trace.transport, "same_author_interactions": same_author, "recent_account_replies": recent, "supplied_images": images}.items():
+    for name, value in {"context": context, "config": config, "repository": repository, "same_author_interactions": same_author, "recent_account_replies": recent, "supplied_images": images}.items():
         assert supplied[name] is value
+    assert isinstance(supplied["transport"].__self__, model_transport.ReplyModelTransport)
     assert supplied["same_author_interactions"] == [{"contributor": "Earlier contribution.", "account_reply": "Earlier response."}]
     trace.error.assert_not_called()
+    for relay in obsolete_relays.values():
+        relay.assert_not_called()
     assert trace.event.call_args_list == [
         call("single_call_reply_decision", lane="mention", target_id="target", **bot.single_call_decision_telemetry(result)),
         call("single_call_reply_provider_usage", lane="mention", target_id="target",
@@ -245,7 +262,7 @@ def test_history_failure_preserves_pre_image_target_and_propagates_before_provid
 
     trace.images.side_effect = collect_images
     trace.history.side_effect = failure
-    monkeypatch.setattr(bot, "collect_reply_images", trace.images)
+    patch_reply_owner_method(monkeypatch, reply_media.ReplyMedia, "collect", trace.images)
     patch_reply_history_method(monkeypatch, "for_evaluation", trace.history)
     monkeypatch.setattr(bot, "reply_evidence_repository", trace.repository)
     monkeypatch.setattr(bot, "run_single_call_reply_pipeline", trace.pipeline)
@@ -324,7 +341,7 @@ def test_evaluation_owns_health_and_telemetry_and_fetches_evidence_per_call(monk
     )
     repository, events, errors = Mock(return_value=object()), Mock(), Mock()
     monkeypatch.setattr(bot, "reply_evidence_repository", repository)
-    monkeypatch.setattr(bot, "collect_reply_images", Mock(return_value=[]))
+    patch_reply_owner_method(monkeypatch, reply_media.ReplyMedia, "collect", Mock(return_value=[]))
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", Mock())
     patch_reply_history_method(monkeypatch, "for_evaluation", Mock(return_value=([], [])))
     pipeline = Mock(return_value=result)
@@ -371,12 +388,19 @@ def test_health_persistence_failure_keeps_identity_and_precedes_telemetry(
     trace.account.side_effect = fail_accounting
     owner = replace(
         bot._reply_generation_owner(),
-        collect_reply_images=Mock(return_value=[]),
-        history_for_evaluation=Mock(return_value=([], [])),
+        media=SimpleNamespace(
+            collect=Mock(return_value=[]),
+            media_unavailable=bot.ReplyMediaUnavailable,
+            media_transient_unavailable=bot.ReplyMediaTransientUnavailable,
+        ),
+        history=Mock(for_evaluation=Mock(return_value=([], []))),
         require_remote_operation_unpaused=Mock(),
         evidence_repository=Mock(return_value=object()),
         run_pipeline=Mock(return_value=result),
-        provider_error=trace.error, record_api_error=trace.account,
+        model_transport=SimpleNamespace(
+            call=Mock(), error=trace.error, model=bot.SINGLE_CALL_MODEL,
+        ),
+        record_api_error=trace.account,
         log_event=trace.telemetry,
     )
     with pytest.raises(OSError) as caught:
@@ -407,7 +431,7 @@ def test_media_failure_keeps_original_identity_and_telemetry_before_warning(monk
         context["target_id"] = "changed during collection"
         raise media_error
 
-    monkeypatch.setattr(bot, "collect_reply_images", collect)
+    patch_reply_owner_method(monkeypatch, reply_media.ReplyMedia, "collect", collect)
     monkeypatch.setattr(bot, "log", logger)
     monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
     patch_reply_history_method(monkeypatch, "for_evaluation", history)

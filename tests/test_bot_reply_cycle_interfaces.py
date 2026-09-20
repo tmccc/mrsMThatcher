@@ -101,7 +101,7 @@ def test_cycle_boundaries_capture_current_callbacks_and_config_between_calls(mon
         generation_owner = supplied["generation"]
         assert generation_owner.now_epoch is clock
         assert generation_owner.evidence_repository is evidence
-        generation_history = generation_owner.history_for_evaluation.__self__
+        generation_history = generation_owner.history
         assert generation_history.now_epoch is clock
         assert generation_history.maximum_recent_replies == 10 + index
         assert supplied["tweets"].now_epoch is clock
@@ -284,7 +284,9 @@ def test_typed_local_failure_keeps_prior_429_cooldown_and_terminal_retirement(mo
         provider_retry_after_seconds=120, provider_request_attempt_count=2,
     )
     monkeypatch.setattr(generation.ReplyGeneration, "evaluate", evaluate)
-    monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [],
+    )
     monkeypatch.setattr(bot, "run_single_call_reply_pipeline", Mock(return_value=result))
     recorded = Mock(wraps=bot._reply_generation_owner().record_result)
     patch_reply_owner_method(monkeypatch, generation.ReplyGeneration, "record_result", recorded)

@@ -9,6 +9,7 @@ import pytest
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime
 from tests.helpers.reply_fixtures import (
+    patch_reply_owner_method,
     patch_tweet_lookup_method,
     UNIT_REPLY_REPOSITORY,
     unit_reply_context,
@@ -28,7 +29,9 @@ def test_three_image_input_failures_leave_openai_breaker_untouched(
     def unavailable(_media_context: object) -> list[dict[str, object]]:
         raise bot.ReplyMediaUnavailable("unit image failure")
 
-    monkeypatch.setattr(bot, "collect_reply_images", unavailable)
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_native_media.ReplyMedia, "collect", unavailable,
+    )
     monkeypatch.setattr(
         bot,
         "run_single_call_reply_pipeline",
@@ -67,7 +70,9 @@ def test_candidate_local_pipeline_failures_leave_openai_breaker_untouched(
     state = bot.default_state()
     context = unit_reply_context()
 
-    monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [],
+    )
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
@@ -106,7 +111,9 @@ def test_three_provider_failures_activate_openai_breaker(
 
     monkeypatch.setattr(bot, "now_epoch", lambda: current)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [],
+    )
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)

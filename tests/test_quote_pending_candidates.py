@@ -306,6 +306,9 @@ def test_quote_owner_handoffs_keep_current_recovery_and_chronological_model_hist
     tweets_type = bot._tweet_lookup_cache.TweetLookupCache
     get_cached = tweets_type.get_cached
     search, _clock, lookup = _install_quote_pages(monkeypatch, first_ids=("912",))
+    bot.reply_media_context_for_candidate.return_value = {
+        "status": "none", "photos_expected": 0, "photos": [],
+    }
     original = lookup.return_value
     monkeypatch.setattr(tweets_type, "get_cached", get_cached)
     fetch = Mock(return_value=original)
@@ -328,6 +331,15 @@ def test_quote_owner_handoffs_keep_current_recovery_and_chronological_model_hist
     earlier = {"post_id": "901", "text": "An earlier confirmed reply."}
     later = {"post_id": "902", "text": "A later confirmed reply."}
     prepared = []
+    collected_media = []
+    media_type = bot._reply_native_media.ReplyMedia
+    collect = media_type.collect
+
+    def observe_media(owner, media_context):
+        collected_media.append(media_context)
+        return collect(owner, media_context)
+
+    monkeypatch.setattr(media_type, "collect", observe_media)
     contexts_type = bot._reply_context.ReplyContext
     build_quote = contexts_type.build_quote
 
@@ -366,26 +378,26 @@ def test_quote_owner_handoffs_keep_current_recovery_and_chronological_model_hist
         assert kwargs["recent_account_replies"] == [earlier]
         assert kwargs["same_author_interactions"] == []
         assert kwargs["supplied_images"] == []
+        assert isinstance(kwargs["transport"].__self__, bot._reply_model_transport.ReplyModelTransport)
         saved = json.loads(bot.STATE_FILE.read_text())
         assert set(saved["quote_pending_candidates"]) == {"912"}
         return _no_reply()
 
     pipeline = Mock(side_effect=evaluate_pipeline)
     monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
-    collect_images = Mock(return_value=[])
-    monkeypatch.setattr(bot, "collect_reply_images", collect_images)
     relays = {}
     for name in (
         "build_quote_tweet_reply_context", "cache_tweet", "get_tweet_by_id_cached",
         "evaluate_single_call_reply", "_record_single_call_result",
-        "recovery_comparison_account_replies",
+        "recovery_comparison_account_replies", "collect_reply_images",
+        "openai_responses_reply_call", "_openai_api_error",
     ):
         relays[name] = Mock(side_effect=AssertionError(f"root relay used: {name}"))
         monkeypatch.setattr(bot, name, relays[name])
 
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
     assert len(prepared) == pipeline.call_count == search.call_count == 1
-    collect_images.assert_called_once_with(prepared[0].media_context)
+    assert collected_media == [prepared[0].media_context]
     assert state["tweet_cache"]["912"]["text"] == prepared[0].context["incoming_contribution"]
     assert state["quote_pending_candidates"] == {}
     assert "912" in state["skipped_quote_post_ids"]

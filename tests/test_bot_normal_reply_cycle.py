@@ -21,6 +21,8 @@ from mrs_bot_reply_clarifications import ClarificationReplies
 import mrs_bot_reply_evaluation_state as evaluation_state
 import mrs_bot_reply_drafts as reply_drafts
 import mrs_bot_reply_generation as generation_owner
+import mrs_bot_reply_model_transport as model_transport_owner
+import mrs_bot_reply_native_media as media_owner
 from tests.helpers.mention_fixtures import (
     editorial_no_reply,
     mention,
@@ -647,6 +649,9 @@ def test_normal_owner_handoffs_keep_current_recovery_and_chronological_model_his
     build = context_owner.ReplyContext.build
     evaluate = generation_owner.ReplyGeneration.evaluate
     _configure_cycle(monkeypatch)
+    bot.reply_media_context_for_candidate.return_value = {
+        "status": "none", "photos_expected": 0, "photos": [],
+    }
     monkeypatch.setattr(generation_owner.ReplyGeneration, "evaluate", evaluate)
     capped, candidate = mention(104, 204), mention(105, 205)
     candidate["created_at"] = "2033-05-18T03:30:00Z"
@@ -670,6 +675,14 @@ def test_normal_owner_handoffs_keep_current_recovery_and_chronological_model_his
     earlier = {"post_id": "901", "text": "An earlier confirmed reply."}
     later = {"post_id": "902", "text": "A later confirmed reply."}
     prepared = []
+    collected_media = []
+    collect = media_owner.ReplyMedia.collect
+
+    def observe_media(owner, media_context):
+        collected_media.append(media_context)
+        return collect(owner, media_context)
+
+    monkeypatch.setattr(media_owner.ReplyMedia, "collect", observe_media)
 
     def observe_context(owner, current_candidate, current_state):
         assert current_state is state
@@ -704,6 +717,7 @@ def test_normal_owner_handoffs_keep_current_recovery_and_chronological_model_his
         assert kwargs["recent_account_replies"] == [earlier]
         assert kwargs["same_author_interactions"] == []
         assert kwargs["supplied_images"] == []
+        assert isinstance(kwargs["transport"].__self__, model_transport_owner.ReplyModelTransport)
         saved = json.loads(bot.STATE_FILE.read_text())
         assert saved["tweet_cache"]["104"]["post_type"] == "author_cap_context"
         return bot.PipelineResult(
@@ -712,19 +726,18 @@ def test_normal_owner_handoffs_keep_current_recovery_and_chronological_model_his
 
     pipeline = Mock(side_effect=evaluate_pipeline)
     monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
-    collect_images = Mock(return_value=[])
-    monkeypatch.setattr(bot, "collect_reply_images", collect_images)
     relays = {}
     for name in (
         "build_context_for_reply_ai", "cache_tweet", "evaluate_single_call_reply",
         "_record_single_call_result", "recovery_comparison_account_replies",
+        "collect_reply_images", "openai_responses_reply_call", "_openai_api_error",
     ):
         relays[name] = Mock(side_effect=AssertionError(f"root relay used: {name}"))
         monkeypatch.setattr(bot, name, relays[name])
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert len(prepared) == pipeline.call_count == 1
-    collect_images.assert_called_once_with(prepared[0].media_context)
+    assert collected_media == [prepared[0].media_context]
     assert prepared[0].media_context is bot.reply_media_context_for_candidate.return_value
     assert state["reply_evaluation_records"]["105"]["outcome"] == "no_reply"
     assert state["last_seen_mention_id"] == "105"

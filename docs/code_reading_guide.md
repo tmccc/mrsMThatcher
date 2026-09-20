@@ -92,6 +92,18 @@ the relays blocked, including current history for recovery and chronological
 history for model context. The root still composes current provider, policy and
 persistence dependencies at each invocation.
 
+`ReplyGeneration` in turn receives `ReplyMedia`, `ReplyHistory` and
+`ReplyModelTransport` directly. Its evaluation path calls `collect`,
+`for_evaluation`, `call` and `error` on those owners; the public root adapters
+`collect_reply_images`, `openai_responses_reply_call` and `_openai_api_error`
+remain available for compatibility but are not on either production reply path.
+The generation constructor has 16 dependencies (7 callback-typed), down from 20
+(11 callback-typed). The normal and quote cycle implementation entry points stay
+at 39 and 35 parameters respectively, so backlog re-entry and lane-local policy
+remain explicit rather than moving into generation. Their hand-off tests block
+the obsolete relays while exercising actual media and history operations and the
+bound model-transport method.
+
 Private lane steps distinguish `SkipReplyCandidate` from
 `FinishReplyCheck(status)`, and carry `PreparedReplyContext` through preparation
 without converting it to an anonymous tuple. Quote admission captures fixed

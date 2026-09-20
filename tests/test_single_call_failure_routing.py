@@ -147,7 +147,7 @@ def test_second_429_metadata_reaches_global_openai_cooldown(
 
     monkeypatch.setattr(bot, "single_call_reply", enabled_config())
     monkeypatch.setattr(bot, "now_epoch", lambda: current)
-    monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [])
     monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "report_bot_health_progress", lambda *_args: None)
@@ -210,7 +210,7 @@ def test_first_429_metadata_survives_a_different_second_failure(
 
     monkeypatch.setattr(bot, "single_call_reply", enabled_config())
     monkeypatch.setattr(bot, "now_epoch", lambda: current)
-    monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [])
     monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "report_bot_health_progress", lambda *_args: None)
@@ -266,7 +266,7 @@ def test_first_429_metadata_survives_a_malformed_success_envelope(
 
     monkeypatch.setattr(bot, "single_call_reply", enabled_config())
     monkeypatch.setattr(bot, "now_epoch", lambda: current)
-    monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [])
     monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "report_bot_health_progress", lambda *_args: None)
@@ -318,7 +318,7 @@ def test_first_429_then_local_rejection_preserves_both_dispositions(
 
     monkeypatch.setattr(bot, "single_call_reply", enabled_config())
     monkeypatch.setattr(bot, "now_epoch", lambda: current)
-    monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [])
     monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "report_bot_health_progress", lambda *_args: None)
@@ -380,7 +380,7 @@ def test_validation_diagnostics_preserve_candidate_and_provider_health_routing(
     outcome: dict[str, object] = {}
     events: list[tuple[str, dict[str, object]]] = []
     monkeypatch.setattr(bot, "now_epoch", lambda: current)
-    monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [])
     monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "run_single_call_reply_pipeline", lambda **_kwargs: result)
@@ -439,7 +439,7 @@ def test_rejected_reply_survives_real_log_to_digest_json_without_becoming_publis
     state = bot.default_state()
     monkeypatch.setattr(bot, "log", logger)
     monkeypatch.setattr(bot, "now_epoch", lambda: 2_000_000_000)
-    monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [])
     monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "run_single_call_reply_pipeline", lambda **_kwargs: result)
@@ -499,7 +499,7 @@ def test_first_429_then_valid_decision_retains_rate_limit_health(
 
     monkeypatch.setattr(bot, "single_call_reply", enabled_config())
     monkeypatch.setattr(bot, "now_epoch", lambda: current)
-    monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [])
     monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "report_bot_health_progress", lambda *_args: None)
@@ -580,7 +580,7 @@ def test_new_429_cooldown_stops_later_candidate_in_same_lane_cycle(
         lambda candidate, _state: PreparedReplyContext(_candidate_context(candidate), {}),
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
-    monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [])
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "report_bot_health_progress", lambda *_args: None)
     monkeypatch.setattr(bot, "sleep", lambda _seconds: None)
@@ -680,9 +680,11 @@ def test_unlabelled_transport_boundary_errors_do_not_poison_openai_health(
 
     monkeypatch.setattr(bot, "single_call_reply", enabled_config())
     monkeypatch.setattr(bot, "now_epoch", lambda: current)
-    monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [])
     monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
-    monkeypatch.setattr(bot, "openai_responses_reply_call", fail_transport)
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_model_transport.ReplyModelTransport, "call", fail_transport,
+    )
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
@@ -932,7 +934,7 @@ def test_unknown_incomplete_reason_remains_provider_health_and_retryable(
     ) is False
 
     monkeypatch.setattr(bot, "now_epoch", lambda: current)
-    monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [])
     monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "run_single_call_reply_pipeline", lambda **_kwargs: result)
@@ -988,7 +990,7 @@ def test_refusal_retires_candidate_and_allows_later_candidate_without_side_effec
         lambda candidate, _state: PreparedReplyContext(_candidate_context(candidate), {}),
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
-    monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [])
 
     def transport(**kwargs: object) -> dict[str, object]:
         request_targets.append(str(kwargs["target_id"]))
@@ -998,7 +1000,9 @@ def test_refusal_retires_candidate_and_allows_later_candidate_without_side_effec
             "request_attempt_count": 1,
         }
 
-    monkeypatch.setattr(bot, "openai_responses_reply_call", transport)
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_model_transport.ReplyModelTransport, "call", transport,
+    )
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert request_targets == ["100", "101"]
