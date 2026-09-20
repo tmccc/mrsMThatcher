@@ -6,7 +6,8 @@ are preserved; metadata loading, shared state helpers, durable attempts, receipt
 transport and persistence remain in their existing owners. Explicit runtime calls
 may scan the supplied meme directory and mutate/save the caller's state or publish
 through supplied callbacks. Imports perform no runtime work or configuration
-access. MemeSchedule binds current calendar/persistence policy for each root call
+access. MemeCatalog owns asset discovery, history-reset selection and summaries.
+MemeSchedule binds current calendar/persistence policy for each root call
 and invokes its owned operations directly without retaining caller state.
 Standard-library regex, calendar and random
 imports preserve the existing behavior and shared random stream.
@@ -58,101 +59,100 @@ def original_meme_filename(shortlist_path: Path) -> str:
     return name
 
 
-def build_meme_cache_summary(
-    shortlist_path: Path,
-    analysis_index: dict[str, dict],
-    *,
-    original_meme_filename: Callable,
-    log: Logger,
-) -> str:
-    """Build meme cache summary."""
-    original_name = original_meme_filename(shortlist_path)
-    item = analysis_index.get(original_name)
+@dataclass(frozen=True)
+class MemeCatalog:
+    """Own meme asset discovery, cycle selection and metadata summaries."""
 
-    if not item:
-        log.warning(
-            "No meme analysis found for shortlist file=%s original_name=%s",
-            shortlist_path.name,
-            original_name,
-        )
-        return f"Anti-socialist meme image. Original filename: {original_name}."
+    log: Logger
+    directory: Path
+    reset_when_exhausted: bool
+    save_state: Callable
 
-    description = str(item.get("grok_description", "")).strip()
-    message = str(item.get("anti_socialist_message", "")).strip()
-    ranking = item.get("ranking")
-    shareability = str(item.get("shareability", "")).strip()
+    def summary(
+        self,
+        shortlist_path: Path,
+        analysis_index: dict[str, dict],
+    ) -> str:
+        """Build meme cache summary."""
+        original_name = original_meme_filename(shortlist_path)
+        item = analysis_index.get(original_name)
 
-    parts: list[str] = []
+        if not item:
+            self.log.warning(
+                "No meme analysis found for shortlist file=%s original_name=%s",
+                shortlist_path.name,
+                original_name,
+            )
+            return f"Anti-socialist meme image. Original filename: {original_name}."
 
-    if description:
-        parts.append(description)
+        description = str(item.get("grok_description", "")).strip()
+        message = str(item.get("anti_socialist_message", "")).strip()
+        ranking = item.get("ranking")
+        shareability = str(item.get("shareability", "")).strip()
 
-    if message:
-        parts.append(f"Anti-socialist message: {message}")
+        parts: list[str] = []
 
-    metadata_parts: list[str] = []
+        if description:
+            parts.append(description)
 
-    if ranking is not None:
-        metadata_parts.append(f"ranking {ranking}")
+        if message:
+            parts.append(f"Anti-socialist message: {message}")
 
-    if shareability:
-        metadata_parts.append(f"shareability {shareability}")
+        metadata_parts: list[str] = []
 
-    if metadata_parts:
-        parts.append("Analysis metadata: " + ", ".join(metadata_parts) + ".")
+        if ranking is not None:
+            metadata_parts.append(f"ranking {ranking}")
 
-    return " ".join(parts).strip()
+        if shareability:
+            metadata_parts.append(f"shareability {shareability}")
 
+        if metadata_parts:
+            parts.append("Analysis metadata: " + ", ".join(metadata_parts) + ".")
 
-def list_meme_candidates(
-    *,
-    MEME_DIR: Path,
-    log: Logger,
-) -> list[Path]:
-    """List meme candidates."""
-    if not MEME_DIR.exists():
-        log.warning("Meme directory does not exist: %s", MEME_DIR)
-        return []
+        return " ".join(parts).strip()
 
-    files = [
-        p for p in MEME_DIR.iterdir()
-        if p.is_file() and p.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}
-    ]
+    def candidates(
+        self,
+    ) -> list[Path]:
+        """List meme candidates."""
+        if not self.directory.exists():
+            self.log.warning("Meme directory does not exist: %s", self.directory)
+            return []
 
-    files.sort(key=lambda p: p.name)
-    log.info("Found %d meme candidates in %s", len(files), MEME_DIR)
-    return files
+        files = [
+            p for p in self.directory.iterdir()
+            if p.is_file() and p.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}
+        ]
 
+        files.sort(key=lambda p: p.name)
+        self.log.info("Found %d meme candidates in %s", len(files), self.directory)
+        return files
 
-def choose_next_meme(
-    state: dict,
-    *,
-    list_meme_candidates: Callable,
-    log: Logger,
-    RESET_MEME_CYCLE_WHEN_ALL_POSTED: bool,
-    save_state: Callable,
-) -> Path | None:
-    """Select next meme."""
-    candidates = list_meme_candidates()
+    def choose(
+        self,
+        state: dict,
+    ) -> Path | None:
+        """Select next meme."""
+        candidates = self.candidates()
 
-    if not candidates:
-        return None
+        if not candidates:
+            return None
 
-    posted = set(str(x) for x in state.get("posted_meme_filenames", []))
-    available = [p for p in candidates if p.name not in posted]
+        posted = set(str(x) for x in state.get("posted_meme_filenames", []))
+        available = [p for p in candidates if p.name not in posted]
 
-    if not available:
-        log.info("All meme candidates have already been posted")
+        if not available:
+            self.log.info("All meme candidates have already been posted")
 
-        if RESET_MEME_CYCLE_WHEN_ALL_POSTED:
-            log.info("RESET_MEME_CYCLE_WHEN_ALL_POSTED=True, clearing meme history")
-            state["posted_meme_filenames"] = []
-            save_state(state)
-            return candidates[0]
+            if self.reset_when_exhausted:
+                self.log.info("RESET_MEME_CYCLE_WHEN_ALL_POSTED=True, clearing meme history")
+                state["posted_meme_filenames"] = []
+                self.save_state(state)
+                return candidates[0]
 
-        return None
+            return None
 
-    return available[0]
+        return available[0]
 
 
 @dataclass(frozen=True)

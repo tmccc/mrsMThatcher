@@ -56,7 +56,6 @@ assert 'mrsMThatcher2' not in sys.modules
 
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
     names = (
-        "build_meme_cache_summary", "list_meme_candidates", "choose_next_meme",
         "run_daily_meme_stage", "require_valid_meme_post_id", "post_next_meme",
     )
     for name in names:
@@ -190,6 +189,62 @@ def test_owned_quote_schedule_keeps_two_clock_samples_around_save(monkeypatch):
     assert state["next_meme_post_epoch"] == epoch + 3600
 
 
+CATALOG_METHODS = {'build_meme_cache_summary': 'summary',
+ 'list_meme_candidates': 'candidates',
+ 'choose_next_meme': 'choose'}
+CATALOG_INPUTS = {'log': 'log',
+ 'directory': 'MEME_DIR',
+ 'reset_when_exhausted': 'RESET_MEME_CYCLE_WHEN_ALL_POSTED',
+ 'save_state': 'save_state'}
+
+
+def patch_catalog(monkeypatch, name, callback):
+    monkeypatch.setattr(meme.MemeCatalog, name, lambda _owner, *args, **kwargs: callback(*args, **kwargs))
+
+
+def test_catalog_owner_binds_current_inputs_without_reading(monkeypatch):
+    from dataclasses import FrozenInstanceError
+
+    previous = None
+    for _ in range(2):
+        current = {name: Mock(side_effect=AssertionError("construction read runtime inputs")) for name in CATALOG_INPUTS}
+        for name, value in current.items():
+            monkeypatch.setattr(bot, CATALOG_INPUTS[name], value)
+        owner = bot._meme_catalog_owner()
+        assert owner is not previous and vars(owner).keys() == current.keys()
+        assert all(getattr(owner, name) is value for name, value in current.items())
+        assert all(not value.called for value in current.values())
+        with pytest.raises(FrozenInstanceError):
+            owner.directory = "elsewhere"
+        previous = owner
+
+
+def test_catalog_adapters_preserve_signatures_references_and_errors(monkeypatch):
+    for root_name, method in CATALOG_METHODS.items():
+        adapter = getattr(bot, root_name)
+        public = inspect.signature(adapter).parameters
+        owned = inspect.signature(getattr(meme.MemeCatalog, method)).parameters
+        assert list(public) == list(owned)[1:]
+        assert [(p.kind, p.default) for p in public.values()] == [(p.kind, p.default) for p in list(owned.values())[1:]]
+        args = tuple(object() for p in public.values() if p.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        options = {key: object() for key, p in public.items() if p.kind == inspect.Parameter.KEYWORD_ONLY}
+        result = object()
+        callback = Mock(return_value=result)
+        with monkeypatch.context() as patch:
+            patch_catalog(patch, method, callback)
+            assert adapter(*args, **options) is result
+            actual_args, actual_kwargs = callback.call_args
+            assert len(actual_args) == len(args)
+            assert all(actual is expected for actual, expected in zip(actual_args, args))
+            assert actual_kwargs.keys() == options.keys()
+            assert all(actual_kwargs[key] is value for key, value in options.items())
+            failure = KeyboardInterrupt(root_name)
+            callback.side_effect = failure
+            with pytest.raises(KeyboardInterrupt) as caught:
+                adapter(*args, **options)
+            assert caught.value is failure
+
+
 def test_filename_alias_uses_shared_regex_and_preserves_exact_pattern_order(monkeypatch):
     match = Mock(wraps=bot.re.match)
     monkeypatch.setattr(bot.re, "match", match)
@@ -218,7 +273,7 @@ def test_summary_uses_current_filename_callback_and_original_item_without_copy(m
     index = {"original.png": item}
     original = Mock(return_value="original.png")
     log = Mock()
-    monkeypatch.setattr(bot, "original_meme_filename", original)
+    monkeypatch.setattr(meme, "original_meme_filename", original)
     monkeypatch.setattr(bot, "log", log)
     assert bot.build_meme_cache_summary(path, index) == (
         "Description. Anti-socialist message: Message. Analysis metadata: ranking 0, shareability high."
@@ -252,7 +307,7 @@ def test_catalog_and_cycle_reset_keep_path_state_references_and_save_boundary(tm
     assert bot.list_meme_candidates() == []
     directory.iterdir.assert_not_called()
 
-    monkeypatch.setattr(bot, "list_meme_candidates", lambda: candidates)
+    patch_catalog(monkeypatch, "candidates", lambda: candidates)
     history = [candidates[0].name]
     state = {"posted_meme_filenames": history, "unrelated": object()}
     save = Mock()

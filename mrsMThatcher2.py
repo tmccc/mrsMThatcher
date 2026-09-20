@@ -6902,32 +6902,29 @@ def load_meme_analysis_index() -> dict[str, dict]:
 original_meme_filename = _daily_meme.original_meme_filename
 
 
+def _meme_catalog_owner() -> _daily_meme.MemeCatalog:
+    """Bind current external boundaries without runtime work or caller state."""
+    return _daily_meme.MemeCatalog(
+        log=log,
+        directory=MEME_DIR,
+        reset_when_exhausted=RESET_MEME_CYCLE_WHEN_ALL_POSTED,
+        save_state=save_state,
+    )
+
+
 def build_meme_cache_summary(shortlist_path: Path, analysis_index: dict[str, dict]) -> str:
     """Build the meme cache summary through current root helpers."""
-    return _daily_meme.build_meme_cache_summary(
-        shortlist_path, analysis_index,
-        original_meme_filename=original_meme_filename,
-        log=log,
-    )
+    return _meme_catalog_owner().summary(shortlist_path, analysis_index)
 
 
 def list_meme_candidates() -> list[Path]:
     """List the current meme catalog through the owner."""
-    return _daily_meme.list_meme_candidates(
-        MEME_DIR=MEME_DIR,
-        log=log,
-    )
+    return _meme_catalog_owner().candidates()
 
 
 def choose_next_meme(state: dict) -> Path | None:
     """Select a meme, saving any cycle reset through root authority."""
-    return _daily_meme.choose_next_meme(
-        state,
-        list_meme_candidates=list_meme_candidates,
-        log=log,
-        RESET_MEME_CYCLE_WHEN_ALL_POSTED=RESET_MEME_CYCLE_WHEN_ALL_POSTED,
-        save_state=save_state,
-    )
+    return _meme_catalog_owner().choose(state)
 
 
 def epoch_date_str(epoch: int | None = None) -> str:
