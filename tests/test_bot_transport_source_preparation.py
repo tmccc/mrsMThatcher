@@ -58,7 +58,6 @@ DEPENDENCIES = {'remote_write_transport_journal_paths': ['CONFIRMED_REPLY_RECEIP
                                   'mark_main_post_attempt_attempting'],
  'validate_confirmed_media_upload_metadata': ['ConfirmedMediaUpload',
                                                 'MediaUploadReceiptError',
-                                                'Path',
                                                 'inspect_media_upload_receipt']}
 
 SIGNATURES = {'remote_write_transport_journal_paths': "() -> 'tuple[Path, ...]'",
@@ -584,7 +583,7 @@ def _media_trace(monkeypatch, mismatch=None):
     for name, value in (("ConfirmedMediaUpload", Confirmation), ("Path", trace.path),
                         ("inspect_media_upload_receipt", trace.inspect),
                         ("validate_media_upload_payload_metadata", trace.validate)):
-        target = preparation if name == "validate_media_upload_payload_metadata" else bot
+        target = preparation if name in {"validate_media_upload_payload_metadata", "Path"} else bot
         monkeypatch.setattr(target, name, value)
     return trace, confirmation, document, metadata
 

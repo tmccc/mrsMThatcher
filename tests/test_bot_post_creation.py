@@ -25,7 +25,6 @@ DEPENDENCIES = {'validate_media_upload_payload_metadata': [],
                   'MEDIA_UPLOAD_RECEIPT_FILE',
                   'MediaUploadPreflightError',
                   'MediaUploadReceiptError',
-                  'Path',
                   'RemoteOperationsPaused',
                   'abort_untransmitted_media_upload',
                   'begin_confirmed_post_sigint_deferral',
@@ -43,7 +42,6 @@ DEPENDENCIES = {'validate_media_upload_payload_metadata': [],
  'create_post': ['AmbiguousRemotePostOutcome',
                  'CONFIRMED_REPLY_RECEIPT_FILE',
                  'HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE',
-                 'Path',
                  'ProvedRemotePostNonSuccess',
                  'RemoteOperationsPaused',
                  'TransportJournalError',
@@ -68,11 +66,9 @@ DEPENDENCIES = {'validate_media_upload_payload_metadata': [],
                  'retire_consumed_transport_transaction_after_proved_remote_non_success',
                  'sending_reply_receipt_is_semantically_valid',
                  'transaction_mutation_authority',
-                 'valid_post_id',
                  'x_request'],
  'handoff_confirmed_media_upload_to_main_attempt': ['MEDIA_UPLOAD_RECEIPT_FILE',
                                                     'MediaUploadReceiptError',
-                                                    'Path',
                                                     'bind_media_handoff_to_transport',
                                                     'validate_confirmed_media_upload_metadata',
                                                     'load_confirmed_media_upload',
@@ -104,7 +100,7 @@ SIGNATURES = {'validate_media_upload_payload_metadata': "(value: 'object', *, fo
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time, typing
+import builtins, collections.abc, dataclasses, io, logging, os, random, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -112,7 +108,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter'} or name.startswith('mrs_bot_') and name != 'mrs_bot_post_creation':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_post_creation', 'mrs_bot_receipt_primitives'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -454,7 +450,7 @@ def _public_boundary(monkeypatch, tmp_path):
     for root_name, (name, value) in callbacks.items():
         callback = getattr(events, name)
         callback.return_value = value
-        monkeypatch.setattr(bot, root_name, callback)
+        monkeypatch.setattr(owner if root_name == "valid_post_id" else bot, root_name, callback)
     events.payload.return_value = state.frozen
     events.mutation.side_effect = state.mutations
     monkeypatch.setattr(bot, "log", events.log)

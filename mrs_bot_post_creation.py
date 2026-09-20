@@ -1,15 +1,17 @@
 """Receipt-bound media upload and public-post creation.
 
-Fixed media metadata construction, validation and copying are owned here.
+Fixed media metadata, path values, post-ID checks and copying are owned here.
 The root supplies current runtime boundaries explicitly on each call. Import
 performs no runtime work and retains no runtime authority.
 """
 from __future__ import annotations
 
 import copy
-
 from collections.abc import Callable
 from typing import Any
+from pathlib import Path
+
+from mrs_bot_receipt_primitives import valid_post_id
 
 
 def validate_media_upload_payload_metadata(
@@ -118,7 +120,6 @@ def upload_media(
     MEDIA_UPLOAD_RECEIPT_FILE: Any,
     MediaUploadPreflightError: Any,
     MediaUploadReceiptError: Any,
-    Path: Any,
     RemoteOperationsPaused: Any,
     abort_untransmitted_media_upload: Any,
     begin_confirmed_post_sigint_deferral: Any,
@@ -252,7 +253,6 @@ def create_post(
     AmbiguousRemotePostOutcome: Any,
     CONFIRMED_REPLY_RECEIPT_FILE: Any,
     HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE: Any,
-    Path: Any,
     ProvedRemotePostNonSuccess: Any,
     RemoteOperationsPaused: Any,
     TransportJournalError: Any,
@@ -277,7 +277,6 @@ def create_post(
     retire_consumed_transport_transaction_after_proved_remote_non_success: Any,
     sending_reply_receipt_is_semantically_valid: Any,
     transaction_mutation_authority: Any,
-    valid_post_id: Any,
     x_request: Any,
 ) -> dict:
     """Create an X post with transactional ambiguity handling."""
@@ -637,7 +636,6 @@ def handoff_confirmed_media_upload_to_main_attempt(
     *,
     MEDIA_UPLOAD_RECEIPT_FILE: Any,
     MediaUploadReceiptError: Any,
-    Path: Any,
     bind_media_handoff_to_transport: Any,
     validate_confirmed_media_upload_metadata: Any,
     load_confirmed_media_upload: Any,

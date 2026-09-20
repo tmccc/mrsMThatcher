@@ -3731,7 +3731,6 @@ def upload_media(
         MEDIA_UPLOAD_RECEIPT_FILE=MEDIA_UPLOAD_RECEIPT_FILE,
         MediaUploadPreflightError=MediaUploadPreflightError,
         MediaUploadReceiptError=MediaUploadReceiptError,
-        Path=Path,
         RemoteOperationsPaused=RemoteOperationsPaused,
         abort_untransmitted_media_upload=abort_untransmitted_media_upload,
         begin_confirmed_post_sigint_deferral=begin_confirmed_post_sigint_deferral,
@@ -4693,7 +4692,6 @@ def create_post(
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
         CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
         HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE=HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-        Path=Path,
         ProvedRemotePostNonSuccess=ProvedRemotePostNonSuccess,
         RemoteOperationsPaused=RemoteOperationsPaused,
         TransportJournalError=TransportJournalError,
@@ -4718,7 +4716,6 @@ def create_post(
         retire_consumed_transport_transaction_after_proved_remote_non_success=retire_consumed_transport_transaction_after_proved_remote_non_success,
         sending_reply_receipt_is_semantically_valid=sending_reply_receipt_is_semantically_valid,
         transaction_mutation_authority=transaction_mutation_authority,
-        valid_post_id=valid_post_id,
         x_request=x_request,
     )
 
@@ -5326,7 +5323,6 @@ def validate_confirmed_media_upload_metadata(
         confirmation,
         ConfirmedMediaUpload=ConfirmedMediaUpload,
         MediaUploadReceiptError=MediaUploadReceiptError,
-        Path=Path,
         inspect_media_upload_receipt=inspect_media_upload_receipt,
     )
 
@@ -5341,7 +5337,6 @@ def handoff_confirmed_media_upload_to_main_attempt(
         transport_authority,
         MEDIA_UPLOAD_RECEIPT_FILE=MEDIA_UPLOAD_RECEIPT_FILE,
         MediaUploadReceiptError=MediaUploadReceiptError,
-        Path=Path,
         bind_media_handoff_to_transport=bind_media_handoff_to_transport,
         validate_confirmed_media_upload_metadata=validate_confirmed_media_upload_metadata,
         load_confirmed_media_upload=load_confirmed_media_upload,
