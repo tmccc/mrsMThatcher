@@ -6120,7 +6120,6 @@ def reconcile_confirmed_transactions_before_global_barrier(
         confirmation_epoch_for_main_attempt=confirmation_epoch_for_main_attempt,
         emit_historical_context_store_observation=emit_historical_context_store_observation,
         global_remote_writes_paused=global_remote_writes_paused,
-        hashlib=hashlib,
         historical_context_outbox_remote_attempt_parent_for_local_reconciliation=historical_context_outbox_remote_attempt_parent_for_local_reconciliation,
         historical_context_outbox_store=historical_context_outbox_store,
         historical_context_reply_store=historical_context_reply_store,

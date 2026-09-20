@@ -1,10 +1,12 @@
 """Local transaction recovery and startup receipt gates.
 
 The root supplies current runtime dependencies explicitly on each call. This
-module performs no runtime work at import and retains no runtime authority.
+module owns fixed receipt hashing and performs no runtime work at import; it
+retains no runtime authority.
 """
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from mrs_bot_receipt_retirement import confirmed_context_outbox_matches_receipt
@@ -190,7 +192,6 @@ def _reconcile_historical_context_receipt_before_global_barrier(
     bind_confirmed_transport_source: Any,
     confirmation_epoch_for_main_attempt: Any,
     emit_historical_context_store_observation: Any,
-    hashlib: Any,
     historical_context_outbox_store: Any,
     historical_context_reply_store: Any,
     inspect_confirmed_transport_transaction: Any,
@@ -562,7 +563,6 @@ def reconcile_confirmed_transactions_before_global_barrier(
     confirmation_epoch_for_main_attempt: Any,
     emit_historical_context_store_observation: Any,
     global_remote_writes_paused: Any,
-    hashlib: Any,
     historical_context_outbox_remote_attempt_parent_for_local_reconciliation: Any,
     historical_context_outbox_store: Any,
     historical_context_reply_store: Any,
@@ -692,7 +692,6 @@ def reconcile_confirmed_transactions_before_global_barrier(
             bind_confirmed_transport_source=bind_confirmed_transport_source,
             confirmation_epoch_for_main_attempt=confirmation_epoch_for_main_attempt,
             emit_historical_context_store_observation=emit_historical_context_store_observation,
-            hashlib=hashlib,
             historical_context_outbox_store=historical_context_outbox_store,
             historical_context_reply_store=historical_context_reply_store,
             inspect_confirmed_transport_transaction=inspect_confirmed_transport_transaction,

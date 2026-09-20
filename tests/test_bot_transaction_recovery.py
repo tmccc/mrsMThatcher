@@ -36,7 +36,6 @@ DEPENDENCIES = {'ensure_reconciled_regular_receipt_schedule_is_future': ['log', 
                                                             'confirmation_epoch_for_main_attempt',
                                                             'emit_historical_context_store_observation',
                                                             'global_remote_writes_paused',
-                                                            'hashlib',
                                                             'historical_context_outbox_remote_attempt_parent_for_local_reconciliation',
                                                             'historical_context_outbox_store',
                                                             'historical_context_reply_store',
@@ -270,7 +269,7 @@ def _prebarrier(monkeypatch, present=(), classification="clear"):
     trace = Mock()
     for name in (*DEPENDENCIES["reconcile_confirmed_transactions_before_global_barrier"],
                  "confirmed_context_outbox_matches_receipt"):
-        if name.isupper() or name in {"hashlib", "TransportJournalError"}:
+        if name.isupper() or name == "TransportJournalError":
             continue
         callback = getattr(trace, name)
         callback.side_effect = AssertionError("unexpected dependency: " + name)
@@ -634,7 +633,7 @@ def test_historical_promotion_preserves_bytes_stores_outbox_order_and_raw_result
     trace.historical_context_outbox_store.side_effect = lambda: outbox
     trace.inspect_confirmed_transport_transaction.side_effect = lambda actual: details
     trace.sha.side_effect = real_sha
-    monkeypatch.setattr(bot, "hashlib", SimpleNamespace(sha256=trace.sha))
+    monkeypatch.setattr(recovery, "hashlib", SimpleNamespace(sha256=trace.sha))
     trace.bind_confirmed_transport_source.side_effect = lambda **kwargs: SimpleNamespace(
         source_binding=SimpleNamespace(receipt_document=bound_source), details=details)
 
