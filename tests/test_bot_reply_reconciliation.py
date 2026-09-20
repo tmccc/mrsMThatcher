@@ -145,7 +145,7 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
         assert clarification_owner.window_seconds == 1000 + index
         accounting_owner = supplied["accounting"]
         assert isinstance(accounting_owner, daily_accounting.DailyReplyAccounting)
-        for field in ("datetime", "log", "reply_cap_date_str", "append_unique_capped"):
+        for field in ("log", "reply_cap_date_str", "append_unique_capped"):
             assert getattr(accounting_owner, field) is current[field]
         accounting_owners.append(accounting_owner)
         draft_callback = supplied["clear_target_drafts"]

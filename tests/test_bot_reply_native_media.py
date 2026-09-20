@@ -23,7 +23,7 @@ OWNER_INPUTS = {
     "maximum_supplied_images": "MAX_SUPPLIED_IMAGES",
     "maximum_image_bytes": "SINGLE_CALL_MAX_IMAGE_BYTES",
     "image_mime_types": "_REPLY_IMAGE_MIME_TYPES",
-    "log": "log", "urlsplit": "urlsplit",
+    "log": "log",
     "media_unavailable": "ReplyMediaUnavailable",
     "media_transient_unavailable": "ReplyMediaTransientUnavailable",
     "test_mode": "TEST_MODE", "endpoint_is_loopback": "endpoint_is_loopback",
@@ -369,7 +369,7 @@ def test_multiple_image_collection_closes_each_download_before_the_next_step(
     assert first.closed and second.closed
 
 
-def test_url_validation_reads_current_policy_and_preserves_exception_cause(make_owner):
+def test_url_validation_reads_current_policy_and_preserves_exception_cause(monkeypatch, make_owner):
     class CurrentMediaError(bot.ReplyMediaUnavailable):
         pass
 
@@ -380,7 +380,7 @@ def test_url_validation_reads_current_policy_and_preserves_exception_cause(make_
     owner = replace(owner, test_mode=True)
     assert owner.safe_url("http://127.0.0.1/media/photo.png") == "http://127.0.0.1/media/photo.png"
     failure = ValueError("fixture invalid port")
-    owner = replace(owner, urlsplit=Mock(side_effect=failure))
+    monkeypatch.setattr(native_media, "urlsplit", Mock(side_effect=failure))
     with pytest.raises(CurrentMediaError, match="invalid port") as caught:
         owner.safe_url("https://pbs.twimg.com:bad/media/photo.png")
     assert caught.value.__cause__ is failure

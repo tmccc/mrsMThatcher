@@ -2957,7 +2957,6 @@ def save_state(state: dict, *, durable: bool = False) -> StateCommitProof:
 def _daily_reply_accounting_owner() -> _daily_reply_accounting.DailyReplyAccounting:
     """Bind current daily accounting boundaries without reading dates or state."""
     return _daily_reply_accounting.DailyReplyAccounting(
-        datetime=datetime,
         log=log,
         reply_cap_date_str=reply_cap_date_str,
         append_unique_capped=append_unique_capped,
@@ -3709,7 +3708,6 @@ def _reply_media_owner() -> _reply_native_media.ReplyMedia:
         maximum_image_bytes=SINGLE_CALL_MAX_IMAGE_BYTES,
         image_mime_types=_REPLY_IMAGE_MIME_TYPES,
         log=log,
-        urlsplit=urlsplit,
         media_unavailable=ReplyMediaUnavailable,
         media_transient_unavailable=ReplyMediaTransientUnavailable,
         test_mode=TEST_MODE,
@@ -7870,7 +7868,6 @@ def _reply_model_transport_owner() -> _reply_model_transport.ReplyModelTransport
         api_key=OPENAI_API_KEY,
         sleep=sleep,
         now_epoch=now_epoch,
-        parsedate_to_datetime=parsedate_to_datetime,
         error_type=ApiError,
     )
 

@@ -1,6 +1,6 @@
 """Own daily reply buckets, per-author counts and confirmed-reply accounting.
 
-DailyReplyAccounting binds current date, datetime, logging and ID-list helper
+DailyReplyAccounting binds current date, logging and ID-list helper
 boundaries without retaining caller state. Daily reset and confirmation-date
 advancement deliberately keep their distinct time rules. Confirmation recording
 uses the caller's prior idempotency decision and resolved receipt dates at its
@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 
 
 def daily_author_reply_counts(state: dict) -> dict[str, int]:
@@ -43,7 +44,6 @@ def daily_author_reply_counts(state: dict) -> dict[str, int]:
 class DailyReplyAccounting:
     """Maintain daily reply accounting with explicit state and resolved dates."""
 
-    datetime: type
     log: logging.Logger
     reply_cap_date_str: Callable
     append_unique_capped: Callable
@@ -100,7 +100,7 @@ class DailyReplyAccounting:
         if not isinstance(value, str):
             return False
         try:
-            return self.datetime.strptime(value, "%Y-%m-%d").strftime("%Y-%m-%d") == value
+            return datetime.strptime(value, "%Y-%m-%d").strftime("%Y-%m-%d") == value
         except ValueError:
             return False
 

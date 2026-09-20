@@ -24,7 +24,7 @@ OWNER_INPUTS = {
     "monotonic": "monotonic", "require_remote_operation_unpaused": "require_remote_operation_unpaused",
     "report_bot_health_progress": "report_bot_health_progress", "requests": "requests",
     "base_url": "OPENAI_BASE", "api_key": "OPENAI_API_KEY", "sleep": "sleep",
-    "now_epoch": "now_epoch", "parsedate_to_datetime": "parsedate_to_datetime", "error_type": "ApiError",
+    "now_epoch": "now_epoch", "error_type": "ApiError",
 }
 
 
@@ -212,7 +212,7 @@ def test_transport_keeps_request_reference_and_closes_retry_responses_in_order(m
 
 @pytest.mark.parametrize("failure_site", ["decoder", "metadata_429", "metadata_503"])
 def test_unexpected_response_read_failure_closes_without_mapping_or_retry(
-    make_owner, failure_site,
+    monkeypatch, make_owner, failure_site,
 ):
     failure = RuntimeError("fixture unexpected response read failure")
     status_code = 200 if failure_site == "decoder" else int(failure_site.rsplit("_", 1)[1])
@@ -223,10 +223,11 @@ def test_unexpected_response_read_failure_closes_without_mapping_or_retry(
     post = Mock(return_value=response)
     sleep = Mock()
     error_type = Mock()
+    monkeypatch.setattr(model_transport, "parsedate_to_datetime", Mock(side_effect=failure))
     owner = make_owner(
         requests=SimpleNamespace(post=post, RequestException=bot.requests.RequestException),
         require_remote_operation_unpaused=Mock(), report_bot_health_progress=Mock(),
-        parsedate_to_datetime=Mock(side_effect=failure), now_epoch=lambda: 2_000_000_000,
+        now_epoch=lambda: 2_000_000_000,
         sleep=sleep, error_type=error_type, log=Mock(),
     )
 
@@ -320,11 +321,12 @@ def test_error_creation_preserves_constructor_result_and_metadata_references(mak
     assert result.retry_after_seconds is delay and result.request_attempt_count is attempts
 
 
-def test_retry_metadata_uses_current_clock_parser_and_largest_bounded_delay(make_owner):
+def test_retry_metadata_uses_current_clock_and_largest_bounded_delay(monkeypatch, make_owner):
     clock = Mock(return_value=100)
     parsed = SimpleNamespace(tzinfo=object(), timestamp=lambda: 100.2)
     parser = Mock(return_value=parsed)
-    owner = make_owner(now_epoch=clock, parsedate_to_datetime=parser)
+    monkeypatch.setattr(model_transport, "parsedate_to_datetime", parser)
+    owner = make_owner(now_epoch=clock)
     response = FakeHttpResponse(429, headers={"Retry-After": "fixture-date", "x-ratelimit-reset-tokens": "2m500ms"})
     assert owner.retry_metadata(response) == (221, 121)
     clock.assert_called_once_with()

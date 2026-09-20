@@ -18,7 +18,7 @@ from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
-OWNER_INPUTS = ("datetime", "log", "reply_cap_date_str", "append_unique_capped")
+OWNER_INPUTS = ("log", "reply_cap_date_str", "append_unique_capped")
 
 
 @pytest.fixture
@@ -80,7 +80,7 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
     assert first is not snapshots[1][0]
     assert all(getattr(first, name) is value for name, value in inputs.items())
     with pytest.raises(FrozenInstanceError):
-        first.datetime = object()
+        first.log = object()
 
 
 def test_root_adapters_preserve_arguments_result_identity_and_errors(monkeypatch):
@@ -208,7 +208,7 @@ def test_author_increment_precedes_current_capped_helper_failure(monkeypatch, ma
     assert counts == {"7": 4} and state["daily_replied_author_ids"] is replacement
 
 
-def test_date_round_trip_uses_current_datetime_and_catches_only_value_error(make_owner):
+def test_date_round_trip_catches_only_value_error(monkeypatch, make_owner):
     owner = make_owner()
     assert owner.valid_date("2024-02-29")
     assert not owner.valid_date("2024-2-29")
@@ -216,7 +216,7 @@ def test_date_round_trip_uses_current_datetime_and_catches_only_value_error(make
     assert not owner.valid_date(None)
     current = Mock()
     current.strptime.return_value.strftime.return_value = "current-date"
-    owner = replace(owner, datetime=current)
+    monkeypatch.setattr(accounting, "datetime", current)
     assert owner.valid_date("current-date")
     current.strptime.assert_called_once_with("current-date", "%Y-%m-%d")
     current.strptime.return_value.strftime.assert_called_once_with("%Y-%m-%d")

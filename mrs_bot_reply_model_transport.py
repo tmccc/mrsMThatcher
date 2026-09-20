@@ -12,6 +12,7 @@ import re
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from email.utils import parsedate_to_datetime
 
 
 @dataclass(frozen=True)
@@ -28,7 +29,6 @@ class ReplyModelTransport:
     api_key: str = field(repr=False)
     sleep: Callable
     now_epoch: Callable
-    parsedate_to_datetime: Callable
     error_type: type[Exception]
 
     def definite_connection_failure_before_transmission(
@@ -88,7 +88,7 @@ class ReplyModelTransport:
                 numeric = float(raw)
             except ValueError:
                 try:
-                    parsed = self.parsedate_to_datetime(raw)
+                    parsed = parsedate_to_datetime(raw)
                     if parsed.tzinfo is not None:
                         numeric = parsed.timestamp() - current
                     else:

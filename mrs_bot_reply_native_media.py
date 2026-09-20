@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
+from urllib.parse import urlsplit
 
 
 _REPLY_IMAGE_MIME_TYPES = {
@@ -61,7 +62,6 @@ class ReplyMedia:
     maximum_image_bytes: int
     image_mime_types: set[str]
     log: Logger
-    urlsplit: Callable
     media_unavailable: type
     media_transient_unavailable: type
     test_mode: bool
@@ -237,7 +237,7 @@ class ReplyMedia:
         """Validate the candidate image URL against trusted media origins."""
         url = str(value or "").strip()
         try:
-            parsed = self.urlsplit(url)
+            parsed = urlsplit(url)
             port = parsed.port
         except ValueError as exc:
             raise self.media_unavailable("candidate image URL has an invalid port") from exc
