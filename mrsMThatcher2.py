@@ -4011,7 +4011,6 @@ def bind_lane_transport_source(
         payload=payload,
         TRANSPORT_SOURCE_VALIDATOR_ID=TRANSPORT_SOURCE_VALIDATOR_ID,
         bind_transport_source=bind_transport_source,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         transport_source_semantic_validator=transport_source_semantic_validator,
     )
 
@@ -4104,7 +4103,6 @@ def resume_interrupted_source_receipt_retirement_if_present() -> bool:
         HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE=HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
         MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
         REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         historical_context_reply_store=historical_context_reply_store,
         inspect_transport_state=inspect_transport_state,
         journal_path_for_receipt=journal_path_for_receipt,
@@ -4308,7 +4306,6 @@ def expected_lane_transport_source_receipt_bytes(
         lane=lane,
         current_receipt_bytes=current_receipt_bytes,
         TransportJournalError=TransportJournalError,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
         conversational_sending_receipt_from_confirmed=conversational_sending_receipt_from_confirmed,
         current_main_post_attempt_is_semantically_valid=current_main_post_attempt_is_semantically_valid,
@@ -4335,7 +4332,6 @@ def verify_lane_transport_source_lineage_if_present(
         current_receipt_bytes=current_receipt_bytes,
         TRANSPORT_SOURCE_VALIDATOR_ID=TRANSPORT_SOURCE_VALIDATOR_ID,
         TransportJournalError=TransportJournalError,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         expected_lane_transport_source_receipt_bytes=expected_lane_transport_source_receipt_bytes,
         journal_path_for_receipt=journal_path_for_receipt,
         receipt_int=receipt_int,
@@ -4364,7 +4360,6 @@ def retire_lane_transport_journal_if_present(
         lane=lane,
         post_id=post_id,
         current_receipt_bytes=current_receipt_bytes,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         expected_lane_transport_source_receipt_bytes=expected_lane_transport_source_receipt_bytes,
         journal_path_for_receipt=journal_path_for_receipt,
         prepare_exact_receipt_retirement=prepare_exact_receipt_retirement,
@@ -4585,7 +4580,6 @@ def ensure_durable_remote_write_safety_marker(marker: dict) -> bool:
         AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE=AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
         acknowledge_durable_remote_write_safety_marker=acknowledge_durable_remote_write_safety_marker,
         atomic_write_json=atomic_write_json,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         log=log,
         os=os,
         remote_write_safety_protocol_is_active=remote_write_safety_protocol_is_active,
@@ -5102,9 +5096,7 @@ def atomic_write_json(path: Path, value: object, *, durable: bool = False) -> No
     )
 
 
-def canonical_atomic_json_bytes(value: object) -> bytes:
-    """Return the exact byte representation used by ``atomic_write_json``."""
-    return (json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n").encode("utf-8")
+canonical_atomic_json_bytes = _durable_json_io.canonical_atomic_json_bytes
 
 
 RECEIPT_JSON_MAX_BYTES = 1024 * 1024
@@ -5143,7 +5135,6 @@ def load_receipt_json_no_follow(path: Path) -> tuple[bool, object | None]:
         RECEIPT_JSON_MAX_BYTES=RECEIPT_JSON_MAX_BYTES,
         UnsafeReceiptNamespace=UnsafeReceiptNamespace,
         _strict_receipt_json_bytes=_strict_receipt_json_bytes,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         os=os,
         stat=stat,
     )
@@ -5156,7 +5147,6 @@ def durable_create_receipt_json(path: Path, value: object) -> None:
         value,
         RECEIPT_JSON_MAX_BYTES=RECEIPT_JSON_MAX_BYTES,
         UnsafeReceiptNamespace=UnsafeReceiptNamespace,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         fsync_parent_dir=fsync_parent_dir,
         os=os,
         stat=stat,
@@ -5168,7 +5158,6 @@ def atomic_json_file_exactly_matches(path: Path, value: object) -> bool:
     return _main_post_confirmation_persistence.atomic_json_file_exactly_matches(
         path,
         value,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
     )
 
 
@@ -5460,7 +5449,6 @@ def mark_main_post_attempt_attempting(attempt: dict) -> dict:
         attempt,
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
         REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         current_main_post_attempt_is_semantically_valid=current_main_post_attempt_is_semantically_valid,
         load_meme_post_receipt=load_meme_post_receipt,
         load_regular_post_receipt=load_regular_post_receipt,
@@ -5486,7 +5474,6 @@ def remove_main_post_attempt(
         attempt,
         sending_disposition=sending_disposition,
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         current_main_post_attempt_is_semantically_valid=current_main_post_attempt_is_semantically_valid,
         load_receipt_json_no_follow=load_receipt_json_no_follow,
         log=log,
@@ -5577,7 +5564,6 @@ def promote_main_post_attempt_to_confirmed_pending_schedule(
         atomic_json_file_exactly_matches=atomic_json_file_exactly_matches,
         bind_confirmed_transport_source=bind_confirmed_transport_source,
         build_confirmed_pending_schedule_receipt=build_confirmed_pending_schedule_receipt,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         fsync_parent_dir=fsync_parent_dir,
         journal_path_for_receipt=journal_path_for_receipt,
         latch_confirmed_post_persistence_failure=latch_confirmed_post_persistence_failure,
@@ -5603,7 +5589,6 @@ def materialize_bound_regular_schedule_receipt(
         _validate_result=_validate_result,
         InvalidRegularPostReceipt=InvalidRegularPostReceipt,
         bound_schedule_datetime=bound_schedule_datetime,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
         copy=copy,
         hashlib=hashlib,
@@ -5623,7 +5608,6 @@ def materialize_bound_meme_schedule_receipt(
         _validate_result=_validate_result,
         InvalidMemePostReceipt=InvalidMemePostReceipt,
         bound_schedule_datetime=bound_schedule_datetime,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
         copy=copy,
         hashlib=hashlib,
@@ -5679,7 +5663,6 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
         MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
         MEME_SCHEDULE_MODES=MEME_SCHEDULE_MODES,
         MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
         copy=copy,
         hashlib=hashlib,
@@ -5716,7 +5699,6 @@ def remove_regular_post_receipt(receipt: dict, *, commit_proof=None) -> None:
     return _main_post_receipt_storage.remove_regular_post_receipt(
         receipt,
         REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         log=log,
         retire_current_source_receipt=functools.partial(retire_current_source_receipt, commit_proof=commit_proof),
     )
@@ -5749,7 +5731,6 @@ def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
         data,
         MEME_SCHEDULE_MODES=MEME_SCHEDULE_MODES,
         MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
         copy=copy,
         hashlib=hashlib,
@@ -5783,7 +5764,6 @@ def remove_meme_post_receipt(receipt: dict, *, commit_proof=None) -> None:
     return _main_post_receipt_storage.remove_meme_post_receipt(
         receipt,
         MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         log=log,
         retire_current_source_receipt=functools.partial(retire_current_source_receipt, commit_proof=commit_proof),
     )
@@ -7696,7 +7676,6 @@ def _reply_receipt_values_owner() -> _reply_receipt_values.ReplyReceiptValues:
         draft_is_valid=ai_reply_receipt_draft_is_valid,
         legacy_tested_strategy_version=_LEGACY_TESTED_REPLY_STRATEGY_VERSION,
         legacy_ai_first_strategy_version=_LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         now_epoch=now_epoch,
         reply_cap_date_str=reply_cap_date_str,
         log=log,
@@ -7843,7 +7822,6 @@ def promote_sending_reply_receipt(
         CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
         TRANSPORT_SOURCE_VALIDATOR_ID=TRANSPORT_SOURCE_VALIDATOR_ID,
         transport_source_semantic_validator=transport_source_semantic_validator,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         TransportJournalError=TransportJournalError,
         receipt_values=_reply_receipt_values_owner(),
         legacy_recovery=False,
@@ -7871,7 +7849,6 @@ def _promote_legacy_sending_reply_receipt_from_confirmed_transport(
         CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
         TRANSPORT_SOURCE_VALIDATOR_ID=TRANSPORT_SOURCE_VALIDATOR_ID,
         transport_source_semantic_validator=_legacy_conversational_transport_source_semantic_validator,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         TransportJournalError=TransportJournalError,
         receipt_values=_reply_receipt_values_owner(),
         legacy_recovery=True,
@@ -7904,7 +7881,6 @@ def remove_confirmed_reply_receipt(
                if receipt.get("lifecycle_state") == "sending"
                and sending_disposition == "definite_non_success" else {}),
         ),
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         log=log,
     )
 

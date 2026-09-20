@@ -11,6 +11,8 @@ from mrs_bot_post_creation import validate_media_upload_payload_metadata
 
 from mrs_bot_main_post_attempt_values import main_post_attempt_payload
 
+from mrs_bot_durable_json_io import canonical_atomic_json_bytes
+
 
 def remote_write_transport_journal_paths(
     *,
@@ -144,7 +146,6 @@ def bind_lane_transport_source(
     payload: dict,
     TRANSPORT_SOURCE_VALIDATOR_ID: Any,
     bind_transport_source: Any,
-    canonical_atomic_json_bytes: Any,
     transport_source_semantic_validator: Any,
 ) -> SourceReceiptBinding:
     """Create the only accepted semantic source binding for a public tweet."""

@@ -21,7 +21,7 @@ from tests.helpers.bot_fixtures import (
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time
+import builtins, collections.abc, json, io, logging, os, random, socket, sys, time
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -29,7 +29,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name != 'mrs_bot_main_post_receipt_storage':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_main_post_receipt_storage', 'mrs_bot_durable_json_io'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -59,15 +59,15 @@ assert 'single_call_reply' not in sys.modules
     [
         ("main_post_attempt_path", "(attempt: 'dict') -> 'Path'", 2),
         ("write_main_post_attempt", "(attempt: 'dict') -> 'None'", 11),
-        ("mark_main_post_attempt_attempting", "(attempt: 'dict') -> 'dict'", 10),
-        ("remove_main_post_attempt", "(attempt: 'dict', *, sending_disposition: 'str', commit_proof=None) -> 'None'", 7),
+        ("mark_main_post_attempt_attempting", "(attempt: 'dict') -> 'dict'", 9),
+        ("remove_main_post_attempt", "(attempt: 'dict', *, sending_disposition: 'str', commit_proof=None) -> 'None'", 6),
         ("finalize_confirmed_pending_schedule_receipt", "(pending: 'dict') -> 'dict'", 10),
         ("write_regular_post_receipt", "(receipt: 'dict') -> 'None'", 14),
         ("load_regular_post_receipt", "() -> 'tuple[str, dict | None]'", 6),
-        ("remove_regular_post_receipt", "(receipt: 'dict', *, commit_proof=None) -> 'None'", 4),
+        ("remove_regular_post_receipt", "(receipt: 'dict', *, commit_proof=None) -> 'None'", 3),
         ("write_meme_post_receipt", "(receipt: 'dict') -> 'None'", 14),
         ("load_meme_post_receipt", "() -> 'tuple[str, dict | None]'", 6),
-        ("remove_meme_post_receipt", "(receipt: 'dict', *, commit_proof=None) -> 'None'", 4),
+        ("remove_meme_post_receipt", "(receipt: 'dict', *, commit_proof=None) -> 'None'", 3),
     ],
 )
 def test_adapters_forward_current_dependencies_signatures_references_and_errors(
@@ -128,7 +128,8 @@ def _callbacks(monkeypatch, **returns):
     for name, value in returns.items():
         callback = Mock(return_value=value)
         trace.attach_mock(callback, name)
-        monkeypatch.setattr(bot, name, callback)
+        target = storage if name == "canonical_atomic_json_bytes" else bot
+        monkeypatch.setattr(target, name, callback)
     logger = Mock()
     trace.attach_mock(logger, "log")
     monkeypatch.setattr(bot, "log", logger)
@@ -599,7 +600,7 @@ def test_attempt_retirement_keeps_disposition_secure_reader_and_missing_scope(mo
         return storage.remove_main_post_attempt(
             attempt, sending_disposition=sending_disposition,
             **{key: getattr(bot, key) for key in (
-                "AmbiguousRemotePostOutcome", "canonical_atomic_json_bytes",
+                "AmbiguousRemotePostOutcome",
                 "current_main_post_attempt_is_semantically_valid", "load_receipt_json_no_follow", "log",
                 "main_post_attempt_path", "retire_current_source_receipt")},
         )
@@ -649,7 +650,7 @@ def test_reconciled_retirement_uses_original_canonical_bytes_before_logging(monk
     def remove(receipt):
         return getattr(storage, f"remove_{prefix}_post_receipt")(
             receipt, **{key: getattr(bot, key) for key in (
-                f"{prefix.upper()}_POST_RECEIPT_FILE", "canonical_atomic_json_bytes",
+                f"{prefix.upper()}_POST_RECEIPT_FILE",
                 "log", "retire_current_source_receipt")},
         )
     assert remove(receipt) is None

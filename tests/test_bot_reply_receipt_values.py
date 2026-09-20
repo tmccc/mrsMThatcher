@@ -27,7 +27,7 @@ from tests.helpers.reply_fixtures import (
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, dataclasses, hashlib, io, logging, os, random, re, socket, sys
+import builtins, collections.abc, json, dataclasses, hashlib, io, logging, os, random, re, socket, sys
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -35,7 +35,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name != 'mrs_bot_reply_receipt_values':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_receipt_values', 'mrs_bot_durable_json_io'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -68,7 +68,6 @@ OWNER_INPUTS = {
     "draft_is_valid": "ai_reply_receipt_draft_is_valid",
     "legacy_tested_strategy_version": "_LEGACY_TESTED_REPLY_STRATEGY_VERSION",
     "legacy_ai_first_strategy_version": "_LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION",
-    "canonical_atomic_json_bytes": "canonical_atomic_json_bytes",
     "now_epoch": "now_epoch", "reply_cap_date_str": "reply_cap_date_str",
     "log": "log", "invalid_receipt": "InvalidConfirmedReplyReceipt",
 }
@@ -192,9 +191,10 @@ def test_source_validation_uses_current_family_callbacks_in_order(monkeypatch, m
     trace.reconstruct = Mock(wraps=owner.sending_from_confirmed)
     trace.sending = Mock(return_value=True)
     trace.canonical = Mock(wraps=bot.canonical_atomic_json_bytes)
+    monkeypatch.setattr(values, "canonical_atomic_json_bytes", trace.canonical)
     wrong_family = Mock(side_effect=AssertionError("wrong draft family"))
     owner = replace(
-        owner, canonical_atomic_json_bytes=trace.canonical,
+        owner,
         legacy_draft_is_valid=trace.draft if legacy else wrong_family,
         draft_is_valid=wrong_family if legacy else trace.draft,
     )
@@ -241,7 +241,8 @@ def test_source_reconstruction_errors_are_caught_before_hashing(monkeypatch, mak
     reconstruct = Mock(side_effect=ValueError("invalid source"))
     canonical = Mock(side_effect=UnicodeError("unencodable source"))
     monkeypatch.setattr(values.ReplyReceiptValues, "sending_from_confirmed", reconstruct)
-    owner = make_owner(canonical_atomic_json_bytes=canonical)
+    monkeypatch.setattr(values, "canonical_atomic_json_bytes", canonical)
+    owner = make_owner()
     assert not owner.confirmed_is_valid(confirmed)
     canonical.assert_not_called()
     reconstruct.side_effect = None
@@ -287,14 +288,15 @@ def test_attempt_binding_preserves_references_and_clock_date_validation_order(mo
 
 
 @pytest.mark.parametrize("lane", ["mention", "quote_tweet"])
-def test_projection_and_reconstruction_keep_shallow_copies_and_exact_hash_input(make_owner, lane):
+def test_projection_and_reconstruction_keep_shallow_copies_and_exact_hash_input(monkeypatch, make_owner, lane):
     sending = unit_sending_v4_reply_receipt(lane=lane)
     reply = unit_approved_reply(sending["reply_context"], text=sending["reply_text"])
     sending["reply_text"], sending["ai_reply_draft"] = reply, reply.draft_record
     before = dict(sending)
     canonical = Mock(return_value=b"exact current canonical sending bytes\n")
     date = Mock(return_value="confirmation-date")
-    owner = make_owner(canonical_atomic_json_bytes=canonical, reply_cap_date_str=date)
+    monkeypatch.setattr(values, "canonical_atomic_json_bytes", canonical)
+    owner = make_owner(reply_cap_date_str=date)
     confirmed = owner.confirmed_from_sending(
         sending, reply_post_id=999, confirmation_epoch=2_000_000_005,
     )
@@ -328,11 +330,12 @@ def test_projection_and_reconstruction_keep_shallow_copies_and_exact_hash_input(
     assert sending == before and confirmed == confirmed_before
 
 
-def test_confirmation_projection_preserves_existing_version_equality(make_owner):
+def test_confirmation_projection_preserves_existing_version_equality(monkeypatch, make_owner):
     sending = unit_sending_v4_reply_receipt()
     sending["schema_version"] = 4.0
     canonical = Mock(wraps=bot.canonical_atomic_json_bytes)
-    owner = make_owner(canonical_atomic_json_bytes=canonical)
+    monkeypatch.setattr(values, "canonical_atomic_json_bytes", canonical)
+    owner = make_owner()
     confirmed = owner.confirmed_from_sending(
         sending, reply_post_id=999, confirmation_epoch=2_000_000_005,
     )
@@ -459,7 +462,7 @@ def test_send_preparation_rejects_authority_mismatch_before_validation(monkeypat
     ("confirmed", {"daily_reply_date": "wrong date"}),
     ("confirmed", {"daily_quote_reply_date": "unexpected bucket"}),
 ])
-def test_receipt_time_failure_precedes_draft_and_lineage_work(make_owner, lifecycle, changes):
+def test_receipt_time_failure_precedes_draft_and_lineage_work(monkeypatch, make_owner, lifecycle, changes):
     sending = unit_sending_v4_reply_receipt()
     owner = make_owner()
     receipt = sending if lifecycle == "sending" else owner.confirmed_from_sending(
@@ -468,21 +471,22 @@ def test_receipt_time_failure_precedes_draft_and_lineage_work(make_owner, lifecy
     assert owner.validate(receipt, lifecycle_state=lifecycle)
     draft = Mock(side_effect=AssertionError("invalid time reached draft validation"))
     canonical = Mock(side_effect=AssertionError("invalid time reached source hashing"))
-    owner = replace(owner, draft_is_valid=draft, canonical_atomic_json_bytes=canonical)
+    monkeypatch.setattr(values, "canonical_atomic_json_bytes", canonical)
+    owner = replace(owner, draft_is_valid=draft)
     assert not owner.validate({**receipt, **changes}, lifecycle_state=lifecycle)
     draft.assert_not_called()
     canonical.assert_not_called()
 
 
-def test_missing_source_hash_keeps_distinct_current_and_legacy_rules(make_owner, receipt_family):
+def test_missing_source_hash_keeps_distinct_current_and_legacy_rules(monkeypatch, make_owner, receipt_family):
     _sending, confirmed, legacy = receipt_family
     receipt = dict(confirmed)
     receipt.pop("source_receipt_sha256", None)
     draft = Mock(return_value=True)
     canonical = Mock(side_effect=AssertionError("unbound receipt reached source hashing"))
+    monkeypatch.setattr(values, "canonical_atomic_json_bytes", canonical)
     owner = make_owner(
         draft_is_valid=draft, legacy_draft_is_valid=draft,
-        canonical_atomic_json_bytes=canonical,
     )
     assert owner.validate(receipt, lifecycle_state="confirmed", legacy_recovery=legacy) is (not legacy)
     draft.assert_called_once_with(receipt, receipt["reply_text"])

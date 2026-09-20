@@ -5,8 +5,9 @@ classes. The state namespace predicate receives its maximum explicitly; only
 the root keeps the original definition-time default. Original bodies retain
 the distinct state and receipt permissions, stable metadata/byte checks,
 strict receipt parsing, ordinary atomic JSON encoding and write/fsync/close
-ordering. Canonical serialization, state/receipt/marker policy and persistence
-authority stay in their existing locations. Explicit calls inspect supplied
+ordering. Canonical receipt serialization is owned here and used directly by
+its consumers. State/receipt/marker policy and persistence authority remain
+external. Explicit calls inspect supplied
 paths and read or write files; this owner retains no callbacks, configuration,
 state or descriptors and performs no import-time file, environment, provider
 or RNG work.
@@ -14,10 +15,17 @@ or RNG work.
 
 from __future__ import annotations
 
+import json
+
 from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 from typing import Any
+
+
+def canonical_atomic_json_bytes(value: object) -> bytes:
+    """Return the exact byte representation used by ``atomic_write_json``."""
+    return (json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n").encode("utf-8")
 
 
 def durable_state_namespace_is_owned_single_link_file(
@@ -267,7 +275,6 @@ def load_receipt_json_no_follow(
     RECEIPT_JSON_MAX_BYTES: int,
     UnsafeReceiptNamespace: type[Exception],
     _strict_receipt_json_bytes: Callable[[bytes], object],
-    canonical_atomic_json_bytes: Callable[[object], bytes],
     os: ModuleType,
     stat: ModuleType,
 ) -> tuple[bool, object | None]:
@@ -372,7 +379,6 @@ def durable_create_receipt_json(
     *,
     RECEIPT_JSON_MAX_BYTES: int,
     UnsafeReceiptNamespace: type[Exception],
-    canonical_atomic_json_bytes: Callable[[object], bytes],
     fsync_parent_dir: Callable[..., None],
     os: ModuleType,
     stat: ModuleType,

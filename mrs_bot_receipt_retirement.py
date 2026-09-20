@@ -8,6 +8,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from mrs_bot_durable_json_io import canonical_atomic_json_bytes
+
 
 def confirmed_context_outbox_matches_receipt(
     context_reply: dict,
@@ -226,7 +228,6 @@ def resume_interrupted_source_receipt_retirement_if_present(
     HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE: Any,
     MEME_POST_RECEIPT_FILE: Any,
     REGULAR_POST_RECEIPT_FILE: Any,
-    canonical_atomic_json_bytes: Any,
     historical_context_reply_store: Any,
     inspect_transport_state: Any,
     inspect_interrupted_receipt_retirement: Any,
@@ -506,7 +507,6 @@ def expected_lane_transport_source_receipt_bytes(
     lane: str,
     current_receipt_bytes: bytes,
     TransportJournalError: Any,
-    canonical_atomic_json_bytes: Any,
     confirmed_pending_schedule_receipt_is_semantically_valid: Any,
     conversational_sending_receipt_from_confirmed: Any,
     current_main_post_attempt_is_semantically_valid: Any,
@@ -588,7 +588,6 @@ def verify_lane_transport_source_lineage_if_present(
     current_receipt_bytes: bytes | None = None,
     TRANSPORT_SOURCE_VALIDATOR_ID: Any,
     TransportJournalError: Any,
-    canonical_atomic_json_bytes: Any,
     expected_lane_transport_source_receipt_bytes: Any,
     journal_path_for_receipt: Any,
     receipt_int: Any,
@@ -651,7 +650,6 @@ def retire_lane_transport_journal_if_present(
     lane: str,
     post_id: str,
     current_receipt_bytes: bytes | None = None,
-    canonical_atomic_json_bytes: Any,
     expected_lane_transport_source_receipt_bytes: Any,
     journal_path_for_receipt: Any,
     prepare_exact_receipt_retirement: Any,

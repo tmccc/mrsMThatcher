@@ -14,7 +14,7 @@ import mrs_bot_main_post_confirmation_persistence as owner
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
-DEPENDENCIES = {'atomic_json_file_exactly_matches': ['canonical_atomic_json_bytes'],
+DEPENDENCIES = {'atomic_json_file_exactly_matches': [],
  'promote_main_post_attempt_to_confirmed_pending_schedule': ['AmbiguousRemotePostOutcome',
                                                              'BoundSourceReceiptTransitionError',
                                                              'ConfirmedPendingScheduleDurabilityUncertain',
@@ -25,7 +25,6 @@ DEPENDENCIES = {'atomic_json_file_exactly_matches': ['canonical_atomic_json_byte
                                                              'atomic_json_file_exactly_matches',
                                                              'bind_confirmed_transport_source',
                                                              'build_confirmed_pending_schedule_receipt',
-                                                             'canonical_atomic_json_bytes',
                                                              'fsync_parent_dir',
                                                              'journal_path_for_receipt',
                                                              'latch_confirmed_post_persistence_failure',
@@ -55,7 +54,7 @@ DEPENDENCIES = {'atomic_json_file_exactly_matches': ['canonical_atomic_json_byte
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, datetime, io, logging, os, random, socket, sys, time, typing, zoneinfo
+import builtins, collections.abc, json, datetime, io, logging, os, random, socket, sys, time, typing, zoneinfo
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -63,7 +62,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'engagement_question_experiment', 'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt'} or name.startswith('mrs_bot_') and name != 'mrs_bot_main_post_confirmation_persistence':
+    if name in {'engagement_question_experiment', 'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_main_post_confirmation_persistence', 'mrs_bot_durable_json_io'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -179,7 +178,7 @@ def test_exact_comparison_exception_scope(monkeypatch, tmp_path, boundary, error
     error = error_type("comparison boundary")
     callback = Mock(side_effect=error)
     if boundary == "canonical":
-        monkeypatch.setattr(bot, "canonical_atomic_json_bytes", callback)
+        monkeypatch.setattr(owner, "canonical_atomic_json_bytes", callback)
     elif boundary == "require_current":
         monkeypatch.setattr(generation.StateCommitProof, boundary, callback)
     else:
@@ -225,6 +224,7 @@ def _promotion(monkeypatch, lane="quote_image"):
         return b"attempt bytes" if value is attempt else b"pending bytes"
 
     trace.canonical_atomic_json_bytes.side_effect = canonical
+    monkeypatch.setattr(owner, "canonical_atomic_json_bytes", trace.canonical_atomic_json_bytes)
     return SimpleNamespace(trace=trace, attempt=attempt, pending=pending, path=path,
                            binding=binding, recovery=recovery, invoke=lambda: (
         bot.promote_main_post_attempt_to_confirmed_pending_schedule(

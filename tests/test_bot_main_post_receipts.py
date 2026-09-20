@@ -29,7 +29,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_main_post_receipts', 'mrs_bot_main_post_attempt_values'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_main_post_receipts', 'mrs_bot_main_post_attempt_values', 'mrs_bot_durable_json_io'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -58,20 +58,20 @@ assert 'single_call_reply' not in sys.modules
     "name, signature, dependency_count",
     [
         ("main_post_attempt_is_semantically_valid", "(data: 'object') -> 'bool'", 11),
-        ("regular_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 17),
+        ("regular_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 16),
         (
             "confirmed_pending_schedule_receipt_is_semantically_valid",
             "(data: 'object', *, expected_lane: 'str | None' = None) -> 'bool'", 4,
         ),
         (
             "materialize_bound_regular_schedule_receipt",
-            "(pending: 'dict', *, _validate_result: 'bool' = True) -> 'dict'", 8,
+            "(pending: 'dict', *, _validate_result: 'bool' = True) -> 'dict'", 7,
         ),
         (
             "materialize_bound_meme_schedule_receipt",
-            "(pending: 'dict', *, _validate_result: 'bool' = True) -> 'dict'", 8,
+            "(pending: 'dict', *, _validate_result: 'bool' = True) -> 'dict'", 7,
         ),
-        ("meme_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 13),
+        ("meme_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 12),
     ],
 )
 def test_adapters_forward_current_dependencies_defaults_references_and_errors(
@@ -246,7 +246,7 @@ def test_lineage_uses_current_source_hash_copy_pending_and_nonrecursive_material
     for key, callback in callbacks.items():
         events.attach_mock(callback, key)
     monkeypatch.setattr(bot, "main_post_attempt_is_semantically_valid", events.attempt)
-    monkeypatch.setattr(bot, "canonical_atomic_json_bytes", events.canonical)
+    monkeypatch.setattr(receipts, "canonical_atomic_json_bytes", events.canonical)
     monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=events.deepcopy))
     monkeypatch.setattr(bot, "confirmed_pending_schedule_receipt_is_semantically_valid", events.pending)
     monkeypatch.setattr(bot, f"materialize_bound_{prefix}_schedule_receipt", events.materialize)
@@ -330,7 +330,7 @@ def test_materialization_preserves_copy_boundaries_and_hashes_original_source_in
     events.attach_mock(Mock(wraps=bot.canonical_atomic_json_bytes), "canonical")
     monkeypatch.setattr(bot, "confirmed_pending_schedule_receipt_is_semantically_valid", events.gate)
     monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=events.deepcopy))
-    monkeypatch.setattr(bot, "canonical_atomic_json_bytes", events.canonical)
+    monkeypatch.setattr(receipts, "canonical_atomic_json_bytes", events.canonical)
     if lane == "quote_image":
         # Mutable children expose list copying separately from deep source copying.
         plan["quote_history_after"].append({"child": []})

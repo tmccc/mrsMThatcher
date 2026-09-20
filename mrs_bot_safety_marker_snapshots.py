@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from mrs_bot_durable_json_io import canonical_atomic_json_bytes
+
 
 def remote_write_safety_marker_path_present_or_unsafe(
     *,
@@ -308,7 +310,6 @@ def ensure_durable_remote_write_safety_marker(
     AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE: Any,
     acknowledge_durable_remote_write_safety_marker: Any,
     atomic_write_json: Any,
-    canonical_atomic_json_bytes: Any,
     log: Any,
     os: Any,
     remote_write_safety_protocol_is_active: Any,

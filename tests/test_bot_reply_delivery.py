@@ -31,7 +31,7 @@ from tests.helpers.x_response_fixtures import (
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, copy, io, logging, os, random, re, socket, sys
+import builtins, collections.abc, copy, json, io, logging, os, random, re, socket, sys
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -39,7 +39,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name != 'mrs_bot_reply_delivery':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_delivery', 'mrs_bot_durable_json_io'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -246,7 +246,7 @@ def test_removal_keeps_secure_reader_equality_disposition_and_canonical_retireme
     monkeypatch.setattr(bot, "load_receipt_json_no_follow", reader)
     monkeypatch.setattr(bot, "retire_current_source_receipt", retire)
     canonical = Mock(return_value=b"current canonical receipt")
-    monkeypatch.setattr(bot, "canonical_atomic_json_bytes", canonical)
+    monkeypatch.setattr(delivery, "canonical_atomic_json_bytes", canonical)
     bot.remove_confirmed_reply_receipt(receipt, sending_disposition="definite_non_success")
     reader.assert_called_once_with(bot.CONFIRMED_REPLY_RECEIPT_FILE)
     canonical.assert_called_once_with(receipt)
@@ -609,7 +609,8 @@ def test_promotion_families_share_source_checks_before_projection_and_replacemen
         ("transaction_mutation_authority", trace.authority),
         ("replace_bound_source_receipt", trace.replace),
     ):
-        monkeypatch.setattr(bot, name, callback)
+        target = delivery if name == "canonical_atomic_json_bytes" else bot
+        monkeypatch.setattr(target, name, callback)
     logger = Mock()
     monkeypatch.setattr(bot, "log", logger)
     transport_validator = object()

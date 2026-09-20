@@ -17,6 +17,8 @@ from collections.abc import Callable
 from logging import Logger
 from pathlib import Path
 
+from mrs_bot_durable_json_io import canonical_atomic_json_bytes
+
 
 def main_post_attempt_path(
     attempt: dict,
@@ -92,7 +94,6 @@ def mark_main_post_attempt_attempting(
     *,
     AmbiguousRemotePostOutcome: type[Exception],
     REGULAR_POST_RECEIPT_FILE: Path,
-    canonical_atomic_json_bytes: Callable[..., bytes],
     current_main_post_attempt_is_semantically_valid: Callable[..., bool],
     load_meme_post_receipt: Callable[..., tuple[str, dict | None]],
     load_regular_post_receipt: Callable[..., tuple[str, dict | None]],
@@ -147,7 +148,6 @@ def remove_main_post_attempt(
     *,
     sending_disposition: str,
     AmbiguousRemotePostOutcome: type[Exception],
-    canonical_atomic_json_bytes: Callable[..., bytes],
     current_main_post_attempt_is_semantically_valid: Callable[..., bool],
     load_receipt_json_no_follow: Callable[[Path], tuple[bool, object | None]],
     log: Logger,
@@ -447,7 +447,6 @@ def remove_regular_post_receipt(
     receipt: dict,
     *,
     REGULAR_POST_RECEIPT_FILE: Path,
-    canonical_atomic_json_bytes: Callable[..., bytes],
     log: Logger,
     retire_current_source_receipt: Callable[..., None],
 ) -> None:
@@ -556,7 +555,6 @@ def remove_meme_post_receipt(
     receipt: dict,
     *,
     MEME_POST_RECEIPT_FILE: Path,
-    canonical_atomic_json_bytes: Callable[..., bytes],
     log: Logger,
     retire_current_source_receipt: Callable[..., None],
 ) -> None:

@@ -32,7 +32,6 @@ DEPENDENCIES = {'remote_write_transport_journal_paths': ['CONFIRMED_REPLY_RECEIP
  '_legacy_conversational_transport_source_semantic_validator': ['_legacy_sending_reply_receipt_is_semantically_valid'],
  'bind_lane_transport_source': ['TRANSPORT_SOURCE_VALIDATOR_ID',
                                 'bind_transport_source',
-                                'canonical_atomic_json_bytes',
                                 'transport_source_semantic_validator'],
  'block_if_unrelated_receipt_appeared_for_tweet_transport': ['CONFIRMED_REPLY_RECEIPT_FILE',
                                                              'HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE',
@@ -87,7 +86,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_transport_source_preparation', 'mrs_bot_main_post_attempt_values', 'mrs_bot_post_creation'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_transport_source_preparation', 'mrs_bot_main_post_attempt_values', 'mrs_bot_post_creation', 'mrs_bot_durable_json_io'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -312,7 +311,7 @@ def test_historical_source_and_binding_use_function_local_current_formatter(monk
         # Restore the public adapter after proving the current callback reference.
         with monkeypatch.context() as patch:
             patch.setattr(bot, "transport_source_semantic_validator", callback)
-            patch.setattr(bot, "canonical_atomic_json_bytes", Mock(side_effect=AssertionError("historical bytes")))
+            patch.setattr(preparation, "canonical_atomic_json_bytes", Mock(side_effect=AssertionError("historical bytes")))
             assert bot.bind_lane_transport_source(receipt_path=path, receipt=receipt,
                                                   lane="historical_context_reply", payload=payload) is binding
         canonical.assert_called_once_with(receipt)
@@ -329,7 +328,7 @@ def test_nonhistorical_binding_keeps_current_bytes_lane_references_and_native_fa
     for _ in range(2):
         receipt, path, payload, lane, encoded, binding, validator_id, callback = [object() for _ in range(8)]
         canonical, bind = Mock(return_value=encoded), Mock(return_value=binding)
-        monkeypatch.setattr(bot, "canonical_atomic_json_bytes", canonical)
+        monkeypatch.setattr(preparation, "canonical_atomic_json_bytes", canonical)
         monkeypatch.setattr(bot, "bind_transport_source", bind)
         monkeypatch.setattr(bot, "TRANSPORT_SOURCE_VALIDATOR_ID", validator_id)
         monkeypatch.setattr(bot, "transport_source_semantic_validator", callback)

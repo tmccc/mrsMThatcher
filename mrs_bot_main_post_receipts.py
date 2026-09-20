@@ -22,6 +22,8 @@ from mrs_bot_main_post_attempt_values import (
     main_post_attempt_payload,
 )
 
+from mrs_bot_durable_json_io import canonical_atomic_json_bytes
+
 
 def main_post_attempt_is_semantically_valid(
     data: object,
@@ -280,7 +282,6 @@ def regular_post_receipt_is_semantically_valid(
     MAIN_POST_SCHEDULE_TIMEZONE: str,
     MEME_SCHEDULE_MODES: set[str],
     MEME_SCHEDULE_VERSION: int,
-    canonical_atomic_json_bytes: Callable[..., bytes],
     confirmed_pending_schedule_receipt_is_semantically_valid: Callable[..., bool],
     copy: ModuleType,
     hashlib: ModuleType,
@@ -526,7 +527,6 @@ def materialize_bound_regular_schedule_receipt(
     _validate_result: bool = True,
     InvalidRegularPostReceipt: type[Exception],
     bound_schedule_datetime: Callable[..., datetime],
-    canonical_atomic_json_bytes: Callable[..., bytes],
     confirmed_pending_schedule_receipt_is_semantically_valid: Callable[..., bool],
     copy: ModuleType,
     hashlib: ModuleType,
@@ -632,7 +632,6 @@ def materialize_bound_meme_schedule_receipt(
     _validate_result: bool = True,
     InvalidMemePostReceipt: type[Exception],
     bound_schedule_datetime: Callable[..., datetime],
-    canonical_atomic_json_bytes: Callable[..., bytes],
     confirmed_pending_schedule_receipt_is_semantically_valid: Callable[..., bool],
     copy: ModuleType,
     hashlib: ModuleType,
@@ -693,7 +692,6 @@ def meme_post_receipt_is_semantically_valid(
     *,
     MEME_SCHEDULE_MODES: set[str],
     MEME_SCHEDULE_VERSION: int,
-    canonical_atomic_json_bytes: Callable[..., bytes],
     confirmed_pending_schedule_receipt_is_semantically_valid: Callable[..., bool],
     copy: ModuleType,
     hashlib: ModuleType,

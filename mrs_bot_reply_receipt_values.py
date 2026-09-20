@@ -1,8 +1,9 @@
 """Own conversational reply receipt validation and in-memory projections.
 
-ReplyReceiptValues binds current identity, draft, time and serialization
-boundaries without retaining caller state. Current and frozen recovery
-validation dispatch through owned methods, preserving shallow references,
+ReplyReceiptValues binds current identity, draft and time boundaries without
+retaining caller state; canonical receipt encoding comes from its inert owner.
+Current and frozen recovery validation dispatch through owned methods,
+preserving shallow references,
 source lineage, timing rules and exact exception scopes. Durable receipt I/O,
 retirement authority and confirmed-state application stay with their existing
 owners. Import and construction perform no runtime access.
@@ -15,6 +16,8 @@ import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+
+from mrs_bot_durable_json_io import canonical_atomic_json_bytes
 
 
 @dataclass(frozen=True)
@@ -30,7 +33,6 @@ class ReplyReceiptValues:
     draft_is_valid: Callable
     legacy_tested_strategy_version: str
     legacy_ai_first_strategy_version: str
-    canonical_atomic_json_bytes: Callable
     now_epoch: Callable
     reply_cap_date_str: Callable
     log: logging.Logger
@@ -255,7 +257,7 @@ class ReplyReceiptValues:
         if (
             not source_is_valid
             or hashlib.sha256(
-                self.canonical_atomic_json_bytes(source_receipt)
+                canonical_atomic_json_bytes(source_receipt)
             ).hexdigest()
             != data.get("source_receipt_sha256")
         ):
@@ -421,7 +423,7 @@ class ReplyReceiptValues:
             if sending_receipt.get("candidate_source") == "quote_tweet":
                 confirmed["daily_quote_reply_date"] = confirmed_date
             confirmed["source_receipt_sha256"] = hashlib.sha256(
-                self.canonical_atomic_json_bytes(sending_receipt)
+                canonical_atomic_json_bytes(sending_receipt)
             ).hexdigest()
         return confirmed
 

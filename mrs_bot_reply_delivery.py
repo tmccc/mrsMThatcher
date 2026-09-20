@@ -23,6 +23,8 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from mrs_bot_durable_json_io import canonical_atomic_json_bytes
+
 if TYPE_CHECKING:
     from mrs_bot_reply_cycle_interfaces import ReplyCycleDelivery, ReplyCyclePersistence
     from mrs_bot_reply_receipt_values import ReplyReceiptValues
@@ -276,7 +278,6 @@ def promote_sending_reply_receipt(
     CONFIRMED_REPLY_RECEIPT_FILE: Path,
     TRANSPORT_SOURCE_VALIDATOR_ID: str,
     transport_source_semantic_validator: Callable,
-    canonical_atomic_json_bytes: Callable,
     TransportJournalError: type[Exception],
     receipt_values: ReplyReceiptValues,
     legacy_recovery: bool,
@@ -361,7 +362,6 @@ def remove_confirmed_reply_receipt(
     load_receipt_json_no_follow: Callable[[Path], tuple[bool, object | None]],
     InvalidConfirmedReplyReceipt: type[Exception],
     retire_current_source_receipt: Callable,
-    canonical_atomic_json_bytes: Callable,
     log: logging.Logger,
 ) -> None:
     """Retire one exact conversational-reply source receipt."""

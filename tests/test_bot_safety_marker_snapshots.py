@@ -11,6 +11,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrsMThatcher2 as bot
+import mrs_bot_safety_marker_snapshots as snapshots
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 DEPENDENCIES = {'remote_write_safety_marker_path_present_or_unsafe': ['AMBIGUOUS_POST_OUTCOME_FILE',
@@ -39,7 +40,6 @@ DEPENDENCIES = {'remote_write_safety_marker_path_present_or_unsafe': ['AMBIGUOUS
                                                'AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE',
                                                'acknowledge_durable_remote_write_safety_marker',
                                                'atomic_write_json',
-                                               'canonical_atomic_json_bytes',
                                                'log',
                                                'os',
                                                'remote_write_safety_protocol_is_active'],
@@ -71,7 +71,7 @@ SIGNATURES = {'remote_write_safety_marker_path_present_or_unsafe': "() -> 'bool'
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time, typing
+import builtins, collections.abc, json, io, logging, os, random, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -79,7 +79,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox'} or name.startswith('mrs_bot_') and name != 'mrs_bot_safety_marker_snapshots':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_safety_marker_snapshots', 'mrs_bot_durable_json_io'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -379,7 +379,7 @@ def _ensure_trace(monkeypatch):
     events.canonical.return_value = b"exact incident bytes"
     events.lstat.side_effect = [FileNotFoundError(), FileNotFoundError()]
     monkeypatch.setattr(bot, "remote_write_safety_protocol_is_active", events.protocol)
-    monkeypatch.setattr(bot, "canonical_atomic_json_bytes", events.canonical)
+    monkeypatch.setattr(snapshots, "canonical_atomic_json_bytes", events.canonical)
     monkeypatch.setattr(bot, "os", SimpleNamespace(lstat=events.lstat, link=events.link))
     monkeypatch.setattr(bot, "atomic_write_json", events.write)
     monkeypatch.setattr(bot, "acknowledge_durable_remote_write_safety_marker", events.ack)

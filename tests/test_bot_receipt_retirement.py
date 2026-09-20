@@ -35,7 +35,6 @@ DEPENDENCIES = {'confirmed_context_outbox_matches_receipt': [],
                                                              'HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE',
                                                              'MEME_POST_RECEIPT_FILE',
                                                              'REGULAR_POST_RECEIPT_FILE',
-                                                             'canonical_atomic_json_bytes',
                                                              'historical_context_reply_store',
                                                              'inspect_transport_state',
                                                              'inspect_interrupted_receipt_retirement',
@@ -71,7 +70,6 @@ DEPENDENCIES = {'confirmed_context_outbox_matches_receipt': [],
                                                               'resume_interrupted_confirmed_media_retirement',
                                                               'transaction_mutation_authority'],
  'expected_lane_transport_source_receipt_bytes': ['TransportJournalError',
-                                                  'canonical_atomic_json_bytes',
                                                   'confirmed_pending_schedule_receipt_is_semantically_valid',
                                                   'conversational_sending_receipt_from_confirmed',
                                                   'current_main_post_attempt_is_semantically_valid',
@@ -80,13 +78,12 @@ DEPENDENCIES = {'confirmed_context_outbox_matches_receipt': [],
                                                   'sending_reply_receipt_is_semantically_valid'],
  'verify_lane_transport_source_lineage_if_present': ['TRANSPORT_SOURCE_VALIDATOR_ID',
                                                      'TransportJournalError',
-                                                     'canonical_atomic_json_bytes',
                                                      'expected_lane_transport_source_receipt_bytes',
                                                      'journal_path_for_receipt',
                                                      'receipt_int',
                                                      'transport_journal_is_blocking',
                                                      'verify_confirmed_transport_source_lineage'],
- 'retire_lane_transport_journal_if_present': ['canonical_atomic_json_bytes',
+ 'retire_lane_transport_journal_if_present': [
                                               'expected_lane_transport_source_receipt_bytes',
                                               'journal_path_for_receipt',
                                               'prepare_exact_receipt_retirement',
@@ -113,7 +110,7 @@ SIGNATURES = {'confirmed_context_outbox_matches_receipt': "(context_reply: 'dict
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time, typing
+import builtins, collections.abc, json, io, logging, os, random, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -121,7 +118,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox'} or name.startswith('mrs_bot_') and name != 'mrs_bot_receipt_retirement':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_receipt_retirement', 'mrs_bot_durable_json_io'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -237,7 +234,8 @@ def test_early_gates_skip_historical_imports_serializers_and_authority(monkeypat
     for name in ("historical_context_reply_store", "historical_context_outbox_store",
                  "remote_write_transport_journal_paths", "canonical_atomic_json_bytes",
                  "expected_lane_transport_source_receipt_bytes", "transaction_mutation_authority"):
-        monkeypatch.setattr(bot, name, Mock(side_effect=AssertionError(name)))
+        target = owner if name == "canonical_atomic_json_bytes" else bot
+        monkeypatch.setattr(target, name, Mock(side_effect=AssertionError(name)))
     assert bot.require_historical_context_retirement_outbox_authority() is None
     assert bot.resume_interrupted_source_receipt_retirement_if_present() is False
     options = dict(receipt_path=bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
@@ -474,7 +472,7 @@ def test_source_reconstruction_preserves_current_validator_and_byte_references(m
     name = "sending_reply_receipt_is_semantically_valid" if lane == "conversational_reply" else "current_main_post_attempt_is_semantically_valid"
     monkeypatch.setattr(bot, name, validator)
     serializer = Mock(side_effect=AssertionError("unexpected serialization"))
-    monkeypatch.setattr(bot, "canonical_atomic_json_bytes", serializer)
+    monkeypatch.setattr(owner, "canonical_atomic_json_bytes", serializer)
     assert bot.expected_lane_transport_source_receipt_bytes(
         receipt=source, lane=lane, current_receipt_bytes=current_bytes,
     ) is current_bytes
@@ -538,7 +536,7 @@ def test_lineage_verification_keeps_byte_references_and_lane_confirmation_epochs
     integer = Mock(side_effect=lambda value: events.append("epoch") or 123)
     monkeypatch.setattr(bot, "journal_path_for_receipt", lambda value: journal)
     monkeypatch.setattr(bot, "transport_journal_is_blocking", lambda value: True)
-    monkeypatch.setattr(bot, "canonical_atomic_json_bytes", serializer)
+    monkeypatch.setattr(owner, "canonical_atomic_json_bytes", serializer)
     monkeypatch.setitem(sys.modules, "historical_context_formatter", SimpleNamespace(canonical_json_bytes=serializer))
     monkeypatch.setattr(bot, "expected_lane_transport_source_receipt_bytes", expected)
     monkeypatch.setattr(bot, "verify_confirmed_transport_source_lineage", verify)
@@ -584,7 +582,7 @@ def test_journal_retirement_orders_source_guard_and_separately_issued_authoritie
     retire = Mock(side_effect=lambda **kwargs: note("retire"))
     monkeypatch.setattr(bot, "journal_path_for_receipt", lambda value: journal)
     monkeypatch.setattr(bot, "transport_journal_is_blocking", lambda value: True)
-    monkeypatch.setattr(bot, "canonical_atomic_json_bytes", Mock(side_effect=AssertionError("serialization")))
+    monkeypatch.setattr(owner, "canonical_atomic_json_bytes", Mock(side_effect=AssertionError("serialization")))
     monkeypatch.setattr(bot, "expected_lane_transport_source_receipt_bytes", expected)
     monkeypatch.setattr(bot, "transaction_mutation_authority", authority)
     monkeypatch.setattr(bot, "prepare_exact_receipt_retirement", prepare)

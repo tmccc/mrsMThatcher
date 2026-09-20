@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
+from mrs_bot_durable_json_io import canonical_atomic_json_bytes
+
 if TYPE_CHECKING:
     from mrs_bot_state_generation import StateCommitProof
 
@@ -16,8 +18,6 @@ if TYPE_CHECKING:
 def atomic_json_file_exactly_matches(
     path: Path,
     value: object,
-    *,
-    canonical_atomic_json_bytes: Any,
 ) -> bool:
     """Compare a receipt with its expected canonical bytes without JSON parsing."""
     try:
@@ -49,7 +49,6 @@ def promote_main_post_attempt_to_confirmed_pending_schedule(
     atomic_json_file_exactly_matches: Any,
     bind_confirmed_transport_source: Any,
     build_confirmed_pending_schedule_receipt: Any,
-    canonical_atomic_json_bytes: Any,
     fsync_parent_dir: Any,
     journal_path_for_receipt: Any,
     latch_confirmed_post_persistence_failure: Any,

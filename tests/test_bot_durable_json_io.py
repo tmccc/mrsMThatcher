@@ -19,7 +19,7 @@ from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time, typing
+import builtins, collections.abc, json, io, logging, os, random, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -59,8 +59,8 @@ def test_adapters_forward_current_dependencies_references_and_native_errors(monk
         ("fsync_parent_dir", 2),
         ("atomic_write_json", 6),
         ("_strict_receipt_json_bytes", 2),
-        ("load_receipt_json_no_follow", 6),
-        ("durable_create_receipt_json", 6),
+        ("load_receipt_json_no_follow", 5),
+        ("durable_create_receipt_json", 5),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
@@ -165,7 +165,7 @@ def test_readers_assemble_short_reads_close_before_callbacks_and_keep_native_fai
     trace.parse.return_value = value
     trace.canonical.return_value = data
     monkeypatch.setattr(bot, "_strict_receipt_json_bytes", trace.parse)
-    monkeypatch.setattr(bot, "canonical_atomic_json_bytes", trace.canonical)
+    monkeypatch.setattr(durable_io, "canonical_atomic_json_bytes", trace.canonical)
     reader = bot.read_stable_owned_json_bytes_no_follow if kind == "state" else bot.load_receipt_json_no_follow
     present, result = reader(path)
     assert present is True
@@ -326,7 +326,7 @@ def test_receipt_short_writes_and_parent_fsync_precede_exact_acknowledgement(tmp
     trace.canonical.side_effect = bot.canonical_atomic_json_bytes
     trace.parent.side_effect = bot.fsync_parent_dir
     monkeypatch.setattr(bot, "os", proxy)
-    monkeypatch.setattr(bot, "canonical_atomic_json_bytes", trace.canonical)
+    monkeypatch.setattr(durable_io, "canonical_atomic_json_bytes", trace.canonical)
     monkeypatch.setattr(bot, "fsync_parent_dir", trace.parent)
     assert bot.durable_create_receipt_json(path, value) is None
     assert trace.canonical.call_args.args[0] is value
@@ -371,3 +371,15 @@ def test_receipt_publication_failure_closes_without_acknowledgement_or_cleanup(b
     with pytest.raises(OSError):
         os.fstat(proxy.close.call_args.args[0])
     assert list(path.parent.iterdir()) == [path]
+
+
+def test_canonical_receipt_bytes_keep_root_alias_and_wire_format():
+    assert bot.canonical_atomic_json_bytes is durable_io.canonical_atomic_json_bytes
+    assert bot.canonical_atomic_json_bytes({"z": False, "a": "café"}) == (
+        b'{\n  "a": "caf\\u00e9",\n  "z": false\n}\n'
+    )
+    assert bot.canonical_atomic_json_bytes([1, None]) == b'[\n  1,\n  null\n]\n'
+    with pytest.raises(ValueError, match="Out of range float values"):
+        bot.canonical_atomic_json_bytes({"unsupported": float("nan")})
+    with pytest.raises(TypeError):
+        bot.canonical_atomic_json_bytes({"unsupported": object()})
