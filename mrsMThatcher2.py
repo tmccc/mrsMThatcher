@@ -1661,7 +1661,6 @@ def reconcile_runtime_historical_context_state() -> None:
     return _historical_context_runtime.reconcile_runtime_historical_context_state(
         HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE=HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
         _set_historical_context_outbox_unavailable_reason=_set_historical_context_outbox_unavailable_reason,
-        confirmed_context_outbox_matches_receipt=confirmed_context_outbox_matches_receipt,
         global_remote_writes_paused=global_remote_writes_paused,
         historical_context_outbox_store=historical_context_outbox_store,
         historical_context_reply_store=historical_context_reply_store,
@@ -4060,7 +4059,6 @@ def require_historical_context_retirement_outbox_authority() -> None:
     return _receipt_retirement.require_historical_context_retirement_outbox_authority(
         ExactReceiptRetirementError=ExactReceiptRetirementError,
         HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE=HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-        confirmed_context_outbox_matches_receipt=confirmed_context_outbox_matches_receipt,
         historical_context_outbox_store=historical_context_outbox_store,
         historical_context_reply_store=historical_context_reply_store,
         inspect_exact_receipt_retirement=inspect_exact_receipt_retirement,
@@ -6069,7 +6067,6 @@ def _process_due_historical_context_obligations(
         _record_or_verify_proved_context_failure=_record_or_verify_proved_context_failure,
         _set_historical_context_outbox_unavailable_reason=_set_historical_context_outbox_unavailable_reason,
         api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
-        confirmed_context_outbox_matches_receipt=confirmed_context_outbox_matches_receipt,
         historical_context_receipt_path_present_or_unsafe=historical_context_receipt_path_present_or_unsafe,
         in_api_cooldown=in_api_cooldown,
         inspect_transport_state=inspect_transport_state,
@@ -6268,7 +6265,6 @@ def reconcile_confirmed_transactions_before_global_barrier(
         _reply_confirmation_epoch_after_remote_success=_reply_confirmation_epoch_after_remote_success,
         bind_confirmed_transport_source=bind_confirmed_transport_source,
         confirmation_epoch_for_main_attempt=confirmation_epoch_for_main_attempt,
-        confirmed_context_outbox_matches_receipt=confirmed_context_outbox_matches_receipt,
         emit_historical_context_store_observation=emit_historical_context_store_observation,
         global_remote_writes_paused=global_remote_writes_paused,
         hashlib=hashlib,

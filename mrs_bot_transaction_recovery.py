@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from mrs_bot_receipt_retirement import confirmed_context_outbox_matches_receipt
+
 
 def ensure_reconciled_regular_receipt_schedule_is_future(
     receipt: dict,
@@ -187,7 +189,6 @@ def _reconcile_historical_context_receipt_before_global_barrier(
     _reply_confirmation_epoch_after_remote_success: Any,
     bind_confirmed_transport_source: Any,
     confirmation_epoch_for_main_attempt: Any,
-    confirmed_context_outbox_matches_receipt: Any,
     emit_historical_context_store_observation: Any,
     hashlib: Any,
     historical_context_outbox_store: Any,
@@ -559,7 +560,6 @@ def reconcile_confirmed_transactions_before_global_barrier(
     _reply_confirmation_epoch_after_remote_success: Any,
     bind_confirmed_transport_source: Any,
     confirmation_epoch_for_main_attempt: Any,
-    confirmed_context_outbox_matches_receipt: Any,
     emit_historical_context_store_observation: Any,
     global_remote_writes_paused: Any,
     hashlib: Any,
@@ -691,7 +691,6 @@ def reconcile_confirmed_transactions_before_global_barrier(
             _reply_confirmation_epoch_after_remote_success=_reply_confirmation_epoch_after_remote_success,
             bind_confirmed_transport_source=bind_confirmed_transport_source,
             confirmation_epoch_for_main_attempt=confirmation_epoch_for_main_attempt,
-            confirmed_context_outbox_matches_receipt=confirmed_context_outbox_matches_receipt,
             emit_historical_context_store_observation=emit_historical_context_store_observation,
             hashlib=hashlib,
             historical_context_outbox_store=historical_context_outbox_store,

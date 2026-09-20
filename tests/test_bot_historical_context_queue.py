@@ -31,7 +31,6 @@ DEPENDENCIES = {'enqueue_historical_context_obligation': ['_HISTORICAL_CONTEXT_R
                                                  '_record_or_verify_proved_context_failure',
                                                  '_set_historical_context_outbox_unavailable_reason',
                                                  'api_error_is_reply_not_allowed',
-                                                 'confirmed_context_outbox_matches_receipt',
                                                  'historical_context_receipt_path_present_or_unsafe',
                                                  'in_api_cooldown',
                                                  'inspect_transport_state',
@@ -70,7 +69,7 @@ SIGNATURES = {'enqueue_historical_context_obligation': "(receipt: 'dict') -> 'di
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, datetime, io, logging, os, random, socket, sys, time, typing, zoneinfo
+import builtins, collections.abc, json, datetime, io, logging, os, random, socket, sys, time, typing, zoneinfo
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -78,7 +77,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt'} or name.startswith('mrs_bot_') and name != 'mrs_bot_historical_context_queue':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_historical_context_queue', 'mrs_bot_receipt_retirement', 'mrs_bot_durable_json_io'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 

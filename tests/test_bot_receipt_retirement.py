@@ -20,7 +20,6 @@ from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 DEPENDENCIES = {'confirmed_context_outbox_matches_receipt': [],
  'require_historical_context_retirement_outbox_authority': ['ExactReceiptRetirementError',
                                                             'HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE',
-                                                            'confirmed_context_outbox_matches_receipt',
                                                             'historical_context_outbox_store',
                                                             'historical_context_reply_store',
                                                             'inspect_exact_receipt_retirement',
@@ -298,7 +297,7 @@ def test_context_authority_keeps_call_time_formatter_unique_history_and_confirma
     ))
     monkeypatch.setattr(bot, "inspect_exact_receipt_retirement", inspect_exact)
     monkeypatch.setattr(bot, "historical_context_outbox_store", lambda: note("outbox", outbox))
-    monkeypatch.setattr(bot, "confirmed_context_outbox_matches_receipt", matcher)
+    monkeypatch.setattr(owner, "confirmed_context_outbox_matches_receipt", matcher)
     monkeypatch.setattr(bot, "now_epoch", lambda: note("clock", clock_value))
     monkeypatch.setattr(bot, "transport_journal_is_blocking", Mock(side_effect=AssertionError("journal")))
     if boundary in {"marker", "duplicate", "ordinal"}:

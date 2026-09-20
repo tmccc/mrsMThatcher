@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from mrs_bot_receipt_retirement import confirmed_context_outbox_matches_receipt
+
 
 def enqueue_historical_context_obligation(
     receipt: dict,
@@ -106,7 +108,6 @@ def _process_due_historical_context_obligations(
     _record_or_verify_proved_context_failure: Any,
     _set_historical_context_outbox_unavailable_reason: Any,
     api_error_is_reply_not_allowed: Any,
-    confirmed_context_outbox_matches_receipt: Any,
     historical_context_receipt_path_present_or_unsafe: Any,
     in_api_cooldown: Any,
     inspect_transport_state: Any,

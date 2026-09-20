@@ -20,7 +20,6 @@ from tests.helpers.historical_context_fixtures import isolated_incident_paths  #
 
 DEPENDENCIES = {'reconcile_runtime_historical_context_state': ['HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE',
                                                 '_set_historical_context_outbox_unavailable_reason',
-                                                'confirmed_context_outbox_matches_receipt',
                                                 'global_remote_writes_paused',
                                                 'historical_context_outbox_store',
                                                 'historical_context_reply_store',
@@ -41,7 +40,7 @@ DEPENDENCIES = {'reconcile_runtime_historical_context_state': ['HISTORICAL_CONTE
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, datetime, io, logging, os, random, socket, sys, time, typing, zoneinfo
+import builtins, collections.abc, json, datetime, io, logging, os, random, socket, sys, time, typing, zoneinfo
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -49,7 +48,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt'} or name.startswith('mrs_bot_') and name != 'mrs_bot_historical_context_runtime':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_historical_context_runtime', 'mrs_bot_receipt_retirement', 'mrs_bot_durable_json_io'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -229,7 +228,8 @@ def reconciliation_runtime(monkeypatch):
         "log_event": trace.event,
         "_set_historical_context_outbox_unavailable_reason": trace.set_reason,
     }.items():
-        monkeypatch.setattr(bot, name, callback)
+        target = owner if name == "confirmed_context_outbox_matches_receipt" else bot
+        monkeypatch.setattr(target, name, callback)
     monkeypatch.setattr(formatter.HistoricalContextReplyStore, "_valid_receipt", trace.valid)
     monkeypatch.setattr(formatter.HistoricalContextReplyStore, "_valid_sending_receipt", trace.sending)
     return trace

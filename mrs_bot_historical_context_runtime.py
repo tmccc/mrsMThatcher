@@ -7,12 +7,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from mrs_bot_receipt_retirement import confirmed_context_outbox_matches_receipt
+
 
 def reconcile_runtime_historical_context_state(
     *,
     HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE: Any,
     _set_historical_context_outbox_unavailable_reason: Any,
-    confirmed_context_outbox_matches_receipt: Any,
     global_remote_writes_paused: Any,
     historical_context_outbox_store: Any,
     historical_context_reply_store: Any,

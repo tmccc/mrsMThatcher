@@ -60,7 +60,6 @@ def require_historical_context_retirement_outbox_authority(
     *,
     ExactReceiptRetirementError: Any,
     HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE: Any,
-    confirmed_context_outbox_matches_receipt: Any,
     historical_context_outbox_store: Any,
     historical_context_reply_store: Any,
     inspect_exact_receipt_retirement: Any,

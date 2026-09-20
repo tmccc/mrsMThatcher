@@ -11,6 +11,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrsMThatcher2 as bot
+import mrs_bot_transaction_recovery as recovery
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
@@ -33,7 +34,6 @@ DEPENDENCIES = {'ensure_reconciled_regular_receipt_schedule_is_future': ['log', 
                                                             '_reply_confirmation_epoch_after_remote_success',
                                                             'bind_confirmed_transport_source',
                                                             'confirmation_epoch_for_main_attempt',
-                                                            'confirmed_context_outbox_matches_receipt',
                                                             'emit_historical_context_store_observation',
                                                             'global_remote_writes_paused',
                                                             'hashlib',
@@ -70,7 +70,7 @@ SIGNATURES = {'ensure_reconciled_regular_receipt_schedule_is_future': "(receipt:
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time, typing
+import builtins, collections.abc, json, io, logging, os, random, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -78,7 +78,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority'} or name.startswith('mrs_bot_') and name != 'mrs_bot_transaction_recovery':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_transaction_recovery', 'mrs_bot_receipt_retirement', 'mrs_bot_durable_json_io'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -268,12 +268,14 @@ def test_startup_pause_order_result_identity_and_native_errors(monkeypatch, paus
 
 def _prebarrier(monkeypatch, present=(), classification="clear"):
     trace = Mock()
-    for name in DEPENDENCIES["reconcile_confirmed_transactions_before_global_barrier"]:
+    for name in (*DEPENDENCIES["reconcile_confirmed_transactions_before_global_barrier"],
+                 "confirmed_context_outbox_matches_receipt"):
         if name.isupper() or name in {"hashlib", "TransportJournalError"}:
             continue
         callback = getattr(trace, name)
         callback.side_effect = AssertionError("unexpected dependency: " + name)
-        monkeypatch.setattr(bot, name, callback)
+        target = recovery if name == "confirmed_context_outbox_matches_receipt" else bot
+        monkeypatch.setattr(target, name, callback)
     for name, value in [
         ("global_remote_writes_paused", False),
         ("remote_write_safety_protocol_is_active", True),
