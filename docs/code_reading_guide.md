@@ -62,10 +62,12 @@ need. A recovered draft can bypass model evaluation.
 | Clarification eligibility and completed repair history | `ClarificationReplies` in [mrs_bot_reply_clarifications.py](../mrs_bot_reply_clarifications.py) |
 | Daily reply buckets, author counts and confirmation accounting | `DailyReplyAccounting` in [mrs_bot_daily_reply_accounting.py](../mrs_bot_daily_reply_accounting.py) |
 | Durable confirmation, journal retirement and receipt cleanup | `ReplyCompletion` in [mrs_bot_reply_reconciliation.py](../mrs_bot_reply_reconciliation.py) |
+| Pre-send availability, delivery and read/write failure routing | `ReplyCycleDelivery.deliver` in [mrs_bot_reply_delivery.py](../mrs_bot_reply_delivery.py); terminal bookkeeping and status mapping stay in each lane |
 | Save draft, prepare receipt, send and commit confirmation | [mrs_bot_reply_preparation.py](../mrs_bot_reply_preparation.py), [mrs_bot_reply_delivery.py](../mrs_bot_reply_delivery.py), [mrs_bot_reply_reconciliation.py](../mrs_bot_reply_reconciliation.py) |
 
 [mrs_bot_reply_cycle_interfaces.py](../mrs_bot_reply_cycle_interfaces.py) describes
-the settings and callback groups supplied to both reply lanes. Its
+the settings and callback groups supplied to both reply lanes, and re-exports
+the delivery owner from its behavior module. Its
 `PreparedReplyContext` carries canonical context and separately prepared native
 media from builders to the lanes; only canonical context enters durable drafts
 and receipts. In the normal cycle, `evaluation_record_pruning_pending` tracks

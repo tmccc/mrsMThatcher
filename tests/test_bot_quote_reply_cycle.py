@@ -85,11 +85,14 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         if count is None:
             assert tuple(public) == ("state",)
             assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
-            assert len(parameters) == 41
-            assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 40
+            assert len(parameters) == 36
+            assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 35
             removed = {
                 key for key in vars(interfaces) if key.startswith("QUOTE_CHECK_STATUS_")
             } | {
+                "AmbiguousRemotePostOutcome", "ConfirmedReplyLocalPersistenceError",
+                "ProvedRemotePostNonSuccess", "UnrecoverableConfirmedReplyPersistenceError",
+                "api_error_is_reply_not_allowed",
                 "_is_terminal_candidate_local_failure",
                 "mark_quote_tweet_skipped",
                 "terminal_reply_evaluation", "quote_author_profile_text",

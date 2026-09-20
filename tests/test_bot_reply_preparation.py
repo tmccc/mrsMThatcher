@@ -83,11 +83,8 @@ def preparation(request, monkeypatch):
         save=trace.save, store=trace.store, recover=Mock(), clear=Mock(),
         retire_ineligible=Mock(),
     )
-    delivery = ReplyCycleDelivery(
-        load_receipt=Mock(), reconcile_receipt=Mock(), block_ambiguous=Mock(),
-        bind_attempt=trace.bind, target_available=Mock(), post=Mock(),
-        retire_rejected=Mock(), finalise=Mock(),
-    )
+    delivery = Mock(spec=ReplyCycleDelivery, bind_attempt=trace.bind, post=Mock())
+
     case = SimpleNamespace(
         lane=lane, trace=trace, shared=shared, context=context, reply=reply,
         state=state, target=target, pagination=pagination, clarification=clarification,

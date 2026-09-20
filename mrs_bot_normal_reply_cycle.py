@@ -43,7 +43,7 @@ from mrs_bot_reply_cycle_interfaces import (
     EvaluateReply, FinishReplyCheck, NormalReplyConfig, PreparedReplyContext,
     ReplyCycleDelivery, ReplyCyclePersistence, SkipReplyCandidate,
 )
-from mrs_bot_reply_delivery import ReplyDeliveryStop, deliver_prepared_reply
+from mrs_bot_reply_delivery import ReplyDeliveryStop
 from mrs_bot_reply_evaluation_state import (
     completed_mention_watermark_covers_target,
     terminal_reply_evaluation,
@@ -119,20 +119,15 @@ def maybe_reply_to_mentions(
     _fresh_mention_ai_evaluations: int = 0,
     _skip_hot_post_fetch: bool = False,
     author_quarantines: AuthorQuarantines,
-    AmbiguousRemotePostOutcome: type[Exception],
     ApiError: type[Exception],
-    ConfirmedReplyLocalPersistenceError: type[Exception],
     config: NormalReplyConfig,
     PipelineResult: type,
-    ProvedRemotePostNonSuccess: type[Exception],
     RemoteOperationsPaused: type[Exception],
     ReplyEvidenceUnavailable: type[Exception],
     SINGLE_CALL_STRATEGY_VERSION: str,
-    UnrecoverableConfirmedReplyPersistenceError: type[Exception],
     ValidatedReply: type,
     _log_validated_single_call_reply: Callable,
     _record_single_call_result: Callable,
-    api_error_is_reply_not_allowed: Callable,
     build_context_for_reply_ai: Callable,
     cache_tweet: Callable,
     clarifications: ClarificationReplies,
@@ -404,17 +399,11 @@ def maybe_reply_to_mentions(
 
         receipt = _deliver_reply(
             state, candidate, replied_to_ids, reply_text, receipt_template,
-            AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome, ApiError=ApiError,
-            ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
             config=config,
-            ProvedRemotePostNonSuccess=ProvedRemotePostNonSuccess,
-            UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
-            api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
             persistence=persistence, log=log,
             log_ai_reply_posting_outcome=log_ai_reply_posting_outcome, log_event=log_event,
             mention_queue=mention_queue,
             delivery=delivery,
-            record_api_error=record_api_error,
             reply_evaluations=reply_evaluations,
         )
         if isinstance(receipt, FinishReplyCheck):
@@ -1081,20 +1070,13 @@ def _deliver_reply(
     reply_text: object,
     receipt_template: dict,
     *,
-    AmbiguousRemotePostOutcome: type[Exception],
-    ApiError: type[Exception],
-    ConfirmedReplyLocalPersistenceError: type[Exception],
     config: NormalReplyConfig,
-    ProvedRemotePostNonSuccess: type[Exception],
-    UnrecoverableConfirmedReplyPersistenceError: type[Exception],
-    api_error_is_reply_not_allowed: Callable,
     persistence: ReplyCyclePersistence,
     log: Logger,
     log_ai_reply_posting_outcome: Callable,
     log_event: Callable,
     mention_queue: MentionQueue,
     delivery: ReplyCycleDelivery,
-    record_api_error: Callable,
     reply_evaluations: ReplyEvaluations,
 ) -> dict | FinishReplyCheck:
     """Deliver through the shared boundary, retaining normal-lane retirement and statuses."""
@@ -1122,21 +1104,12 @@ def _deliver_reply(
             reply_evaluations=reply_evaluations,
         )
 
-    outcome = deliver_prepared_reply(
+    outcome = delivery.deliver(
         state, candidate.mention_id, reply_text, receipt_template,
         lane=str(candidate.source), log_source=candidate.log_source,
         read_error_scope="api",
         mark_as_ai=config.mark_as_ai,
         retire_terminal_target=retire_terminal_target,
-        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
-        ApiError=ApiError,
-        ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
-        ProvedRemotePostNonSuccess=ProvedRemotePostNonSuccess,
-        UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
-        api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
-        persistence=persistence, delivery=delivery, log=log,
-        log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
-        record_api_error=record_api_error,
     )
     if outcome is ReplyDeliveryStop.TERMINAL:
         return FinishReplyCheck(NORMAL_CHECK_STATUS_CHECKED)

@@ -80,11 +80,14 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
     assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
     assert public["_fresh_mention_ai_evaluations"].default == 0
     assert public["_skip_hot_post_fetch"].default is False
-    assert len(parameters) == 45
-    assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 44
+    assert len(parameters) == 40
+    assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 39
     removed = {
         name for name in vars(interfaces) if name.startswith("NORMAL_CHECK_STATUS_")
     } | {
+        "AmbiguousRemotePostOutcome", "ConfirmedReplyLocalPersistenceError",
+        "ProvedRemotePostNonSuccess", "UnrecoverableConfirmedReplyPersistenceError",
+        "api_error_is_reply_not_allowed",
         "_is_terminal_candidate_local_failure",
         "pending_ai_reply_draft_key", "completed_mention_watermark_covers_target",
         "mention_pagination_provenance_is_valid",

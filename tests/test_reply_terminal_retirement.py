@@ -83,20 +83,21 @@ def prepare_delivery(lane, outcome, *, save_failure=None, retirement_failure=Non
         load_receipt=Mock(), reconcile_receipt=Mock(), block_ambiguous=Mock(),
         bind_attempt=Mock(), target_available=trace.available, post=trace.post,
         retire_rejected=trace.retire, finalise=Mock(),
+        ambiguous_outcome=LookupError, api_error=ApiError,
+        confirmed_local_failure=ArithmeticError, proved_non_success=ProvedRejection,
+        unrecoverable_confirmed=EOFError,
+        reply_not_allowed=lambda error: error is rejection,
+        save_state=trace.save, log=trace.log, posting_outcome=trace.posting_outcome,
+        record_api_error=trace.api_error,
     )
     settings = dict(
         enabled=True, mark_as_ai=True, maximum_daily_replies=10,
         maximum_daily_author_replies=2, minimum_reply_spacing=0, user_id="12345",
     )
     dependencies = dict(
-        AmbiguousRemotePostOutcome=LookupError, ApiError=ApiError,
-        ConfirmedReplyLocalPersistenceError=ArithmeticError,
-        ProvedRemotePostNonSuccess=ProvedRejection,
-        UnrecoverableConfirmedReplyPersistenceError=EOFError,
-        api_error_is_reply_not_allowed=lambda error: error is rejection,
         persistence=persistence, delivery=delivery, log=trace.log,
         log_ai_reply_posting_outcome=trace.posting_outcome,
-        log_event=trace.event, record_api_error=trace.api_error,
+        log_event=trace.event,
         reply_evaluations=SimpleNamespace(record=trace.record),
     )
     if lane == "quote_tweet":

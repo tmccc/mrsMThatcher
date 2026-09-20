@@ -899,3 +899,109 @@ def test_retirement_proof_gate_precedes_receipt_read_and_authority(monkeypatch, 
         )
     read.assert_not_called()
     retire.assert_not_called()
+
+
+def test_cycle_delivery_binds_current_routing_without_running_callbacks(monkeypatch):
+    from dataclasses import FrozenInstanceError
+    from mrs_bot_reply_cycle_interfaces import ReplyCycleDelivery
+
+    bindings = {
+        "load_receipt": "load_confirmed_reply_receipt",
+        "reconcile_receipt": "reconcile_confirmed_reply_receipt",
+        "block_ambiguous": "block_if_ambiguous_remote_post",
+        "bind_attempt": "bind_conversational_reply_attempt_time",
+        "target_available": "reply_target_is_available_immediately_before_send",
+        "post": "post_conversational_reply_with_durable_identity",
+        "retire_rejected": "retire_proved_rejected_conversational_reply_receipt",
+        "finalise": "finalise_confirmed_reply",
+        "ambiguous_outcome": "AmbiguousRemotePostOutcome",
+        "api_error": "ApiError",
+        "confirmed_local_failure": "ConfirmedReplyLocalPersistenceError",
+        "proved_non_success": "ProvedRemotePostNonSuccess",
+        "unrecoverable_confirmed": "UnrecoverableConfirmedReplyPersistenceError",
+        "reply_not_allowed": "api_error_is_reply_not_allowed",
+        "save_state": "save_state", "log": "log",
+        "posting_outcome": "log_ai_reply_posting_outcome",
+        "record_api_error": "record_api_error",
+    }
+    owners = []
+    assert ReplyCycleDelivery is delivery.ReplyCycleDelivery
+    for _ in range(2):
+        current = {field: Mock() for field in bindings}
+        for field, root_name in bindings.items():
+            monkeypatch.setattr(bot, root_name, current[field])
+        owner = bot._reply_cycle_delivery()
+        owners.append(owner)
+        assert set(vars(owner)) == set(bindings)
+        assert all(getattr(owner, name) is value for name, value in current.items())
+        assert all(not value.mock_calls for value in current.values())
+        with pytest.raises(FrozenInstanceError):
+            owner.post = Mock()
+    assert all(getattr(owners[0], name) is not getattr(owners[1], name) for name in bindings)
+
+
+def test_cycle_delivery_keeps_bound_routing_while_post_binds_current_send_dependencies(monkeypatch):
+    class BoundApiError(Exception):
+        """An API failure classified by the active cycle's error authority."""
+
+    class NextApiError(Exception):
+        """A replacement API type which belongs to the next runtime binding."""
+
+    state, receipt, reply = {}, {"original": []}, object()
+    failure = BoundApiError("posting failed")
+    bound = {
+        "save_state": Mock(), "log": Mock(), "record_api_error": Mock(),
+        "log_ai_reply_posting_outcome": Mock(),
+        "api_error_is_reply_not_allowed": Mock(return_value=False),
+    }
+    newer = {name: Mock() for name in bound}
+    create = Mock()
+    retired = Mock()
+    value_factory, completion_factory = Mock(), Mock()
+
+    def available(target):
+        assert target == "105"
+        for name, value in newer.items():
+            monkeypatch.setattr(bot, name, value)
+        monkeypatch.setattr(bot, "ApiError", NextApiError)
+        monkeypatch.setattr(bot, "create_post", create)
+        monkeypatch.setattr(bot, "_reply_receipt_values_owner", value_factory)
+        monkeypatch.setattr(bot, "_reply_completion_owner", completion_factory)
+        return True
+
+    def post(**kwargs):
+        assert kwargs["state"] is state and kwargs["receipt_template"] is receipt
+        assert kwargs["reply_text"] is reply
+        assert kwargs["create_post"] is create
+        assert kwargs["ApiError"] is NextApiError
+        assert kwargs["save_state"] is newer["save_state"]
+        assert kwargs["log"] is newer["log"]
+        assert kwargs["receipt_values"] is value_factory.return_value
+        assert kwargs["completion"] is completion_factory.return_value
+        raise failure
+
+    monkeypatch.setattr(bot, "ApiError", BoundApiError)
+    for name, value in bound.items():
+        monkeypatch.setattr(bot, name, value)
+    monkeypatch.setattr(bot, "reply_target_is_available_immediately_before_send", available)
+    monkeypatch.setattr(delivery, "post_conversational_reply_with_durable_identity", post)
+    owner = bot._reply_cycle_delivery()
+    value_factory.assert_not_called()
+    completion_factory.assert_not_called()
+    assert owner.deliver(
+        state, "105", reply, receipt, lane="mention", log_source="mention",
+        read_error_scope="api", mark_as_ai=True, retire_terminal_target=retired,
+    ) is delivery.ReplyDeliveryStop.RETRYABLE
+    value_factory.assert_called_once_with()
+    completion_factory.assert_called_once_with()
+    bound["api_error_is_reply_not_allowed"].assert_called_once_with(failure)
+    bound["record_api_error"].assert_called_once_with(state, failure, "x", scope="write")
+    bound["save_state"].assert_called_once_with(state)
+    bound["log"].exception.assert_called_once_with("Failed to post generated reply")
+    bound["log_ai_reply_posting_outcome"].assert_called_once_with(
+        reply=reply, status="posting_failed_retryable", lane="mention", target_id="105",
+        failure_reason="x_api_error",
+    )
+    assert all(not callback.mock_calls for callback in newer.values())
+    retired.assert_not_called()
+    create.assert_not_called()

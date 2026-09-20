@@ -1,10 +1,11 @@
 """Fixed check statuses, per-invocation settings and shared reply-cycle boundaries.
 
-These records describe configuration, draft persistence, delivery, candidate
+These records describe configuration, draft persistence, candidate
 control flow and prepared context/media results. The root supplies current
 callbacks for each check, and builders return transient context/media references
 without adding them to bot state. Import and construction perform no I/O. Candidate policy and discovery
-stay explicit dependencies of their respective cycle owners.
+stay explicit dependencies of their respective cycle owners. The delivery boundary
+is re-exported from its inert behavior owner.
 """
 
 from __future__ import annotations
@@ -12,6 +13,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
+
+# Compatibility import: the delivery boundary owns its executable routing.
+from mrs_bot_reply_delivery import ReplyCycleDelivery
 
 if TYPE_CHECKING:
     from single_call_reply import PipelineResult
@@ -141,17 +145,3 @@ class FinaliseReply(Protocol):
     def __call__(
         self, state: dict, receipt: dict, *, target_id: str, quote_reply: bool,
     ) -> str: ...
-
-
-@dataclass(frozen=True)
-class ReplyCycleDelivery:
-    """Receipt recovery, preflight, sending and confirmed transaction boundaries."""
-
-    load_receipt: Callable[[], tuple[str, dict | None]]
-    reconcile_receipt: Callable[[dict], bool]
-    block_ambiguous: Callable[[], None]
-    bind_attempt: Callable[[dict], dict]
-    target_available: Callable[[str], bool]
-    post: PostReply
-    retire_rejected: Callable[[dict, Exception], None]
-    finalise: FinaliseReply
