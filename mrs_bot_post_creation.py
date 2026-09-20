@@ -238,48 +238,23 @@ def upload_media(
         end_confirmed_post_sigint_deferral(media_sigint_guard)
 
 
-def create_post(
-    text: str,
-    media_ids: list[str] | None = None,
-    reply_to_id: str | None = None,
-    made_with_ai: bool = False,
+def _validate_prepared_receipts(
+    text: object,
+    media_ids: list[str] | None,
+    reply_to_id: str | None,
+    made_with_ai: bool,
     *,
-    prepared_conversational_reply_receipt: dict | None = None,
-    prepared_historical_context_reply_receipt: dict | None = None,
-    prepared_main_post_attempt: dict | None = None,
-    prepared_transport_authority: TransportAuthority | None = None,
-    prepared_transport_source: SourceReceiptBinding | None = None,
-    on_remote_transaction_started: Callable[[], None] | None = None,
-    AmbiguousRemotePostOutcome: Any,
-    CONFIRMED_REPLY_RECEIPT_FILE: Any,
-    HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE: Any,
-    ProvedRemotePostNonSuccess: Any,
-    RemoteOperationsPaused: Any,
-    TransportJournalError: Any,
-    abort_untransmitted_transport_transaction: Any,
-    arm_transport_transaction: Any,
-    begin_transport_transaction: Any,
-    bind_lane_transport_source: Any,
-    block_if_ambiguous_remote_post: Any,
-    block_if_remote_write_safety_incident_latched: Any,
-    confirm_transport_transaction: Any,
-    confirmation_epoch_after_remote_success: Any,
-    current_main_post_attempt_is_semantically_valid: Any,
-    freeze_tweet_request: Any,
-    global_remote_writes_paused: Any,
-    journal_path_for_receipt: Any,
-    log: Any,
-    main_post_attempt_binds_payload: Any,
-    main_post_attempt_path: Any,
-    mark_main_post_attempt_attempting: Any,
-    record_ambiguous_remote_post: Any,
-    require_instance_lock_for_remote_write: Any,
-    retire_consumed_transport_transaction_after_proved_remote_non_success: Any,
-    sending_reply_receipt_is_semantically_valid: Any,
-    transaction_mutation_authority: Any,
-    x_request: Any,
-) -> dict:
-    """Create an X post with transactional ambiguity handling."""
+    prepared_conversational_reply_receipt: dict | None,
+    prepared_historical_context_reply_receipt: dict | None,
+    prepared_main_post_attempt: dict | None,
+    prepared_transport_authority: object,
+    on_remote_transaction_started: Callable[[], None] | None,
+    AmbiguousRemotePostOutcome: type[Exception],
+    block_if_ambiguous_remote_post: Callable,
+    sending_reply_receipt_is_semantically_valid: Callable,
+    current_main_post_attempt_is_semantically_valid: Callable,
+) -> None:
+    """Require one valid source receipt bound to the requested public write."""
     prepared_receipt_count = sum(
         item is not None
         for item in (
@@ -357,6 +332,62 @@ def create_post(
                 "requested remote write",
                 service="x",
             )
+
+
+def create_post(
+    text: str,
+    media_ids: list[str] | None = None,
+    reply_to_id: str | None = None,
+    made_with_ai: bool = False,
+    *,
+    prepared_conversational_reply_receipt: dict | None = None,
+    prepared_historical_context_reply_receipt: dict | None = None,
+    prepared_main_post_attempt: dict | None = None,
+    prepared_transport_authority: TransportAuthority | None = None,
+    prepared_transport_source: SourceReceiptBinding | None = None,
+    on_remote_transaction_started: Callable[[], None] | None = None,
+    AmbiguousRemotePostOutcome: Any,
+    CONFIRMED_REPLY_RECEIPT_FILE: Any,
+    HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE: Any,
+    ProvedRemotePostNonSuccess: Any,
+    RemoteOperationsPaused: Any,
+    TransportJournalError: Any,
+    abort_untransmitted_transport_transaction: Any,
+    arm_transport_transaction: Any,
+    begin_transport_transaction: Any,
+    bind_lane_transport_source: Any,
+    block_if_ambiguous_remote_post: Any,
+    block_if_remote_write_safety_incident_latched: Any,
+    confirm_transport_transaction: Any,
+    confirmation_epoch_after_remote_success: Any,
+    current_main_post_attempt_is_semantically_valid: Any,
+    freeze_tweet_request: Any,
+    global_remote_writes_paused: Any,
+    journal_path_for_receipt: Any,
+    log: Any,
+    main_post_attempt_binds_payload: Any,
+    main_post_attempt_path: Any,
+    mark_main_post_attempt_attempting: Any,
+    record_ambiguous_remote_post: Any,
+    require_instance_lock_for_remote_write: Any,
+    retire_consumed_transport_transaction_after_proved_remote_non_success: Any,
+    sending_reply_receipt_is_semantically_valid: Any,
+    transaction_mutation_authority: Any,
+    x_request: Any,
+) -> dict:
+    """Create an X post with transactional ambiguity handling."""
+    _validate_prepared_receipts(
+        text, media_ids, reply_to_id, made_with_ai,
+        prepared_conversational_reply_receipt=prepared_conversational_reply_receipt,
+        prepared_historical_context_reply_receipt=prepared_historical_context_reply_receipt,
+        prepared_main_post_attempt=prepared_main_post_attempt,
+        prepared_transport_authority=prepared_transport_authority,
+        on_remote_transaction_started=on_remote_transaction_started,
+        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
+        block_if_ambiguous_remote_post=block_if_ambiguous_remote_post,
+        sending_reply_receipt_is_semantically_valid=sending_reply_receipt_is_semantically_valid,
+        current_main_post_attempt_is_semantically_valid=current_main_post_attempt_is_semantically_valid,
+    )
     block_if_ambiguous_remote_post(
         prepared_conversational_reply_receipt=(
             prepared_conversational_reply_receipt
