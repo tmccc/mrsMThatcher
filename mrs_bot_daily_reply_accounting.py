@@ -1,7 +1,7 @@
 """Own daily reply buckets, per-author counts and confirmed-reply accounting.
 
-DailyReplyAccounting binds current date, logging and ID-list helper
-boundaries without retaining caller state. Daily reset and confirmation-date
+DailyReplyAccounting binds current date and logging boundaries without retaining
+caller state. Daily reset and confirmation-date
 advancement deliberately keep their distinct time rules. Confirmation recording
 uses the caller's prior idempotency decision and resolved receipt dates at its
 existing position in reconciliation. Counter normalization preserves replacement
@@ -16,6 +16,8 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+
+from mrs_bot_runtime_state_helpers import append_unique_capped
 
 
 def daily_author_reply_counts(state: dict) -> dict[str, int]:
@@ -46,7 +48,6 @@ class DailyReplyAccounting:
 
     log: logging.Logger
     reply_cap_date_str: Callable
-    append_unique_capped: Callable
 
     def reset(self, state: dict) -> None:
         """Reset daily reply count if needed."""
@@ -89,7 +90,7 @@ class DailyReplyAccounting:
         counts[author_id] = counts.get(author_id, 0) + 1
         state["daily_replied_author_counts"] = counts
 
-        state["daily_replied_author_ids"] = self.append_unique_capped(
+        state["daily_replied_author_ids"] = append_unique_capped(
             state.get("daily_replied_author_ids", []),
             author_id,
             1000,

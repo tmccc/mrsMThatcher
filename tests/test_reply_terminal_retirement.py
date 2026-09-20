@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 from types import SimpleNamespace
-from unittest.mock import Mock, call
+from unittest.mock import Mock, call, patch
 
 import pytest
 
@@ -118,12 +118,12 @@ def prepare_delivery(lane, outcome, *, save_failure=None, retirement_failure=Non
         )
         dependencies.update(
             config=NormalReplyConfig(**settings, maximum_fresh_evaluations=3, incoming_max_chars=1000),
-            append_unique_durable=trace.append,
             mention_queue=SimpleNamespace(mark_seen=trace.mark_seen),
         )
 
         def run():
-            return normal_cycle._deliver_reply(state, candidate, replied_ids, reply, receipt, **dependencies)
+            with patch.object(normal_cycle, "append_unique_durable", trace.append):
+                return normal_cycle._deliver_reply(state, candidate, replied_ids, reply, receipt, **dependencies)
 
     return SimpleNamespace(
         run=run, state=state, trace=trace, snapshots=snapshots,

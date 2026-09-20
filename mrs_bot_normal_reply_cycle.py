@@ -25,6 +25,8 @@ from dataclasses import dataclass
 from logging import Logger
 from typing import TYPE_CHECKING
 
+from mrs_bot_runtime_state_helpers import append_unique_durable
+
 from mrs_bot_author_quarantines import clear_author_evaluation_quarantine_history
 from mrs_bot_mention_authority import mention_receipt_pagination
 from mrs_bot_daily_reply_accounting import daily_author_reply_counts
@@ -131,7 +133,6 @@ def maybe_reply_to_mentions(
     _log_validated_single_call_reply: Callable,
     _record_single_call_result: Callable,
     api_error_is_reply_not_allowed: Callable,
-    append_unique_durable: Callable,
     build_context_for_reply_ai: Callable,
     cache_tweet: Callable,
     clarifications: ClarificationReplies,
@@ -411,7 +412,6 @@ def maybe_reply_to_mentions(
             ProvedRemotePostNonSuccess=ProvedRemotePostNonSuccess,
             UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
             api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
-            append_unique_durable=append_unique_durable,
             persistence=persistence, log=log,
             log_ai_reply_posting_outcome=log_ai_reply_posting_outcome, log_event=log_event,
             mention_queue=mention_queue,
@@ -1041,7 +1041,6 @@ def _retire_terminal_target(
     *,
     failure_reason: str,
     reason: str,
-    append_unique_durable: Callable,
     persistence: ReplyCyclePersistence,
     log_ai_reply_posting_outcome: Callable,
     log_event: Callable,
@@ -1094,7 +1093,6 @@ def _deliver_reply(
     ProvedRemotePostNonSuccess: type[Exception],
     UnrecoverableConfirmedReplyPersistenceError: type[Exception],
     api_error_is_reply_not_allowed: Callable,
-    append_unique_durable: Callable,
     persistence: ReplyCyclePersistence,
     log: Logger,
     log_ai_reply_posting_outcome: Callable,
@@ -1122,7 +1120,6 @@ def _deliver_reply(
             state, candidate, replied_to_ids, reply_text,
             failure_reason=failure_reason,
             reason=f"x_{failure_reason}",
-            append_unique_durable=append_unique_durable,
             persistence=persistence,
             log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
             log_event=log_event,

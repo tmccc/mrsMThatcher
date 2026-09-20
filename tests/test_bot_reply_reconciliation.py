@@ -47,7 +47,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name != 'mrs_bot_reply_reconciliation':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_reconciliation', 'mrs_bot_runtime_state_helpers'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -91,7 +91,7 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
         "now_epoch", "AI_REPLY_HISTORY_MAX_AGE_SECONDS", "valid_string_post_id",
         "AI_REPLY_HISTORY_MAX_RECORDS", "_advance_reply_counters_to_confirmation_date",
         "mark_daily_author_replied", "conversational_reply_confirmation_epoch",
-        "mention_pagination_provenance_is_valid",
+        "mention_pagination_provenance_is_valid", "append_unique_capped", "append_unique_durable",
     }.isdisjoint(parameters)
     assert {"clarifications", "accounting", "receipt_values"} <= parameters.keys()
     assert "clear_pending_ai_reply" not in parameters
@@ -145,7 +145,7 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
         assert clarification_owner.window_seconds == 1000 + index
         accounting_owner = supplied["accounting"]
         assert isinstance(accounting_owner, daily_accounting.DailyReplyAccounting)
-        for field in ("log", "reply_cap_date_str", "append_unique_capped"):
+        for field in ("log", "reply_cap_date_str"):
             assert getattr(accounting_owner, field) is current[field]
         accounting_owners.append(accounting_owner)
         draft_callback = supplied["clear_target_drafts"]
@@ -325,7 +325,7 @@ def test_accounting_calls_preserve_positions_snapshots_and_native_failures(monke
                            daily_reply_date="changed", daily_quote_reply_date="changed")
         return original_append(values, value, cap)
 
-    monkeypatch.setattr(bot, "append_unique_capped", append_ids)
+    monkeypatch.setattr(reconciliation, "append_unique_capped", append_ids)
     trace.cache = Mock(wraps=bot.cache_tweet)
     monkeypatch.setattr(bot, "cache_tweet", trace.cache)
     monkeypatch.setattr(bot, "log_event", trace.event)

@@ -38,7 +38,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_quote_reply_cycle', 'mrs_bot_reply_context', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines', 'mrs_bot_daily_reply_accounting'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_quote_reply_cycle', 'mrs_bot_runtime_state_helpers', 'mrs_bot_reply_context', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines', 'mrs_bot_daily_reply_accounting'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -66,9 +66,9 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
     names = {
         "quote_tweet_is_old_enough": 4,
         "quote_tweet_directly_quotes_original": 0,
-        "mark_quote_tweet_skipped": 1,
-        "mark_quote_tweet_replied": 2,
-        "mark_quote_spam_author": 2,
+        "mark_quote_tweet_skipped": 0,
+        "mark_quote_tweet_replied": 0,
+        "mark_quote_spam_author": 1,
         "maybe_reply_to_quote_tweets": None,
     }
     owner_factories = {
@@ -231,8 +231,8 @@ def test_markers_preserve_bounded_and_durable_lists_and_mutation_before_failure(
         "quote_spam_author_ids": [str(i) for i in range(2000)],
     }
     capped, durable = Mock(wraps=bot.append_unique_capped), Mock(wraps=bot.append_unique_durable)
-    monkeypatch.setattr(bot, "append_unique_capped", capped)
-    monkeypatch.setattr(bot, "append_unique_durable", durable)
+    monkeypatch.setattr(cycle, "append_unique_capped", capped)
+    monkeypatch.setattr(cycle, "append_unique_durable", durable)
     seen = state["seen_quote_post_ids"]
     skipped = state["skipped_quote_post_ids"]
     bot.mark_quote_tweet_skipped(state, 3000)

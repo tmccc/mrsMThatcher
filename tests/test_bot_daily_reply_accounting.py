@@ -18,7 +18,7 @@ from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
-OWNER_INPUTS = ("log", "reply_cap_date_str", "append_unique_capped")
+OWNER_INPUTS = ("log", "reply_cap_date_str")
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name != 'mrs_bot_daily_reply_accounting':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_daily_reply_accounting', 'mrs_bot_runtime_state_helpers'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -197,13 +197,13 @@ def test_author_increment_precedes_current_capped_helper_failure(monkeypatch, ma
         assert state["daily_replied_author_counts"] is counts and counts["7"] == 3
         raise failure
 
-    owner = replace(owner, append_unique_capped=capped)
+    monkeypatch.setattr(accounting, "append_unique_capped", capped)
     with pytest.raises(ValueError) as caught:
         owner.mark_author(state, 7)
     assert caught.value is failure
     assert counts == {"7": 3} and state["daily_replied_author_ids"] is ids
     replacement = ["current"]
-    owner = replace(owner, append_unique_capped=Mock(return_value=replacement))
+    monkeypatch.setattr(accounting, "append_unique_capped", Mock(return_value=replacement))
     owner.mark_author(state, 7)
     assert counts == {"7": 4} and state["daily_replied_author_ids"] is replacement
 
@@ -295,7 +295,7 @@ def test_confirmation_recording_respects_supplied_idempotency_and_date_snapshots
 
 
 @pytest.mark.parametrize("boundary", ["author", "quote"])
-def test_confirmation_count_failures_preserve_prior_mutations_and_order(make_owner, boundary):
+def test_confirmation_count_failures_preserve_prior_mutations_and_order(monkeypatch, make_owner, boundary):
     ids = []
     state = {"daily_reply_date": "current", "daily_reply_count": 2,
              "daily_quote_reply_date": "current", "daily_quote_reply_count": "broken" if boundary == "quote" else 4,
@@ -303,7 +303,8 @@ def test_confirmation_count_failures_preserve_prior_mutations_and_order(make_own
     failure = RuntimeError("author ID append failed")
     appended = ["200"]
     append = Mock(side_effect=failure) if boundary == "author" else Mock(return_value=appended)
-    owner = make_owner(append_unique_capped=append)
+    monkeypatch.setattr(accounting, "append_unique_capped", append)
+    owner = make_owner()
     with pytest.raises(RuntimeError if boundary == "author" else ValueError) as caught:
         owner.record_confirmed(state, already_recorded=False, candidate_source="quote_tweet",
                                author_id="200", receipt_reply_date="current", receipt_quote_reply_date="current")

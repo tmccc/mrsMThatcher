@@ -48,7 +48,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_normal_reply_cycle', 'mrs_bot_reply_context', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines', 'mrs_bot_daily_reply_accounting', 'mrs_bot_mention_authority'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_normal_reply_cycle', 'mrs_bot_runtime_state_helpers', 'mrs_bot_reply_context', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines', 'mrs_bot_daily_reply_accounting', 'mrs_bot_mention_authority'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -80,13 +80,13 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
     assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
     assert public["_fresh_mention_ai_evaluations"].default == 0
     assert public["_skip_hot_post_fetch"].default is False
-    assert len(parameters) == 48
-    assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 47
+    assert len(parameters) == 47
+    assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 46
     removed = {
         name for name in vars(interfaces) if name.startswith("NORMAL_CHECK_STATUS_")
     } | {
         "pending_ai_reply_draft_key", "completed_mention_watermark_covers_target",
-        "terminal_reply_evaluation", "trim_context_text",
+        "terminal_reply_evaluation", "trim_context_text", "append_unique_durable",
         "pending_mention_candidates", "mark_mention_seen_if_applicable",
         "AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY",
         "active_author_evaluation_quarantine", "clarification_reply_context",

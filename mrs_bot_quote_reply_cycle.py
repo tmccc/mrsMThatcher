@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from logging import Logger
 from typing import TYPE_CHECKING
 
+from mrs_bot_runtime_state_helpers import append_unique_capped, append_unique_durable
+
 from mrs_bot_daily_reply_accounting import daily_author_reply_counts
 from mrs_bot_reply_context import clean_text_for_reply_context
 from mrs_bot_reply_cycle_interfaces import (
@@ -131,8 +133,6 @@ def quote_author_profile_text(quote_tweet: dict) -> str:
 def mark_quote_tweet_skipped(
     state: dict,
     quote_id: str,
-    *,
-    append_unique_capped: Callable,
 ) -> None:
     """Mark quote tweet skipped."""
     quote_id = str(quote_id)
@@ -152,9 +152,6 @@ def mark_quote_tweet_skipped(
 def mark_quote_tweet_replied(
     state: dict,
     quote_id: str,
-    *,
-    append_unique_capped: Callable,
-    append_unique_durable: Callable,
 ) -> None:
     """Mark quote tweet replied."""
     quote_id = str(quote_id)
@@ -174,7 +171,6 @@ def mark_quote_spam_author(
     state: dict,
     author_id: str,
     *,
-    append_unique_capped: Callable,
     log: Logger,
 ) -> None:
     """Mark quote spam author."""

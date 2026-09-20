@@ -8,7 +8,7 @@ retirement and receipt removal.
 
 Mention authority, receipt I/O, transport journals, persistence and posting
 remain in their existing owners and use current root callbacks. Receipt values
-use the supplied owner directly. Import uses only the standard library and
+use the supplied owner directly. Import uses the standard library and inert ID-list helpers, and
 performs no file, environment, provider or RNG work; no callbacks are retained.
 """
 
@@ -19,6 +19,8 @@ import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from mrs_bot_runtime_state_helpers import append_unique_capped, append_unique_durable
 
 if TYPE_CHECKING:
     from mrs_bot_reply_clarifications import ClarificationReplies
@@ -42,8 +44,6 @@ def apply_confirmed_reply_receipt(
     log: logging.Logger,
     clear_target_drafts: Callable[[dict, str, str], None],
     mark_quote_tweet_replied: Callable,
-    append_unique_durable: Callable,
-    append_unique_capped: Callable,
     remove_pending_mention_candidate: Callable,
     active_mention_backlog_reset_guard: Callable,
     update_last_seen_mention_id: Callable,

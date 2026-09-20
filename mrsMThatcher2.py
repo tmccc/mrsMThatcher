@@ -2959,7 +2959,6 @@ def _daily_reply_accounting_owner() -> _daily_reply_accounting.DailyReplyAccount
     return _daily_reply_accounting.DailyReplyAccounting(
         log=log,
         reply_cap_date_str=reply_cap_date_str,
-        append_unique_capped=append_unique_capped,
     )
 
 
@@ -8456,8 +8455,6 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
         log=log,
         clear_target_drafts=_reply_draft_owner().clear_target,
         mark_quote_tweet_replied=mark_quote_tweet_replied,
-        append_unique_durable=append_unique_durable,
-        append_unique_capped=append_unique_capped,
         remove_pending_mention_candidate=remove_pending_mention_candidate,
         active_mention_backlog_reset_guard=active_mention_backlog_reset_guard,
         update_last_seen_mention_id=update_last_seen_mention_id,
@@ -8665,7 +8662,6 @@ def maybe_reply_to_mentions(
         _log_validated_single_call_reply=_log_validated_single_call_reply,
         _record_single_call_result=_record_single_call_result,
         api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
-        append_unique_durable=append_unique_durable,
         build_context_for_reply_ai=build_context_for_reply_ai,
         cache_tweet=cache_tweet,
         clarifications=_clarification_reply_owner(),
@@ -8807,7 +8803,6 @@ def mark_quote_tweet_skipped(state: dict, quote_id: str) -> None:
     return _quote_reply_cycle.mark_quote_tweet_skipped(
         state,
         quote_id,
-        append_unique_capped=append_unique_capped,
     )
 
 
@@ -8816,8 +8811,6 @@ def mark_quote_tweet_replied(state: dict, quote_id: str) -> None:
     return _quote_reply_cycle.mark_quote_tweet_replied(
         state,
         quote_id,
-        append_unique_capped=append_unique_capped,
-        append_unique_durable=append_unique_durable,
     )
 
 
@@ -8826,7 +8819,6 @@ def mark_quote_spam_author(state: dict, author_id: str) -> None:
     return _quote_reply_cycle.mark_quote_spam_author(
         state,
         author_id,
-        append_unique_capped=append_unique_capped,
         log=log,
     )
 
