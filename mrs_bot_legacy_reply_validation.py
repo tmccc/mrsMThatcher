@@ -1,12 +1,13 @@
 """Validate frozen reply drafts from retired conversational reply strategies.
 
 The fixed schema, strategy and hash definitions are used directly here. Root
-constants remain compatibility aliases; adapters supply current ID/context
-validators and size limits on each call. Validation retains the historical bodies and native error
-boundaries; current draft validation, lifecycle recovery and outbound authority
-remain in their existing owners. This module imports only the standard library,
-constructs fixed strings/frozensets, performs no runtime I/O or configuration work,
-and retains no callbacks or mutable state.
+constants remain compatibility aliases; adapters supply current single-sol
+context validation and size limits on each call. Fixed post-ID and frozen context
+validation use their owner implementations directly. Validation retains the
+historical bodies and native error boundaries; current draft validation, lifecycle recovery and outbound authority
+remain in their existing owners. This module imports the standard library and
+inert receipt primitives. It constructs fixed strings/frozensets, performs no
+runtime I/O or configuration work, and retains no callbacks or mutable state.
 """
 
 from __future__ import annotations
@@ -16,6 +17,8 @@ import json
 import re
 from collections.abc import Callable
 from datetime import date, datetime, timedelta, timezone
+
+from mrs_bot_receipt_primitives import valid_string_post_id
 
 
 _LEGACY_TESTED_REPLY_STRATEGY_VERSION = "tested-reply-pipeline-20260817"
@@ -245,8 +248,6 @@ def _legacy_reply_utc_timestamp_is_valid(value: object) -> bool:
 
 def _legacy_multi_model_context_post_is_valid(
     value: object,
-    *,
-    valid_string_post_id: Callable,
 ) -> bool:
     return bool(
         isinstance(value, dict)
@@ -260,9 +261,6 @@ def _legacy_multi_model_context_post_is_valid(
 
 def _legacy_multi_model_reply_context_is_valid(
     context: object,
-    *,
-    valid_string_post_id: Callable,
-    _legacy_multi_model_context_post_is_valid: Callable,
 ) -> bool:
     """Validate the exact context object hashed by both retired strategies."""
 
@@ -691,7 +689,6 @@ def _legacy_single_sol_reply_draft_is_valid(
     *,
     context: dict,
     text: object,
-    valid_string_post_id: Callable,
     bound_visible_conversation: Callable,
     MAX_TRUSTED_FACTS: int,
     MAX_SUPPLIED_IMAGES: int,
@@ -855,7 +852,6 @@ def _legacy_ai_reply_receipt_draft_is_valid(
     data: dict,
     text: object,
     *,
-    _legacy_multi_model_reply_context_is_valid: Callable,
     _legacy_single_sol_reply_draft_is_valid: Callable,
 ) -> bool:
     """Validate only frozen drafts already protected by reply lifecycle state."""

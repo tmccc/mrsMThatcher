@@ -7419,21 +7419,10 @@ _legacy_reply_sha256_is_valid = _legacy_reply_validation._legacy_reply_sha256_is
 _legacy_reply_utc_timestamp_is_valid = _legacy_reply_validation._legacy_reply_utc_timestamp_is_valid
 
 
-def _legacy_multi_model_context_post_is_valid(value: object) -> bool:
-    """Delegate frozen validation with current root dependencies."""
-    return _legacy_reply_validation._legacy_multi_model_context_post_is_valid(
-        value,
-        valid_string_post_id=valid_string_post_id,
-    )
+_legacy_multi_model_context_post_is_valid = _legacy_reply_validation._legacy_multi_model_context_post_is_valid
 
 
-def _legacy_multi_model_reply_context_is_valid(context: object) -> bool:
-    """Delegate frozen validation with current root dependencies."""
-    return _legacy_reply_validation._legacy_multi_model_reply_context_is_valid(
-        context,
-        valid_string_post_id=valid_string_post_id,
-        _legacy_multi_model_context_post_is_valid=_legacy_multi_model_context_post_is_valid,
-    )
+_legacy_multi_model_reply_context_is_valid = _legacy_reply_validation._legacy_multi_model_reply_context_is_valid
 
 
 def _legacy_tested_reply_draft_is_valid(
@@ -7493,7 +7482,6 @@ def _legacy_single_sol_reply_draft_is_valid(
         data, draft,
         context=context,
         text=text,
-        valid_string_post_id=valid_string_post_id,
         bound_visible_conversation=bound_visible_conversation,
         MAX_TRUSTED_FACTS=MAX_TRUSTED_FACTS,
         MAX_SUPPLIED_IMAGES=MAX_SUPPLIED_IMAGES,
@@ -7505,7 +7493,6 @@ def _legacy_ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
     """Delegate frozen validation with current root dependencies."""
     return _legacy_reply_validation._legacy_ai_reply_receipt_draft_is_valid(
         data, text,
-        _legacy_multi_model_reply_context_is_valid=_legacy_multi_model_reply_context_is_valid,
         _legacy_single_sol_reply_draft_is_valid=_legacy_single_sol_reply_draft_is_valid,
     )
 

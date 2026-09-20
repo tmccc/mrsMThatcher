@@ -22,7 +22,7 @@ from tests.helpers.legacy_reply_fixtures import (
 
 def test_import_needs_no_runtime_access_and_root_aliases_share_owner_objects():
     code = """
-import builtins, collections.abc, datetime, hashlib, io, json, os, random, re, socket, sys
+import builtins, collections.abc, dataclasses, datetime, hashlib, io, json, os, random, re, socket, sys
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -30,7 +30,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name != 'mrs_bot_legacy_reply_validation':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_legacy_reply_validation', 'mrs_bot_receipt_primitives'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -58,6 +58,7 @@ assert 'single_call_reply' not in sys.modules
     for name in (
         "_legacy_reply_value_sha256", "_legacy_reply_sha256_is_valid",
         "_legacy_reply_utc_timestamp_is_valid", "_legacy_ai_first_claim_is_valid",
+        "_legacy_multi_model_context_post_is_valid", "_legacy_multi_model_reply_context_is_valid",
     ):
         assert getattr(bot, name) is getattr(legacy, name)
     assert legacy.hashlib is bot.hashlib and legacy.json is bot.json
@@ -66,7 +67,6 @@ assert 'single_call_reply' not in sys.modules
 
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
     names = (
-        "_legacy_multi_model_context_post_is_valid", "_legacy_multi_model_reply_context_is_valid",
         "_legacy_tested_reply_draft_is_valid", "_legacy_ai_first_sentence_assessment_is_valid",
         "_legacy_ai_first_claim_audit_is_valid", "_legacy_ai_first_reply_draft_is_valid",
         "_legacy_single_sol_reply_draft_is_valid", "_legacy_ai_reply_receipt_draft_is_valid",
@@ -84,7 +84,7 @@ def test_dispatch_uses_owned_fixed_and_current_runtime_validators_in_order(case_
     result = object()
     context_check = Mock(return_value=True)
     events.attach_mock(context_check, "context")
-    monkeypatch.setattr(bot, "_legacy_multi_model_reply_context_is_valid", context_check)
+    monkeypatch.setattr(legacy, "_legacy_multi_model_reply_context_is_valid", context_check)
     for family in ("tested", "ai_first", "single_sol"):
         callback = Mock(return_value=result)
         events.attach_mock(callback, family)
@@ -110,13 +110,13 @@ def test_dispatch_uses_owned_fixed_and_current_runtime_validators_in_order(case_
     assert events.mock_calls == []
 
 
-def test_context_uses_owned_schema_and_current_nested_post_callback(monkeypatch):
+def test_context_uses_owned_schema_and_nested_post_validation(monkeypatch):
     context = _legacy_case("tested_reply_pipeline")["sending_receipt"]["reply_context"]
     quoted = {"post_id": "4000", "author_role": "user", "text": "Earlier contribution."}
     parent = {"post_id": "4001", "author_role": "account", "text": "Earlier reply."}
     context.update(quoted_post=quoted, parent_thread=[parent])
     check = Mock(wraps=bot._legacy_multi_model_context_post_is_valid)
-    monkeypatch.setattr(bot, "_legacy_multi_model_context_post_is_valid", check)
+    monkeypatch.setattr(legacy, "_legacy_multi_model_context_post_is_valid", check)
     assert bot._legacy_multi_model_reply_context_is_valid(context) is True
     assert check.call_args_list == [call(quoted), call(parent)]
     assert check.call_args_list[0].args[0] is quoted
