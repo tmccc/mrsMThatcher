@@ -17,6 +17,23 @@ from logging import Logger
 from pathlib import Path
 
 
+AUTHOR_EVALUATION_QUARANTINE_PREVIOUS_EVIDENCE_POLICY = (
+    "majority_resolvable_terminal_no_reply_v3"
+)
+
+AUTHOR_EVALUATION_QUARANTINE_SINGLE_SOL_V1_EVIDENCE_POLICY = (
+    "single_sol_editorial_no_reply_v1"
+)
+
+AUTHOR_EVALUATION_QUARANTINE_SEEDED_EVIDENCE_POLICY = (
+    "majority_spam_or_abuse_seeded_corroboration_v2"
+)
+
+AUTHOR_EVALUATION_QUARANTINE_LEGACY_EVIDENCE_POLICY = (
+    "majority_spam_or_abuse_v1"
+)
+
+
 def clear_author_evaluation_quarantine_history(state: dict, author_id: str) -> bool:
     """Clear prior strikes when a mention receives a validated reply."""
     records = state.get("author_evaluation_quarantines")
@@ -40,10 +57,6 @@ class AuthorQuarantines:
     window_seconds: int
     quarantine_seconds: int
     evidence_policy: str
-    legacy_evidence_policy: str
-    previous_evidence_policy: str
-    seeded_evidence_policy: str
-    single_sol_v1_evidence_policy: str
 
     def epoch_limit(self) -> int:
         """Return retention sized from the effective runtime quarantine threshold."""
@@ -236,22 +249,22 @@ class AuthorQuarantines:
             is_legacy_policy = (
                 record_fields == previous_policy_fields
                 and evidence_policy
-                == self.legacy_evidence_policy
+                == AUTHOR_EVALUATION_QUARANTINE_LEGACY_EVIDENCE_POLICY
             )
             is_seeded_policy = (
                 record_fields == current_fields
                 and evidence_policy
-                == self.seeded_evidence_policy
+                == AUTHOR_EVALUATION_QUARANTINE_SEEDED_EVIDENCE_POLICY
             )
             is_previous_policy = (
                 record_fields == current_fields
                 and evidence_policy
-                == self.previous_evidence_policy
+                == AUTHOR_EVALUATION_QUARANTINE_PREVIOUS_EVIDENCE_POLICY
             )
             is_single_sol_v1_policy = (
                 record_fields == current_fields
                 and evidence_policy
-                == self.single_sol_v1_evidence_policy
+                == AUTHOR_EVALUATION_QUARANTINE_SINGLE_SOL_V1_EVIDENCE_POLICY
             )
             is_current_policy = (
                 record_fields == current_fields

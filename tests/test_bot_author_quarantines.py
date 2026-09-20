@@ -24,10 +24,6 @@ OWNER_INPUTS = {
     "window_seconds": "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS",
     "quarantine_seconds": "AUTHOR_NO_REPLY_QUARANTINE_SECONDS",
     "evidence_policy": "AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY",
-    "legacy_evidence_policy": "AUTHOR_EVALUATION_QUARANTINE_LEGACY_EVIDENCE_POLICY",
-    "previous_evidence_policy": "AUTHOR_EVALUATION_QUARANTINE_PREVIOUS_EVIDENCE_POLICY",
-    "seeded_evidence_policy": "AUTHOR_EVALUATION_QUARANTINE_SEEDED_EVIDENCE_POLICY",
-    "single_sol_v1_evidence_policy": "AUTHOR_EVALUATION_QUARANTINE_SINGLE_SOL_V1_EVIDENCE_POLICY",
 }
 
 
@@ -41,6 +37,13 @@ def make_owner():
 
 
 def test_import_needs_no_runtime_access_and_clear_aliases_share_owner():
+    for name in (
+        "AUTHOR_EVALUATION_QUARANTINE_LEGACY_EVIDENCE_POLICY",
+        "AUTHOR_EVALUATION_QUARANTINE_PREVIOUS_EVIDENCE_POLICY",
+        "AUTHOR_EVALUATION_QUARANTINE_SEEDED_EVIDENCE_POLICY",
+        "AUTHOR_EVALUATION_QUARANTINE_SINGLE_SOL_V1_EVIDENCE_POLICY",
+    ):
+        assert getattr(bot, name) is getattr(quarantines, name)
     code = """
 import builtins, collections.abc, dataclasses, io, logging, os, random, socket, sys, time
 from pathlib import Path
@@ -246,11 +249,11 @@ def test_normalizer_copies_all_containers_uses_current_limit_and_never_expires(m
 
 def test_normalizer_migrates_single_sol_strikes_without_current_time_or_expiry(make_owner, tmp_path):
     owner = make_owner(now_epoch=Mock(side_effect=AssertionError("migration clock")),
-                       evidence_policy="current-policy", single_sol_v1_evidence_policy="previous-single-sol")
+                       evidence_policy="current-policy")
     record = {
         "recent_no_reply_epochs": [10, 20], "quarantine_until_epoch": 90,
         "last_updated_epoch": 20, "latest_explicit_spam_or_abuse_epoch": 10,
-        "evidence_policy": "previous-single-sol",
+        "evidence_policy": quarantines.AUTHOR_EVALUATION_QUARANTINE_SINGLE_SOL_V1_EVIDENCE_POLICY,
     }
     original = {"1": record}
     result = owner.normalise(original, path=tmp_path / "state.json")
