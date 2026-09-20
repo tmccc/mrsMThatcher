@@ -556,3 +556,36 @@ def test_prepared_context_preserves_clarification_and_media_through_recovery(mon
     assert state["daily_reply_count"] == 0
     bot.x_request.assert_not_called()
     bot.create_post.assert_not_called()
+
+
+@pytest.mark.parametrize("failed_step", ["prune", "save"])
+def test_quarantine_batch_keeps_unfinished_steps_retryable(failed_step):
+    state = {}
+    progress = cycle._ReplyCycleProgress(
+        3, quarantine_retirements_pending=True, evaluation_record_pruning_pending=True,
+    )
+    trace = Mock()
+    evaluations = Mock(prune=trace.prune, prune_completed_mentions=trace.prune_completed)
+    persistence = Mock(save=trace.save)
+    failure = OSError("pending retirement step failed")
+    getattr(trace, failed_step).side_effect = failure
+
+    with pytest.raises(OSError) as caught:
+        progress.flush_quarantine_retirements(state, evaluations, persistence)
+
+    assert caught.value is failure
+    assert progress.quarantine_retirements_pending is True
+    assert progress.evaluation_record_pruning_pending is (failed_step == "prune")
+    expected = [call.prune(state)]
+    if failed_step == "save":
+        expected.append(call.save(state, durable=True))
+    assert trace.mock_calls == expected
+
+    trace.reset_mock(side_effect=True)
+    progress.flush_quarantine_retirements(state, evaluations, persistence)
+    prune = call.prune(state) if failed_step == "prune" else call.prune_completed(state)
+    assert trace.mock_calls == [prune, call.save(state, durable=True)]
+    assert all(item.args[0] is state for item in trace.mock_calls)
+    assert progress.quarantine_retirements_pending is False
+    assert progress.evaluation_record_pruning_pending is False
+    assert progress.fresh_mention_ai_evaluations == 3

@@ -79,6 +79,31 @@ class _ReplyCycleProgress:
     # A terminal evaluation was recorded without pruning the full record set.
     evaluation_record_pruning_pending: bool = False
 
+    def prune_quarantine_retirement_batch(
+        self,
+        state: dict,
+        reply_evaluations: ReplyEvaluations,
+    ) -> None:
+        """Prune the pending batch before its caller durably saves the state."""
+        if self.evaluation_record_pruning_pending:
+            reply_evaluations.prune(state)
+        else:
+            reply_evaluations.prune_completed_mentions(state)
+        self.evaluation_record_pruning_pending = False
+
+    def flush_quarantine_retirements(
+        self,
+        state: dict,
+        reply_evaluations: ReplyEvaluations,
+        persistence: ReplyCyclePersistence,
+    ) -> None:
+        """Save retirements, clearing each flag only after its step succeeds."""
+        if not self.quarantine_retirements_pending:
+            return
+        self.prune_quarantine_retirement_batch(state, reply_evaluations)
+        persistence.save(state, durable=True)
+        self.quarantine_retirements_pending = False
+
 
 
 def maybe_reply_to_mentions(
@@ -250,27 +275,13 @@ def maybe_reply_to_mentions(
 
     progress = _ReplyCycleProgress(int(_fresh_mention_ai_evaluations))
 
-    def prune_quarantine_retirement_batch() -> None:
-        if progress.evaluation_record_pruning_pending:
-            reply_evaluations.prune(state)
-        else:
-            reply_evaluations.prune_completed_mentions(state)
-        progress.evaluation_record_pruning_pending = False
-
-    def flush_quarantine_retirements() -> None:
-        if not progress.quarantine_retirements_pending:
-            return
-        prune_quarantine_retirement_batch()
-        persistence.save(state, durable=True)
-        progress.quarantine_retirements_pending = False
-
     for mention in mentions:
         if in_api_cooldown(state, scope="openai"):
             log.info(
                 "Stopping mention/hot-post candidate iteration because the "
                 "OpenAI cooldown became active"
             )
-            flush_quarantine_retirements()
+            progress.flush_quarantine_retirements(state, reply_evaluations, persistence)
             persistence.save(state, durable=True)
             return NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN
         mention_id = str(mention["id"])
@@ -295,7 +306,7 @@ def maybe_reply_to_mentions(
         )
 
         eligible = _candidate_is_eligible(
-            state, candidate, replied_to_ids, progress, prune_quarantine_retirement_batch,
+            state, candidate, replied_to_ids, progress,
             config=config,
             clarifications=clarifications,
             persistence=persistence, log=log, log_event=log_event,
@@ -310,13 +321,13 @@ def maybe_reply_to_mentions(
         try:
             clarification = clarifications.context(state, mention, current=current)
         except RemoteOperationsPaused:
-            flush_quarantine_retirements()
+            progress.flush_quarantine_retirements(state, reply_evaluations, persistence)
             persistence.save(state, durable=True)
             return NORMAL_CHECK_STATUS_CHECKED
         except ApiError as exc:
             log.exception("Could not refresh original clarification question for mention %s", mention_id)
             record_api_error(state, exc, "x")
-            flush_quarantine_retirements()
+            progress.flush_quarantine_retirements(state, reply_evaluations, persistence)
             persistence.save(state, durable=True)
             return NORMAL_CHECK_STATUS_API_ERROR
         eligible = _author_allows_evaluation(
@@ -334,7 +345,7 @@ def maybe_reply_to_mentions(
         if not eligible:
             continue
 
-        flush_quarantine_retirements()
+        progress.flush_quarantine_retirements(state, reply_evaluations, persistence)
         context_result = _prepare_reply_context(
             state, candidate, clarification,
             ApiError=ApiError, PipelineResult=PipelineResult,
@@ -425,7 +436,7 @@ def maybe_reply_to_mentions(
         return status
 
     if progress.quarantine_retirements_pending:
-        flush_quarantine_retirements()
+        progress.flush_quarantine_retirements(state, reply_evaluations, persistence)
     else:
         persistence.save(state)
     if (
@@ -451,7 +462,6 @@ def _candidate_is_eligible(
     candidate: _ReplyCandidate,
     replied_to_ids: set[str],
     progress: _ReplyCycleProgress,
-    prune_quarantine_retirement_batch: Callable,
     *,
     config: NormalReplyConfig,
     clarifications: ClarificationReplies,
@@ -542,7 +552,7 @@ def _candidate_is_eligible(
         )
         mark_mention_seen_if_applicable(state, candidate.mention)
         if progress.quarantine_retirements_pending:
-            prune_quarantine_retirement_batch()
+            progress.prune_quarantine_retirement_batch(state, reply_evaluations)
         persistence.save(state, durable=True)
         progress.quarantine_retirements_pending = False
         return False
