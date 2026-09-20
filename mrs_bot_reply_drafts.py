@@ -3,7 +3,8 @@
 ReplyDrafts receives the current validator, evidence access, telemetry and result
 vocabulary when composed by the root. Its operations call each other directly,
 acquire current evidence for each validation and mutate only explicit caller
-state. Durable saves, candidate retirement and receipt lifecycle authority stay
+state. Failed local recovery keeps retirement before owned zero-call result
+construction and telemetry. Durable saves, candidate retirement and receipt authority stay
 with their existing owners. Import and construction perform no runtime access.
 """
 
@@ -110,6 +111,50 @@ class ReplyDrafts:
             drafts.pop(next(iter(drafts)))
         return True
 
+    def _local_validation_failure_result(
+        self,
+        record: object,
+        context: dict[str, object],
+        *,
+        recent_replies: list[object] | None,
+        validation_codes: tuple[str, ...],
+        rejected_text: dict[str, object],
+    ) -> PipelineResult:
+        """Build the zero-call failure diagnostics after retiring an invalid draft."""
+        visible = [
+            turn
+            for turn in (context.get("visible_conversation") or [])
+            if isinstance(turn, dict)
+        ]
+        result = self.result_type(
+            status="operational_failure",
+            reason="persisted_draft_local_validation_failed",
+            error_category="local_validation",
+            model_call_count=0,
+            local_validation_status="failed",
+            validation_error_codes=validation_codes,
+            rejected_reply_text=rejected_text["rejected_reply_text"],
+            rejected_reply_text_character_count=(
+                rejected_text["rejected_reply_text_character_count"]
+            ),
+            payload_sha256=(
+                str(record.get("model_payload_sha256"))
+                if isinstance(record, dict)
+                else None
+            ),
+            visible_turn_count=len(visible),
+            visible_character_count=sum(
+                len(str(turn.get("text") or "")) for turn in visible
+            ),
+            recent_conversational_reply_count=len(recent_replies or []),
+            supplied_image_count=(
+                len(record.get("supplied_images") or [])
+                if isinstance(record, dict)
+                else 0
+            ),
+        )
+        return result
+
     def recover(
         self,
         state: dict,
@@ -158,37 +203,9 @@ class ReplyDrafts:
                 drafts.pop(key, None)
                 if not drafts:
                     state.pop("pending_ai_reply_drafts", None)
-            visible = [
-                turn
-                for turn in (context.get("visible_conversation") or [])
-                if isinstance(turn, dict)
-            ]
-            result = self.result_type(
-                status="operational_failure",
-                reason="persisted_draft_local_validation_failed",
-                error_category="local_validation",
-                model_call_count=0,
-                local_validation_status="failed",
-                validation_error_codes=validation_codes,
-                rejected_reply_text=rejected_text["rejected_reply_text"],
-                rejected_reply_text_character_count=(
-                    rejected_text["rejected_reply_text_character_count"]
-                ),
-                payload_sha256=(
-                    str(record.get("model_payload_sha256"))
-                    if isinstance(record, dict)
-                    else None
-                ),
-                visible_turn_count=len(visible),
-                visible_character_count=sum(
-                    len(str(turn.get("text") or "")) for turn in visible
-                ),
-                recent_conversational_reply_count=len(recent_replies or []),
-                supplied_image_count=(
-                    len(record.get("supplied_images") or [])
-                    if isinstance(record, dict)
-                    else 0
-                ),
+            result = self._local_validation_failure_result(
+                record, context, recent_replies=recent_replies,
+                validation_codes=validation_codes, rejected_text=rejected_text,
             )
             self.record_result(result, lane=candidate_source, target_id=target_id)
             return result

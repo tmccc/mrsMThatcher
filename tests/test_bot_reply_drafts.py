@@ -526,3 +526,30 @@ def test_ineligible_retirement_preserves_metadata_order_and_failures(make_owner,
     if boundary:
         expected = expected[:["key", "event", "clear"].index(boundary) + 1]
     assert trace.mock_calls == expected
+
+
+def test_failed_recovery_retires_draft_before_result_failure_and_skips_telemetry(make_owner):
+    class ValidationFailure(ValueError):
+        errors = ["invalid_reply"]
+
+    failure = RuntimeError("result construction failed")
+    record = {"proposed_reply": "Rejected", "model_payload_sha256": "payload"}
+    drafts = {"mention:100": record}
+    state = {"pending_ai_reply_drafts": drafts}
+    telemetry = Mock()
+
+    def construct(**kwargs):
+        assert state == {} and drafts == {}
+        assert kwargs["model_call_count"] == 0
+        assert kwargs["payload_sha256"] == "payload"
+        raise failure
+
+    owner = make_owner(
+        validation_error=ValidationFailure,
+        validate_persisted_draft=Mock(side_effect=ValidationFailure()),
+        result_type=construct, record_result=telemetry,
+    )
+    with pytest.raises(RuntimeError) as caught:
+        owner.recover(state, "100", "mention", context={"visible_conversation": []})
+    assert caught.value is failure
+    telemetry.assert_not_called()
