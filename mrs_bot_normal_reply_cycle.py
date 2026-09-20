@@ -12,9 +12,10 @@ supplied current root maybe_reply_to_mentions callback with the original state.
 Discovery/pagination, counters/watermarks/quarantine policy, pipeline/evidence,
 context/media, persistence, reconciliation and delivery stay in their existing
 locations. Explicit calls may read providers, generate a reply, save state and
-publish through those callbacks. Fixed check statuses and dependency-free state
-helpers are imported from their inert owners. Imports perform no file,
-environment, provider or RNG work and retain no callbacks or configuration.
+publish through those callbacks. Fixed check statuses, dependency-free state
+helpers and context text trimming are imported from their inert owners. Imports
+perform no file, environment, provider or RNG work and retain no callbacks or
+configuration.
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ from typing import TYPE_CHECKING
 from mrs_bot_author_quarantines import clear_author_evaluation_quarantine_history
 from mrs_bot_mention_authority import mention_receipt_pagination
 from mrs_bot_daily_reply_accounting import daily_author_reply_counts
+from mrs_bot_reply_context import trim_context_text
 from mrs_bot_reply_cycle_interfaces import (
     NORMAL_CHECK_STATUS_API_ERROR,
     NORMAL_CHECK_STATUS_CHECKED,
@@ -156,7 +158,6 @@ def maybe_reply_to_mentions(
     recovery_comparison_account_replies: Callable,
     reply_evidence_repository: Callable,
     reply_target_is_directly_eligible: Callable,
-    trim_context_text: Callable,
     valid_tweets_sorted_by_id: Callable,
 ) -> str:
     """Process eligible mention and hot-post candidates under all reply limits."""
@@ -359,7 +360,7 @@ def maybe_reply_to_mentions(
             record_api_error=record_api_error,
             reply_evaluations=reply_evaluations,
             reply_evidence_repository=reply_evidence_repository,
-            persistence=persistence, trim_context_text=trim_context_text,
+            persistence=persistence,
         )
         if isinstance(context_result, FinishReplyCheck):
             return context_result.status
@@ -678,7 +679,6 @@ def _prepare_reply_context(
     reply_evaluations: ReplyEvaluations,
     reply_evidence_repository: Callable,
     persistence: ReplyCyclePersistence,
-    trim_context_text: Callable,
 ) -> PreparedReplyContext | SkipReplyCandidate | FinishReplyCheck:
     """Build canonical context and media, preserving the narrow context error boundary."""
     try:

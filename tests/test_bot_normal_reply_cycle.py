@@ -14,6 +14,7 @@ import pytest
 import mrs_bot_normal_reply_cycle as cycle
 import mrs_bot_author_quarantines as quarantine_owner
 import mrs_bot_daily_reply_accounting as accounting_owner
+import mrs_bot_reply_context as context_owner
 import mrs_bot_reply_cycle_interfaces as interfaces
 from mrs_bot_reply_clarifications import ClarificationReplies
 import mrs_bot_reply_evaluation_state as evaluation_state
@@ -46,7 +47,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_normal_reply_cycle', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines', 'mrs_bot_daily_reply_accounting', 'mrs_bot_mention_authority'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_normal_reply_cycle', 'mrs_bot_reply_context', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines', 'mrs_bot_daily_reply_accounting', 'mrs_bot_mention_authority'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -78,13 +79,14 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
     assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
     assert public["_fresh_mention_ai_evaluations"].default == 0
     assert public["_skip_hot_post_fetch"].default is False
-    assert len(parameters) == 50
-    assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 49
+    assert len(parameters) == 49
+    assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 48
     removed = {
         name for name in vars(interfaces) if name.startswith("NORMAL_CHECK_STATUS_")
     } | {
         "pending_ai_reply_draft_key", "completed_mention_watermark_covers_target",
-        "terminal_reply_evaluation", "AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY",
+        "terminal_reply_evaluation", "trim_context_text",
+        "AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY",
         "active_author_evaluation_quarantine", "clarification_reply_context",
         "clarification_thread_is_terminal", "clear_author_evaluation_quarantine_history",
         "daily_author_reply_count", "daily_author_reply_counts",
@@ -160,6 +162,7 @@ def test_fixed_statuses_and_dependency_free_helpers_use_their_owners():
         ("terminal_reply_evaluation", evaluation_state),
         ("clear_author_evaluation_quarantine_history", quarantine_owner),
         ("daily_author_reply_counts", accounting_owner),
+        ("trim_context_text", context_owner),
     ):
         assert getattr(cycle, name) is getattr(owner, name)
         assert getattr(bot, name) is getattr(owner, name)

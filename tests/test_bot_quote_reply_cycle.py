@@ -38,7 +38,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_quote_reply_cycle', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines', 'mrs_bot_daily_reply_accounting'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_quote_reply_cycle', 'mrs_bot_reply_context', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines', 'mrs_bot_daily_reply_accounting'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -83,12 +83,13 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         if count is None:
             assert tuple(public) == ("state",)
             assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
-            assert len(parameters) == 44
-            assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 43
+            assert len(parameters) == 43
+            assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 42
             removed = {
                 key for key in vars(interfaces) if key.startswith("QUOTE_CHECK_STATUS_")
             } | {
                 "terminal_reply_evaluation", "quote_author_profile_text",
+                "clean_text_for_reply_context",
                 "quote_tweet_directly_quotes_original", "daily_author_reply_count",
                 "daily_author_reply_counts", "record_terminal_reply_evaluation",
                 "reset_daily_quote_reply_count_if_needed", "reset_daily_reply_count_if_needed",
@@ -151,6 +152,8 @@ def test_fixed_statuses_and_terminal_lookup_use_their_owners():
         assert getattr(bot, name) is value
     assert cycle.terminal_reply_evaluation is evaluation_state.terminal_reply_evaluation
     assert bot.terminal_reply_evaluation is evaluation_state.terminal_reply_evaluation
+    assert cycle.clean_text_for_reply_context is context_owner.clean_text_for_reply_context
+    assert bot.clean_text_for_reply_context is context_owner.clean_text_for_reply_context
     assert cycle.daily_author_reply_counts is accounting_owner.daily_author_reply_counts
     assert bot.daily_author_reply_counts is accounting_owner.daily_author_reply_counts
 
@@ -184,7 +187,7 @@ def test_age_uses_current_parser_clock_delay_and_native_errors(monkeypatch):
 
 def test_direct_quote_uses_only_structured_references_and_retweet_veto(monkeypatch):
     cleaner = Mock(wraps=bot.clean_text_for_reply_context)
-    monkeypatch.setattr(bot, "clean_text_for_reply_context", cleaner)
+    monkeypatch.setattr(cycle, "clean_text_for_reply_context", cleaner)
     monkeypatch.setattr(context_owner, "clean_text_for_reply_context", cleaner)
     quoted = {"type": "quoted", "id": 900}
     retweeted = {"type": "retweeted", "id": "800"}

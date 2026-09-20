@@ -11,9 +11,9 @@ Watch-list/own-post lookup and quote discovery, shared context/media/evidence,
 counters, pipeline, persistence, reconciliation and delivery remain in their
 existing locations. Explicit calls may read providers, generate, save caller
 state and publish through supplied callbacks. Fixed check statuses and terminal
-evaluation lookup are imported from their inert owners; dependency-free quote
-helpers are called locally. Imports do no runtime I/O and retain no callbacks,
-configuration, clients or state.
+evaluation lookup and text cleanup are imported from their inert owners;
+dependency-free quote helpers are called locally. Imports do no runtime I/O and
+retain no callbacks, configuration, clients or state.
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from logging import Logger
 from typing import TYPE_CHECKING
 
 from mrs_bot_daily_reply_accounting import daily_author_reply_counts
+from mrs_bot_reply_context import clean_text_for_reply_context
 from mrs_bot_reply_cycle_interfaces import (
     QUOTE_CHECK_STATUS_CHECKED,
     QUOTE_CHECK_STATUS_DISABLED,
@@ -245,7 +246,6 @@ def maybe_reply_to_quote_tweets(
     build_quote_lookup_post_ids: Callable,
     build_quote_tweet_reply_context: Callable,
     cache_tweet: Callable,
-    clean_text_for_reply_context: Callable,
     persistence: ReplyCyclePersistence,
     conversational_reply_pipeline_enabled: Callable,
     accounting: DailyReplyAccounting,
@@ -411,7 +411,6 @@ def maybe_reply_to_quote_tweets(
                 scan_history.spam_author_ids,
                 config=config,
                 cache_tweet=cache_tweet,
-                clean_text_for_reply_context=clean_text_for_reply_context,
                 accounting=accounting,
                 is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying,
                 log=log,
@@ -672,7 +671,6 @@ def _author_allows_evaluation(
     *,
     config: QuoteReplyConfig,
     cache_tweet: Callable,
-    clean_text_for_reply_context: Callable,
     accounting: DailyReplyAccounting,
     is_probably_spam_or_not_worth_replying: Callable,
     log: Logger,

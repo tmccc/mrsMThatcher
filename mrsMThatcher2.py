@@ -8716,7 +8716,6 @@ def maybe_reply_to_mentions(
         recovery_comparison_account_replies=_reply_history_owner().recovery_replies,
         reply_evidence_repository=reply_evidence_repository,
         reply_target_is_directly_eligible=reply_target_is_directly_eligible,
-        trim_context_text=trim_context_text,
         valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
     )
 
@@ -8898,7 +8897,6 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         build_quote_lookup_post_ids=build_quote_lookup_post_ids,
         build_quote_tweet_reply_context=build_quote_tweet_reply_context,
         cache_tweet=cache_tweet,
-        clean_text_for_reply_context=clean_text_for_reply_context,
         conversational_reply_pipeline_enabled=conversational_reply_pipeline_enabled,
         accounting=_daily_reply_accounting_owner(),
         evaluate_single_call_reply=evaluate_single_call_reply,
