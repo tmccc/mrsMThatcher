@@ -27,6 +27,7 @@ BOUND_MEME_SCHEDULE_STATE_KEYS = {
 # changes while rejecting corrupt plans that could suppress a lane for years.
 MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS = 31 * 24 * 60 * 60
 
+
 def canonical_remote_post_payload_sha256(payload: dict) -> str:
     """Return the stable identity of one exact X create payload."""
     encoded = json.dumps(

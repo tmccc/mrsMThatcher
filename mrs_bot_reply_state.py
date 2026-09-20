@@ -77,6 +77,7 @@ def mark_quote_tweet_skipped(
         2000,
     )
 
+
 def mark_quote_tweet_replied(
     state: dict,
     quote_id: str,

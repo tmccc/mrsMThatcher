@@ -8,9 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from mrs_bot_post_creation import validate_media_upload_payload_metadata
-
 from mrs_bot_main_post_attempt_values import main_post_attempt_payload
-
 from mrs_bot_durable_json_io import canonical_atomic_json_bytes
 
 

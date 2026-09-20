@@ -7,10 +7,9 @@ the distinct state and receipt permissions, stable metadata/byte checks,
 strict receipt parsing, ordinary atomic JSON encoding and write/fsync/close
 ordering. Canonical receipt serialization is owned here and used directly by
 its consumers. State/receipt/marker policy and persistence authority remain
-external. Explicit calls inspect supplied
-paths and read or write files; this owner retains no callbacks, configuration,
-state or descriptors and performs no import-time file, environment, provider
-or RNG work.
+external. Explicit calls inspect supplied paths and read or write files; this
+owner retains no callbacks, configuration, state or descriptors and performs no
+import-time file, environment, provider or RNG work.
 """
 
 from __future__ import annotations

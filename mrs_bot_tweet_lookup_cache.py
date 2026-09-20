@@ -10,18 +10,19 @@ on use; verified media-only refreshes retain their existing copy boundaries.
 Shared state epochs, request/authentication/error classification, media attachment,
 configuration, persistence and orchestration remain in their existing locations.
 Attachment expansion uses its inert owner directly. This module performs no
-import-time file, environment, clock, provider or RNG work. Construction retains no caller state.
+import-time file, environment, clock, provider or RNG work. Construction retains
+no caller state.
 """
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Callable
+from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
-from dataclasses import dataclass
 
 from mrs_bot_reply_native_media import attach_media_to_tweets
-import copy
 
 
 def normalise_tweet_text(tweet: dict) -> None:

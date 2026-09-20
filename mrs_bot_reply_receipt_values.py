@@ -3,10 +3,9 @@
 ReplyReceiptValues binds current identity, draft and time boundaries without
 retaining caller state; canonical receipt encoding comes from its inert owner.
 Current and frozen recovery validation dispatch through owned methods,
-preserving shallow references,
-source lineage, timing rules and exact exception scopes. Durable receipt I/O,
-retirement authority and confirmed-state application stay with their existing
-owners. Import and construction perform no runtime access.
+preserving shallow references, source lineage, timing rules and exact exception
+scopes. Durable receipt I/O, retirement authority and confirmed-state application
+stay with their existing owners. Import and construction perform no runtime access.
 """
 
 from __future__ import annotations
