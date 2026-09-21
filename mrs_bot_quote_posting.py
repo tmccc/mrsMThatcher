@@ -4,7 +4,8 @@ The coordinator supplies current owners, callbacks, settings, logger and
 exception/type authority on every call. This owner retains selection, history rollback, schedule
 projections and lane-specific local recovery. MainPostPublication owns the shared
 durable publication steps and partial transaction progress; its authorities are
-bound at cycle entry. State-field application uses its inert owner directly.
+bound at cycle entry. Receipt materialization/storage and tweet-cache updates
+call the cycle's typed owners directly. State-field application uses its inert owner directly.
 Arguments and nested closure references are not copied by the
 adapter. Imports perform no runtime work or configuration access, and callbacks
 are never retained beyond the call. The standard-library random stream is shared.
@@ -25,6 +26,9 @@ from mrs_bot_runtime_state_helpers import apply_state_fields
 if TYPE_CHECKING:
     from mrs_bot_image_selection import ImageSelection
     from mrs_bot_main_post_publication import MainPostPublication
+    from mrs_bot_main_post_receipt_storage import MainPostReceipts
+    from mrs_bot_main_post_receipts import MainPostReceiptValues
+    from mrs_bot_tweet_lookup_cache import TweetLookupCache
 
 
 # Availability is separate from a callback's value, including an assigned None.
@@ -188,9 +192,8 @@ def _complete_quote_post(
     image_choice: dict,
     canonical_quote_text: str,
     log: Logger,
-    cache_tweet: Callable,
+    tweets: TweetLookupCache,
     MY_USER_ID: str,
-    record_recent_own_post: Callable,
     save_regular_post_protected_state: Callable,
     log_event: Callable,
     enqueue_historical_context_obligation: Callable,
@@ -221,7 +224,7 @@ def _complete_quote_post(
         state["last_regular_image_filename"] = image_basename
         apply_state_fields(state, quote_schedule_fields)
         apply_state_fields(state, meme_schedule_fields)
-        cache_tweet(
+        tweets.store(
             state,
             tweet_id=str(posted_id),
             text=tweet,
@@ -230,7 +233,7 @@ def _complete_quote_post(
             referenced_tweets=[],
             post_type="quote",
         )
-        record_recent_own_post(state, str(posted_id))
+        tweets.record_recent_own_post(state, str(posted_id))
         complete_regular_post_persistence(
             lines_used, images_used, state, receipt,
             save_regular_post_protected_state=save_regular_post_protected_state,
@@ -275,6 +278,9 @@ def post_random_quote(
     state: dict,
     *,
     publication: MainPostPublication,
+    receipts: MainPostReceipts,
+    receipt_values: MainPostReceiptValues,
+    tweets: TweetLookupCache,
     log: Logger,
     block_if_ambiguous_remote_post: Callable,
     now_epoch: Callable,
@@ -299,15 +305,11 @@ def post_random_quote(
     REGULAR_POST_RECEIPT_FILE: Path,
     ConfirmedPendingScheduleDurabilityUncertain: type[Exception],
     ConfirmedPostLocalPersistenceError: type[Exception],
-    materialize_bound_regular_schedule_receipt: Callable,
-    cache_tweet: Callable,
     MY_USER_ID: str,
-    record_recent_own_post: Callable,
     emergency_persist_confirmed_regular_post: Callable,
     confirmed_regular_emergency_representation_is_complete: Callable,
     latch_confirmed_post_persistence_failure: Callable,
     UnrecoverableConfirmedPostPersistenceError: type[Exception],
-    load_regular_post_receipt: Callable,
     enqueue_historical_context_obligation: Callable,
     log_event: Callable,
     retire_lane_transport_journal_if_present: Callable,
@@ -458,7 +460,7 @@ def post_random_quote(
         fallback_failures: list[str] = []
         if publication.pending_available:
             try:
-                fallback_receipt = materialize_bound_regular_schedule_receipt(
+                fallback_receipt = receipt_values.current().materialize_regular(
                     publication.pending_receipt
                 )
                 quote_schedule_fields = _confirmed_quote_schedule_fields(fallback_receipt)
@@ -502,7 +504,7 @@ def post_random_quote(
                     exc_info=True,
                 )
         try:
-            cache_tweet(
+            tweets.store(
                 state,
                 tweet_id=str(posted_id),
                 text=tweet,
@@ -511,7 +513,7 @@ def post_random_quote(
                 referenced_tweets=[],
                 post_type="quote",
             )
-            record_recent_own_post(state, str(posted_id))
+            tweets.record_recent_own_post(state, str(posted_id))
         except Exception:
             log.critical("Emergency in-memory cache/recent update failed after confirmed regular post", exc_info=True)
         from mrs_bot_state_generation import record_receipt_commit
@@ -544,7 +546,9 @@ def post_random_quote(
                 f"Confirmed regular quote/image post {posted_id} has no complete "
                 f"durable recovery representation: {failure_text}"
             ) from receipt_exc
-        status_after_fallback, _current_after_fallback = load_regular_post_receipt()
+        status_after_fallback, _current_after_fallback = (
+            receipts.current().load_regular()
+        )
         if status_after_fallback == "sending":
             try:
                 enqueue_historical_context_obligation(
@@ -606,9 +610,8 @@ def post_random_quote(
         image_choice=image_choice,
         canonical_quote_text=canonical_quote_text,
         log=log,
-        cache_tweet=cache_tweet,
+        tweets=tweets,
         MY_USER_ID=MY_USER_ID,
-        record_recent_own_post=record_recent_own_post,
         save_regular_post_protected_state=save_regular_post_protected_state,
         log_event=log_event,
         enqueue_historical_context_obligation=enqueue_historical_context_obligation,

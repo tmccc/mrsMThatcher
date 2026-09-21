@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import functools
 import inspect
 from pathlib import Path
 import subprocess
@@ -43,8 +44,6 @@ DEPENDENCIES = {'ensure_reconciled_regular_receipt_schedule_is_future': ['log', 
                                                             'inspect_transport_state',
                                                             'journal_path_for_receipt',
                                                             'load_confirmed_reply_receipt',
-                                                            'load_meme_post_receipt',
-                                                            'load_regular_post_receipt',
                                                             'log_event',
                                                             'now_epoch',
                                                             'promote_main_post_attempt_to_confirmed_pending_schedule',
@@ -52,6 +51,7 @@ DEPENDENCIES = {'ensure_reconciled_regular_receipt_schedule_is_future': ['log', 
                                                             'receipt_namespace_entry_exists',
                                                             'reconcile_confirmed_reply_receipt',
                                                             'reconcile_main_post_receipts',
+                                                            'receipts',
                                                             'recover_interrupted_historical_context_attempt',
                                                             'remote_write_safety_incident_is_latched',
                                                             'remote_write_safety_marker_path_present_or_unsafe',
@@ -116,11 +116,36 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
     for _ in range(2):
         with monkeypatch.context() as patch:
             current = {dep: object() for dep in DEPENDENCIES[name]}
+            if name in {
+                "reconcile_startup_main_post_receipts",
+                "reconcile_confirmed_transactions_before_global_barrier",
+            }:
+                current["reconcile_main_post_receipts"] = Mock()
             for dep, value in current.items():
                 if dep == "quote_schedule":
                     patch.setattr(bot, "_quote_schedule_owner", Mock(return_value=value))
+                elif (
+                    name in {
+                        "reconcile_startup_main_post_receipts",
+                        "reconcile_confirmed_transactions_before_global_barrier",
+                    }
+                    and dep == "reconcile_main_post_receipts"
+                ):
+                    patch.setattr(bot, "_reconcile_main_post_receipts_with_owners", value)
+                elif dep == "receipts":
+                    continue
                 else:
                     patch.setattr(bot, dep, value)
+            if name in {
+                "reconcile_startup_main_post_receipts",
+                "reconcile_confirmed_transactions_before_global_barrier",
+            }:
+                receipt_values = object()
+                receipts = current.get("receipts", object())
+                tweets = object()
+                patch.setattr(bot, "_main_post_receipt_values_owner", Mock(return_value=receipt_values))
+                patch.setattr(bot, "_main_post_receipts_owner", Mock(return_value=receipts))
+                patch.setattr(bot, "_tweet_lookup_cache_owner", Mock(return_value=tweets))
             result = {"original": []}
             expected = {}
 
@@ -129,7 +154,19 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
                 assert all(value is expected[key] for key, value in zip(positional, args))
                 supplied = {key: expected[key] for key in keyword_only} | current
                 assert kwargs.keys() == supplied.keys()
-                assert all(kwargs[key] is value for key, value in supplied.items())
+                for key, value in supplied.items():
+                    if (
+                        name in {
+                            "reconcile_startup_main_post_receipts",
+                            "reconcile_confirmed_transactions_before_global_barrier",
+                        }
+                        and key == "reconcile_main_post_receipts"
+                    ):
+                        assert isinstance(kwargs[key], functools.partial)
+                        assert kwargs[key].func is value
+                        assert kwargs[key].keywords == {"receipts": receipts, "tweets": tweets}
+                    else:
+                        assert kwargs[key] is value
                 return result
 
             patch.setattr(bot, "_transaction_recovery", SimpleNamespace(**{name: capture}))
@@ -256,7 +293,14 @@ def test_startup_pause_order_result_identity_and_native_errors(monkeypatch, paus
         (trace.warning if paused else trace.reconcile).side_effect = failure
     monkeypatch.setattr(bot, "global_remote_writes_paused", trace.pause)
     monkeypatch.setattr(bot, "log", SimpleNamespace(warning=trace.warning))
-    monkeypatch.setattr(bot, "reconcile_main_post_receipts", trace.reconcile)
+    def reconcile(*args, receipts, tweets, **kwargs):
+        return trace.reconcile(*args, **kwargs)
+
+    monkeypatch.setattr(bot, "_reconcile_main_post_receipts_with_owners", reconcile)
+    monkeypatch.setattr(
+        bot, "reconcile_main_post_receipts",
+        Mock(side_effect=AssertionError("startup used public reconciliation relay")),
+    )
     if fails:
         with pytest.raises(TypeError) as caught:
             bot.reconcile_startup_main_post_receipts(lines, images, state, current)
@@ -285,8 +329,29 @@ def _prebarrier(monkeypatch, present=(), classification="clear"):
             continue
         callback = getattr(trace, name)
         callback.side_effect = AssertionError("unexpected dependency: " + name)
-        target = recovery if name == "confirmed_context_outbox_matches_receipt" else bot
-        monkeypatch.setattr(target, name, callback)
+        if name == "confirmed_context_outbox_matches_receipt":
+            monkeypatch.setattr(recovery, name, callback)
+        elif name == "reconcile_main_post_receipts":
+            def reconcile(*args, receipts, tweets, _callback=callback, **kwargs):
+                return _callback(*args, **kwargs)
+
+            monkeypatch.setattr(bot, "_reconcile_main_post_receipts_with_owners", reconcile)
+            monkeypatch.setattr(
+                bot, name,
+                Mock(side_effect=AssertionError("prebarrier recovery used public reconciliation relay")),
+            )
+        elif name == "receipts":
+            continue
+        else:
+            monkeypatch.setattr(bot, name, callback)
+    receipt_operations = SimpleNamespace(
+        load_regular=trace.load_regular_post_receipt,
+        load_meme=trace.load_meme_post_receipt,
+    )
+    monkeypatch.setattr(
+        bot, "_main_post_receipts_owner",
+        Mock(return_value=SimpleNamespace(current=lambda: receipt_operations)),
+    )
     for name, value in [
         ("global_remote_writes_paused", False),
         ("remote_write_safety_protocol_is_active", True),

@@ -11,6 +11,8 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_main_post_confirmation_persistence as owner
+from mrs_bot_main_post_receipt_storage import MainPostReceipts
+from mrs_bot_main_post_receipts import MainPostReceiptValues
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
@@ -24,14 +26,12 @@ DEPENDENCIES = {'atomic_json_file_exactly_matches': [],
                                                              '_set_ambiguous_remote_post_seen',
                                                              'atomic_json_file_exactly_matches',
                                                              'bind_confirmed_transport_source',
-                                                             'build_confirmed_pending_schedule_receipt',
                                                              'fsync_parent_dir',
                                                              'journal_path_for_receipt',
                                                              'latch_confirmed_post_persistence_failure',
-                                                             'load_meme_post_receipt',
-                                                             'load_regular_post_receipt',
                                                              'log',
-                                                             'main_post_attempt_path',
+                                                             'receipt_values',
+                                                             'receipts',
                                                              'remote_write_safety_incident_is_latched',
                                                              'replace_bound_source_receipt',
                                                              'transaction_mutation_authority',
@@ -128,8 +128,16 @@ def test_public_signatures_and_current_adapter_references(monkeypatch, name):
         forwarded = {key: value for key, value in bound.arguments.items()
                      if inspect.signature(public).parameters[key].kind is inspect.Parameter.KEYWORD_ONLY}
         dependencies = {dep: object() for dep in DEPENDENCIES[name]}
+        factories = {}
         for dep, value in dependencies.items():
-            monkeypatch.setattr(bot, dep, value)
+            if dep == "receipt_values":
+                factories[dep] = Mock(return_value=value)
+                monkeypatch.setattr(bot, "_main_post_receipt_values_owner", factories[dep])
+            elif dep == "receipts":
+                factories[dep] = Mock(return_value=value)
+                monkeypatch.setattr(bot, "_main_post_receipts_owner", factories[dep])
+            else:
+                monkeypatch.setattr(bot, dep, value)
         result = object()
         callback = Mock(return_value=result)
         monkeypatch.setattr(owner, name, callback)
@@ -139,6 +147,11 @@ def test_public_signatures_and_current_adapter_references(monkeypatch, name):
         assert callback.call_args.kwargs == {**forwarded, **dependencies}
         assert all(callback.call_args.kwargs[key] is value
                    for key, value in {**forwarded, **dependencies}.items())
+        if name.startswith("promote_"):
+            factories["receipt_values"].assert_called_once_with()
+            factories["receipts"].assert_called_once_with(
+                values=dependencies["receipt_values"]
+            )
 
 
 def test_exact_canonical_bytes_require_secure_file_authority(tmp_path):
@@ -203,6 +216,8 @@ def _promotion(monkeypatch, lane="quote_image"):
         source_binding=binding,
     )
     for name in DEPENDENCIES["promote_main_post_attempt_to_confirmed_pending_schedule"]:
+        if name in {"receipts", "receipt_values"}:
+            continue
         if name.isupper() or name in {
             "AmbiguousRemotePostOutcome", "BoundSourceReceiptTransitionError",
             "ConfirmedPendingScheduleDurabilityUncertain", "TransportJournalError",
@@ -213,6 +228,25 @@ def _promotion(monkeypatch, lane="quote_image"):
         if name in {"_set_ambiguous_remote_post_seen", "remote_write_safety_incident_is_latched"}:
             callback.side_effect = original
         monkeypatch.setattr(bot, name, callback)
+    monkeypatch.setattr(
+        MainPostReceiptValues,
+        "build_pending",
+        trace.build_confirmed_pending_schedule_receipt,
+    )
+    monkeypatch.setattr(MainPostReceipts, "attempt_path", trace.main_post_attempt_path)
+    monkeypatch.setattr(MainPostReceipts, "load_regular", trace.load_regular_post_receipt)
+    monkeypatch.setattr(MainPostReceipts, "load_meme", trace.load_meme_post_receipt)
+    for obsolete in (
+        "build_confirmed_pending_schedule_receipt",
+        "main_post_attempt_path",
+        "load_regular_post_receipt",
+        "load_meme_post_receipt",
+    ):
+        monkeypatch.setattr(
+            bot,
+            obsolete,
+            Mock(side_effect=AssertionError(f"confirmation persistence bounced through {obsolete}")),
+        )
     trace.build_confirmed_pending_schedule_receipt.return_value = pending
     trace.main_post_attempt_path.return_value = path
     trace.load_regular_post_receipt.return_value = ("sending", attempt)

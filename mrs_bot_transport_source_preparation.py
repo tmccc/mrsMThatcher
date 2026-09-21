@@ -1,17 +1,23 @@
 """Transport source preparation and final receipt gates.
 
 Current and frozen reply validators share exact payload matching after their
-separate receipt checks. The root supplies current runtime dependencies on each
+separate receipt checks. Main-post preparation calls invocation-scoped receipt
+and value owners directly; the root still supplies transport boundaries on each
 call. Import performs no runtime work and retains no runtime authority.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
 from pathlib import Path
 
 from mrs_bot_post_creation import validate_media_upload_payload_metadata
 from mrs_bot_main_post_attempt_values import main_post_attempt_payload
 from mrs_bot_durable_json_io import canonical_atomic_json_bytes
+
+
+if TYPE_CHECKING:
+    from mrs_bot_main_post_receipt_storage import MainPostReceipts
+    from mrs_bot_main_post_receipts import MainPostReceiptValues
 
 
 def remote_write_transport_journal_paths(
@@ -267,29 +273,28 @@ def block_if_unrelated_receipt_appeared_for_media_transport(
 def prepare_main_tweet_transport(
     attempt: dict,
     *,
+    receipts: MainPostReceipts,
+    receipt_values: MainPostReceiptValues,
     TransportJournalError: Any,
     begin_transport_transaction: Any,
     bind_lane_transport_source: Any,
-    current_main_post_attempt_is_semantically_valid: Any,
-    main_post_attempt_path: Any,
-    mark_main_post_attempt_attempting: Any,
 ) -> tuple[dict, SourceReceiptBinding, TransportAuthority]:
     """Publish a prepared tweet owner before retiring confirmed media state."""
 
     if (
-        not current_main_post_attempt_is_semantically_valid(attempt)
+        not receipt_values.current().current_attempt_is_valid(attempt)
         or attempt.get("lifecycle_state") != "sending"
     ):
         raise TransportJournalError(
             "only a current-schema sending main-post attempt may prepare transport"
         )
-    attempting = mark_main_post_attempt_attempting(attempt)
+    attempting = receipts.current().mark_attempting(attempt)
     if (
         attempting.get("lifecycle_state") != "attempting"
-        or not current_main_post_attempt_is_semantically_valid(attempting)
+        or not receipt_values.current().current_attempt_is_valid(attempting)
     ):
         raise TransportJournalError("main post attempt is not transport-ready")
-    path = main_post_attempt_path(attempting)
+    path = receipts.current().attempt_path(attempting)
     payload = main_post_attempt_payload(attempting)
     source = bind_lane_transport_source(
         receipt_path=path,

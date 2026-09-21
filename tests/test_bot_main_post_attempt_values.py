@@ -12,6 +12,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_main_post_attempt_values as values
+from mrs_bot_main_post_receipts import MainPostReceiptValues
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,  # noqa: F401
@@ -60,11 +61,7 @@ assert 'single_call_reply' not in sys.modules
         ('canonical_remote_post_payload_sha256', ()),
         ('bound_meme_schedule_state', ('MAIN_POST_SCHEDULE_TIMEZONE', 'MEME_SCHEDULE_VERSION', 'safe_bound_schedule_date_str')),
         ('bound_meme_schedule_state_is_valid', ('MAIN_POST_SCHEDULE_TIMEZONE', 'MEME_SCHEDULE_MODES', 'MEME_SCHEDULE_VERSION', 'safe_bound_schedule_date_str', 'valid_receipt_epoch')),
-        ('main_post_attempt_binds_payload', ('current_main_post_attempt_is_semantically_valid',)),
-        ('current_main_post_attempt_is_semantically_valid', ('main_post_attempt_is_semantically_valid',)),
         ('build_main_post_attempt', ('MAIN_POST_SCHEDULE_TIMEZONE', 'current_main_post_attempt_is_semantically_valid', 'now_epoch', 'os')),
-        ('confirmed_receipt_matches_main_attempt', ('main_post_attempt_is_semantically_valid',)),
-        ('build_confirmed_pending_schedule_receipt', ('confirmed_pending_schedule_receipt_is_semantically_valid', 'main_post_attempt_is_semantically_valid', 'valid_receipt_epoch')),
         ('confirmation_epoch_for_main_attempt', ('log',)),
     ],
 )
@@ -92,7 +89,13 @@ def test_adapters_forward_current_dependencies_signatures_references_and_errors(
             owner = Mock(return_value={"original": []})
             patch.setattr(bot, "_main_post_attempt_values", SimpleNamespace(**{name: owner}))
             for key, dependency in current.items():
-                patch.setattr(bot, key, dependency)
+                if name == "build_main_post_attempt" and key == "current_main_post_attempt_is_semantically_valid":
+                    patch.setattr(
+                        bot, "_main_post_receipt_values_owner",
+                        Mock(return_value=SimpleNamespace(current_attempt_is_valid=dependency)),
+                    )
+                else:
+                    patch.setattr(bot, key, dependency)
             assert adapter(*args, **options) is owner.return_value
             owner.assert_called_once_with(*args, **options, **current)
             assert all(actual is original for actual, original in zip(owner.call_args.args, args))
@@ -103,6 +106,43 @@ def test_adapters_forward_current_dependencies_signatures_references_and_errors(
             with pytest.raises(TypeError) as caught:
                 adapter(*args, **options)
             assert caught.value is failure
+
+
+@pytest.mark.parametrize(
+    "name, method",
+    [
+        ("main_post_attempt_binds_payload", "attempt_binds_payload"),
+        ("current_main_post_attempt_is_semantically_valid", "current_attempt_is_valid"),
+        ("confirmed_receipt_matches_main_attempt", "confirmed_matches_attempt"),
+        ("build_confirmed_pending_schedule_receipt", "build_pending"),
+    ],
+)
+def test_value_adapters_use_current_typed_owner_preserving_references_and_errors(
+    monkeypatch, name, method,
+):
+    adapter = getattr(bot, name)
+    signature = inspect.signature(adapter)
+    owned = inspect.signature(getattr(MainPostReceiptValues, method))
+    assert signature == owned.replace(parameters=list(owned.parameters.values())[1:])
+    args = tuple(
+        object() for parameter in signature.parameters.values()
+        if parameter.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+    )
+    options = {
+        key: object() for key, parameter in signature.parameters.items()
+        if parameter.kind is inspect.Parameter.KEYWORD_ONLY
+    }
+    operation = Mock(return_value={"original": []})
+    factory = Mock(return_value=SimpleNamespace(**{method: operation}))
+    monkeypatch.setattr(bot, "_main_post_receipt_values_owner", factory)
+    assert adapter(*args, **options) is operation.return_value
+    factory.assert_called_once_with()
+    operation.assert_called_once_with(*args, **options)
+    failure = TypeError("current values owner failure")
+    operation.side_effect = failure
+    with pytest.raises(TypeError) as caught:
+        adapter(*args, **options)
+    assert caught.value is failure
 
 
 class _ObservedValue:
@@ -237,35 +277,46 @@ def test_bound_validator_keeps_epoch_order_and_local_date_closure(monkeypatch):
 
 def test_writable_payload_and_matching_predicates_preserve_short_circuits(monkeypatch):
     full = Mock(return_value=False)
-    monkeypatch.setattr(bot, "main_post_attempt_is_semantically_valid", full)
     foreign = object()
-    assert not bot.current_main_post_attempt_is_semantically_valid(foreign)
+    assert not values.current_main_post_attempt_is_semantically_valid(
+        foreign, main_post_attempt_is_semantically_valid=full,
+    )
     full.assert_called_once_with(foreign)
-    assert not bot.confirmed_receipt_matches_main_attempt(foreign, foreign)
+    assert not values.confirmed_receipt_matches_main_attempt(
+        foreign, foreign, main_post_attempt_is_semantically_valid=full,
+    )
     full.return_value = True
-    assert not bot.current_main_post_attempt_is_semantically_valid(foreign)
-    assert not bot.confirmed_receipt_matches_main_attempt({}, {"attempt_id": "different"})
+    assert not values.current_main_post_attempt_is_semantically_valid(
+        foreign, main_post_attempt_is_semantically_valid=full,
+    )
+    assert not values.confirmed_receipt_matches_main_attempt(
+        {}, {"attempt_id": "different"},
+        main_post_attempt_is_semantically_valid=full,
+    )
     trace = Mock()
     trace.valid.return_value = False
     trace.payload.return_value = {"text": "different"}
     trace.hash.return_value = "hash"
-    monkeypatch.setattr(bot, "current_main_post_attempt_is_semantically_valid", trace.valid)
     monkeypatch.setattr(values, "main_post_attempt_payload", trace.payload)
     monkeypatch.setattr(values, "canonical_remote_post_payload_sha256", trace.hash)
     attempt, payload = {"payload_sha256": "hash"}, {"text": "bound"}
-    assert not bot.main_post_attempt_binds_payload(attempt, payload)
+    bind = lambda: values.main_post_attempt_binds_payload(
+        attempt, payload,
+        current_main_post_attempt_is_semantically_valid=trace.valid,
+    )
+    assert not bind()
     assert trace.mock_calls == [call.valid(attempt)]
     trace.reset_mock()
     trace.valid.return_value = True
-    assert not bot.main_post_attempt_binds_payload(attempt, payload)
+    assert not bind()
     assert trace.mock_calls == [call.valid(attempt), call.payload(attempt)]
     trace.payload.return_value = payload
     attempt["payload_sha256"] = 1
-    assert not bot.main_post_attempt_binds_payload(attempt, payload)
+    assert not bind()
     trace.hash.assert_not_called()
     trace.reset_mock()
     attempt["payload_sha256"] = "hash"
-    assert bot.main_post_attempt_binds_payload(attempt, payload)
+    assert bind()
     assert trace.mock_calls == [call.valid(attempt), call.payload(attempt), call.hash(payload)]
     assert trace.hash.call_args.args[0] is payload
 
@@ -301,7 +352,14 @@ def test_attempt_construction_order_copies_truthiness_and_final_validator(monkey
     monkeypatch.setattr(bot, "now_epoch", lambda: (events.append(("clock",)), 88)[1])
     monkeypatch.setattr(values, "canonical_remote_post_payload_sha256", payload_hash)
     monkeypatch.setattr(values, "copy", SimpleNamespace(deepcopy=copied))
-    monkeypatch.setattr(bot, "current_main_post_attempt_is_semantically_valid", validate)
+    monkeypatch.setattr(
+        MainPostReceiptValues, "current_attempt_is_valid",
+        lambda self, attempt: validate(attempt),
+    )
+    monkeypatch.setattr(
+        bot, "current_main_post_attempt_is_semantically_valid",
+        Mock(side_effect=AssertionError("attempt construction used root validation relay")),
+    )
     options = dict(lane="quote_image", text=_ObservedValue(events, "text", "téxt"),
                    media_ids=[_ObservedValue(events, "media", 7)],
                    made_with_ai=_ObservedValue(events, "ai", 1), selected_identity=selected,
@@ -323,7 +381,10 @@ def test_attempt_construction_order_copies_truthiness_and_final_validator(monkey
     assert result["selected_identity"] == selected and result["selected_identity"] is not selected
     assert result["selected_identity"]["child"] is not selected["child"]
     assert result["recovery_plan"]["meme_schedule_before"] is not plan["meme_schedule_before"]
-    monkeypatch.setattr(bot, "current_main_post_attempt_is_semantically_valid", lambda attempt: False)
+    monkeypatch.setattr(
+        MainPostReceiptValues, "current_attempt_is_valid",
+        lambda self, attempt: False,
+    )
     with pytest.raises(RuntimeError, match="Internal error: generated main-post attempt is invalid"):
         bot.build_main_post_attempt(**options)
 
@@ -358,15 +419,19 @@ def test_pending_construction_conversion_copy_and_original_lane_order(monkeypatc
         events.append(("pending", expected_lane))
         validated.append(pending)
         return True
-    monkeypatch.setattr(bot, "main_post_attempt_is_semantically_valid", lambda value: (events.append(("attempt",)), True)[1])
+    attempt_valid = lambda value: (events.append(("attempt",)), True)[1]
     monkeypatch.setattr(values, "valid_post_id", lambda value: (events.append(("post gate",)), True)[1])
-    monkeypatch.setattr(bot, "valid_receipt_epoch", lambda value: (events.append(("epoch gate", value)), True)[1])
+    epoch_valid = lambda value: (events.append(("epoch gate", value)), True)[1]
     monkeypatch.setattr(values, "copy", SimpleNamespace(deepcopy=copied))
-    monkeypatch.setattr(bot, "confirmed_pending_schedule_receipt_is_semantically_valid", validate)
     options = dict(post_id=_ObservedValue(events, "post", 99),
                    confirmation_epoch=_ObservedValue(events, "confirmed", 12),
                    image_summary=_ObservedValue(events, "summary", "image"))
-    result = bot.build_confirmed_pending_schedule_receipt(attempt, **options)
+    result = values.build_confirmed_pending_schedule_receipt(
+        attempt, **options,
+        confirmed_pending_schedule_receipt_is_semantically_valid=validate,
+        main_post_attempt_is_semantically_valid=attempt_valid,
+        valid_receipt_epoch=epoch_valid,
+    )
     assert events == [
         ("attempt",), ("post gate",), ("confirmed", "int"), ("epoch gate", 12),
         ("confirmed", "int"), ("attempt epoch", "int"), ("post", "str"),
@@ -378,33 +443,42 @@ def test_pending_construction_conversion_copy_and_original_lane_order(monkeypatc
     assert result["source_attempt"] is not attempt
     assert result["source_attempt"]["recovery_plan"] is not attempt["recovery_plan"]
     assert (result["post_id"], result["confirmation_epoch"], result["image_summary"]) == ("99", 12, "image")
-    monkeypatch.setattr(bot, "confirmed_pending_schedule_receipt_is_semantically_valid", lambda *args, **kwargs: False)
     with pytest.raises(RuntimeError, match="Internal error: confirmed pending-schedule receipt is invalid"):
-        bot.build_confirmed_pending_schedule_receipt(attempt, **options)
+        values.build_confirmed_pending_schedule_receipt(
+            attempt, **options,
+            confirmed_pending_schedule_receipt_is_semantically_valid=lambda *args, **kwargs: False,
+            main_post_attempt_is_semantically_valid=attempt_valid,
+            valid_receipt_epoch=epoch_valid,
+        )
 
 
 def test_pending_rejection_short_circuits_before_copy_and_keeps_native_errors(monkeypatch):
     attempt = schema_current_main_attempt("daily_meme")
     attempt["lifecycle_state"] = "attempting"
     validator, post, epoch, copied = Mock(return_value=False), Mock(return_value=False), Mock(return_value=False), Mock()
-    monkeypatch.setattr(bot, "main_post_attempt_is_semantically_valid", validator)
     monkeypatch.setattr(values, "valid_post_id", post)
-    monkeypatch.setattr(bot, "valid_receipt_epoch", epoch)
     monkeypatch.setattr(values, "copy", SimpleNamespace(deepcopy=copied))
     options = dict(post_id="post", confirmation_epoch=1_800_000_010)
+    def build(value, **overrides):
+        return values.build_confirmed_pending_schedule_receipt(
+            value, **{**options, **overrides},
+            confirmed_pending_schedule_receipt_is_semantically_valid=Mock(return_value=True),
+            main_post_attempt_is_semantically_valid=validator,
+            valid_receipt_epoch=epoch,
+        )
     with pytest.raises(RuntimeError, match="Refusing an invalid main-post attempt or confirmation"):
-        bot.build_confirmed_pending_schedule_receipt(object(), **options)
+        build(object())
     post.assert_not_called()
     validator.return_value = True
     with pytest.raises(RuntimeError):
-        bot.build_confirmed_pending_schedule_receipt(attempt, **options)
+        build(attempt)
     epoch.assert_not_called()
     post.return_value = True
     with pytest.raises(ValueError):
-        bot.build_confirmed_pending_schedule_receipt(attempt, **{**options, "confirmation_epoch": "invalid"})
+        build(attempt, confirmation_epoch="invalid")
     epoch.assert_not_called()
     with pytest.raises(RuntimeError):
-        bot.build_confirmed_pending_schedule_receipt(attempt, **options)
+        build(attempt)
     copied.assert_not_called()
 
 

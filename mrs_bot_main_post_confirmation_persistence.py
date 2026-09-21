@@ -1,7 +1,8 @@
 """Main-post confirmation promotion and protected persistence.
 
-The root supplies current runtime dependencies explicitly on each call. This
-module performs no runtime work at import and retains no runtime authority.
+The root supplies current receipt/value owners and transport dependencies on
+each call. Promotion calls those owners directly while exact source replacement
+and persistence barriers remain explicit. Import performs no runtime work.
 """
 from __future__ import annotations
 
@@ -12,6 +13,8 @@ from typing import Any, TYPE_CHECKING
 from mrs_bot_durable_json_io import canonical_atomic_json_bytes
 
 if TYPE_CHECKING:
+    from mrs_bot_main_post_receipt_storage import MainPostReceipts
+    from mrs_bot_main_post_receipts import MainPostReceiptValues
     from mrs_bot_state_generation import StateCommitProof
 
 
@@ -39,6 +42,8 @@ def promote_main_post_attempt_to_confirmed_pending_schedule(
     post_id: str,
     confirmation_epoch: int,
     image_summary: str = '',
+    receipts: MainPostReceipts,
+    receipt_values: MainPostReceiptValues,
     AmbiguousRemotePostOutcome: Any,
     BoundSourceReceiptTransitionError: Any,
     ConfirmedPendingScheduleDurabilityUncertain: Any,
@@ -48,31 +53,27 @@ def promote_main_post_attempt_to_confirmed_pending_schedule(
     _set_ambiguous_remote_post_seen: Any,
     atomic_json_file_exactly_matches: Any,
     bind_confirmed_transport_source: Any,
-    build_confirmed_pending_schedule_receipt: Any,
     fsync_parent_dir: Any,
     journal_path_for_receipt: Any,
     latch_confirmed_post_persistence_failure: Any,
-    load_meme_post_receipt: Any,
-    load_regular_post_receipt: Any,
     log: Any,
-    main_post_attempt_path: Any,
     remote_write_safety_incident_is_latched: Any,
     replace_bound_source_receipt: Any,
     transaction_mutation_authority: Any,
     transport_source_semantic_validator: Any,
 ) -> dict:
     """Atomically bind a confirmed remote identity before fallible local work."""
-    pending = build_confirmed_pending_schedule_receipt(
+    pending = receipt_values.current().build_pending(
         attempt,
         post_id=post_id,
         confirmation_epoch=confirmation_epoch,
         image_summary=image_summary,
     )
-    path = main_post_attempt_path(attempt)
+    path = receipts.current().attempt_path(attempt)
     status, current = (
-        load_regular_post_receipt()
+        receipts.current().load_regular()
         if path == REGULAR_POST_RECEIPT_FILE
-        else load_meme_post_receipt()
+        else receipts.current().load_meme()
     )
     if status != "sending" or current != attempt:
         raise AmbiguousRemotePostOutcome(

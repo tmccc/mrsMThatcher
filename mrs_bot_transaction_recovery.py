@@ -1,9 +1,10 @@
 """Local transaction recovery and startup receipt gates.
 
 The root supplies current runtime dependencies explicitly on each call. Due
-regular-receipt repair calls its QuoteSchedule owner directly. This module owns
-fixed receipt hashing and performs no runtime work at import; it retains no
-runtime authority.
+regular-receipt repair calls its QuoteSchedule owner directly; pre-barrier
+main-post inspection loads through its invocation-scoped MainPostReceipts.
+This module owns fixed receipt hashing and performs no runtime work at import;
+it retains no runtime authority.
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ from mrs_bot_receipt_retirement import confirmed_context_outbox_matches_receipt
 
 
 if TYPE_CHECKING:
+    from mrs_bot_main_post_receipt_storage import MainPostReceipts
     from mrs_bot_runtime_state_helpers import QuoteSchedule
 
 
@@ -575,8 +577,6 @@ def reconcile_confirmed_transactions_before_global_barrier(
     inspect_transport_state: Any,
     journal_path_for_receipt: Any,
     load_confirmed_reply_receipt: Any,
-    load_meme_post_receipt: Any,
-    load_regular_post_receipt: Any,
     log_event: Any,
     now_epoch: Any,
     promote_main_post_attempt_to_confirmed_pending_schedule: Any,
@@ -584,6 +584,7 @@ def reconcile_confirmed_transactions_before_global_barrier(
     receipt_namespace_entry_exists: Any,
     reconcile_confirmed_reply_receipt: Any,
     reconcile_main_post_receipts: Any,
+    receipts: MainPostReceipts,
     recover_interrupted_historical_context_attempt: Any,
     remote_write_safety_incident_is_latched: Any,
     remote_write_safety_marker_path_present_or_unsafe: Any,
@@ -665,14 +666,14 @@ def reconcile_confirmed_transactions_before_global_barrier(
     needs_transport_promotion = False
     legacy_conversational_transport_promotion = False
     if owning_path == REGULAR_POST_RECEIPT_FILE:
-        status, source = load_regular_post_receipt()
+        status, source = receipts.current().load_regular()
         needs_transport_promotion = bool(
             status == "sending"
             and isinstance(source, dict)
             and source.get("lifecycle_state") == "attempting"
         )
     elif owning_path == MEME_POST_RECEIPT_FILE:
-        status, source = load_meme_post_receipt()
+        status, source = receipts.current().load_meme()
         needs_transport_promotion = bool(
             status == "sending"
             and isinstance(source, dict)
@@ -735,8 +736,8 @@ def reconcile_confirmed_transactions_before_global_barrier(
             )
         return result
 
-    regular_status, _regular = load_regular_post_receipt()
-    meme_status, _meme = load_meme_post_receipt()
+    regular_status, _regular = receipts.current().load_regular()
+    meme_status, _meme = receipts.current().load_meme()
     if regular_status not in {"pending_schedule", "valid"} and meme_status not in {
         "pending_schedule",
         "valid",

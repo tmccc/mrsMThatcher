@@ -231,8 +231,10 @@ def configure_simple_quote_post(
         ),
     )
     monkeypatch.setattr(bot, "maybe_schedule_meme_after_quote_post", lambda state, quote_post_epoch=None, **kwargs: None)
-    monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
-    monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
+    patch_tweet_lookup_method(monkeypatch, "store", lambda *args, **kwargs: None)
+    patch_tweet_lookup_method(
+        monkeypatch, "record_recent_own_post", lambda *args, **kwargs: None,
+    )
     monkeypatch.setattr(bot, "log_event", lambda *args, **kwargs: None)
     monkeypatch.setattr(
         asset_metadata.AssetMetadata,

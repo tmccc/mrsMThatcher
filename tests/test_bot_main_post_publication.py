@@ -31,11 +31,19 @@ def publication(tmp_path):
     """Bind inert callbacks and a private path without invoking the bot runtime."""
     trace = Mock()
     trace.proves_non_success.return_value = False
+    receipts = SimpleNamespace(
+        write_attempt=trace.write,
+        current=lambda: SimpleNamespace(finalize_pending=trace.finalize),
+    )
+    receipt_values = SimpleNamespace(
+        current=lambda: SimpleNamespace(build_pending=trace.build),
+    )
     owner = MainPostPublication(
         lane="quote_image",
         receipt_path=tmp_path / "receipt.json",
         log=Mock(),
-        write_attempt=trace.write,
+        receipts=receipts,
+        receipt_values=receipt_values,
         prepare_transport=trace.prepare,
         handoff_media=trace.handoff,
         begin_sigint=trace.begin,
@@ -49,10 +57,7 @@ def publication(tmp_path):
         retain_sigint=trace.retain,
         inspect_confirmation=trace.inspect,
         journal_path=trace.journal_path,
-        confirmation_epoch=trace.epoch,
-        build_pending=trace.build,
         promote_pending=trace.promote,
-        finalize_pending=trace.finalize,
         run_stage=None,
         validate_meme_post_id=trace.validate,
     )
@@ -69,7 +74,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_main_post_publication', 'mrs_bot_receipt_primitives'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_main_post_publication', 'mrs_bot_main_post_attempt_values', 'mrs_bot_receipt_primitives'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -214,17 +219,14 @@ def test_send_keeps_validation_failure_without_releasing_guard(publication, lane
 def test_confirmation_checks_journal_before_epoch_and_keeps_epoch_reference(publication, lane):
     owner, trace = publication
     owner.lane = lane
-    attempt = owner.attempt = {"exact": []}
-    journal, raw_epoch, result_epoch = object(), object(), object()
+    attempt = owner.attempt = {"attempt_epoch": 100}
+    journal, raw_epoch = object(), 101
     trace.journal_path.return_value = journal
     trace.inspect.return_value = SimpleNamespace(post_id="123", confirmation_epoch=raw_epoch)
-    trace.epoch.return_value = result_epoch
-    assert owner.read_confirmation_epoch(123) is result_epoch
+    assert owner.read_confirmation_epoch(123) == raw_epoch
     assert trace.mock_calls == [
-        call.journal_path(owner.receipt_path), call.inspect(journal), call.epoch(attempt, raw_epoch),
+        call.journal_path(owner.receipt_path), call.inspect(journal),
     ]
-    assert trace.epoch.call_args.args[0] is attempt
-    assert trace.epoch.call_args.args[1] is raw_epoch
     trace.reset_mock()
     trace.inspect.return_value.post_id = "different"
     with pytest.raises(AmbiguousOutcome) as caught:
@@ -232,7 +234,6 @@ def test_confirmation_checks_journal_before_epoch_and_keeps_epoch_reference(publ
     label = "regular" if lane == "quote_image" else "meme"
     assert str(caught.value) == f"Confirmed {label}-post identity differs from its journal"
     assert caught.value.service == "x"
-    trace.epoch.assert_not_called()
 
 
 @pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
@@ -365,7 +366,6 @@ def test_ambiguous_failure_retains_only_without_durable_barrier(publication, inc
 def test_root_factory_binds_current_callbacks_and_independent_progress(monkeypatch, lane):
     bindings = {
         "log": "log",
-        "write_attempt": "write_main_post_attempt",
         "prepare_transport": "prepare_main_tweet_transport",
         "handoff_media": "handoff_confirmed_media_upload_to_main_attempt",
         "begin_sigint": "begin_confirmed_post_sigint_deferral",
@@ -379,10 +379,7 @@ def test_root_factory_binds_current_callbacks_and_independent_progress(monkeypat
         "retain_sigint": "retain_sigint_deferral_without_durable_barrier",
         "inspect_confirmation": "inspect_confirmed_transport_transaction",
         "journal_path": "journal_path_for_receipt",
-        "confirmation_epoch": "confirmation_epoch_for_main_attempt",
-        "build_pending": "build_confirmed_pending_schedule_receipt",
         "promote_pending": "promote_main_post_attempt_to_confirmed_pending_schedule",
-        "finalize_pending": "finalize_confirmed_pending_schedule_receipt",
     }
     stage, validator = Mock(), Mock()
     monkeypatch.setattr(bot, "run_daily_meme_stage", stage)
@@ -395,10 +392,30 @@ def test_root_factory_binds_current_callbacks_and_independent_progress(monkeypat
         path = object()
         path_name = "REGULAR_POST_RECEIPT_FILE" if lane == "quote_image" else "MEME_POST_RECEIPT_FILE"
         monkeypatch.setattr(bot, path_name, path)
+        receipt_values = SimpleNamespace(current=Mock())
+        receipts = SimpleNamespace(current=Mock(), write_attempt=Mock())
+        values_factory = Mock(return_value=receipt_values)
+        receipts_factory = Mock(return_value=receipts)
+        monkeypatch.setattr(bot, "_main_post_receipt_values_owner", values_factory)
+        monkeypatch.setattr(bot, "_main_post_receipts_owner", receipts_factory)
+        for obsolete in (
+            "write_main_post_attempt",
+            "confirmation_epoch_for_main_attempt",
+            "build_confirmed_pending_schedule_receipt",
+            "finalize_confirmed_pending_schedule_receipt",
+        ):
+            monkeypatch.setattr(
+                bot, obsolete,
+                Mock(side_effect=AssertionError(f"publication bounced through {obsolete}")),
+            )
         owner = bot._main_post_publication_owner(lane)
         owners.append(owner)
         assert owner.lane is lane and owner.receipt_path is path
         assert all(getattr(owner, field) is value for field, value in current.items())
+        assert owner.receipts is receipts
+        assert owner.receipt_values is receipt_values
+        values_factory.assert_called_once_with()
+        receipts_factory.assert_called_once_with(values=receipt_values)
         assert owner.run_stage is (stage if lane == "daily_meme" else None)
         assert owner.validate_meme_post_id is (validator if lane == "daily_meme" else None)
         assert owner.guard is None and not owner.pending_available

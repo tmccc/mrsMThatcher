@@ -6,7 +6,8 @@ and partial transaction progress with authorities bound at cycle entry. The
 posting lane calls its MemeCatalog and MemeSchedule directly. Named stages,
 preparation exception boundaries, schedule projections and meme-specific recovery
 remain explicit here; metadata, receipt storage and persistence retain their
-owners. Explicit runtime calls
+owners. Receipt materialization/loading and tweet-cache updates call the cycle's
+typed owners directly. Explicit runtime calls
 may scan the supplied meme directory and mutate/save the caller's state or publish
 through supplied callbacks. Imports perform no runtime work or configuration
 access. MemeCatalog owns asset discovery, history-reset selection and summaries.
@@ -32,6 +33,9 @@ from mrs_bot_runtime_state_helpers import apply_state_fields
 
 if TYPE_CHECKING:
     from mrs_bot_main_post_publication import MainPostPublication
+    from mrs_bot_main_post_receipt_storage import MainPostReceipts
+    from mrs_bot_main_post_receipts import MainPostReceiptValues
+    from mrs_bot_tweet_lookup_cache import TweetLookupCache
 
 
 # A callback may return None before a later step fails. Keep that distinct from
@@ -454,6 +458,9 @@ def post_next_meme(
     state: dict,
     *,
     publication: MainPostPublication,
+    receipts: MainPostReceipts,
+    receipt_values: MainPostReceiptValues,
+    tweets: TweetLookupCache,
     catalog: MemeCatalog,
     schedule: MemeSchedule,
     log: Logger,
@@ -479,11 +486,8 @@ def post_next_meme(
     log_event: Callable,
     ConfirmedPendingScheduleDurabilityUncertain: type[Exception],
     ConfirmedPostLocalPersistenceError: type[Exception],
-    materialize_bound_meme_schedule_receipt: Callable,
     apply_state_fields: Callable,
-    cache_tweet: Callable,
     MY_USER_ID: str,
-    record_recent_own_post: Callable,
     save_state: Callable,
     confirmed_meme_emergency_representation_is_complete: Callable,
     StateBackupWriteError: type[Exception],
@@ -491,7 +495,6 @@ def post_next_meme(
     STATE_FILE: Path,
     latch_confirmed_post_persistence_failure: Callable,
     UnrecoverableConfirmedPostPersistenceError: type[Exception],
-    load_meme_post_receipt: Callable,
     retire_lane_transport_journal_if_present: Callable,
     remove_meme_post_receipt: Callable,
     emit_account_root_posted: Callable,
@@ -643,7 +646,7 @@ def post_next_meme(
         emergency_state_complete = False
         try:
             if publication.pending_available:
-                fallback_receipt = materialize_bound_meme_schedule_receipt(
+                fallback_receipt = receipt_values.current().materialize_meme(
                     publication.pending_receipt
                 )
                 meme_schedule_fields = _confirmed_meme_schedule_fields(fallback_receipt)
@@ -656,7 +659,7 @@ def post_next_meme(
             if meme_schedule_fields is not _RECOVERY_VALUE_UNAVAILABLE:
                 apply_state_fields(state, meme_schedule_fields)
             try:
-                cache_tweet(
+                tweets.store(
                     state,
                     tweet_id=str(posted_id),
                     text=MEME_POST_TEXT,
@@ -666,7 +669,7 @@ def post_next_meme(
                     image_summary=image_summary,
                     post_type="daily_meme",
                 )
-                record_recent_own_post(state, str(posted_id))
+                tweets.record_recent_own_post(state, str(posted_id))
             except Exception:
                 log.critical("Emergency in-memory cache/recent update failed after confirmed meme post", exc_info=True)
             from mrs_bot_state_generation import record_receipt_commit
@@ -717,7 +720,9 @@ def post_next_meme(
             raise UnrecoverableConfirmedPostPersistenceError(
                 f"Confirmed meme post {posted_id} has no complete durable recovery representation"
             ) from receipt_exc
-        status_after_fallback, _current_after_fallback = load_meme_post_receipt()
+        status_after_fallback, _current_after_fallback = (
+            receipts.current().load_meme()
+        )
         if status_after_fallback == "sending":
             retire_lane_transport_journal_if_present(
                 commit_proof=commit_proof,
@@ -752,7 +757,7 @@ def post_next_meme(
         posted.add(meme_path.name)
         state["posted_meme_filenames"] = sorted(posted)
         apply_state_fields(state, meme_schedule_fields)
-        cache_tweet(
+        tweets.store(
             state,
             tweet_id=str(posted_id),
             text=MEME_POST_TEXT,
@@ -762,7 +767,7 @@ def post_next_meme(
             image_summary=image_summary,
             post_type="daily_meme",
         )
-        record_recent_own_post(state, str(posted_id))
+        tweets.record_recent_own_post(state, str(posted_id))
         from mrs_bot_state_generation import record_receipt_commit
         record_receipt_commit(state, receipt)
         commit_proof = save_state(state, durable=True)

@@ -309,7 +309,7 @@ def test_main_post_hard_death_boundaries_never_recreate_remote_post(
         confirmed_post_id = "970001"
 
     original_promote = bot.promote_main_post_attempt_to_confirmed_pending_schedule
-    original_finalize = bot.finalize_confirmed_pending_schedule_receipt
+    original_finalize = MainPostReceipts.finalize_pending
 
     remote_acceptance = tmp_path / f"{lane}-accepted-{boundary}"
 
@@ -371,14 +371,19 @@ def test_main_post_hard_death_boundaries_never_recreate_remote_post(
         )
         expected_exit = 78
     elif boundary == "full_receipt_before_state":
-        def finalise_then_exit(*args: object, **kwargs: object) -> None:
-            original_finalize(*args, **kwargs)
+        def finalise_then_exit(owner: MainPostReceipts, *args: object, **kwargs: object) -> None:
+            original_finalize(owner, *args, **kwargs)
             os._exit(80)
 
         monkeypatch.setattr(
+            MainPostReceipts,
+            "finalize_pending",
+            finalise_then_exit,
+        )
+        monkeypatch.setattr(
             bot,
             "finalize_confirmed_pending_schedule_receipt",
-            finalise_then_exit,
+            lambda *_args, **_kwargs: pytest.fail("publication used root finalization relay"),
         )
         expected_exit = 80
     else:

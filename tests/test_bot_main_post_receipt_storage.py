@@ -21,7 +21,9 @@ from tests.helpers.bot_fixtures import (
 
 
 VALUE_OPERATIONS = {
+    "confirmed_receipt_matches_main_attempt": "confirmed_matches_attempt",
     "confirmed_pending_schedule_receipt_is_semantically_valid": "pending_is_valid",
+    "current_main_post_attempt_is_semantically_valid": "current_attempt_is_valid",
     "materialize_bound_meme_schedule_receipt": "materialize_meme",
     "materialize_bound_regular_schedule_receipt": "materialize_regular",
     "regular_post_receipt_is_semantically_valid": "regular_is_valid",
@@ -770,7 +772,16 @@ def test_attempt_publication_refreshes_path_but_keeps_active_gates_and_io(monkey
         monkeypatch.setattr(bot, "durable_create_receipt_json", next_create)
         return True
 
-    monkeypatch.setattr(bot, "current_main_post_attempt_is_semantically_valid", validate)
+    monkeypatch.setattr(
+        receipt_values.MainPostReceiptValues,
+        "current_attempt_is_valid",
+        lambda self, value: validate(value),
+    )
+    monkeypatch.setattr(
+        bot,
+        "current_main_post_attempt_is_semantically_valid",
+        Mock(side_effect=AssertionError("attempt publication bounced through root validation")),
+    )
     monkeypatch.setattr(bot, "durable_create_receipt_json", create)
     monkeypatch.setattr(bot, "receipt_namespace_entry_exists", namespace)
     monkeypatch.setattr(bot, "remote_receipt_retirement_is_blocking", lambda: False)

@@ -7,9 +7,11 @@ from unittest.mock import Mock
 
 import pytest
 
+import mrs_bot_main_post_publication as publication
 import mrs_bot_quote_posting as posting
 
 from mrs_bot_main_post_confirmation_persistence import RegularPostPersistenceResult
+from mrs_bot_main_post_receipts import MainPostReceiptValues
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     configure_simple_meme_post,
@@ -25,7 +27,7 @@ def prepare_post(tmp_path, monkeypatch, lane):
         lines, images, state, *_ = configure_simple_quote_post(tmp_path, monkeypatch)
         run = lambda: bot.post_random_quote(lines, images, state)
         epoch_key = "last_quote_post_epoch"
-        materialiser = "materialize_bound_regular_schedule_receipt"
+        materialiser = "materialize_regular"
         complete_name = "confirmed_regular_emergency_representation_is_complete"
     else:
         state, _ = configure_simple_meme_post(tmp_path, monkeypatch)
@@ -35,7 +37,7 @@ def prepare_post(tmp_path, monkeypatch, lane):
         )
         run = lambda: bot.post_next_meme(state)
         epoch_key = "last_meme_post_epoch"
-        materialiser = "materialize_bound_meme_schedule_receipt"
+        materialiser = "materialize_meme"
         complete_name = "confirmed_meme_emergency_representation_is_complete"
     state[epoch_key] = 1_700_000_000
     guard = object()
@@ -67,8 +69,16 @@ def test_unavailable_confirmation_epoch_differs_from_an_assigned_none(
     if not epoch_available:
         epoch.side_effect = OSError("epoch unavailable")
     build = Mock(side_effect=OSError("pending receipt unavailable"))
-    monkeypatch.setattr(bot, "confirmation_epoch_for_main_attempt", epoch)
-    monkeypatch.setattr(bot, "build_confirmed_pending_schedule_receipt", build)
+    monkeypatch.setattr(publication, "confirmation_epoch_for_main_attempt", epoch)
+    monkeypatch.setattr(MainPostReceiptValues, "build_pending", build)
+    monkeypatch.setattr(
+        bot, "confirmation_epoch_for_main_attempt",
+        Mock(side_effect=AssertionError("publication used root epoch relay")),
+    )
+    monkeypatch.setattr(
+        bot, "build_confirmed_pending_schedule_receipt",
+        Mock(side_effect=AssertionError("publication used root pending-builder relay")),
+    )
     with pytest.raises(bot.UnrecoverableConfirmedPostPersistenceError):
         scenario.run()
     assert scenario.state[scenario.epoch_key] == (None if epoch_available else 1_700_000_000)
@@ -84,12 +94,12 @@ def test_assigned_none_pending_receipt_is_still_offered_to_fallback(
 ):
     scenario = prepare_post(tmp_path, monkeypatch, lane)
     materialise = Mock(side_effect=ValueError("invalid pending receipt"))
-    monkeypatch.setattr(bot, "build_confirmed_pending_schedule_receipt", Mock(return_value=None))
+    monkeypatch.setattr(MainPostReceiptValues, "build_pending", Mock(return_value=None))
     monkeypatch.setattr(
         bot, "promote_main_post_attempt_to_confirmed_pending_schedule",
         Mock(side_effect=OSError("promotion failed")),
     )
-    monkeypatch.setattr(bot, scenario.materialiser, materialise)
+    monkeypatch.setattr(MainPostReceiptValues, scenario.materialiser, materialise)
     with pytest.raises(bot.UnrecoverableConfirmedPostPersistenceError):
         scenario.run()
     materialise.assert_called_once_with(None)
@@ -111,7 +121,7 @@ def test_quote_recovery_keeps_receipt_and_quote_schedule_when_meme_projection_fa
         bot, "promote_main_post_attempt_to_confirmed_pending_schedule",
         Mock(side_effect=OSError("promotion failed")),
     )
-    monkeypatch.setattr(bot, scenario.materialiser, Mock(return_value=fallback))
+    monkeypatch.setattr(MainPostReceiptValues, scenario.materialiser, Mock(return_value=fallback))
     monkeypatch.setattr(posting, "apply_state_fields", apply_fields)
     with pytest.raises(bot.UnrecoverableConfirmedPostPersistenceError):
         scenario.run()
@@ -144,7 +154,7 @@ def test_emergency_materialisation_interrupt_preserves_signal_and_save_boundary(
         bot, "promote_main_post_attempt_to_confirmed_pending_schedule",
         Mock(side_effect=OSError("promotion failed")),
     )
-    monkeypatch.setattr(bot, scenario.materialiser, materialise)
+    monkeypatch.setattr(MainPostReceiptValues, scenario.materialiser, materialise)
     with pytest.raises(KeyboardInterrupt) as caught:
         scenario.run()
     assert caught.value is failure

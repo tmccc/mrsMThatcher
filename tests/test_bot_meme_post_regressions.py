@@ -14,6 +14,7 @@ import mrs_bot_state_persistence as state_persistence
 from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from mrs_bot_main_post_receipts import MainPostReceiptValues
 from tests.helpers.bot_runtime import bot
+from tests.helpers.reply_fixtures import patch_tweet_lookup_method
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,
     mock_confirmed_main_post,
@@ -96,7 +97,17 @@ def test_meme_helper_failure_after_confirmation_leaves_receipt(
         ),
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
-    monkeypatch.setattr(bot, helper, lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError(f"{helper} failed")))
+    method = "store" if helper == "cache_tweet" else "record_recent_own_post"
+    patch_tweet_lookup_method(
+        monkeypatch, method,
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError(f"{helper} failed")),
+    )
+    monkeypatch.setattr(
+        bot, helper,
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError(f"meme posting used obsolete {helper} relay")
+        ),
+    )
     monkeypatch.setattr(bot, "log_event", lambda *args, **kwargs: None)
 
     state = {"next_meme_post_epoch": 1_799_999_000, "posted_meme_filenames": []}

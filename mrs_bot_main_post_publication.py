@@ -1,7 +1,9 @@
 """Own the shared durable publication steps for quote and meme posts.
 
-One instance binds the current runtime authorities at cycle entry and retains
-only that publication's progress. Callers keep their distinct exception scopes,
+One instance binds `MainPostReceipts`, `MainPostReceiptValues` and the current
+transport authorities at cycle entry, calling the owners directly for attempt
+publication, pending construction and finalization. It retains only that
+publication's progress. Callers keep their distinct exception scopes,
 history rollback, schedule projections and emergency state recovery. Explicit
 guard release lets those projections complete before interrupts are delivered.
 Construction and import perform no runtime I/O or configuration access.
@@ -13,8 +15,15 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from logging import Logger
 from pathlib import Path
+from typing import TYPE_CHECKING
 
+from mrs_bot_main_post_attempt_values import confirmation_epoch_for_main_attempt
 from mrs_bot_receipt_primitives import valid_post_id
+
+
+if TYPE_CHECKING:
+    from mrs_bot_main_post_receipt_storage import MainPostReceipts
+    from mrs_bot_main_post_receipts import MainPostReceiptValues
 
 
 _UNAVAILABLE = object()
@@ -27,7 +36,8 @@ class MainPostPublication:
     lane: str
     receipt_path: Path
     log: Logger
-    write_attempt: Callable
+    receipts: MainPostReceipts
+    receipt_values: MainPostReceiptValues
     prepare_transport: Callable
     handoff_media: Callable
     begin_sigint: Callable
@@ -41,10 +51,7 @@ class MainPostPublication:
     retain_sigint: Callable
     inspect_confirmation: Callable
     journal_path: Callable
-    confirmation_epoch: Callable
-    build_pending: Callable
     promote_pending: Callable
-    finalize_pending: Callable
     run_stage: Callable | None
     validate_meme_post_id: Callable | None
 
@@ -68,7 +75,8 @@ class MainPostPublication:
         """Publish the attempt, bind transport and hand off confirmed media."""
         self.attempt = attempt
         self._stage(
-            "main_post_attempt_persistence", lambda: self.write_attempt(self.attempt),
+            "main_post_attempt_persistence",
+            lambda: self.receipts.write_attempt(self.attempt),
         )
         (
             self.attempt, self.transport_source, self.transport_authority,
@@ -149,7 +157,11 @@ class MainPostPublication:
             raise self.ambiguous_outcome(
                 f"Confirmed {label}-post identity differs from its journal", service="x",
             )
-        return self.confirmation_epoch(self.attempt, confirmation.confirmation_epoch)
+        return confirmation_epoch_for_main_attempt(
+            self.attempt,
+            confirmation.confirmation_epoch,
+            log=self.log,
+        )
 
     def confirm_pending_schedule(
         self, posted_id: object, confirmation_epoch: int, *, image_summary: str = "",
@@ -157,7 +169,7 @@ class MainPostPublication:
         """Promote confirmation before finalization, retaining each partial result."""
         # Quote callbacks omit this keyword; meme callbacks always receive it.
         summary = {} if self.lane == "quote_image" else {"image_summary": image_summary}
-        self.pending_receipt = self.build_pending(
+        self.pending_receipt = self.receipt_values.current().build_pending(
             self.attempt, post_id=str(posted_id), confirmation_epoch=confirmation_epoch,
             **summary,
         )
@@ -166,4 +178,4 @@ class MainPostPublication:
             **summary,
         )
         self.pending_promoted = True
-        return self.finalize_pending(self.pending_receipt)
+        return self.receipts.current().finalize_pending(self.pending_receipt)

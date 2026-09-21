@@ -72,27 +72,48 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
                 current = {key: object() for key in dependencies}
                 factories = {}
                 for key, factory_name, factory_args in (
-                    ("publication", "_main_post_publication_owner", ("daily_meme",)),
                     ("catalog", "_meme_catalog_owner", ()),
                     ("schedule", "_meme_schedule_owner", ()),
+                    ("receipt_values", "_main_post_receipt_values_owner", ()),
+                    ("receipts", "_main_post_receipts_owner", ()),
+                    ("tweets", "_tweet_lookup_cache_owner", ()),
                 ):
                     if key in current:
                         factories[key] = Mock(return_value=current[key])
                         patch.setattr(bot, factory_name, factories[key])
+                if "publication" in current:
+                    factories["publication"] = Mock(return_value=current["publication"])
+                    patch.setattr(bot, "_main_post_publication_owner", factories["publication"])
+                reconcile = Mock()
+                if "reconcile_meme_post_receipt" in current:
+                    patch.setattr(bot, "_reconcile_meme_post_receipt_with_owners", reconcile)
                 for key, value in current.items():
-                    if key not in factories:
+                    if key not in factories and key != "reconcile_meme_post_receipt":
                         patch.setattr(bot, key, value)
                 assert adapter(*args, **options) is result, name
                 for key, factory in factories.items():
-                    factory.assert_called_once_with(
-                        *(("daily_meme",) if key == "publication" else ())
-                    )
+                    if key == "publication":
+                        factory.assert_called_once_with(
+                            "daily_meme", receipts=current["receipts"],
+                            receipt_values=current["receipt_values"],
+                        )
+                    elif key == "receipts":
+                        factory.assert_called_once_with(values=current["receipt_values"])
+                    else:
+                        factory.assert_called_once_with()
                 actual_args, actual_kwargs = owner.call_args
                 assert len(actual_args) == len(args)
                 assert all(actual is expected for actual, expected in zip(actual_args, args)), name
                 expected = {**options, **current}
                 assert actual_kwargs.keys() == expected.keys(), name
-                assert all(actual_kwargs[key] is value for key, value in expected.items()), name
+                for key, value in expected.items():
+                    if key == "reconcile_meme_post_receipt":
+                        assert actual_kwargs[key].func is reconcile
+                        assert actual_kwargs[key].keywords == {
+                            "receipts": current["receipts"], "tweets": current["tweets"],
+                        }
+                    else:
+                        assert actual_kwargs[key] is value, name
             failure = KeyboardInterrupt(name)
             owner.side_effect = failure
             with pytest.raises(KeyboardInterrupt) as caught:

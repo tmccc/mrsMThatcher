@@ -11,6 +11,8 @@ import pytest
 
 import mrsMThatcher2 as bot
 import mrs_bot_transport_source_preparation as preparation
+from mrs_bot_main_post_receipt_storage import MainPostReceipts
+from mrs_bot_main_post_receipts import MainPostReceiptValues
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
@@ -53,9 +55,8 @@ DEPENDENCIES = {'remote_write_transport_journal_paths': ['CONFIRMED_REPLY_RECEIP
  'prepare_main_tweet_transport': ['TransportJournalError',
                                   'begin_transport_transaction',
                                   'bind_lane_transport_source',
-                                  'current_main_post_attempt_is_semantically_valid',
-                                  'main_post_attempt_path',
-                                  'mark_main_post_attempt_attempting'],
+                                  'receipt_values',
+                                  'receipts'],
  'validate_confirmed_media_upload_metadata': ['ConfirmedMediaUpload',
                                                 'MediaUploadReceiptError',
                                                 'inspect_media_upload_receipt']}
@@ -127,7 +128,12 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
         with monkeypatch.context() as patch:
             current = {dep: object() for dep in DEPENDENCIES[name]}
             for dep, value in current.items():
-                patch.setattr(bot, dep, value)
+                if dep == "receipt_values":
+                    patch.setattr(bot, "_main_post_receipt_values_owner", Mock(return_value=value))
+                elif dep == "receipts":
+                    patch.setattr(bot, "_main_post_receipts_owner", Mock(return_value=value))
+                else:
+                    patch.setattr(bot, dep, value)
             result = {"original": []}
             expected = {}
 
@@ -477,9 +483,28 @@ def _preparation_trace(monkeypatch, *, failure_at=None, alias=False):
     path, payload, source, authority = [object() for _ in range(4)]
     trace.path.return_value, trace.payload.return_value = path, payload
     trace.bind.return_value, trace.begin.return_value = source, authority
-    for name, dependency in (("validate", "current_main_post_attempt_is_semantically_valid"),
-                             ("mark", "mark_main_post_attempt_attempting"),
-                             ("path", "main_post_attempt_path"), ("payload", "main_post_attempt_payload"),
+    monkeypatch.setattr(
+        MainPostReceiptValues, "current_attempt_is_valid",
+        lambda self, value: trace.validate(value),
+    )
+    monkeypatch.setattr(
+        MainPostReceipts, "mark_attempting",
+        lambda self, value: trace.mark(value),
+    )
+    monkeypatch.setattr(
+        MainPostReceipts, "attempt_path",
+        lambda self, value: trace.path(value),
+    )
+    for obsolete in (
+        "current_main_post_attempt_is_semantically_valid",
+        "mark_main_post_attempt_attempting",
+        "main_post_attempt_path",
+    ):
+        monkeypatch.setattr(
+            bot, obsolete,
+            Mock(side_effect=AssertionError(f"transport preparation used {obsolete}")),
+        )
+    for name, dependency in (("payload", "main_post_attempt_payload"),
                              ("bind", "bind_lane_transport_source"), ("begin", "begin_transport_transaction")):
         target = preparation if dependency == "main_post_attempt_payload" else bot
         monkeypatch.setattr(target, dependency, getattr(trace, name))

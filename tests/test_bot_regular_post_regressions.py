@@ -16,6 +16,7 @@ import mrs_bot_used_history as used_history
 
 from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from tests.helpers.bot_runtime import bot
+from tests.helpers.reply_fixtures import patch_tweet_lookup_method
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,
     quote_analysis_for_lines,
@@ -463,7 +464,17 @@ def test_regular_post_helper_failure_after_confirmation_leaves_receipt(
     helper: str,
 ) -> None:
     lines_used, images_used, state, _lines_used_file, _images_used_file, receipt_file, _lines_file = configure_simple_quote_post(tmp_path, monkeypatch)
-    monkeypatch.setattr(bot, helper, lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError(f"{helper} failed")))
+    method = "store" if helper == "cache_tweet" else "record_recent_own_post"
+    patch_tweet_lookup_method(
+        monkeypatch, method,
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError(f"{helper} failed")),
+    )
+    monkeypatch.setattr(
+        bot, helper,
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError(f"regular posting used obsolete {helper} relay")
+        ),
+    )
 
     with pytest.raises(bot.ConfirmedPostLocalPersistenceError):
         bot.post_random_quote(lines_used, images_used, state)

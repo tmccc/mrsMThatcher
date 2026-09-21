@@ -1,9 +1,10 @@
 """Main-post receipt application, emergency completeness and local reconciliation.
 
-The root supplies current runtime dependencies explicitly on each call.
-Receipt application calls its invocation-scoped MemeSchedule directly for
-legacy date projection and quote-anchored fallback scheduling. This module
-performs no runtime work at import and retains no runtime authority.
+The root supplies current owners and external boundaries explicitly on each
+call. Receipt application calls invocation-scoped `MemeSchedule` and
+`TweetLookupCache` owners directly; reconciliation loads and finalizes through
+`MainPostReceipts`. Proof-authorized removal remains a root boundary. This
+module performs no runtime work at import and retains no runtime authority.
 """
 from __future__ import annotations
 
@@ -16,6 +17,9 @@ from mrs_bot_receipt_primitives import receipt_int, valid_post_id
 
 if TYPE_CHECKING:
     from mrs_bot_daily_meme import MemeSchedule
+    from mrs_bot_main_post_receipt_storage import MainPostReceipts
+    from mrs_bot_main_post_receipts import MainPostReceiptValues
+    from mrs_bot_tweet_lookup_cache import TweetLookupCache
 
 
 def apply_meme_post_receipt(
@@ -25,10 +29,9 @@ def apply_meme_post_receipt(
     MEME_POST_TEXT: Any,
     MEME_SCHEDULE_VERSION: Any,
     MY_USER_ID: Any,
-    cache_tweet: Any,
     log: Any,
     meme_schedule: MemeSchedule,
-    record_recent_own_post: Any,
+    tweets: TweetLookupCache,
 ) -> None:
     """Apply meme post receipt."""
     post_id = str(receipt["post_id"])
@@ -112,7 +115,7 @@ def apply_meme_post_receipt(
             current_next_meme_epoch,
         )
     if receipt_is_newest_main:
-        cache_tweet(
+        tweets.store(
             state,
             tweet_id=post_id,
             text=text,
@@ -122,7 +125,7 @@ def apply_meme_post_receipt(
             image_summary=image_summary,
             post_type="daily_meme",
         )
-        record_recent_own_post(state, post_id)
+        tweets.record_recent_own_post(state, post_id)
 
 
 def reconcile_meme_post_receipt(
@@ -132,9 +135,8 @@ def reconcile_meme_post_receipt(
     MEME_POST_RECEIPT_FILE: Any,
     MEME_POST_TEXT: Any,
     apply_meme_post_receipt: Any,
+    receipts: MainPostReceipts,
     emit_account_root_posted: Any,
-    finalize_confirmed_pending_schedule_receipt: Any,
-    load_meme_post_receipt: Any,
     log: Any,
     remove_meme_post_receipt: Any,
     retire_lane_transport_journal_if_present: Any,
@@ -142,7 +144,7 @@ def reconcile_meme_post_receipt(
     verify_lane_transport_source_lineage_if_present: Any,
 ) -> bool:
     """Reconcile a durable meme receipt without duplicating a remote post."""
-    status, receipt = load_meme_post_receipt()
+    status, receipt = receipts.current().load_meme()
     if status == "absent":
         return False
     if status == "sending":
@@ -163,7 +165,7 @@ def reconcile_meme_post_receipt(
             "Finalising local schedule for already-confirmed meme post_id=%s",
             receipt.get("post_id"),
         )
-        receipt = finalize_confirmed_pending_schedule_receipt(receipt)
+        receipt = receipts.current().finalize_pending(receipt)
         status = "valid"
     if status == "invalid" or receipt is None:
         raise InvalidMemePostReceipt(f"Invalid meme-post receipt blocks the bot: {MEME_POST_RECEIPT_FILE}")
@@ -201,10 +203,9 @@ def apply_regular_post_receipt(
     *,
     MEME_SCHEDULE_VERSION: Any,
     MY_USER_ID: Any,
-    cache_tweet: Any,
     log: Any,
     meme_schedule: MemeSchedule,
-    record_recent_own_post: Any,
+    tweets: TweetLookupCache,
 ) -> None:
     """Apply regular post receipt."""
     post_id = str(receipt["post_id"])
@@ -311,7 +312,7 @@ def apply_regular_post_receipt(
         else:
             meme_schedule.maybe_after_quote(state, quote_post_epoch, save=False)
     if text and receipt_is_newest_main:
-        cache_tweet(
+        tweets.store(
             state,
             tweet_id=post_id,
             text=text,
@@ -321,7 +322,7 @@ def apply_regular_post_receipt(
             post_type="quote",
         )
     if receipt_is_newest_main:
-        record_recent_own_post(state, post_id)
+        tweets.record_recent_own_post(state, post_id)
 
 
 def confirmed_regular_emergency_representation_is_complete(
@@ -334,19 +335,18 @@ def confirmed_regular_emergency_representation_is_complete(
     images_used: set,
     state: dict,
     main_post_attempt: dict,
-    build_confirmed_pending_schedule_receipt: Any,
-    materialize_bound_regular_schedule_receipt: Any,
+    receipt_values: MainPostReceiptValues,
     valid_receipt_epoch: Any,
 ) -> bool:
     """Return whether fallback state exactly implements the pre-send plan."""
     state_post_epoch = receipt_int(state.get("last_quote_post_epoch"))
     try:
-        pending = build_confirmed_pending_schedule_receipt(
+        pending = receipt_values.current().build_pending(
             main_post_attempt,
             post_id=str(post_id),
             confirmation_epoch=int(post_epoch or 0),
         )
-        expected = materialize_bound_regular_schedule_receipt(pending)
+        expected = receipt_values.current().materialize_regular(pending)
     except Exception:
         return False
     expected_meme_epoch = int(expected.get("next_meme_post_epoch", 0) or 0)
@@ -387,8 +387,7 @@ def confirmed_meme_emergency_representation_is_complete(
     meme_basename: str,
     state: dict,
     main_post_attempt: dict,
-    build_confirmed_pending_schedule_receipt: Any,
-    materialize_bound_meme_schedule_receipt: Any,
+    receipt_values: MainPostReceiptValues,
     safe_bound_schedule_date_str: Any,
     valid_receipt_epoch: Any,
 ) -> bool:
@@ -399,13 +398,13 @@ def confirmed_meme_emergency_representation_is_complete(
         main_post_attempt.get("recovery_plan", {}).get("image_summary") or ""
     )
     try:
-        pending = build_confirmed_pending_schedule_receipt(
+        pending = receipt_values.current().build_pending(
             main_post_attempt,
             post_id=str(post_id),
             confirmation_epoch=int(post_epoch or 0),
             image_summary=image_summary,
         )
-        expected = materialize_bound_meme_schedule_receipt(pending)
+        expected = receipt_values.current().materialize_meme(pending)
     except Exception:
         return False
     expected_next_epoch = int(expected["next_meme_post_epoch"])
@@ -457,11 +456,10 @@ def reconcile_regular_post_receipt(
     InvalidRegularPostReceipt: Any,
     REGULAR_POST_RECEIPT_FILE: Any,
     apply_regular_post_receipt: Any,
+    receipts: MainPostReceipts,
     emit_account_root_posted: Any,
     enqueue_historical_context_obligation: Any,
     ensure_reconciled_regular_receipt_schedule_is_future: Any,
-    finalize_confirmed_pending_schedule_receipt: Any,
-    load_regular_post_receipt: Any,
     log: Any,
     remove_regular_post_receipt: Any,
     retire_lane_transport_journal_if_present: Any,
@@ -470,7 +468,7 @@ def reconcile_regular_post_receipt(
     verify_lane_transport_source_lineage_if_present: Any,
 ) -> bool:
     """Reconcile a durable regular-post receipt without duplicating a remote post."""
-    status, receipt = load_regular_post_receipt()
+    status, receipt = receipts.current().load_regular()
     if status == "absent":
         return False
     if status == "sending":
@@ -491,7 +489,7 @@ def reconcile_regular_post_receipt(
             "Finalising local schedule for already-confirmed regular post_id=%s",
             receipt.get("post_id"),
         )
-        receipt = finalize_confirmed_pending_schedule_receipt(receipt)
+        receipt = receipts.current().finalize_pending(receipt)
         status = "valid"
     if status == "invalid" or receipt is None:
         raise InvalidRegularPostReceipt(f"Invalid regular-post receipt blocks main posting: {REGULAR_POST_RECEIPT_FILE}")

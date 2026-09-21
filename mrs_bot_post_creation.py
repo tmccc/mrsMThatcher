@@ -2,18 +2,24 @@
 
 Fixed media metadata, path values, post-ID checks and copying are owned here.
 Private receipt-validation and payload-projection steps keep source checks
-separate from transaction orchestration. The root supplies current runtime
-boundaries explicitly on each call. Import performs no runtime work and retains
-no runtime authority.
+separate from transaction orchestration. Main-post validation, payload binding,
+attempt promotion and path lookup call invocation-scoped receipt owners
+directly; create/upload, journal and remote-write safeguards remain explicit
+boundaries supplied by the root. Import performs no runtime work.
 """
 from __future__ import annotations
 
 import copy
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TYPE_CHECKING
 from pathlib import Path
 
 from mrs_bot_receipt_primitives import valid_post_id
+
+
+if TYPE_CHECKING:
+    from mrs_bot_main_post_receipt_storage import MainPostReceipts
+    from mrs_bot_main_post_receipts import MainPostReceiptValues
 
 
 def validate_media_upload_payload_metadata(
@@ -254,7 +260,7 @@ def _validate_prepared_receipts(
     AmbiguousRemotePostOutcome: type[Exception],
     block_if_ambiguous_remote_post: Callable,
     sending_reply_receipt_is_semantically_valid: Callable,
-    current_main_post_attempt_is_semantically_valid: Callable,
+    receipt_values: MainPostReceiptValues,
 ) -> None:
     """Require one valid source receipt bound to the requested public write."""
     prepared_receipt_count = sum(
@@ -305,7 +311,7 @@ def _validate_prepared_receipts(
             else "sending"
         )
         if (
-            not current_main_post_attempt_is_semantically_valid(
+            not receipt_values.current().current_attempt_is_valid(
                 prepared_main_post_attempt
             )
             or prepared_main_post_attempt.get("lifecycle_state")
@@ -401,14 +407,12 @@ def create_post(
     block_if_remote_write_safety_incident_latched: Any,
     confirm_transport_transaction: Any,
     confirmation_epoch_after_remote_success: Any,
-    current_main_post_attempt_is_semantically_valid: Any,
     freeze_tweet_request: Any,
     global_remote_writes_paused: Any,
     journal_path_for_receipt: Any,
     log: Any,
-    main_post_attempt_binds_payload: Any,
-    main_post_attempt_path: Any,
-    mark_main_post_attempt_attempting: Any,
+    receipts: MainPostReceipts,
+    receipt_values: MainPostReceiptValues,
     record_ambiguous_remote_post: Any,
     require_instance_lock_for_remote_write: Any,
     retire_consumed_transport_transaction_after_proved_remote_non_success: Any,
@@ -427,7 +431,7 @@ def create_post(
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
         block_if_ambiguous_remote_post=block_if_ambiguous_remote_post,
         sending_reply_receipt_is_semantically_valid=sending_reply_receipt_is_semantically_valid,
-        current_main_post_attempt_is_semantically_valid=current_main_post_attempt_is_semantically_valid,
+        receipt_values=receipt_values,
     )
     block_if_ambiguous_remote_post(
         prepared_conversational_reply_receipt=(
@@ -455,7 +459,7 @@ def create_post(
         ) from exc
     if (
         prepared_main_post_attempt is not None
-        and not main_post_attempt_binds_payload(
+        and not receipt_values.current().attempt_binds_payload(
             prepared_main_post_attempt,
             payload,
         )
@@ -502,7 +506,7 @@ def create_post(
         )
 
     if prepared_main_post_attempt is not None and prepared_transport_authority is None:
-        attempting = mark_main_post_attempt_attempting(
+        attempting = receipts.current().mark_attempting(
             prepared_main_post_attempt
         )
         prepared_main_post_attempt.clear()
@@ -518,7 +522,7 @@ def create_post(
         transaction_lane = "historical_context_reply"
     else:
         assert prepared_main_post_attempt is not None
-        transaction_receipt_path = main_post_attempt_path(
+        transaction_receipt_path = receipts.current().attempt_path(
             prepared_main_post_attempt
         )
         transaction_receipt = prepared_main_post_attempt
@@ -682,13 +686,13 @@ def handoff_confirmed_media_upload_to_main_attempt(
     attempt: dict,
     transport_authority: TransportAuthority,
     *,
+    receipts: MainPostReceipts,
     MEDIA_UPLOAD_RECEIPT_FILE: Any,
     MediaUploadReceiptError: Any,
     bind_media_handoff_to_transport: Any,
     validate_confirmed_media_upload_metadata: Any,
     load_confirmed_media_upload: Any,
     log: Any,
-    main_post_attempt_path: Any,
     retire_confirmed_media_upload: Any,
     transaction_mutation_authority: Any,
 ) -> None:
@@ -700,7 +704,7 @@ def handoff_confirmed_media_upload_to_main_attempt(
             "main-post attempt has no confirmed media-upload receipt"
         )
     validate_confirmed_media_upload_metadata(confirmation)
-    path = main_post_attempt_path(attempt)
+    path = receipts.current().attempt_path(attempt)
     handoff = bind_media_handoff_to_transport(
         MEDIA_UPLOAD_RECEIPT_FILE,
         confirmation,

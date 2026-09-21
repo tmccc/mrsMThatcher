@@ -10,6 +10,7 @@ from unittest.mock import Mock
 import pytest
 
 import mrs_bot_quote_posting as posting
+from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     configure_simple_quote_post,
@@ -52,7 +53,7 @@ assert 'mrsMThatcher2' not in sys.modules
 def test_adapter_passes_current_dependencies_and_references_on_every_call(monkeypatch):
     names = [name for name, parameter in inspect.signature(posting.post_random_quote).parameters.items()
              if parameter.kind == inspect.Parameter.KEYWORD_ONLY]
-    assert len(names) == 41
+    assert len(names) == 40
     assert not set(names) & {
         "apply_state_fields", "valid_post_id",
         "main_post_attempt", "pending_schedule_receipt", "quote_post_epoch",
@@ -65,18 +66,42 @@ def test_adapter_passes_current_dependencies_and_references_on_every_call(monkey
         current = {name: object() for name in names}
         publication_factory = Mock(return_value=current["publication"])
         selection_factory = Mock(return_value=current["selection"])
+        values_factory = Mock(return_value=current["receipt_values"])
+        receipts_factory = Mock(return_value=current["receipts"])
+        tweets_factory = Mock(return_value=current["tweets"])
+        reconcile = Mock(return_value=current["reconcile_main_post_receipts"])
         monkeypatch.setattr(bot, "_main_post_publication_owner", publication_factory)
         monkeypatch.setattr(bot, "_image_selection_owner", selection_factory)
+        monkeypatch.setattr(bot, "_main_post_receipt_values_owner", values_factory)
+        monkeypatch.setattr(bot, "_main_post_receipts_owner", receipts_factory)
+        monkeypatch.setattr(bot, "_tweet_lookup_cache_owner", tweets_factory)
+        monkeypatch.setattr(bot, "_reconcile_main_post_receipts_with_owners", reconcile)
         for name, value in current.items():
-            if name not in {"publication", "selection"}:
+            if name not in {
+                "publication", "selection", "receipts", "receipt_values", "tweets",
+                "reconcile_main_post_receipts",
+            }:
                 monkeypatch.setattr(bot, name, value)
         assert bot.post_random_quote(lines_used, images_used, state) is result
-        publication_factory.assert_called_once_with("quote_image")
+        publication_factory.assert_called_once_with(
+            "quote_image", receipts=current["receipts"],
+            receipt_values=current["receipt_values"],
+        )
         selection_factory.assert_called_once_with()
+        values_factory.assert_called_once_with()
+        receipts_factory.assert_called_once_with(values=current["receipt_values"])
+        tweets_factory.assert_called_once_with()
         args, kwargs = owner.call_args
         assert all(actual is expected for actual, expected in zip(args, (lines_used, images_used, state)))
         assert kwargs.keys() == current.keys()
-        assert all(kwargs[name] is value for name, value in current.items())
+        for name, value in current.items():
+            if name == "reconcile_main_post_receipts":
+                assert kwargs[name].func is reconcile
+                assert kwargs[name].keywords == {
+                    "receipts": current["receipts"], "tweets": current["tweets"],
+                }
+            else:
+                assert kwargs[name] is value
     failure = KeyboardInterrupt("owner failure")
     owner.side_effect = failure
     with pytest.raises(KeyboardInterrupt) as caught:
@@ -100,7 +125,9 @@ def test_preflight_order_and_snapshot_preserve_reconciler_set_references(monkeyp
 
     def reconcile(lines, images, current_state, **kwargs):
         assert lines is lines_used and images is images_used and current_state is state
-        assert kwargs == {"minimum_next_quote_epoch": 1_800_000_000}
+        assert kwargs["minimum_next_quote_epoch"] == 1_800_000_000
+        assert isinstance(kwargs["receipts"], MainPostReceipts)
+        assert kwargs["tweets"].__class__.__name__ == "TweetLookupCache"
         lines.add("reconciled quote")
         images.add("reconciled image")
         events.append("reconcile")
@@ -115,7 +142,11 @@ def test_preflight_order_and_snapshot_preserve_reconciler_set_references(monkeyp
     monkeypatch.setattr(bot, "log", log)
     monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", barrier)
     monkeypatch.setattr(bot, "now_epoch", clock)
-    monkeypatch.setattr(bot, "reconcile_main_post_receipts", reconcile)
+    monkeypatch.setattr(bot, "_reconcile_main_post_receipts_with_owners", reconcile)
+    monkeypatch.setattr(
+        bot, "reconcile_main_post_receipts",
+        Mock(side_effect=AssertionError("quote posting used the public reconciliation relay")),
+    )
     monkeypatch.setattr(bot, "require_historical_context_outbox_writable", outbox)
     monkeypatch.setattr(bot, "choose_regular_quote_image_pair", lambda *a, **kw: pytest.fail("unexpected selection"))
     if reconciled:
@@ -169,8 +200,19 @@ def test_posting_keeps_upload_shape_and_publication_order(
 
         monkeypatch.setattr(bot, name, invoke)
 
+    original_write = MainPostReceipts.write_attempt
+
+    def write(owner, attempt):
+        events.append("write_main_post_attempt")
+        return original_write(owner, attempt)
+
+    monkeypatch.setattr(MainPostReceipts, "write_attempt", write)
+    monkeypatch.setattr(
+        bot, "write_main_post_attempt",
+        Mock(side_effect=AssertionError("quote publication used the root write relay")),
+    )
     for name in (
-        "write_main_post_attempt", "prepare_main_tweet_transport",
+        "prepare_main_tweet_transport",
         "handoff_confirmed_media_upload_to_main_attempt", "begin_confirmed_post_sigint_deferral",
         "save_regular_post_protected_state", "enqueue_historical_context_obligation",
         "retire_lane_transport_journal_if_present", "remove_regular_post_receipt",
@@ -223,7 +265,7 @@ def test_prepublication_interrupt_preserves_draws_rollback_and_attempt_ownership
     remove = Mock()
     release = Mock()
     transport = Mock(side_effect=AssertionError("unexpected transport preparation"))
-    original_write = bot.write_main_post_attempt
+    original_write = MainPostReceipts.write_attempt
 
     def choose(_owner, lines, images, current_state, **kwargs):
         assert lines is lines_used and images is images_used and current_state is state
@@ -244,8 +286,8 @@ def test_prepublication_interrupt_preserves_draws_rollback_and_attempt_ownership
     def interrupt(*args, **kwargs):
         raise failure
 
-    def write_then_interrupt(attempt):
-        original_write(attempt)
+    def write_then_interrupt(owner, attempt):
+        original_write(owner, attempt)
         raise failure
 
     monkeypatch.setattr(bot._image_selection.ImageSelection, "choose_pair", choose)
@@ -262,7 +304,11 @@ def test_prepublication_interrupt_preserves_draws_rollback_and_attempt_ownership
     elif failure_point == "attempt_build":
         monkeypatch.setattr(bot, "build_main_post_attempt", interrupt)
     elif failure_point == "attempt_write":
-        monkeypatch.setattr(bot, "write_main_post_attempt", write_then_interrupt)
+        monkeypatch.setattr(MainPostReceipts, "write_attempt", write_then_interrupt)
+        monkeypatch.setattr(
+            bot, "write_main_post_attempt",
+            Mock(side_effect=AssertionError("quote publication used the root write relay")),
+        )
 
     with pytest.raises(KeyboardInterrupt) as caught:
         bot.post_random_quote(lines_used, images_used, state)

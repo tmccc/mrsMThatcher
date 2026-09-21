@@ -479,8 +479,8 @@ def _initial_phase(bot: Any, lane: str, phase: str) -> int:
                     )
                 )
         else:
-            pause_observations = iter((False, True))
-            bot.global_remote_writes_paused = lambda: next(pause_observations)
+            bot.global_remote_writes_paused = lambda: False
+            bot._runtime_control.RuntimeControls.global_paused = lambda _owner: True
         try:
             bot.create_post(
                 text=str(attempt["text"]),

@@ -47,23 +47,28 @@ def _completion_case(lane, *, fail_at=None, failure=None):
     )
     if lane == "live":
         common["log_event"] = callbacks["event"]
+        tweets = SimpleNamespace(store=Mock(), record_recent_own_post=Mock())
         def invoke():
             return posting._complete_quote_post(
                 lines, images, state, quote_hash="quote", image_basename="image.jpg",
                 posted_id="950001", quote_post_epoch=100, quote_schedule_fields={},
                 meme_schedule_fields={}, tweet="text", receipt=receipt, line_no=1,
                 image_no=2, image_choice=image_choice, canonical_quote_text="canonical",
-                cache_tweet=Mock(), MY_USER_ID="123", record_recent_own_post=Mock(),
+                tweets=tweets, MY_USER_ID="123",
                 ConfirmedPostLocalPersistenceError=LocalPersistenceError, **common,
             )
     else:
+        receipt_operations = SimpleNamespace(
+            load_regular=Mock(return_value=("valid", receipt)),
+            finalize_pending=Mock(),
+        )
+        receipts = SimpleNamespace(current=lambda: receipt_operations)
         def invoke():
             return recovery.reconcile_regular_post_receipt(
                 lines, images, state, InvalidRegularPostReceipt=ValueError,
                 apply_regular_post_receipt=Mock(),
                 ensure_reconciled_regular_receipt_schedule_is_future=Mock(),
-                finalize_confirmed_pending_schedule_receipt=Mock(),
-                load_regular_post_receipt=Mock(return_value=("valid", receipt)),
+                receipts=receipts,
                 verify_lane_transport_source_lineage_if_present=Mock(), **common,
             )
     return SimpleNamespace(

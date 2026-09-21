@@ -32,7 +32,6 @@ class MainPostReceipts:
     CONFIRMED_REPLY_RECEIPT_FILE: Path
     InvalidConfirmedReplyReceipt: type[Exception]
     UnresolvedRegularPostReceipt: type[Exception]
-    current_main_post_attempt_is_semantically_valid: Callable[..., bool]
     durable_create_receipt_json: Callable[..., None]
     log: Logger
     receipt_namespace_entry_exists: Callable[..., bool]
@@ -43,7 +42,6 @@ class MainPostReceipts:
     load_receipt_json_no_follow: Callable[[Path], tuple[bool, object | None]]
     UnresolvedMemePostReceipt: type[Exception]
     atomic_write_json: Callable[..., None]
-    confirmed_receipt_matches_main_attempt: Callable[..., bool]
     values: Callable[[], MainPostReceiptValues]
     current: Callable[[], MainPostReceipts]
 
@@ -65,7 +63,7 @@ class MainPostReceipts:
     ) -> None:
         """Durably record a main-post transaction before its X create request."""
         if (
-            not self.current_main_post_attempt_is_semantically_valid(attempt)
+            not self.values().current_attempt_is_valid(attempt)
             or attempt.get("lifecycle_state") != "sending"
         ):
             raise RuntimeError(
@@ -107,7 +105,7 @@ class MainPostReceipts:
     ) -> dict:
         """Atomically consume one sending authorisation before remote transmission."""
         if (
-            not self.current_main_post_attempt_is_semantically_valid(attempt)
+            not self.values().current_attempt_is_valid(attempt)
             or attempt.get("lifecycle_state") != "sending"
         ):
             raise self.AmbiguousRemotePostOutcome(
@@ -127,7 +125,7 @@ class MainPostReceipts:
                 service="x",
             )
         attempting = {**attempt, "lifecycle_state": "attempting"}
-        if not self.current_main_post_attempt_is_semantically_valid(attempting):
+        if not self.values().current_attempt_is_valid(attempting):
             raise RuntimeError("Attempting main-post receipt failed validation")
         self.replace_exact_source_receipt_document(
             path,
@@ -158,7 +156,7 @@ class MainPostReceipts:
             "confirmed_state_fallback",
         }:
             raise ValueError("A main-post sending receipt requires an explicit disposition")
-        if not self.current_main_post_attempt_is_semantically_valid(attempt):
+        if not self.values().current_attempt_is_valid(attempt):
             raise self.AmbiguousRemotePostOutcome(
                 "Refusing to mutate a legacy or invalid main-post attempt",
                 service="x",
@@ -170,7 +168,7 @@ class MainPostReceipts:
                 raise FileNotFoundError(path)
             if (
                 current != attempt
-                or not self.current_main_post_attempt_is_semantically_valid(current)
+                or not self.values().current_attempt_is_valid(current)
             ):
                 raise self.AmbiguousRemotePostOutcome(
                     "Refusing to remove a changed main-post sending receipt",
@@ -311,7 +309,7 @@ class MainPostReceipts:
             if (
                 status != "sending"
                 or attempt is None
-                or not self.confirmed_receipt_matches_main_attempt(receipt, attempt)
+                or not self.values().confirmed_matches_attempt(receipt, attempt)
             ):
                 raise unresolved_receipt_error(
                     f"Refusing to overwrite an unresolved {lane_name}-post receipt: "

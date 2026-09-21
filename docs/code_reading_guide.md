@@ -82,11 +82,11 @@ boundaries on every root invocation without reading files during construction.
 Direct composition reduces `QuoteCandidates` from 16 dependencies (7
 callback-typed) to 13 (3), `UsedHistory` from 12 (5) to 11 (2),
 `OriginalEditorial` from 13 (2) to 12 (0), and `ImageSelection` from 20 (11) to
-16 (2). The regular-post implementation entry point has 44 total parameters
-(41 injected), down from 45 (42 injected), replacing its history and pair root
-callbacks with the typed selection owner. Hand-off tests block the obsolete
+16 (2). The regular-post implementation entry point now has 43 total parameters
+(40 injected): the selection owner and the shared main-post receipt/value/cache
+owners replace their former root relays. Hand-off tests block the obsolete
 relays while exercising real metadata validation, source-verified migration,
-editorial comparison and bounded pair recovery.
+editorial comparison, bounded pair recovery and receipt hand-offs.
 
 Daily meme posting similarly receives one invocation-scoped `MemeCatalog` and
 `MemeSchedule`: selection, summary construction, same-day checks and fallback
@@ -97,7 +97,26 @@ due-post ticks and reconciled regular-receipt repair call `MemeSchedule` and
 available outside these internal paths. `MemeCatalog`, `MemeSchedule` and
 `QuoteSchedule` retain 4, 13 and 5 constructor dependencies respectively. The
 daily-meme implementation entry point falls from 46 parameters (45 injected)
-to 43 (42), and regular receipt application falls from 11 (7) to 10 (6).
+to 42 (41), and regular receipt application now has 9 (5).
+
+At each quote or meme invocation the root composes one `MainPostReceiptValues`,
+one `MainPostReceipts`, one `TweetLookupCache` and one `MainPostPublication`.
+Publication, transport preparation, `create_post`, confirmation persistence and
+regular/meme reconciliation call those typed owners directly for attempt
+validation, payload binding, storage, finalization, materialization and cache
+updates. Later operations still use `current()` so policy is rebound at the
+same boundaries as before. Public root adapters remain compatible, and the
+proof-gated `remove_main_post_attempt`, `remove_regular_post_receipt` and
+`remove_meme_post_receipt` functions remain the only retirement authorities.
+
+`MainPostPublication` now has 21 constructor dependencies (down from 23),
+`MainPostReceipts` has 17 (down from 19), and `MainPostReceiptValues` and
+`TweetLookupCache` remain at 10 and 14. Transport preparation falls from 7 to 6
+total parameters, confirmation promotion from 25 to 23, and `create_post` from
+38 total parameters (28 injected) to 36 (26). Regular and meme reconciliation
+fall from 19 to 18 and 13 to 12 parameters respectively. Hand-off tests make
+the obsolete root relays raise while exercising adjacent real owners; transport,
+journal, persistence, proof and remote-write boundaries remain explicit.
 
 Conversational receipt composition shares one current `ReceiptDates` across
 `ReplyReceiptValues`, `DailyReplyAccounting` and confirmed-state application.

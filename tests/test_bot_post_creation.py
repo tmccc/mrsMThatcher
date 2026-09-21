@@ -12,6 +12,8 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_post_creation as owner
+from mrs_bot_main_post_receipt_storage import MainPostReceipts
+from mrs_bot_main_post_receipts import MainPostReceiptValues
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
@@ -53,14 +55,12 @@ DEPENDENCIES = {'validate_media_upload_payload_metadata': [],
                  'block_if_remote_write_safety_incident_latched',
                  'confirm_transport_transaction',
                  'confirmation_epoch_after_remote_success',
-                 'current_main_post_attempt_is_semantically_valid',
                  'freeze_tweet_request',
                  'global_remote_writes_paused',
                  'journal_path_for_receipt',
                  'log',
-                 'main_post_attempt_binds_payload',
-                 'main_post_attempt_path',
-                 'mark_main_post_attempt_attempting',
+                 'receipts',
+                 'receipt_values',
                  'record_ambiguous_remote_post',
                  'require_instance_lock_for_remote_write',
                  'retire_consumed_transport_transaction_after_proved_remote_non_success',
@@ -73,7 +73,7 @@ DEPENDENCIES = {'validate_media_upload_payload_metadata': [],
                                                     'validate_confirmed_media_upload_metadata',
                                                     'load_confirmed_media_upload',
                                                     'log',
-                                                    'main_post_attempt_path',
+                                                    'receipts',
                                                     'retire_confirmed_media_upload',
                                                     'transaction_mutation_authority']}
 
@@ -145,8 +145,16 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
     for _ in range(2):
         with monkeypatch.context() as patch:
             current = {dep: object() for dep in DEPENDENCIES[name]}
+            factories = {}
             for dep, value in current.items():
-                patch.setattr(bot, dep, value)
+                if dep == "receipts":
+                    factories[dep] = Mock(return_value=value)
+                    patch.setattr(bot, "_main_post_receipts_owner", factories[dep])
+                elif dep == "receipt_values":
+                    factories[dep] = Mock(return_value=value)
+                    patch.setattr(bot, "_main_post_receipt_values_owner", factories[dep])
+                else:
+                    patch.setattr(bot, dep, value)
             result = {"original": []}
             expected = {}
 
@@ -155,7 +163,15 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
                 assert all(value is expected[key] for key, value in zip(positional, args))
                 supplied = {key: expected[key] for key in keyword_only} | current
                 assert kwargs.keys() == supplied.keys()
-                assert all(kwargs[key] is value for key, value in supplied.items())
+                for key, value in supplied.items():
+                    if (
+                        name == "create_post"
+                        and key == "block_if_ambiguous_remote_post"
+                        and expected.get("prepared_conversational_reply_receipt") is not None
+                    ):
+                        assert callable(kwargs[key])
+                    else:
+                        assert kwargs[key] is value
                 return result
 
             patch.setattr(bot, "_post_creation", SimpleNamespace(**{name: capture}))
@@ -166,6 +182,12 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
                 bound.apply_defaults()
                 expected = bound.arguments
                 assert adapter(**provided) is result
+            if name == "create_post":
+                assert factories["receipt_values"].call_count == 2
+                assert factories["receipts"].call_args_list == [
+                    call(values=current["receipt_values"]),
+                    call(values=current["receipt_values"]),
+                ]
             with pytest.raises(TypeError, match="not_a_public_option"):
                 adapter(**provided, not_a_public_option={})
             failure = TypeError("current owner failure")
@@ -380,11 +402,18 @@ def test_handoff_checks_confirmation_and_metadata_before_binding_exact_reference
     events.bind.return_value, events.mutation.return_value = handoff, mutation
     for root_name, name in {
         "load_confirmed_media_upload": "load", "validate_confirmed_media_upload_metadata": "metadata",
-        "main_post_attempt_path": "path",
         "bind_media_handoff_to_transport": "bind", "transaction_mutation_authority": "mutation",
         "retire_confirmed_media_upload": "retire", "log": "log",
     }.items():
         monkeypatch.setattr(bot, root_name, getattr(events, name))
+    monkeypatch.setattr(
+        MainPostReceipts, "attempt_path",
+        lambda self, value: events.path(value),
+    )
+    monkeypatch.setattr(
+        bot, "main_post_attempt_path",
+        Mock(side_effect=AssertionError("media handoff used root path relay")),
+    )
     monkeypatch.setattr(bot, "MEDIA_UPLOAD_RECEIPT_FILE", path)
     assert bot.handoff_confirmed_media_upload_to_main_attempt(attempt, authority) is None
     assert [c[0] for c in events.mock_calls] == ["load", "metadata", "path", "bind", "mutation", "retire", "log.warning"]
@@ -426,15 +455,11 @@ def _public_boundary(monkeypatch, tmp_path):
                             armed=SimpleNamespace(journal_path=str(tmp_path / "journal"), transaction_id="transaction"),
                             response={"data": {"id": 123}}, mutations=[object(), object()])
     callbacks = {
-        "current_main_post_attempt_is_semantically_valid": ("validate", True),
         "block_if_ambiguous_remote_post": ("barrier", None),
         "freeze_tweet_request": ("freeze", SimpleNamespace(payload=events.payload)),
-        "main_post_attempt_binds_payload": ("binds", True),
         "require_instance_lock_for_remote_write": ("lock", None),
         "block_if_remote_write_safety_incident_latched": ("latch", None),
         "global_remote_writes_paused": ("pause", False),
-        "mark_main_post_attempt_attempting": ("promote", state.promoted),
-        "main_post_attempt_path": ("path", state.path),
         "bind_lane_transport_source": ("source", state.source),
         "begin_transport_transaction": ("begin", state.prepared),
         "arm_transport_transaction": ("arm", state.armed),
@@ -451,6 +476,24 @@ def _public_boundary(monkeypatch, tmp_path):
         callback = getattr(events, name)
         callback.return_value = value
         monkeypatch.setattr(owner if root_name == "valid_post_id" else bot, root_name, callback)
+    for owner_type, method, callback, value in (
+        (MainPostReceiptValues, "current_attempt_is_valid", events.validate, True),
+        (MainPostReceiptValues, "attempt_binds_payload", events.binds, True),
+        (MainPostReceipts, "mark_attempting", events.promote, state.promoted),
+        (MainPostReceipts, "attempt_path", events.path, state.path),
+    ):
+        callback.return_value = value
+        monkeypatch.setattr(owner_type, method, callback)
+    for obsolete in (
+        "current_main_post_attempt_is_semantically_valid",
+        "main_post_attempt_binds_payload",
+        "mark_main_post_attempt_attempting",
+        "main_post_attempt_path",
+    ):
+        monkeypatch.setattr(
+            bot, obsolete,
+            Mock(side_effect=AssertionError(f"post creation bounced through {obsolete}")),
+        )
     events.payload.return_value = state.frozen
     events.mutation.side_effect = state.mutations
     monkeypatch.setattr(bot, "log", events.log)
@@ -488,6 +531,7 @@ def test_public_create_preserves_freeze_attempt_mutation_and_confirmation_order(
 def test_public_count_and_callback_gates_and_call_time_historical_import(monkeypatch):
     barrier = Mock(side_effect=ValueError("existing barrier"))
     monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", barrier)
+    monkeypatch.setattr(bot, "_reply_remote_write_barrier", Mock(return_value=barrier))
     with pytest.raises(ValueError, match="existing barrier"):
         bot.create_post("text", prepared_conversational_reply_receipt={}, prepared_main_post_attempt={},
                         on_remote_transaction_started=object())

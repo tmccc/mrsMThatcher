@@ -23,7 +23,11 @@ from datetime import datetime, timedelta
 
 from mrs_bot_main_post_attempt_values import (
     MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS,
+    build_confirmed_pending_schedule_receipt,
     canonical_remote_post_payload_sha256,
+    confirmed_receipt_matches_main_attempt,
+    current_main_post_attempt_is_semantically_valid,
+    main_post_attempt_binds_payload,
     main_post_attempt_payload,
 )
 
@@ -51,6 +55,58 @@ class MainPostReceiptValues:
     invalid_meme_receipt: type[Exception]
     bound_schedule_datetime: Callable[..., datetime]
     current: Callable[[], MainPostReceiptValues]
+
+    def current_attempt_is_valid(self, data: object) -> bool:
+        """Return whether an attempt belongs to the current writable schema."""
+        return current_main_post_attempt_is_semantically_valid(
+            data,
+            main_post_attempt_is_semantically_valid=(
+                self.current().attempt_is_valid
+            ),
+        )
+
+    def confirmed_matches_attempt(self, receipt: dict, attempt: dict) -> bool:
+        """Return whether a confirmed receipt promotes one exact attempt."""
+        return confirmed_receipt_matches_main_attempt(
+            receipt,
+            attempt,
+            main_post_attempt_is_semantically_valid=(
+                self.current().attempt_is_valid
+            ),
+        )
+
+    def attempt_binds_payload(self, attempt: dict, payload: dict) -> bool:
+        """Return whether an attempt authorises exactly one remote payload."""
+        return main_post_attempt_binds_payload(
+            attempt,
+            payload,
+            current_main_post_attempt_is_semantically_valid=(
+                self.current().current_attempt_is_valid
+            ),
+        )
+
+    def build_pending(
+        self,
+        attempt: dict,
+        *,
+        post_id: str,
+        confirmation_epoch: int,
+        image_summary: str = "",
+    ) -> dict:
+        """Build a confirmed receipt while refreshing each validation policy."""
+        return build_confirmed_pending_schedule_receipt(
+            attempt,
+            post_id=post_id,
+            confirmation_epoch=confirmation_epoch,
+            image_summary=image_summary,
+            confirmed_pending_schedule_receipt_is_semantically_valid=(
+                self.current().pending_is_valid
+            ),
+            main_post_attempt_is_semantically_valid=(
+                self.current().attempt_is_valid
+            ),
+            valid_receipt_epoch=self.current().valid_epoch,
+        )
 
     def attempt_is_valid(self, data: object) -> bool:
         """Return whether a pre-send regular or meme attempt is self-consistent."""
