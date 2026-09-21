@@ -64,12 +64,10 @@ assert metadata.generated_image_origin_quote_hash('tg_' + 'A' * 64 + '.PNG') == 
 
 
 METADATA_METHODS = {'load_json_object': 'load_json',
- 'apply_quote_analysis_overrides': 'apply_quote_overrides',
  'load_quote_analysis': 'load_quote',
  'load_image_analysis_file': 'load_image_file',
  'load_image_analysis': 'load_image',
  'quote_metadata_for_hash': 'quote_for_hash',
- 'validate_quote_analysis_against_lines': 'validate_quote_lines',
  'current_image_paths': 'image_paths',
  'image_metadata_for_basename': 'image_for_basename',
  'load_meme_analysis_index': 'load_meme_index'}
@@ -186,9 +184,10 @@ def test_overrides_and_recursive_json_merge_use_current_root_callback(monkeypatc
     log = Mock()
     monkeypatch.setattr(metadata, "deep_merge_dict", current_merge)
     monkeypatch.setattr(bot, "log", log)
-    assert bot.apply_quote_analysis_overrides(raw, None) is raw
-    assert bot.apply_quote_analysis_overrides(raw, {}) is raw
-    result = bot.apply_quote_analysis_overrides(raw, overrides)
+    owner = bot._asset_metadata_owner()
+    assert owner.apply_quote_overrides(raw, None) is raw
+    assert owner.apply_quote_overrides(raw, {}) is raw
+    result = owner.apply_quote_overrides(raw, overrides)
     assert len(calls) == 2
     assert calls[0][1] is patch and calls[1][1] is patch["nested"]
     assert calls[0][0] is not raw["items"]["hash"]["analysis"]

@@ -466,22 +466,25 @@ def test_quote_scan_keeps_fixed_ledgers_but_shares_newly_classified_spam_authors
 def test_reused_draft_keeps_context_references_durability_and_pre_send_availability(monkeypatch):
     original, quotes = _configure_cycle(monkeypatch)
     state = bot.default_state()
-    prepared_context = bot.build_quote_tweet_reply_context(original, quotes[0])
+    prepared_context = bot._reply_context_owner().build_quote(original, quotes[0])
     assert prepared_context is not None
     context = prepared_context.context
     reply = unit_approved_reply(context)
     assert bot.store_pending_ai_reply(state, "910", "quote_tweet", reply, context=context)
     bot.save_state(state, durable=True)
-    bot.reply_media_context_for_candidate.reset_mock()
+    media_context = Mock(return_value={})
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_native_media.ReplyMedia, "context", media_context,
+    )
     trace = Mock()
     draft_methods = {"recover_pending_ai_reply": "recover", "store_pending_ai_reply": "store"}
     owned_operations = {
         "cache_tweet": bot._tweet_lookup_cache_owner().store,
-        "build_quote_tweet_reply_context": bot._reply_context_owner().build_quote,
+        "build_quote_context": bot._reply_context_owner().build_quote,
         "recovery_comparison_account_replies": bot._reply_history_owner().recovery_replies,
         "bind_conversational_reply_attempt_time": bot._reply_receipt_values_owner().bind_attempt,
     }
-    for name in ("cache_tweet", "save_state", "build_quote_tweet_reply_context",
+    for name in ("cache_tweet", "save_state", "build_quote_context",
                  "reply_evidence_repository", "recovery_comparison_account_replies",
                  "recover_pending_ai_reply", "store_pending_ai_reply", "bind_conversational_reply_attempt_time"):
         original_operation = (
@@ -497,7 +500,7 @@ def test_reused_draft_keeps_context_references_durability_and_pre_send_availabil
             patch_reply_history_method(monkeypatch, "recovery_replies", callback)
         elif name == "cache_tweet":
             patch_tweet_lookup_method(monkeypatch, "store", callback)
-        elif name == "build_quote_tweet_reply_context":
+        elif name == "build_quote_context":
             patch_reply_context_method(monkeypatch, "build_quote", callback)
         elif name == "bind_conversational_reply_attempt_time":
             patch_reply_owner_method(
@@ -526,7 +529,7 @@ def test_reused_draft_keeps_context_references_durability_and_pre_send_availabil
     )
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
     names = [c[0] for c in trace.mock_calls]
-    assert names[:4] == ["cache_tweet", "save_state", "build_quote_tweet_reply_context", "reply_evidence_repository"]
+    assert names[:4] == ["cache_tweet", "save_state", "build_quote_context", "reply_evidence_repository"]
     assert names.index("recovery_comparison_account_replies") < names.index("recover_pending_ai_reply")
     store_index = names.index("store_pending_ai_reply")
     send_names = [name for name in names[store_index:] if name != "reply_evidence_repository"]
@@ -543,7 +546,7 @@ def test_reused_draft_keeps_context_references_durability_and_pre_send_availabil
     assert template["reply_context"] == live_context and template["reply_context"] is not live_context
     assert template["ai_reply_draft"] is not template["reply_text"].draft_record
     assert "_prepared_media_context" not in live_context
-    assert bot.reply_media_context_for_candidate.call_count == 1
+    assert media_context.call_count == 1
     generate.assert_not_called()
     bot.create_post.assert_not_called()
     assert not state.get("pending_ai_reply_drafts")
@@ -849,7 +852,7 @@ def test_context_rejection_is_free_but_evaluation_budget_spans_original_posts(mo
 ])
 def test_pre_generation_failures_keep_their_own_exception_boundary(monkeypatch, boundary):
     original, quotes = _configure_cycle(monkeypatch)
-    prepared_context = bot.build_quote_tweet_reply_context(original, quotes[0])
+    prepared_context = bot._reply_context_owner().build_quote(original, quotes[0])
     assert prepared_context is not None
     context = prepared_context.context
     patch_reply_context_method(monkeypatch, "build_quote", Mock(return_value=prepared_context))

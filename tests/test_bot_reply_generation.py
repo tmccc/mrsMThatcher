@@ -215,7 +215,7 @@ def test_generation_preserves_order_and_references_through_the_current_pipeline(
     monkeypatch.setattr(bot, "log", SimpleNamespace(info=trace.info, warning=trace.warning))
     obsolete_relays = {
         name: Mock(side_effect=AssertionError(f"root relay used: {name}"))
-        for name in ("collect_reply_images", "openai_responses_reply_call", "_openai_api_error", "record_api_error")
+        for name in ("collect_reply_images", "openai_responses_reply_call", "record_api_error")
     }
     for name, relay in obsolete_relays.items():
         monkeypatch.setattr(bot, name, relay)

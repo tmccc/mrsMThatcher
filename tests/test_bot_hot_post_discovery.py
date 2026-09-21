@@ -134,6 +134,22 @@ def test_adapters_forward_current_dependencies_arguments_defaults_results_and_er
     assert owner.call_args.args == (state, candidate, "unspecified")
 
 
+def test_hot_post_compatibility_entry_point_assembles_each_call(monkeypatch):
+    """The compatibility entry point keeps fresh, late-bound assembly per call."""
+    state = {}
+    first = Mock(return_value=[{"id": "201"}])
+    second = Mock(return_value=[{"id": "202"}])
+    assemble = Mock(side_effect=[first, second])
+    monkeypatch.setattr(bot, "_hot_post_discovery_callback", assemble)
+
+    assert bot.get_hot_post_reply_candidates(state) == [{"id": "201"}]
+    assert bot.get_hot_post_reply_candidates(state) == [{"id": "202"}]
+
+    assert assemble.call_args_list == [call(), call()]
+    first.assert_called_once_with(state)
+    second.assert_called_once_with(state)
+
+
 def test_early_flags_and_watch_failures_precede_tracking_changes(monkeypatch):
     state = {"hot_post_reply_since_ids": {"unwatched": "99"}, "hot_post_reply_check_counts": []}
     before = copy.deepcopy(state)

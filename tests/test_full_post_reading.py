@@ -93,7 +93,7 @@ def test_legacy_parent_refreshes_respect_network_fetch_budget(monkeypatch):
     monkeypatch.setattr(bot, 'THREAD_CONTEXT_MAX_NETWORK_FETCHES', 1)
     lookup = Mock(side_effect=lambda tid, current: current['tweet_cache'][tid])
     patch_tweet_lookup_method(monkeypatch, "get_cached", lookup)
-    assert [row['id'] for row in bot.build_parent_chain(target, state)] == ['102']
+    assert [row['id'] for row in bot._reply_context_owner().parent_chain(target, state)] == ['102']
     lookup.assert_called_once_with('102', state)
 
 

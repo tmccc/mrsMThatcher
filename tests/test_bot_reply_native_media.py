@@ -103,7 +103,7 @@ def test_aliases_and_adapters_keep_defaults_references_and_errors(monkeypatch):
     for name, method_name in (
         ("candidate_native_photo_media", "candidate_photos"),
         ("reply_media_context_for_candidate", "context"),
-        ("_safe_reply_image_url", "safe_url"), ("collect_reply_images", "collect"),
+        ("collect_reply_images", "collect"),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter)

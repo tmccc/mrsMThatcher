@@ -126,11 +126,8 @@ def test_root_owner_binds_current_dependencies_and_preserves_original_default(mo
 
 def test_root_adapters_preserve_arguments_result_identity_and_errors(monkeypatch):
     methods = {
-        "_confirmed_conversational_history_rows": "confirmed_rows",
         "recent_confirmed_account_replies": "recent_replies",
-        "_reply_context_history_excluded_post_ids": "context_excluded_post_ids",
         "recovery_comparison_account_replies": "recovery_replies",
-        "_same_author_confirmed_history_rows": "same_author_rows",
         "recent_same_author_account_interactions": "recent_same_author_interactions",
     }
     for root_name, method_name in methods.items():

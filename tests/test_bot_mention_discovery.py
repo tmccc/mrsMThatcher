@@ -107,6 +107,22 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
     assert bot.remove_pending_mention_candidate is discovery.remove_pending_mention_candidate
 
 
+def test_get_mentions_compatibility_entry_point_assembles_each_call(monkeypatch):
+    """The compatibility entry point keeps fresh, late-bound assembly per call."""
+    state = {}
+    first = Mock(return_value=[{"id": "101"}])
+    second = Mock(return_value=[{"id": "102"}])
+    assemble = Mock(side_effect=[first, second])
+    monkeypatch.setattr(bot, "_mention_discovery_callback", assemble)
+
+    assert bot.get_mentions(state) == [{"id": "101"}]
+    assert bot.get_mentions(state) == [{"id": "102"}]
+
+    assert assemble.call_args_list == [call(), call()]
+    first.assert_called_once_with(state)
+    second.assert_called_once_with(state)
+
+
 def test_queue_adapters_bind_fresh_current_owners_without_runtime_access(monkeypatch):
     fields = {
         "state_file": "STATE_FILE", "authority": "_mention_authority_owner",

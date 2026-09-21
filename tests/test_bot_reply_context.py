@@ -82,7 +82,7 @@ def make_owner():
     """Compose context operations using isolated runtime boundaries."""
     def build(**overrides):
         current = {field: getattr(bot, name) for field, name in OWNER_INPUTS.items()}
-        current["default_post_maximum_chars"] = inspect.signature(bot._reply_context_post).parameters["maximum_chars"].default
+        current["default_post_maximum_chars"] = bot._DEFAULT_REPLY_CONTEXT_POST_MAXIMUM_CHARS
         current["tweets"] = bot._tweet_lookup_cache_owner()
         current["media"] = bot._reply_media_owner()
         return reply_context.ReplyContext(**{**current, **overrides})
@@ -90,7 +90,7 @@ def make_owner():
 
 
 def test_owner_composition_binds_current_dependencies_without_calling_them(monkeypatch):
-    default = inspect.signature(bot._reply_context_post).parameters["maximum_chars"].default
+    default = bot._DEFAULT_REPLY_CONTEXT_POST_MAXIMUM_CHARS
     parameters = inspect.signature(reply_context.ReplyContext).parameters
     assert len(parameters) == 19
     assert parameters.keys() == OWNER_INPUTS.keys() | {"default_post_maximum_chars", "tweets", "media"}
@@ -126,62 +126,6 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
         first.user_id = "different"
 
 
-def test_adapters_preserve_defaults_argument_result_identity_and_native_errors(monkeypatch):
-    methods = {
-        "get_immediate_parent_id": "parent_id", "build_parent_chain": "parent_chain",
-        "is_our_auto_reply": "is_our_auto_reply", "_reply_context_post": "post",
-        "_log_single_call_context_summary": "log_summary",
-        "_directly_quoted_tweet_for_reply_context": "directly_quoted_tweet",
-        "_quoted_post_for_reply_context": "quoted_post",
-        "_parent_path_is_contiguous": "parent_path_is_contiguous",
-        "_parent_path_is_chronological": "parent_path_is_chronological",
-        "build_context_for_reply_ai": "build",
-        "build_quote_tweet_reply_context": "build_quote",
-    }
-    for name, method_name in methods.items():
-        adapter = getattr(bot, name)
-        public = inspect.signature(adapter).parameters
-        if method_name == "build_quote":
-            assert tuple(public) == ("original_tweet", "quote_tweet")
-            assert all(param.kind is param.POSITIONAL_OR_KEYWORD for param in public.values())
-        elif method_name in {"build", "parent_chain"}:
-            assert tuple(public) == ("mention", "state")
-            assert all(param.kind is param.POSITIONAL_OR_KEYWORD for param in public.values())
-        elif method_name == "directly_quoted_tweet":
-            assert tuple(public) == ("candidate", "state", "include_media")
-            assert public["include_media"].kind is inspect.Parameter.KEYWORD_ONLY
-            assert public["include_media"].default is True
-        args = tuple(object() for param in public.values() if param.kind == param.POSITIONAL_OR_KEYWORD)
-        for use_defaults in (True, False):
-            owner = Mock(spec=reply_context.ReplyContext)
-            factory = Mock(return_value=owner)
-            monkeypatch.setattr(bot, "_reply_context_owner", factory)
-            implementation = getattr(owner, method_name)
-            result = object()
-            implementation.return_value = result
-            options = {
-                key: object() for key, param in public.items()
-                if param.kind == param.KEYWORD_ONLY
-                and (not use_defaults or param.default is param.empty)
-            }
-            expected = {
-                key: param.default for key, param in public.items()
-                if param.kind == param.KEYWORD_ONLY and param.default is not param.empty
-            } | options
-            assert adapter(*args, **options) is result
-            factory.assert_called_once_with()
-            actual_args, actual_kwargs = implementation.call_args
-            assert len(actual_args) == len(args)
-            assert all(actual is original for actual, original in zip(actual_args, args))
-            assert actual_kwargs.keys() == expected.keys()
-            assert all(actual_kwargs[key] is value for key, value in expected.items())
-            failure = TypeError(name)
-            implementation.side_effect = failure
-            with pytest.raises(TypeError) as caught:
-                adapter(*args, **options)
-            assert caught.value is failure
-
-
 def test_pure_text_helpers_are_compatible_aliases_with_local_composition(monkeypatch):
     for name in ("clean_text_for_reply_context", "tweet_context_text", "trim_context_text", "_direct_quote_id"):
         assert getattr(bot, name) is getattr(reply_context, name)
@@ -197,8 +141,8 @@ def test_pure_text_helpers_are_compatible_aliases_with_local_composition(monkeyp
         reply_context.trim_context_text("text", 0)
 
 
-def test_visible_post_omitted_maximum_keeps_definition_time_default_after_config_rebind(monkeypatch):
-    fixed = inspect.signature(bot._reply_context_post).parameters["maximum_chars"].default
+def test_owner_keeps_assembled_post_maximum_after_config_rebind(monkeypatch):
+    fixed = bot._DEFAULT_REPLY_CONTEXT_POST_MAXIMUM_CHARS
     assert fixed == bot.MAX_VISIBLE_TEXT_CHARACTERS
     assert inspect.signature(reply_context.ReplyContext.post).parameters["maximum_chars"].default is inspect.Parameter.empty
     tweet = {"id": 100, "author_id": 200, "text": "x" * (fixed + 20)}
@@ -210,13 +154,16 @@ def test_visible_post_omitted_maximum_keeps_definition_time_default_after_config
     assert owner.maximum_visible_chars == 7
     assert owner.default_post_maximum_chars == fixed
 
-    omitted = bot._reply_context_post(tweet, principal_author_id="200")
-    explicit = bot._reply_context_post(tweet, principal_author_id="200", maximum_chars=7)
+    assembled = owner.post(
+        tweet, principal_author_id="200",
+        maximum_chars=owner.default_post_maximum_chars,
+    )
+    explicit = owner.post(tweet, principal_author_id="200", maximum_chars=7)
 
-    assert omitted == {"post_id": "100", "author_role": "account", "text": "x" * (fixed - 3) + "..."}
+    assert assembled == {"post_id": "100", "author_role": "account", "text": "x" * (fixed - 3) + "..."}
     assert explicit == {"post_id": "100", "author_role": "account", "text": "xxxx..."}
     assert [entry.args[1] for entry in trim.call_args_list] == [fixed, 7]
-    assert inspect.signature(bot._reply_context_post).parameters["maximum_chars"].default == fixed
+    assert bot._DEFAULT_REPLY_CONTEXT_POST_MAXIMUM_CHARS == fixed
 
 
 def test_quote_context_preserves_budget_roles_reference_boundaries_and_media_before_summary(monkeypatch, make_owner):
@@ -438,18 +385,18 @@ def test_context_keeps_usable_suffix_raw_ancestor_quote_and_media_copy_metadata_
         bound_visible_conversation=trace.bound_visible_conversation,
         media=SimpleNamespace(context=trace.media), current_utc_datetime=trace.clock,
     )
-    trace.attach_mock(Mock(wraps=owner.parent_id), "get_immediate_parent_id")
-    trace.attach_mock(Mock(wraps=owner.log_summary), "_log_single_call_context_summary")
-    monkeypatch.setattr(reply_context.ReplyContext, "parent_id", trace.get_immediate_parent_id)
-    monkeypatch.setattr(reply_context.ReplyContext, "log_summary", trace._log_single_call_context_summary)
+    trace.attach_mock(Mock(wraps=owner.parent_id), "parent_id")
+    trace.attach_mock(Mock(wraps=owner.log_summary), "log_summary")
+    monkeypatch.setattr(reply_context.ReplyContext, "parent_id", trace.parent_id)
+    monkeypatch.setattr(reply_context.ReplyContext, "log_summary", trace.log_summary)
 
     prepared_context = owner.build(target, state)
     assert prepared_context is not None
     context = prepared_context.context
 
     assert [entry[0] for entry in trace.mock_calls][-7:] == [
-        "bound_visible_conversation", "copy", "media", "get_immediate_parent_id",
-        "clock", "get_immediate_parent_id", "_log_single_call_context_summary",
+        "bound_visible_conversation", "copy", "media", "parent_id",
+        "clock", "parent_id", "log_summary",
     ]
     assert parents.call_args.args[0] is target
     assert parents.call_args.args[1] is state
@@ -468,7 +415,7 @@ def test_context_keeps_usable_suffix_raw_ancestor_quote_and_media_copy_metadata_
     assert trace.media.call_args.args[0] is target
     assert trace.media.call_args.kwargs == {"lane": "hot_post", "target_id": "130", "quoted_candidate": quoted}
     assert trace.media.call_args.kwargs["quoted_candidate"] is quoted
-    assert trace._log_single_call_context_summary.call_args.args[1] is prepared_context
+    assert trace.log_summary.call_args.args[1] is prepared_context
     context["parent_thread"][0]["text"] = "Changed copy"
     assert context["visible_conversation"][0]["text"] == "Parent"
     assert (chain, target, quoted, state) == before

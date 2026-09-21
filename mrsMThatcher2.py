@@ -1,8 +1,20 @@
 #!/usr/bin/env python3
-"""Run the production MrsMThatcher posting and conversational-reply bot."""
+"""Run the production MrsMThatcher posting and conversational-reply bot.
+
+This root deliberately retains three kinds of responsibility: import/startup
+and remote-write authority; invocation-scoped owner/dependency assembly; and
+stable compatibility entry points used by tests and maintained offline tools.
+Delegated implementation behaviour lives in the imported owner modules.  The
+labelled sections below make those roles visible without moving definitions
+across import-time or monkeypatch-sensitive boundaries.
+"""
 
 
 from __future__ import annotations
+
+# ---------------------------------------------------------------------
+# Operational authority: import-time lifecycle and command mode
+# ---------------------------------------------------------------------
 
 # importlib.reload executes in the existing module dictionary. Refuse before
 # reassigning any descriptor, latch, signal guard, bootstrap or client authority.
@@ -732,7 +744,7 @@ MEME_ANALYSIS_FILE = BASE_DIR / "final_posting_queue_top90_as_is" / "renamed_png
 
 
 # ---------------------------------------------------------------------
-# Logging
+# Operational authority: logging, bootstrap, locks, and installation
 # ---------------------------------------------------------------------
 
 PRODUCTION_LOG_MAX_BYTES = 2_000_000
@@ -1745,7 +1757,7 @@ def initialise_installation() -> int:
 
 
 # ---------------------------------------------------------------------
-# Runtime control / pause file
+# Operational authority: runtime control / pause file
 # ---------------------------------------------------------------------
 
 _CONTROL_CACHE: dict[str, object] = {
@@ -2171,7 +2183,7 @@ def api_error_is_permanent_target_failure(error: Exception) -> bool:
 
 
 # ---------------------------------------------------------------------
-# Persistence
+# Runtime assembly and compatibility API: persistence
 # ---------------------------------------------------------------------
 
 DURABLE_RUNTIME_JSON_MAX_BYTES = 64 * 1024 * 1024
@@ -2839,7 +2851,7 @@ def clarification_reply_context(state: dict, candidate: dict, *, current: int) -
 
 
 # ---------------------------------------------------------------------
-# Time / cooldown / error handling
+# Runtime assembly and compatibility API: time, cooldowns, and errors
 # ---------------------------------------------------------------------
 
 def now_epoch() -> int:
@@ -2956,7 +2968,7 @@ def record_api_error(state: dict, error: Exception, service: str, *, scope: str 
 
 
 # ---------------------------------------------------------------------
-# X API helpers
+# Operational authority: X request routing and transport
 # ---------------------------------------------------------------------
 
 def _x_request_routes_owner() -> _request_route_values.XRequestRoutes:
@@ -3264,7 +3276,7 @@ def x_paginated_get(
 
 
 # ---------------------------------------------------------------------
-# Tweet cache / thread context
+# Runtime assembly and compatibility API: tweet cache and reply context
 # ---------------------------------------------------------------------
 
 normalise_tweet_text = _tweet_lookup_cache.normalise_tweet_text
@@ -3332,11 +3344,6 @@ def _reply_context_owner() -> _reply_context.ReplyContext:
         media=_reply_media_owner(),
         default_post_maximum_chars=_DEFAULT_REPLY_CONTEXT_POST_MAXIMUM_CHARS,
     )
-
-
-def get_immediate_parent_id(tweet: dict) -> str | None:
-    """Read a parent identity through the context owner."""
-    return _reply_context_owner().parent_id(tweet)
 
 
 def _verified_tweet_lookup_row(
@@ -3423,35 +3430,6 @@ tweet_context_text = _reply_context.tweet_context_text
 trim_context_text = _reply_context.trim_context_text
 
 
-def build_parent_chain(mention: dict, state: dict) -> list[dict]:
-    """Build a bounded parent path through the context owner."""
-    return _reply_context_owner().parent_chain(mention, state)
-
-
-def is_our_auto_reply(tweet: dict | None, state: dict) -> bool:
-    """Identify this account's conversational replies through the context owner."""
-    return _reply_context_owner().is_our_auto_reply(tweet, state)
-
-
-def _reply_context_post(
-    tweet: dict,
-    *,
-    principal_author_id: str,
-    maximum_chars: int = MAX_VISIBLE_TEXT_CHARACTERS,
-) -> dict[str, str]:
-    """Prepare one visible post through the context owner."""
-    return _reply_context_owner().post(
-        tweet, principal_author_id=principal_author_id, maximum_chars=maximum_chars,
-    )
-
-
-def _log_single_call_context_summary(
-    label: str, prepared: _reply_cycle_interfaces.PreparedReplyContext,
-) -> None:
-    """Log bounded context structure through its owner."""
-    return _reply_context_owner().log_summary(label, prepared)
-
-
 def _log_validated_single_call_reply(
     *,
     target_description: str,
@@ -3467,51 +3445,11 @@ def _log_validated_single_call_reply(
     )
 
 
-def _directly_quoted_tweet_for_reply_context(
-    candidate: dict,
-    state: dict,
-    *,
-    include_media: bool = True,
-) -> dict | None:
-    """Fetch a directly quoted post through the context owner."""
-    return _reply_context_owner().directly_quoted_tweet(
-        candidate, state, include_media=include_media,
-    )
-
-
 _direct_quote_id = _reply_context._direct_quote_id
 
 
-def _quoted_post_for_reply_context(
-    candidate: dict,
-    state: dict,
-    *,
-    principal_author_id: str,
-) -> dict[str, str] | None:
-    """Prepare a directly quoted post through the context owner."""
-    return _reply_context_owner().quoted_post(
-        candidate, state, principal_author_id=principal_author_id,
-    )
-
-
-def _parent_path_is_contiguous(path: list[dict], target: dict) -> bool:
-    """Check parent-path continuity through the context owner."""
-    return _reply_context_owner().parent_path_is_contiguous(path, target)
-
-
-def _parent_path_is_chronological(path: list[dict], target: dict) -> bool:
-    """Check verified parent timestamps through the context owner."""
-    return _reply_context_owner().parent_path_is_chronological(path, target)
-
-
-def build_context_for_reply_ai(
-    mention: dict,
-    state: dict,
-) -> _reply_cycle_interfaces.PreparedReplyContext | None:
-    """Build canonical context and separate native media through their owner."""
-    return _reply_context_owner().build(mention, state)
 # ---------------------------------------------------------------------
-# Mentions
+# Runtime assembly and compatibility API: reply discovery
 # ---------------------------------------------------------------------
 
 def reply_target_is_directly_eligible(tweet: dict) -> bool:
@@ -3546,10 +3484,21 @@ def pending_mention_candidates(state: dict) -> list[dict]:
 remove_pending_mention_candidate = _mention_discovery.remove_pending_mention_candidate
 
 
-def get_mentions(state: dict) -> list[dict]:
-    """Delegate to the mention owner with current root dependencies."""
-    return _mention_discovery.get_mentions(
-        state,
+def _mention_discovery_callback(
+    *,
+    tweets: _tweet_lookup_cache.TweetLookupCache | None = None,
+    mention_queue: _mention_discovery.MentionQueue | None = None,
+    reply_evaluations: _reply_evaluation_state.ReplyEvaluations | None = None,
+) -> _reply_cycle_interfaces.ReplyCandidateDiscovery:
+    """Bind one mention-discovery callback, reusing supplied cycle owners."""
+    if tweets is None:
+        tweets = _tweet_lookup_cache_owner()
+    if mention_queue is None:
+        mention_queue = _mention_queue_owner()
+    if reply_evaluations is None:
+        reply_evaluations = _reply_evaluation_owner()
+    return functools.partial(
+        _mention_discovery.get_mentions,
         ApiError=ApiError,
         MAX_MENTIONS_PER_CHECK=MAX_MENTIONS_PER_CHECK,
         MENTIONS_MAX_PAGES_PER_CHECK=MENTIONS_MAX_PAGES_PER_CHECK,
@@ -3557,13 +3506,13 @@ def get_mentions(state: dict) -> list[dict]:
         MY_USER_ID=MY_USER_ID,
         _MentionBacklogContinuationLimit=_MentionBacklogContinuationLimit,
         api_error_is_invalid_pagination_cursor=api_error_is_invalid_pagination_cursor,
-        tweets=_tweet_lookup_cache_owner(),
+        tweets=tweets,
         log=log,
         log_event=log_event,
         log_json_debug=log_json_debug,
         now_epoch=now_epoch,
-        mention_queue=_mention_queue_owner(),
-        reply_evaluations=_reply_evaluation_owner(),
+        mention_queue=mention_queue,
+        reply_evaluations=reply_evaluations,
         save_state=save_state,
         valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
         x_paginated_get=x_paginated_get,
@@ -3572,11 +3521,35 @@ def get_mentions(state: dict) -> list[dict]:
     )
 
 
-def get_hot_post_reply_candidates(state: dict) -> list[dict]:
-    """Delegate to the hot-post owner with current root dependencies."""
-    tweets = _tweet_lookup_cache_owner()
-    return _hot_post_discovery.get_hot_post_reply_candidates(
-        state,
+def get_mentions(state: dict) -> list[dict]:
+    """Run mention discovery with freshly assembled current dependencies."""
+    return _mention_discovery_callback()(state)
+
+
+def _hot_post_discovery_callback(
+    *,
+    tweets: _tweet_lookup_cache.TweetLookupCache | None = None,
+    drafts: _reply_drafts.ReplyDrafts | None = None,
+    cooldowns: _api_cooldowns.ApiCooldowns | None = None,
+    controls: _runtime_control.RuntimeControls | None = None,
+    watch_posts: _quote_discovery.QuoteWatchPosts | None = None,
+    reply_evaluations: _reply_evaluation_state.ReplyEvaluations | None = None,
+) -> _reply_cycle_interfaces.ReplyCandidateDiscovery:
+    """Bind one hot-post discovery callback, reusing supplied cycle owners."""
+    if tweets is None:
+        tweets = _tweet_lookup_cache_owner()
+    if drafts is None:
+        drafts = _reply_draft_owner()
+    if cooldowns is None:
+        cooldowns = _api_cooldown_owner()
+    if controls is None:
+        controls = _runtime_controls_owner()
+    if watch_posts is None:
+        watch_posts = _quote_watch_posts_owner(tweets=tweets)
+    if reply_evaluations is None:
+        reply_evaluations = _reply_evaluation_owner()
+    return functools.partial(
+        _hot_post_discovery.get_hot_post_reply_candidates,
         ApiError=ApiError,
         ENABLE_HOT_POST_REPLY_CHECKS=ENABLE_HOT_POST_REPLY_CHECKS,
         EXTRA_QUOTE_WATCH_FILE=EXTRA_QUOTE_WATCH_FILE,
@@ -3587,21 +3560,27 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
         MAX_HOT_POST_REPLIES_PER_CHECK=MAX_HOT_POST_REPLIES_PER_CHECK,
         MY_USER_ID=MY_USER_ID,
         tweets=tweets,
-        retire_ineligible_draft=_reply_draft_owner().retire_ineligible,
-        cooldowns=_api_cooldown_owner(),
-        controls=_runtime_controls_owner(),
-        watch_posts=_quote_watch_posts_owner(tweets=tweets),
+        retire_ineligible_draft=drafts.retire_ineligible,
+        cooldowns=cooldowns,
+        controls=controls,
+        watch_posts=watch_posts,
         log=log,
         log_event=log_event,
         log_json_debug=log_json_debug,
         mark_hot_post_reply_skipped=mark_hot_post_reply_skipped,
-        reply_evaluations=_reply_evaluation_owner(),
+        reply_evaluations=reply_evaluations,
         reply_target_is_directly_eligible=reply_target_is_directly_eligible,
         save_state=save_state,
         valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
         x_paginated_get=x_paginated_get,
         x_quote_lookup_request=x_quote_lookup_request,
     )
+
+
+def get_hot_post_reply_candidates(state: dict) -> list[dict]:
+    """Run hot-post discovery with freshly assembled current dependencies."""
+    return _hot_post_discovery_callback()(state)
+
 
 def mark_hot_post_reply_skipped(
     state: dict,
@@ -3643,7 +3622,7 @@ def dedupe_reply_candidates(mentions: list[dict], hot_post_replies: list[dict]) 
 
 
 # ---------------------------------------------------------------------
-# Media / posting
+# Operational authority: remote posting and durable transaction boundaries
 # ---------------------------------------------------------------------
 
 def validate_media_upload_payload_metadata(
@@ -4704,7 +4683,7 @@ def create_post(
 
 
 # ---------------------------------------------------------------------
-# Quote/image posting
+# Runtime assembly and compatibility API: quote/image posting
 # ---------------------------------------------------------------------
 
 class NoEligibleImageForQuote(RuntimeError):
@@ -4837,6 +4816,9 @@ def _asset_metadata_owner() -> _asset_metadata.AssetMetadata:
     )
 
 
+# Maintained offline selectors and simulators use the remaining public root
+# metadata API.  Assemble its owner per call so current patched inputs remain
+# visible; keep fixed, identity-tested transformations as direct aliases.
 def load_json_object(path: Path, *, label: str) -> dict | None:
     """Load JSON object."""
     return _asset_metadata_owner().load_json(path, label=label)
@@ -4857,19 +4839,6 @@ def file_sha256(path: Path) -> str:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
             h.update(chunk)
     return h.hexdigest()
-
-
-def deep_merge_dict(base: dict, patch: dict) -> dict:
-    """Return the deep merge dict."""
-    return _asset_metadata.deep_merge_dict(
-        base,
-        patch,
-    )
-
-
-def apply_quote_analysis_overrides(raw_analysis: dict, overrides: dict | None) -> dict:
-    """Apply quote analysis overrides."""
-    return _asset_metadata_owner().apply_quote_overrides(raw_analysis, overrides)
 
 
 def load_quote_analysis() -> dict | None:
@@ -4964,11 +4933,6 @@ def load_quote_used_hashes(lines: list[str]) -> set[str]:
 def save_quote_used_hashes(path: Path, value: set[str], *, durable: bool = False) -> None:
     """Return whether save quote used hashes."""
     return _used_history_owner().save_quote_used_hashes(path, value, durable=durable)
-
-
-def validate_quote_analysis_against_lines(quote_analysis: dict, lines: list[str]) -> None:
-    """Validate quote analysis against lines."""
-    return _asset_metadata_owner().validate_quote_lines(quote_analysis, lines)
 
 
 def current_image_paths() -> list[str]:
@@ -6210,8 +6174,9 @@ def load_image_used_basenames(images: list[str]) -> set:
     return _used_history_owner().load_image_used_basenames(images)
 
 
-# Keep the public helper API here; resolve runtime token and phrase policy
-# at each call while fixed tag transformations use their owner directly.
+# Maintained backtests and research tools use this public scoring API. Resolve
+# token and phrase policy at each call so replacement after import stays
+# visible, while fixed tag transformations use their owner directly.
 normalise_tag = _image_scoring.normalise_tag
 
 
@@ -6674,6 +6639,10 @@ def _main_post_publication_owner(
     )
 
 
+# ---------------------------------------------------------------------
+# Runtime assembly: ordinary quotation publication
+# ---------------------------------------------------------------------
+
 def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
     """Post a quotation pair through the owner with current root dependencies."""
     selection = _image_selection_owner()
@@ -6732,7 +6701,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
 
 
 # ---------------------------------------------------------------------
-# Daily meme posting
+# Runtime assembly and compatibility API: daily meme posting
 # ---------------------------------------------------------------------
 
 def load_meme_analysis_index() -> dict[str, dict]:
@@ -6930,8 +6899,12 @@ def post_next_meme(state: dict) -> None:
 
 
 # ---------------------------------------------------------------------
-# Reply generation
+# Runtime assembly and compatibility API: conversational replies
 # ---------------------------------------------------------------------
+
+# The normal and quote cycles receive the owners composed below and call their
+# methods directly.  Public draft, history, media and generation adapters remain
+# for callers which use the root API; they are not relays in the live cycles.
 
 SPAMMY_PATTERNS = [
     r"\bcrypto\b",
@@ -7038,7 +7011,11 @@ def pending_ai_reply(
     recent_replies: list[object] | None = None,
     evaluation_outcome: dict[str, object] | None = None,
 ) -> str | None:
-    """Compatibility prose API; production cycles consume recover_pending_ai_reply."""
+    """Return legacy prose while recovery delegates to a freshly built owner.
+
+    The live cycles call their invocation-scoped ``ReplyDrafts.recover`` method
+    directly; this root adapter remains for compatibility callers.
+    """
     result = recover_pending_ai_reply(
         state, target_id, candidate_source, context=context, recent_replies=recent_replies,
     )
@@ -7060,7 +7037,7 @@ def recover_pending_ai_reply(
     context: dict[str, object],
     recent_replies: list[object] | None = None,
 ) -> PipelineResult | None:
-    """Recover a pending draft through its owner without a provider call."""
+    """Compatibility entry point for owner-based recovery without a provider call."""
     return _reply_draft_owner().recover(
         state, target_id, candidate_source,
         context=context, recent_replies=recent_replies,
@@ -7111,11 +7088,6 @@ def _reply_history_owner() -> _reply_history.ReplyHistory:
     )
 
 
-def _confirmed_conversational_history_rows(state: dict) -> list[dict]:
-    """Select confirmed rows through the history owner."""
-    return _reply_history_owner().confirmed_rows(state)
-
-
 _confirmed_history_sort_key = _reply_history._confirmed_history_sort_key
 
 
@@ -7136,13 +7108,6 @@ def recent_confirmed_account_replies(
     )
 
 
-def _reply_context_history_excluded_post_ids(
-    context: dict[str, object],
-) -> set[str]:
-    """Select current conversation identities through the history owner."""
-    return _reply_history_owner().context_excluded_post_ids(context)
-
-
 def recovery_comparison_account_replies(
     state: dict,
     *,
@@ -7150,24 +7115,6 @@ def recovery_comparison_account_replies(
 ) -> list[dict[str, str]]:
     """Select current draft comparisons through the history owner."""
     return _reply_history_owner().recovery_replies(state, context=context)
-
-
-def _same_author_confirmed_history_rows(
-    state: dict,
-    *,
-    author_id: object,
-    current_thread_post_ids: set[str],
-    target_id: object,
-    before_epoch: int | None,
-) -> list[dict]:
-    """Select prior confirmed author rows through the history owner."""
-    return _reply_history_owner().same_author_rows(
-        state,
-        author_id=author_id,
-        current_thread_post_ids=current_thread_post_ids,
-        target_id=target_id,
-        before_epoch=before_epoch,
-    )
 
 
 def recent_same_author_account_interactions(
@@ -7204,11 +7151,6 @@ class ReplyMediaTransientUnavailable(ReplyMediaUnavailable):
     """A material candidate image could not be collected on this cycle."""
 
 
-def _safe_reply_image_url(value: object) -> str:
-    """Check the trusted image origin through the media owner."""
-    return _reply_media_owner().safe_url(value)
-
-
 def collect_reply_images(media_context: dict | None) -> list[dict[str, object]]:
     """Collect up to two already-identified native X images with hard bounds."""
     return _reply_media_owner().collect(media_context)
@@ -7229,38 +7171,6 @@ def _reply_model_transport_owner() -> _reply_model_transport.ReplyModelTransport
         now_epoch=now_epoch,
         error_type=ApiError,
     )
-
-
-def _definite_connection_failure_before_transmission(
-    error: requests.RequestException,
-) -> bool:
-    """Use the reply model transport with current runtime dependencies."""
-    return _reply_model_transport_owner().definite_connection_failure_before_transmission(error)
-
-
-def _openai_api_error(
-    message: str,
-    *,
-    category: str,
-    status_code: int | None = None,
-    reset_epoch: int | None = None,
-    retry_after_seconds: int | None = None,
-    request_attempt_count: int = 1,
-) -> ApiError:
-    """Use the reply model transport with current runtime dependencies."""
-    return _reply_model_transport_owner().error(
-        message,
-        category=category,
-        status_code=status_code,
-        reset_epoch=reset_epoch,
-        retry_after_seconds=retry_after_seconds,
-        request_attempt_count=request_attempt_count,
-    )
-
-
-def _openai_retry_metadata(response: requests.Response) -> tuple[int | None, int | None]:
-    """Return bounded Retry-After metadata for provider cooldown accounting."""
-    return _reply_model_transport_owner().retry_metadata(response)
 
 
 _OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES = _reply_generation._OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES
@@ -7337,7 +7247,11 @@ def generate_single_call_reply(
     state: dict,
     evaluation_outcome: dict | None = None,
 ) -> str | None:
-    """Compatibility prose API; production cycles consume evaluate_single_call_reply."""
+    """Return legacy prose while evaluation delegates to a freshly built owner.
+
+    The live cycles call their invocation-scoped ``ReplyGeneration.evaluate``
+    method directly; this root adapter remains for compatibility callers.
+    """
     result = evaluate_single_call_reply(context, media_context, state=state)
     if evaluation_outcome is not None:
         evaluation_outcome.update(
@@ -7355,7 +7269,7 @@ def evaluate_single_call_reply(
     *,
     state: dict,
 ) -> PipelineResult:
-    """Return the authoritative reply decision and its accounting metadata."""
+    """Compatibility entry point returning an owner decision and its accounting."""
     return _reply_generation_owner().evaluate(context, media_context, state=state)
 
 
@@ -8005,6 +7919,10 @@ def _reply_cycle_delivery(
     )
 
 
+# ---------------------------------------------------------------------
+# Runtime assembly: normal mention and hot-post reply cycle
+# ---------------------------------------------------------------------
+
 def maybe_reply_to_mentions(
     state: dict,
     *,
@@ -8054,54 +7972,17 @@ def maybe_reply_to_mentions(
         generation=generation,
         history=history,
         dedupe_reply_candidates=dedupe_reply_candidates,
-        get_hot_post_reply_candidates=functools.partial(
-            _hot_post_discovery.get_hot_post_reply_candidates,
-            ApiError=ApiError,
-            ENABLE_HOT_POST_REPLY_CHECKS=ENABLE_HOT_POST_REPLY_CHECKS,
-            EXTRA_QUOTE_WATCH_FILE=EXTRA_QUOTE_WATCH_FILE,
-            HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS=HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS,
-            HOT_POST_REPLY_SEARCH_API_MAX_RESULTS=HOT_POST_REPLY_SEARCH_API_MAX_RESULTS,
-            HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK=HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK,
-            HOT_POST_REPLY_USE_SINCE_ID=HOT_POST_REPLY_USE_SINCE_ID,
-            MAX_HOT_POST_REPLIES_PER_CHECK=MAX_HOT_POST_REPLIES_PER_CHECK,
-            MY_USER_ID=MY_USER_ID,
+        get_hot_post_reply_candidates=_hot_post_discovery_callback(
             tweets=tweets,
-            retire_ineligible_draft=drafts.retire_ineligible,
+            drafts=drafts,
             cooldowns=cooldowns,
             controls=controls,
-            watch_posts=_quote_watch_posts_owner(tweets=tweets),
-            log=log,
-            log_event=log_event,
-            log_json_debug=log_json_debug,
-            mark_hot_post_reply_skipped=mark_hot_post_reply_skipped,
             reply_evaluations=reply_evaluations,
-            reply_target_is_directly_eligible=reply_target_is_directly_eligible,
-            save_state=save_state,
-            valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
-            x_paginated_get=x_paginated_get,
-            x_quote_lookup_request=x_quote_lookup_request,
         ),
-        get_mentions=functools.partial(
-            _mention_discovery.get_mentions,
-            ApiError=ApiError,
-            MAX_MENTIONS_PER_CHECK=MAX_MENTIONS_PER_CHECK,
-            MENTIONS_MAX_PAGES_PER_CHECK=MENTIONS_MAX_PAGES_PER_CHECK,
-            MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT=MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT,
-            MY_USER_ID=MY_USER_ID,
-            _MentionBacklogContinuationLimit=_MentionBacklogContinuationLimit,
-            api_error_is_invalid_pagination_cursor=api_error_is_invalid_pagination_cursor,
+        get_mentions=_mention_discovery_callback(
             tweets=tweets,
-            log=log,
-            log_event=log_event,
-            log_json_debug=log_json_debug,
-            now_epoch=now_epoch,
             mention_queue=mention_queue,
             reply_evaluations=reply_evaluations,
-            save_state=save_state,
-            valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
-            x_paginated_get=x_paginated_get,
-            x_request=x_request,
-            api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
         ),
         cooldowns=cooldowns,
         is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying,
@@ -8121,7 +8002,7 @@ def maybe_reply_to_mentions(
 
 
 # ---------------------------------------------------------------------
-# Quote-post replies
+# Runtime assembly and compatibility API: quote discovery and reply policy
 # ---------------------------------------------------------------------
 
 def _quote_watch_posts_owner(
@@ -8217,17 +8098,6 @@ def quote_tweet_directly_quotes_original(quote_tweet: dict, original_post_id: st
 quote_author_profile_text = _quote_reply_cycle.quote_author_profile_text
 
 
-def build_quote_tweet_reply_context(
-    original_tweet: dict,
-    quote_tweet: dict,
-) -> _reply_cycle_interfaces.PreparedReplyContext:
-    """Build the canonical two-turn context for a direct quote-tweet."""
-    return _reply_context_owner().build_quote(
-        original_tweet,
-        quote_tweet,
-    )
-
-
 def mark_quote_tweet_skipped(state: dict, quote_id: str) -> None:
     """Mark quote tweet skipped."""
     return _quote_reply_cycle.mark_quote_tweet_skipped(
@@ -8252,6 +8122,10 @@ def mark_quote_spam_author(state: dict, author_id: str) -> None:
         log=log,
     )
 
+
+# ---------------------------------------------------------------------
+# Runtime assembly: quote-tweet reply cycle
+# ---------------------------------------------------------------------
 
 def maybe_reply_to_quote_tweets(state: dict) -> str:
     """Process eligible quote-tweet candidates under all reply limits."""
@@ -8311,7 +8185,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
 
 
 # ---------------------------------------------------------------------
-# Main loop
+# Operational authority: startup and continuous scheduler
 # ---------------------------------------------------------------------
 
 def _quote_schedule_owner() -> _runtime_state_helpers.QuoteSchedule:
@@ -8810,7 +8684,7 @@ def main() -> None:
 
 
 # ---------------------------------------------------------------------
-# Self-test
+# Diagnostic and test compatibility entry points
 # ---------------------------------------------------------------------
 
 def _self_test_ok(label: str, ok: bool, detail: str = "") -> bool:
@@ -9002,6 +8876,10 @@ def run_test_post_meme() -> int:
         wait_for_durable_barrier_before_one_shot_exit=wait_for_durable_barrier_before_one_shot_exit,
     )
 
+
+# ---------------------------------------------------------------------
+# Operational authority: command dispatch
+# ---------------------------------------------------------------------
 
 def run_cli(argv: list[str] | tuple[str, ...] | None = None) -> int | None:
     """Validate one complete command line, then bootstrap and dispatch it."""

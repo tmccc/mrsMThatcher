@@ -407,7 +407,7 @@ def test_quote_owner_handoffs_keep_current_recovery_and_chronological_model_hist
         "cache_tweet", "get_tweet_by_id_cached",
         "evaluate_single_call_reply", "_record_single_call_result",
         "recovery_comparison_account_replies", "collect_reply_images",
-        "openai_responses_reply_call", "_openai_api_error",
+        "openai_responses_reply_call",
         "reply_media_context_for_candidate",
         "load_confirmed_reply_receipt", "reconcile_confirmed_reply_receipt",
         "bind_conversational_reply_attempt_time",
@@ -416,11 +416,24 @@ def test_quote_owner_handoffs_keep_current_recovery_and_chronological_model_hist
         "apply_confirmed_reply_receipt",
     ):
         relays[name] = Mock(side_effect=AssertionError(f"root relay used: {name}"))
-        monkeypatch.setattr(bot, name, relays[name])
+        monkeypatch.setattr(bot, name, relays[name], raising=False)
 
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_POSTED
     assert len(prepared) == pipeline.call_count == search.call_count == 1
     assert collected_media == [prepared[0].media_context]
+    assert prepared[0].media_context == {
+        "lane": "quote_tweet",
+        "target_id": "912",
+        "mode": "multimodal",
+        "status": "supplied",
+        "photos_expected": 1,
+        "photos": [{
+            "media_key": "photo-912",
+            "url": "https://example.invalid/quote-photo.jpg",
+            "attachment_role": "target_contribution",
+            "source_post_id": "912",
+        }],
+    }
     assert state["tweet_cache"]["912"]["text"] == prepared[0].context["incoming_contribution"]
     assert state["quote_pending_candidates"] == {}
     assert "912" in state["replied_to_quote_post_ids"]

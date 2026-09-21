@@ -43,8 +43,9 @@ from mrs_bot_reply_cycle_interfaces import (
     NORMAL_CHECK_STATUS_SKIPPED_CAP,
     NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN,
     NORMAL_CHECK_STATUS_SKIPPED_SPACING,
-    FinishReplyCheck, NormalReplyConfig, PreparedReplyContext,
-    ReplyCycleDelivery, ReplyCyclePersistence, SkipReplyCandidate,
+    ContinueNormalReplyCheck, FinishReplyCheck, NormalReplyConfig,
+    PreparedReplyContext, ReplyCandidateDiscovery, ReplyCycleDelivery,
+    ReplyCyclePersistence, SkipReplyCandidate,
 )
 from mrs_bot_reply_delivery import ReplyDeliveryStop
 from mrs_bot_reply_evaluation_state import (
@@ -144,8 +145,8 @@ def maybe_reply_to_mentions(
     conversational_reply_pipeline_enabled: Callable,
     accounting: DailyReplyAccounting,
     dedupe_reply_candidates: Callable,
-    get_hot_post_reply_candidates: Callable,
-    get_mentions: Callable,
+    get_hot_post_reply_candidates: ReplyCandidateDiscovery,
+    get_mentions: ReplyCandidateDiscovery,
     cooldowns: ApiCooldowns,
     is_probably_spam_or_not_worth_replying: Callable,
     controls: RuntimeControls,
@@ -154,7 +155,7 @@ def maybe_reply_to_mentions(
     log_event: Callable,
     mention_queue: MentionQueue,
     maybe_mark_hot_post_reply_skipped: Callable,
-    maybe_reply_to_mentions: Callable,
+    maybe_reply_to_mentions: ContinueNormalReplyCheck,
     now_epoch: Callable,
     reply_evaluations: ReplyEvaluations,
     history: ReplyHistory,

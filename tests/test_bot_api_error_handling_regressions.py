@@ -375,12 +375,13 @@ def test_parent_and_quoted_lookup_only_suppress_target_specific_failures(
         lambda *_args, **_kwargs: (_ for _ in ()).throw(unavailable),
     )
 
-    assert bot.build_parent_chain(mention, {}) == []
+    owner = bot._reply_context_owner()
+    assert owner.parent_chain(mention, {}) == []
     quoted = {
         **mention,
         "referenced_tweets": [{"type": "quoted", "id": "123"}],
     }
-    assert bot._quoted_post_for_reply_context(
+    assert owner.quoted_post(
         quoted, {}, principal_author_id="300"
     ) is None
 
@@ -396,9 +397,9 @@ def test_parent_and_quoted_lookup_only_suppress_target_specific_failures(
         lambda *_args, **_kwargs: (_ for _ in ()).throw(global_denial),
     )
     with pytest.raises(bot.ApiError, match="expired token"):
-        bot.build_parent_chain(mention, {})
+        owner.parent_chain(mention, {})
     with pytest.raises(bot.ApiError, match="expired token"):
-        bot._quoted_post_for_reply_context(
+        owner.quoted_post(
             quoted, {}, principal_author_id="300"
         )
 

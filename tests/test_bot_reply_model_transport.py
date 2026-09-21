@@ -96,12 +96,8 @@ def test_owner_composition_binds_current_dependencies_without_calls_or_secret_re
     assert "fixture-transport-secret" not in redacted and "api_key=" not in redacted
 
 
-def test_root_adapters_preserve_signatures_defaults_references_and_errors(monkeypatch):
-    for root_name, method_name in (
-        ("_definite_connection_failure_before_transmission", "definite_connection_failure_before_transmission"),
-        ("_openai_api_error", "error"), ("_openai_retry_metadata", "retry_metadata"),
-        ("openai_responses_reply_call", "call"),
-    ):
+def test_public_root_adapter_preserves_signature_defaults_references_and_errors(monkeypatch):
+    for root_name, method_name in (("openai_responses_reply_call", "call"),):
         adapter = getattr(bot, root_name)
         public = inspect.signature(adapter)
         owned = inspect.signature(getattr(model_transport.ReplyModelTransport, method_name))
@@ -136,9 +132,6 @@ def test_root_adapters_preserve_signatures_defaults_references_and_errors(monkey
             with pytest.raises(TypeError) as caught:
                 adapter(*args, **supplied)
             assert caught.value is failure
-    assert bot._definite_connection_failure_before_transmission.__annotations__["error"] == "requests.RequestException"
-    assert bot._openai_retry_metadata.__annotations__["response"] == "requests.Response"
-    assert bot._openai_api_error.__annotations__["return"] == "ApiError"
 
 
 def test_owner_annotations_describe_injected_transport_without_root_names():

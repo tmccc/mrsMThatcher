@@ -42,7 +42,7 @@ def prepare_cycle(monkeypatch, lane):
     state = bot.default_state()
     if lane == "quote_tweet":
         original, quotes = configure_quote(monkeypatch)
-        prepared_context = bot.build_quote_tweet_reply_context(original, quotes[0])
+        prepared_context = bot._reply_context_owner().build_quote(original, quotes[0])
         assert prepared_context is not None
         context = prepared_context.context
         return state, context, bot.maybe_reply_to_quote_tweets

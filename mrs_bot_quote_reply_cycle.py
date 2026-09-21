@@ -43,7 +43,8 @@ from mrs_bot_reply_cycle_interfaces import (
     QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN,
     QUOTE_CHECK_STATUS_SKIPPED_SPACING,
     FinishReplyCheck, PreparedReplyContext, QuoteReplyConfig,
-    ReplyCycleDelivery, ReplyCyclePersistence, SkipReplyCandidate,
+    QuoteTweetDiscovery, ReplyCycleDelivery, ReplyCyclePersistence,
+    SkipReplyCandidate,
 )
 from mrs_bot_reply_delivery import ReplyDeliveryStop
 from mrs_bot_reply_evaluation_state import terminal_reply_evaluation
@@ -217,7 +218,7 @@ def maybe_reply_to_quote_tweets(
     persistence: ReplyCyclePersistence,
     conversational_reply_pipeline_enabled: Callable,
     accounting: DailyReplyAccounting,
-    get_quote_tweets_for_posts: Callable,
+    get_quote_tweets_for_posts: QuoteTweetDiscovery,
     cooldowns: ApiCooldowns,
     is_probably_spam_or_not_worth_replying: Callable,
     controls: RuntimeControls,

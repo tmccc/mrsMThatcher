@@ -140,7 +140,7 @@ def test_root_context_payload_uses_utc_calendar_date(monkeypatch):
         patch_reply_context_method(monkeypatch, 'parent_chain', lambda *_: [])
         monkeypatch.setattr(bot, 'reply_media_context_for_candidate', lambda *_args, **_kwargs: None)
         target = {'id': '100', 'author_id': '200', 'text': 'What happened today?', 'created_at': '2026-09-03T23:59:59Z', 'referenced_tweets': []}
-        prepared = bot.build_context_for_reply_ai(target, bot.default_state())
+        prepared = bot._reply_context_owner().build(target, bot.default_state())
         assert prepared is not None
         assert prepared.context['current_date'] == bot.current_utc_datetime().date().isoformat()
         assert prepared.context['current_date'] != datetime.fromtimestamp(bot.now_epoch()).date().isoformat()

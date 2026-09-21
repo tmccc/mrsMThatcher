@@ -118,7 +118,7 @@ def test_quote_override_deep_merges_only_requested_field() -> None:
         }
     }
 
-    merged = bot.apply_quote_analysis_overrides(raw, overrides)
+    merged = bot._asset_metadata_owner().apply_quote_overrides(raw, overrides)
 
     assert raw["items"][quote_hash]["analysis"]["seasonality"]["hard_exclude_outside_windows"] is True
     assert merged["items"][quote_hash]["analysis"]["seasonality"]["hard_exclude_outside_windows"] is False
@@ -154,7 +154,6 @@ def test_real_selection_owner_graph_bypasses_obsolete_root_relays(tmp_path, monk
         for name in (
             "load_json_object",
             "load_quote_analysis",
-            "validate_quote_analysis_against_lines",
             "quote_metadata_for_hash",
             "current_quote_hashes_by_line",
             "current_image_paths",
@@ -202,7 +201,7 @@ def test_stale_quote_override_is_warned_and_skipped(caplog: pytest.LogCaptureFix
         }
     }
 
-    merged = bot.apply_quote_analysis_overrides(raw, overrides)
+    merged = bot._asset_metadata_owner().apply_quote_overrides(raw, overrides)
 
     assert merged["items"][quote_hash]["analysis"]["seasonality"]["hard_exclude_outside_windows"] is True
     assert "expected_text does not match" in caplog.text

@@ -29,6 +29,52 @@ Start in [mrsMThatcher2.py](../mrsMThatcher2.py):
    `run_reply_lane_checks_for_tick()`, `_run_due_quote_post_for_tick()` or
    `_run_due_meme_post_for_tick()` for timing and lane selection.
 
+## Three live paths to read first
+
+The root labels operational authority, runtime assembly and compatibility API
+sections explicitly. Its private `_..._owner()` functions build current,
+invocation-scoped dependency graphs; adjacent public adapters are not evidence
+that production returns through the root. Definitions remain in their existing
+order where import-time safety or test monkeypatching makes movement risky.
+
+For the normal mention/hot-post path:
+
+1. `run_reply_lane_checks_for_tick()` chooses the lane in
+   [mrs_bot_tick_coordination.py](../mrs_bot_tick_coordination.py), then the
+   root `maybe_reply_to_mentions()` assembles one set of current owners.
+2. [mrs_bot_normal_reply_cycle.py](../mrs_bot_normal_reply_cycle.py) owns
+   discovery order, admission, model-call budgets, backlog continuation and
+   status mapping. It calls `ReplyContext.build`, `ReplyDrafts.recover` and
+   `ReplyGeneration.evaluate` directly; a recovered draft makes no model call.
+3. A valid reply is durably drafted, copied into a sending-receipt template,
+   and handed to the shared `ReplyCycleDelivery` boundary described below.
+
+For the quote-tweet path:
+
+1. The same tick coordinator selects the quote lane, and root
+   `maybe_reply_to_quote_tweets()` assembles its owners.
+2. [mrs_bot_quote_reply_cycle.py](../mrs_bot_quote_reply_cycle.py) asks its
+   `QuoteWatchPosts` owner for watched originals, uses quote discovery, and owns
+   candidate ordering, delay/cap checks and quote-lane bookkeeping.
+3. It calls `ReplyContext.build_quote`, `ReplyDrafts.recover` and
+   `ReplyGeneration.evaluate` directly, then enters the same delivery boundary.
+   The public root context, draft and generation helpers are compatibility APIs,
+   not steps in either live cycle.
+
+For the posting and durable-state boundary, start with
+`ReplyCycleDelivery.deliver` in
+[mrs_bot_reply_delivery.py](../mrs_bot_reply_delivery.py). It rechecks target
+availability, then its root-supplied posting callback composes send-time receipt
+owners and enters `post_conversational_reply_with_durable_identity`. That flow
+publishes the sending receipt before `create_post`; `create_post` owns the
+transport journal/fence and X-create authority. On confirmed transport,
+`ReplyCompletion.finalise` in
+[mrs_bot_reply_reconciliation.py](../mrs_bot_reply_reconciliation.py) applies
+the confirmed receipt, durably saves canonical state, retires the journal, and
+only then removes the source receipt. Ambiguous outcomes preserve their durable
+barriers. This is the boundary to read before changing posting authority or
+persistence ordering.
+
 Bootstrap composes a fresh `LocalConfiguration` before
 `mrs_bot_runtime_configuration.apply_local_config` loads and applies overrides.
 The application owner calls `load_overrides` directly; the public
@@ -289,19 +335,21 @@ real transport operation when an isolated test server supplies the response.
 `get_cached` directly for parent traversal and directly quoted posts. The
 context-to-lookup hand-off test in `tests/test_bot_reply_context.py` blocks the
 root lookup/pruning relays while exercising cache identity, bounded parent
-fetches and transient media refresh. It also receives `ReplyMedia` directly and
-calls `context` for both normal and quote preparation; the root
+fetches and transient media refresh. Normal and quote cycles receive this owner
+directly; the old root context builders and their method-level helper adapters
+are no longer APIs. `ReplyContext` also receives `ReplyMedia` directly and calls
+`context` for both normal and quote preparation; the root
 `reply_media_context_for_candidate` adapter remains public but is outside both
 production reply paths. Its constructor remains at 19 dependencies while its
 callback-typed fields fall from 7 to 6.
 
 `ClarificationReplies` receives one current `ReplyContext` and uses its parent,
-own-reply and nested tweet-cache operations directly. The root
-`get_immediate_parent_id`, `is_our_auto_reply` and `get_tweet_by_id_cached`
-adapters remain available but are outside clarification evaluation. Its
-constructor falls from 9 dependencies (6 callback-typed) to 6 (2
-callback-typed). Refresh tests block those relays while exercising the real
-context-to-cache hand-off.
+own-reply and nested tweet-cache operations directly. The obsolete root
+`get_immediate_parent_id` and `is_our_auto_reply` method adapters have been
+retired; the separate `get_tweet_by_id_cached` cache adapter remains outside
+clarification evaluation. Its constructor falls from 9 dependencies (6
+callback-typed) to 6 (2 callback-typed). Refresh tests install traps under the
+retired names while exercising the real context-to-cache hand-off.
 
 State loading, public candidate normalization and state publication each compose
 current `StateValues`, `AuthorQuarantines`, `ReplyEvaluations`,

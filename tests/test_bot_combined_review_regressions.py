@@ -65,7 +65,7 @@ def test_quote_confirmation_prevents_second_public_reply(tmp_path, monkeypatch, 
         state = bot.default_state()
         state["recent_own_post_ids"] = ["900"]
         if case != "fresh":
-            prepared_context = bot.build_context_for_reply_ai(copy.deepcopy(target), state)
+            prepared_context = bot._reply_context_owner().build(copy.deepcopy(target), state)
             assert prepared_context is not None
             context = prepared_context.context
             assert prepared_context is not None

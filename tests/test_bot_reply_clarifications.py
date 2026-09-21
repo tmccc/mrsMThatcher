@@ -199,8 +199,9 @@ def test_cached_clarification_keeps_original_references_and_current_correction_t
     before = copy.deepcopy((state, candidate))
     prior, question = state["tweet_cache"]["900"], state["tweet_cache"]["100"]
     trace = Mock()
-    trace.parent = Mock(wraps=bot.get_immediate_parent_id)
-    trace.own = Mock(wraps=bot.is_our_auto_reply)
+    contexts = bot._reply_context_owner()
+    trace.parent = Mock(wraps=contexts.parent_id)
+    trace.own = Mock(wraps=contexts.is_our_auto_reply)
     trace.cue.search = Mock(wraps=bot.CLARIFICATION_CUE_RE.search)
     monkeypatch.setattr(clarifications, "CLARIFICATION_CUE_RE", trace.cue)
     owner = make_owner(contexts=clarification_contexts(
@@ -228,7 +229,7 @@ def test_cached_clarification_keeps_original_references_and_current_correction_t
 
 def test_clarification_requires_ledger_and_cache_proof_and_catches_only_current_parent_error(monkeypatch, make_owner, confirmed_question):
     state, candidate = confirmed_question
-    parent = Mock(wraps=bot.get_immediate_parent_id)
+    parent = Mock(wraps=bot._reply_context_owner().parent_id)
     owner = make_owner(contexts=clarification_contexts(parent_id=parent))
     with monkeypatch.context() as patch:
         patch.setitem(state, "own_auto_reply_ids", [])
@@ -295,7 +296,7 @@ def test_clarification_refreshes_legacy_question_before_looking_for_question_mar
         )
     }
     for name, relay in obsolete_relays.items():
-        monkeypatch.setattr(bot, name, relay)
+        monkeypatch.setattr(bot, name, relay, raising=False)
     result = owner.context(state, candidate, current=2_000_000_001)
     assert result["question_text"] == full
     assert result["trigger"] == "explicit_correction"

@@ -105,13 +105,14 @@ large delays never become an immediate retry. Ambiguous transport failures
 remain non-retryable. Attempt counts and the initial 429 metadata survive a
 second transport or envelope failure.
 
-`evaluate_single_call_reply` checks persisted cooldown before image collection
-or a provider call. Recovered 429s update provider error history and persist
-cooldown before decision telemetry. An independent fault test verifies that a
-telemetry exception cannot erase that cooldown. Tests cover short/long/malformed
-headers, reset durations, 429→success, 429→timeout, repeated candidates, and a
-real state save followed by a new process loading that state under its singleton
-lock.
+`ReplyGeneration.evaluate` checks persisted cooldown before image collection or
+a provider call. The live reply cycles call that owner method directly;
+`evaluate_single_call_reply` remains a root compatibility adapter for direct
+callers. Recovered 429s update provider error history and persist cooldown before
+decision telemetry. An independent fault test verifies that a telemetry
+exception cannot erase that cooldown. Tests cover short/long/malformed headers,
+reset durations, 429→success, 429→timeout, repeated candidates, and a real state
+save followed by a new process loading that state under its singleton lock.
 
 ## Draft migration and files
 

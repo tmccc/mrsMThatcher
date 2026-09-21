@@ -201,6 +201,45 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
     assert caught.value is failure
 
 
+def test_discovery_assembly_reuses_cycle_owner_identity(monkeypatch):
+    """Discovery callbacks share the exact owners constructed for one cycle."""
+    tweets = object()
+    mention_queue = object()
+    reply_evaluations = object()
+    cooldowns = object()
+    controls = object()
+    drafts = Mock()
+    watch_posts = object()
+    watch_owner = Mock(return_value=watch_posts)
+    monkeypatch.setattr(bot, "_quote_watch_posts_owner", watch_owner)
+
+    mention_callback = bot._mention_discovery_callback(
+        tweets=tweets,
+        mention_queue=mention_queue,
+        reply_evaluations=reply_evaluations,
+    )
+    hot_post_callback = bot._hot_post_discovery_callback(
+        tweets=tweets,
+        drafts=drafts,
+        cooldowns=cooldowns,
+        controls=controls,
+        reply_evaluations=reply_evaluations,
+    )
+
+    assert mention_callback.func is mention_discovery.get_mentions
+    assert mention_callback.keywords["tweets"] is tweets
+    assert mention_callback.keywords["mention_queue"] is mention_queue
+    assert mention_callback.keywords["reply_evaluations"] is reply_evaluations
+    assert hot_post_callback.func is bot._hot_post_discovery.get_hot_post_reply_candidates
+    assert hot_post_callback.keywords["tweets"] is tweets
+    assert hot_post_callback.keywords["retire_ineligible_draft"] is drafts.retire_ineligible
+    assert hot_post_callback.keywords["cooldowns"] is cooldowns
+    assert hot_post_callback.keywords["controls"] is controls
+    assert hot_post_callback.keywords["reply_evaluations"] is reply_evaluations
+    assert hot_post_callback.keywords["watch_posts"] is watch_posts
+    watch_owner.assert_called_once_with(tweets=tweets)
+
+
 def test_fixed_statuses_and_dependency_free_helpers_use_their_owners():
     statuses = {
         "NORMAL_CHECK_STATUS_CHECKED": "checked",
@@ -856,7 +895,7 @@ def test_normal_owner_handoffs_keep_current_recovery_and_chronological_model_his
         "build_context_for_reply_ai", "cache_tweet", "evaluate_single_call_reply",
         "get_mentions", "get_hot_post_reply_candidates",
         "_record_single_call_result", "recovery_comparison_account_replies",
-        "collect_reply_images", "openai_responses_reply_call", "_openai_api_error",
+        "collect_reply_images", "openai_responses_reply_call",
         "reply_media_context_for_candidate",
         "load_confirmed_reply_receipt", "reconcile_confirmed_reply_receipt",
         "bind_conversational_reply_attempt_time",
@@ -865,7 +904,7 @@ def test_normal_owner_handoffs_keep_current_recovery_and_chronological_model_his
         "apply_confirmed_reply_receipt",
     ):
         relays[name] = Mock(side_effect=AssertionError(f"root relay used: {name}"))
-        monkeypatch.setattr(bot, name, relays[name])
+        monkeypatch.setattr(bot, name, relays[name], raising=False)
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_POSTED
     assert len(prepared) == pipeline.call_count == 1

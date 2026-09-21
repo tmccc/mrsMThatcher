@@ -2,10 +2,11 @@
 
 These records describe configuration, draft persistence, candidate
 control flow and prepared context/media results. The root supplies current
-callbacks for each check, and builders return transient context/media references
-without adding them to bot state. Import and construction perform no I/O. Candidate policy and discovery
-stay explicit dependencies of their respective cycle owners. The delivery boundary
-is re-exported from its inert behavior owner.
+owners and narrow callbacks for each check, and builders return transient
+context/media references without adding them to bot state. Import and
+construction perform no I/O. Candidate policy and discovery stay explicit
+dependencies of their respective cycle owners. The delivery boundary is
+re-exported from its inert behavior owner.
 """
 
 from __future__ import annotations
@@ -109,6 +110,34 @@ class StoreReplyDraft(Protocol):
         self, state: dict, target_id: str, candidate_source: str, reply: str, *,
         context: dict[str, object],
     ) -> bool: ...
+
+
+class ReplyCandidateDiscovery(Protocol):
+    """Return the current ordered candidates for one normal-lane source."""
+
+    def __call__(self, state: dict) -> list[dict]: ...
+
+
+class ContinueNormalReplyCheck(Protocol):
+    """Re-enter the normal lane while preserving its explicit model budget."""
+
+    def __call__(
+        self,
+        state: dict,
+        *,
+        _fresh_mention_ai_evaluations: int = 0,
+        _skip_hot_post_fetch: bool = False,
+    ) -> str: ...
+
+
+class QuoteTweetDiscovery(Protocol):
+    """Return quote candidates grouped by the watched original-post identity."""
+
+    def __call__(
+        self,
+        post_ids: list[str],
+        state: dict | None = None,
+    ) -> dict[str, list[dict]]: ...
 
 
 @dataclass(frozen=True)
