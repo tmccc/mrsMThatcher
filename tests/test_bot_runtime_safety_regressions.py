@@ -58,7 +58,7 @@ def test_global_pause_leaves_startup_main_receipt_untouched(
         {"signature": None, "data": {}, "has_valid": False, "failure_signature": None},
     )
     monkeypatch.setattr(
-        bot,
+        bot._main_post_reconciliation,
         "reconcile_main_post_receipts",
         lambda *_args, **_kwargs: pytest.fail(
             "global maintenance pause must precede receipt reconciliation"
@@ -90,9 +90,16 @@ def test_false_global_pause_preserves_startup_receipt_reconciliation(
     )
     expected = {"regular": True, "meme": False}
     monkeypatch.setattr(
-        bot,
+        bot._main_post_reconciliation,
         "reconcile_main_post_receipts",
         lambda *_args, **_kwargs: expected,
+    )
+    monkeypatch.setattr(
+        bot,
+        "reconcile_main_post_receipts",
+        lambda *_args, **_kwargs: pytest.fail(
+            "startup reconciliation returned through root relay"
+        ),
     )
 
     assert bot.reconcile_startup_main_post_receipts(

@@ -118,7 +118,14 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
         with monkeypatch.context() as patch:
             current = {dep: object() for dep in DEPENDENCIES[name]}
             for dep, value in current.items():
-                patch.setattr(bot, dep, value)
+                if name == "block_if_ambiguous_remote_post" and dep == "load_confirmed_reply_receipt":
+                    patch.setattr(
+                        bot,
+                        "_reply_receipts_owner",
+                        Mock(return_value=SimpleNamespace(load=value)),
+                    )
+                else:
+                    patch.setattr(bot, dep, value)
             result = {"original": []}
             expected = {}
 
@@ -492,6 +499,16 @@ def _open_preflight(monkeypatch):
         probe = Mock(side_effect=lambda *args, n=name, **kwargs: events.append(n) or values[n])
         probes[name] = probe
         monkeypatch.setattr(bot, name, probe)
+    monkeypatch.setattr(
+        bot,
+        "_reply_receipts_owner",
+        Mock(return_value=SimpleNamespace(load=probes["load_confirmed_reply_receipt"])),
+    )
+    monkeypatch.setattr(
+        bot,
+        "load_confirmed_reply_receipt",
+        Mock(side_effect=AssertionError("barrier returned through root receipt relay")),
+    )
     return values, events, probes
 
 

@@ -107,7 +107,16 @@ def test_sanitizer_keeps_warning_assignment_and_load_state_identity(monkeypatch)
 
     trace.log.warning.side_effect = warning
     monkeypatch.setattr(bot, "load_state", trace.load)
-    monkeypatch.setattr(bot, "clear_expired_api_cooldowns", trace.clear)
+    monkeypatch.setattr(
+        bot._api_cooldowns.ApiCooldowns,
+        "clear_expired",
+        lambda _cooldowns, current: trace.clear(current),
+    )
+    monkeypatch.setattr(
+        bot,
+        "clear_expired_api_cooldowns",
+        Mock(side_effect=AssertionError("load returned through root cooldown relay")),
+    )
     monkeypatch.setattr(bot, "log", trace.log)
     monkeypatch.setattr(bot, "save_state", trace.save)
     assert bot.load_runtime_state() is state

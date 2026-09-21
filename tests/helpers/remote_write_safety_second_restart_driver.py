@@ -405,7 +405,12 @@ def configure_main_probe(bot, state_directory: Path) -> tuple[list[str], Callabl
             False,
         )
     )
-    bot.ensure_meme_schedule_initialized = lambda _state: None
+    bot._daily_meme.MemeSchedule.ensure_initialized = (
+        lambda _schedule, _state: None
+    )
+    bot.ensure_meme_schedule_initialized = lambda _state: (_ for _ in ()).throw(
+        AssertionError("main loop returned through root meme-schedule relay")
+    )
     bot.lane_paused = lambda _lane: False
     bot.in_api_cooldown = lambda _state, *, scope: False
 

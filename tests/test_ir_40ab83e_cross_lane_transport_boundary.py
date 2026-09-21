@@ -451,11 +451,12 @@ def _install_receipt_loss_fault(
     injected = False
 
     if lane in {"regular_quote_image", "daily_meme"}:
-        real_promote = bot.mark_main_post_attempt_attempting
+        receipt_type = bot._main_post_receipt_storage.MainPostReceipts
+        real_promote = receipt_type.mark_attempting
 
-        def promote_then_lose_receipt(attempt: dict[str, object]):
+        def promote_then_lose_receipt(owner: Any, attempt: dict[str, object]):
             nonlocal injected
-            attempting = real_promote(attempt)
+            attempting = real_promote(owner, attempt)
             if injected:
                 raise RuntimeError("receipt-loss fault ran more than once")
             injected = True
@@ -467,10 +468,18 @@ def _install_receipt_loss_fault(
             )
             return attempting
 
-        bot.mark_main_post_attempt_attempting = promote_then_lose_receipt
+        receipt_type.mark_attempting = promote_then_lose_receipt
+        bot.mark_main_post_attempt_attempting = lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("publication returned through root attempt relay")
+        )
         return
 
-    real_blocker = bot.block_if_ambiguous_remote_post
+    barrier_module = bot._remote_write_barriers
+    real_blocker = (
+        barrier_module.block_if_ambiguous_remote_post
+        if lane == "conversational_reply"
+        else bot.block_if_ambiguous_remote_post
+    )
 
     def validate_then_lose_receipt(**kwargs: object) -> None:
         nonlocal injected
@@ -492,7 +501,13 @@ def _install_receipt_loss_fault(
             validation_point="after_exact_durable_sending_receipt_validation",
         )
 
-    bot.block_if_ambiguous_remote_post = validate_then_lose_receipt
+    if lane == "conversational_reply":
+        barrier_module.block_if_ambiguous_remote_post = validate_then_lose_receipt
+        bot.block_if_ambiguous_remote_post = lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("conversational send returned through root barrier relay")
+        )
+    else:
+        bot.block_if_ambiguous_remote_post = validate_then_lose_receipt
 
 
 def _install_post_journal_receipt_loss_fault(

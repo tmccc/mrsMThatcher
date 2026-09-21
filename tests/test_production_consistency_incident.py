@@ -411,7 +411,7 @@ def test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repos
 
     order: list[str] = []
     x_post_calls: list[dict] = []
-    original_apply = bot.apply_regular_post_receipt
+    original_apply = bot._main_post_reconciliation.apply_regular_post_receipt
     original_enqueue = bot.enqueue_historical_context_obligation
     original_remove = bot.remove_regular_post_receipt
     original_save = bot.save_regular_post_protected_state
@@ -452,7 +452,18 @@ def test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repos
         x_post_calls.append(kwargs)
         pytest.fail("confirmed receipt replay must never recreate the X main post")
 
-    monkeypatch.setattr(bot, "apply_regular_post_receipt", tracked_apply)
+    monkeypatch.setattr(
+        bot._main_post_reconciliation,
+        "apply_regular_post_receipt",
+        tracked_apply,
+    )
+    monkeypatch.setattr(
+        bot,
+        "apply_regular_post_receipt",
+        lambda *_args, **_kwargs: pytest.fail(
+            "receipt reconciliation returned through root apply relay"
+        ),
+    )
     monkeypatch.setattr(bot, "save_regular_post_protected_state", tracked_save)
     monkeypatch.setattr(bot, "enqueue_historical_context_obligation", tracked_enqueue)
     monkeypatch.setattr(bot, "remove_regular_post_receipt", tracked_remove)

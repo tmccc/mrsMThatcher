@@ -29,6 +29,36 @@ Start in [mrsMThatcher2.py](../mrsMThatcher2.py):
    `run_reply_lane_checks_for_tick()`, `_run_due_quote_post_for_tick()` or
    `_run_due_meme_post_for_tick()` for timing and lane selection.
 
+Bootstrap composes a fresh `LocalConfiguration` before
+`mrs_bot_runtime_configuration.apply_local_config` loads and applies overrides.
+The application owner calls `load_overrides` directly; the public
+`load_validated_local_config_overrides` adapter remains compatible but is not on
+the production application path. `apply_local_config` retains 5 injected
+parameters, with the former loader callback replaced by the typed owner. Stable
+file inspection, complete validation and exception identity stay in
+`LocalConfiguration`; namespace mutation and logging stay in runtime
+configuration.
+
+Each OAuth X request similarly receives fresh `XRequestRoutes` and
+`XCreateDiagnostics` owners. Request execution calls route origin/prepared-route
+classification and create-response classification/emission directly, while the
+public route and diagnostic adapters remain available. The implementation entry
+point has 39 total parameters (32 injected), down from 41 (34). Authentication,
+provider execution, validated error responses, transport authority and pre-send
+pause/receipt controls remain explicit boundaries. Route preparation and origin
+selection retain the current Requests capability; anomaly bytes, hashes, clock
+sampling, canonical logging and exception construction keep their existing
+order and scope. Hand-off tests block all obsolete route/diagnostic relays while
+exercising the real adjacent owners for confirmed and anomalous responses.
+
+The final root-composition audit deliberately retains callbacks that carry
+fresh authority or side-effect timing: runtime-control snapshots, receipt and
+journal loading/retirement, durable state/history writes, provider transport,
+remote-write barriers and proof-gated removal. The local self-test also keeps
+its public loader callback as a non-production diagnostic boundary. Replacing
+those edges would require broader ownership or semantic redesign, so they are
+not treated as a zero-root-name target.
+
 For a conversational reply, read the lane owner first, then follow the step you
 need. A recovered draft can bypass model evaluation.
 

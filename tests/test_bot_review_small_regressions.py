@@ -37,7 +37,16 @@ def test_cached_editorial_rows_preserve_a_new_unrepresented_baseline(tmp_path, m
     monkeypatch.setattr(bot, 'ORIGINAL_EDITORIAL_SCHEMA_VERSION', 3)
     monkeypatch.setattr(bot, 'ORIGINAL_EDITORIAL_DIMENSIONS', ['conviction'])
     monkeypatch.setattr(bot, '_ORIGINAL_EDITORIAL_ANALYSIS_CACHE', {})
-    monkeypatch.setattr(bot, 'current_image_paths', lambda: list(visible))
+    monkeypatch.setattr(
+        bot._asset_metadata.AssetMetadata,
+        'image_paths',
+        lambda _metadata: list(visible),
+    )
+    monkeypatch.setattr(
+        bot,
+        'current_image_paths',
+        lambda: pytest.fail('editorial loading returned through root image relay'),
+    )
     monkeypatch.setattr(bot._original_editorial, 'generated_image_origin_quote_hash', lambda _: None)
     monkeypatch.setattr(bot, 'ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING', True)
     loaded = bot.load_original_editorial_analysis()

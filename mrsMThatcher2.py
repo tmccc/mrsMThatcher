@@ -1474,11 +1474,11 @@ def load_validated_local_config_overrides() -> dict[str, object] | None:
 
 
 def apply_local_config() -> None:
-    """Apply optional local JSON config overrides without editing the bot script."""
+    """Apply optional overrides through a fresh local-configuration owner."""
     return _runtime_configuration.apply_local_config(
         LOCAL_CONFIG_FILE=LOCAL_CONFIG_FILE,
         _runtime_config_namespace=_runtime_config_namespace,
-        load_validated_local_config_overrides=load_validated_local_config_overrides,
+        local_configuration=_local_configuration_owner(),
         log=log,
         log_json_debug=log_json_debug,
     )
@@ -3154,21 +3154,19 @@ def x_request(
         block_if_unrelated_receipt_appeared_for_tweet_transport=block_if_unrelated_receipt_appeared_for_tweet_transport,
         canonical_transport_receipt_path_for_lane=canonical_transport_receipt_path_for_lane,
         consume_media_upload_authority=consume_media_upload_authority,
-        emit_x_create_response_anomaly=emit_x_create_response_anomaly,
+        create_diagnostics=_x_create_diagnostics_owner(),
         frozen_strict_json_object=frozen_strict_json_object,
         invalidate_reply_create_rejection_proof=invalidate_reply_create_rejection_proof,
         log=log,
         log_json_debug=log_json_debug,
         parse_validated_x_error_response=parse_validated_x_error_response,
         perform_consumed_x_request=perform_consumed_x_request,
-        prepared_x_create_route=prepared_x_create_route,
         print_rate_limit_headers=print_rate_limit_headers,
         report_bot_health_progress=report_bot_health_progress,
         request_timeout=request_timeout,
+        request_routes=_x_request_routes_owner(),
         requests=requests,
         require_remote_operation_unpaused=require_remote_operation_unpaused,
-        x_create_response_anomaly_reason=x_create_response_anomaly_reason,
-        x_request_base_url=x_request_base_url,
     )
 
 

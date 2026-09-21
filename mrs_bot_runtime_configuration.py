@@ -1,14 +1,20 @@
 """Runtime configuration paths, validation, application and credential checks.
 
 Historical-context schema checks are separate from scalar and cross-field
-validation. The root supplies current runtime dependencies on each call. This
-module performs no runtime work at import and retains no runtime authority.
+validation. Application calls its supplied ``LocalConfiguration`` directly;
+the root supplies that owner and the other current runtime dependencies on each
+call. This module performs no runtime work at import and retains no runtime
+authority.
 """
 from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from mrs_bot_local_config import LocalConfiguration
 
 
 def path_is_same_or_child(path: Path, parent: Path) -> bool:
@@ -175,12 +181,12 @@ def apply_local_config(
     *,
     LOCAL_CONFIG_FILE: Any,
     _runtime_config_namespace: Any,
-    load_validated_local_config_overrides: Any,
+    local_configuration: LocalConfiguration,
     log: Any,
     log_json_debug: Any,
 ) -> None:
-    """Apply optional local JSON config overrides without editing the bot script."""
-    proposed = load_validated_local_config_overrides()
+    """Apply optional overrides through a fresh local-configuration owner."""
+    proposed = local_configuration.load_overrides()
     if proposed is None:
         log.info("Local config file not present; using script defaults. path=%s", LOCAL_CONFIG_FILE)
         return

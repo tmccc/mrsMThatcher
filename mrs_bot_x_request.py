@@ -3,9 +3,10 @@
 Fixed JSON parsing, path values and exception inspection use local standard
 library operations. Private validation steps keep route/authority agreement and
 exact media-body checks explicit before transport authority is consumed. The
-root supplies current runtime dependencies and collected request kwargs on each
-call. Importing this module performs no runtime work and
-retains no runtime authority.
+root supplies invocation-scoped ``XRequestRoutes`` and ``XCreateDiagnostics``
+owners, current authority/transport boundaries and collected request kwargs on
+each call. Importing this module performs no runtime work and retains no runtime
+authority.
 """
 from __future__ import annotations
 
@@ -18,8 +19,11 @@ from mrs_bot_post_creation import (
     media_upload_payload_metadata,
     validate_media_upload_payload_metadata,
 )
-from mrs_bot_x_response_diagnostics import raise_x_create_anomaly_outcome
-from mrs_bot_request_route_values import exact_x_create_route
+from mrs_bot_x_response_diagnostics import (
+    XCreateDiagnostics,
+    raise_x_create_anomaly_outcome,
+)
+from mrs_bot_request_route_values import XRequestRoutes, exact_x_create_route
 
 
 def _classify_request_authority(
@@ -202,25 +206,23 @@ def x_request(
     block_if_unrelated_receipt_appeared_for_tweet_transport: Any,
     canonical_transport_receipt_path_for_lane: Any,
     consume_media_upload_authority: Any,
-    emit_x_create_response_anomaly: Any,
+    create_diagnostics: XCreateDiagnostics,
     frozen_strict_json_object: Any,
     invalidate_reply_create_rejection_proof: Any,
     log: Any,
     log_json_debug: Any,
     parse_validated_x_error_response: Any,
     perform_consumed_x_request: Any,
-    prepared_x_create_route: Any,
     print_rate_limit_headers: Any,
     report_bot_health_progress: Any,
     request_timeout: Any,
+    request_routes: XRequestRoutes,
     requests: Any,
     require_remote_operation_unpaused: Any,
-    x_create_response_anomaly_reason: Any,
-    x_request_base_url: Any,
 ) -> dict:
-    """Send an authenticated X API request without automatic retries."""
-    url = f"{x_request_base_url(method, path)}{path}"
-    prepared_create_route = prepared_x_create_route(method, path)
+    """Send once using invocation-scoped route and diagnostic owners."""
+    url = f"{request_routes.base_url(method, path)}{path}"
+    prepared_create_route = request_routes.prepared_route(method, path)
     is_post_create, is_media_upload, method_upper = _classify_request_authority(
         method,
         path,
@@ -516,7 +518,7 @@ def x_request(
                     "tweet-create anomaly evidence requires its exact response "
                     "and transport authority"
                 )
-            diagnostic = emit_x_create_response_anomaly(
+            diagnostic = create_diagnostics.emit_anomaly(
                 response=response,
                 transport_authority=_remote_write_authorization,
                 request_payload=kwargs["json"],
@@ -603,7 +605,7 @@ def x_request(
             )
 
         if is_post_create:
-            anomaly_reason = x_create_response_anomaly_reason(data)
+            anomaly_reason = create_diagnostics.anomaly_reason(data)
             if anomaly_reason is not None:
                 raise_create_response_anomaly(
                     anomaly_reason,

@@ -91,7 +91,16 @@ def configure_provider_free_mention_check(
         "active",
         lambda _owner, *_args, **_kwargs: False,
     )
-    monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
+    monkeypatch.setattr(
+        bot._remote_write_barriers,
+        "block_if_ambiguous_remote_post",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        bot,
+        "block_if_ambiguous_remote_post",
+        lambda **_kwargs: None,
+    )
     monkeypatch.setattr(
         bot._mention_discovery, "get_mentions",
         lambda _state, **_kwargs: copy.deepcopy(candidates),

@@ -69,13 +69,12 @@ assert 'single_call_reply' not in sys.modules
         "block_if_unrelated_receipt_appeared_for_media_transport "
         "block_if_unrelated_receipt_appeared_for_tweet_transport "
         "canonical_transport_receipt_path_for_lane consume_media_upload_authority "
-        "emit_x_create_response_anomaly frozen_strict_json_object "
+        "create_diagnostics frozen_strict_json_object "
         "invalidate_reply_create_rejection_proof log log_json_debug "
         "parse_validated_x_error_response "
-        "perform_consumed_x_request prepared_x_create_route print_rate_limit_headers "
-        "report_bot_health_progress request_timeout requests require_remote_operation_unpaused "
-        "x_create_response_anomaly_reason "
-        "x_request_base_url"
+        "perform_consumed_x_request print_rate_limit_headers "
+        "report_bot_health_progress request_timeout request_routes requests "
+        "require_remote_operation_unpaused"
     ).split()),
     ("x_bearer_request", (
         "AmbiguousRemotePostOutcome ApiError X_BASE X_BEARER_TOKEN log "
@@ -129,7 +128,12 @@ def test_adapters_keep_signatures_current_dependencies_and_collected_kwargs(
 
             patch.setattr(bot, "_x_request", SimpleNamespace(**{name: capture}))
             for key, value in current.items():
-                patch.setattr(bot, key, value)
+                if key == "request_routes":
+                    patch.setattr(bot, "_x_request_routes_owner", Mock(return_value=value))
+                elif key == "create_diagnostics":
+                    patch.setattr(bot, "_x_create_diagnostics_owner", Mock(return_value=value))
+                else:
+                    patch.setattr(bot, key, value)
             assert adapter(*args, **options, **request_options) is result
             failure = TypeError("current owner failure")
             patch.setattr(bot, "_x_request", SimpleNamespace(**{name: Mock(side_effect=failure)}))
@@ -149,8 +153,17 @@ def test_read_request_logging_health_transport_and_response_references(monkeypat
     trace.prepared.return_value = trace.exact.return_value = None
     token, auth, budget = "current-token", object(), object()
     trace.timeout.return_value = budget
+    monkeypatch.setattr(
+        bot._request_route_values.XRequestRoutes,
+        "base_url",
+        lambda _routes, *args: trace.base(*args),
+    )
+    monkeypatch.setattr(
+        bot._request_route_values.XRequestRoutes,
+        "prepared_route",
+        lambda _routes, *args: trace.prepared(*args),
+    )
     for key, value in {
-        "x_request_base_url": trace.base, "prepared_x_create_route": trace.prepared,
         "exact_x_create_route": trace.exact, "log": trace.log, "log_json_debug": trace.json_log,
         "report_bot_health_progress": trace.health, "request_timeout": trace.timeout,
         "requests": SimpleNamespace(request=trace.request, RequestException=bot.requests.RequestException),
@@ -290,15 +303,29 @@ def test_tweet_freeze_pause_binding_and_coordinator_dictionary_order(monkeypatch
     trace.perform.return_value = (SimpleNamespace(status_code=201, headers={}, text="body", content=b"exact body", json=trace.decode), None, None)
     trace.reason.return_value = None
     trace.exc_info.return_value = (None, None, None)
+    monkeypatch.setattr(
+        bot._request_route_values.XRequestRoutes,
+        "base_url",
+        lambda _routes, *args: trace.base(*args),
+    )
+    monkeypatch.setattr(
+        bot._request_route_values.XRequestRoutes,
+        "prepared_route",
+        lambda _routes, *args: trace.prepared(*args),
+    )
+    monkeypatch.setattr(
+        bot._x_response_diagnostics.XCreateDiagnostics,
+        "anomaly_reason",
+        lambda _diagnostics, *args: trace.reason(*args),
+    )
     for key, value in {
-        "TransportAuthority": SimpleNamespace, "x_request_base_url": trace.base,
-        "prepared_x_create_route": trace.prepared, "exact_x_create_route": trace.exact,
+        "TransportAuthority": SimpleNamespace, "exact_x_create_route": trace.exact,
         "frozen_strict_json_object": trace.freeze, "log": trace.log, "log_json_debug": trace.json_log,
         "require_remote_operation_unpaused": trace.pause,
         "canonical_transport_receipt_path_for_lane": trace.canonical,
         "block_if_unrelated_receipt_appeared_for_tweet_transport": trace.block,
         "Path": trace.path, "_bind_transport_authority_to_configured_x_request": trace.bind,
-        "perform_consumed_x_request": trace.perform, "x_create_response_anomaly_reason": trace.reason,
+        "perform_consumed_x_request": trace.perform,
         "sys": SimpleNamespace(exc_info=trace.exc_info),
     }.items():
         target = owner if key in {"exact_x_create_route", "Path", "sys"} else bot
@@ -370,9 +397,18 @@ def test_media_metadata_references_and_consumption_precede_transport(monkeypatch
     trace.derive.return_value = trace.validate.return_value = metadata
     trace.request.return_value = SimpleNamespace(status_code=204, text="", headers={})
     trace.exc_info.return_value = (None, None, None)
+    monkeypatch.setattr(
+        bot._request_route_values.XRequestRoutes,
+        "base_url",
+        lambda _routes, *args: trace.base(*args),
+    )
+    monkeypatch.setattr(
+        bot._request_route_values.XRequestRoutes,
+        "prepared_route",
+        lambda _routes, *args: trace.prepared(*args),
+    )
     for key, value in {
         "MediaUploadAuthority": MediaAuthority, "ReceiptBoundMediaPayload": MediaPayload,
-        "x_request_base_url": trace.base, "prepared_x_create_route": trace.prepared,
         "exact_x_create_route": trace.exact, "log": trace.log, "log_json_debug": trace.json_log,
         "require_remote_operation_unpaused": trace.pause, "media_upload_payload_metadata": trace.derive,
         "validate_media_upload_payload_metadata": trace.validate,
@@ -417,6 +453,44 @@ def test_media_metadata_references_and_consumption_precede_transport(monkeypatch
         assert trace.validate.call_args.kwargs["form"] is form
     else:
         assert trace.derive.call_args.args[0] is form
+
+
+@pytest.mark.parametrize("post_id", ["123", ""])
+def test_x_request_handoff_uses_real_route_and_diagnostic_owners_with_relays_blocked(
+    monkeypatch, post_id,
+):
+    payload = {"text": "reply", "reply": {"in_reply_to_tweet_id": "100"}}
+    authority = _armed_x_create_authority(payload)
+    response = _x_response(201, {"data": {"id": post_id}})
+    request = Mock(return_value=response)
+    monkeypatch.setattr(bot.requests, "request", request)
+    obsolete = Mock(side_effect=AssertionError("obsolete root relay called"))
+    for name in (
+        "x_request_base_url",
+        "prepared_x_create_route",
+        "x_create_response_anomaly_reason",
+        "emit_x_create_response_anomaly",
+    ):
+        monkeypatch.setattr(bot, name, obsolete)
+
+    options = dict(
+        json=payload,
+        ambiguous_write=True,
+        _remote_write_authorization=authority,
+    )
+    if post_id:
+        assert bot.x_request("POST", "/2/tweets", **options) == {
+            "data": {"id": post_id},
+        }
+    else:
+        with pytest.raises(
+            bot.AmbiguousRemotePostOutcome,
+            match="reason=data_id_blank",
+        ):
+            bot.x_request("POST", "/2/tweets", **options)
+
+    obsolete.assert_not_called()
+    request.assert_called_once()
 
 
 @pytest.mark.parametrize("escaping", ["actual", "different_proof", "probe_interruption"])

@@ -22,7 +22,7 @@ DEPENDENCIES = {
     ],
     "apply_local_config": [
         "LOCAL_CONFIG_FILE", "_runtime_config_namespace",
-        "load_validated_local_config_overrides", "log", "log_json_debug",
+        "local_configuration", "log", "log_json_debug",
     ],
     "validate_production_credentials": [
         "ACCESS_SECRET", "ACCESS_TOKEN", "CONSUMER_KEY", "CONSUMER_SECRET",
@@ -112,7 +112,14 @@ def test_public_signatures_current_dependencies_references_and_errors(monkeypatc
     for _round in range(2):
         dependencies = {dep: object() for dep in DEPENDENCIES[name]}
         for dep, value in dependencies.items():
-            monkeypatch.setattr(bot, dep, value)
+            if dep == "local_configuration":
+                monkeypatch.setattr(
+                    bot,
+                    "_local_configuration_owner",
+                    Mock(return_value=value),
+                )
+            else:
+                monkeypatch.setattr(bot, dep, value)
         result = object()
         callback = Mock(return_value=result)
         monkeypatch.setattr(owner, name, callback)
@@ -420,7 +427,16 @@ def test_application_absent_and_falsy_non_none_branches(monkeypatch, tmp_path, p
     debug = Mock()
     namespace = Mock(side_effect=AssertionError("Empty overrides must not access the namespace"))
     monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
-    monkeypatch.setattr(bot, "load_validated_local_config_overrides", loader)
+    monkeypatch.setattr(
+        bot._local_config.LocalConfiguration,
+        "load_overrides",
+        lambda _configuration: loader(),
+    )
+    monkeypatch.setattr(
+        bot,
+        "load_validated_local_config_overrides",
+        Mock(side_effect=AssertionError("application returned through public loader")),
+    )
     monkeypatch.setattr(bot, "log", log)
     monkeypatch.setattr(bot, "log_json_debug", debug)
     monkeypatch.setattr(bot, "_runtime_config_namespace", namespace)
@@ -498,7 +514,16 @@ def test_application_per_item_live_writes_order_and_native_failures(monkeypatch,
         step("debug")
 
     monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
-    monkeypatch.setattr(bot, "load_validated_local_config_overrides", load)
+    monkeypatch.setattr(
+        bot._local_config.LocalConfiguration,
+        "load_overrides",
+        lambda _configuration: load(),
+    )
+    monkeypatch.setattr(
+        bot,
+        "load_validated_local_config_overrides",
+        Mock(side_effect=AssertionError("application returned through public loader")),
+    )
     monkeypatch.setattr(bot, "_runtime_config_namespace", current_namespace)
     monkeypatch.setattr(bot, "log", SimpleNamespace(info=info))
     monkeypatch.setattr(bot, "log_json_debug", debug)
@@ -517,6 +542,21 @@ def test_application_per_item_live_writes_order_and_native_failures(monkeypatch,
     assert getattr(bot, first_key) is (first if "iterator" in trace else None)
     assert getattr(bot, second_key) is (second if "done" in trace else None)
     assert logs == ([("Applied %d local config override(s) from %s", 2, path)] if "log" in trace else [])
+
+
+def test_application_handoff_uses_real_local_owner_with_public_loader_blocked(
+    monkeypatch, tmp_path,
+):
+    path = tmp_path / "synthetic-config.json"
+    path.write_text('{"MAX_X_ERRORS_PER_WINDOW": 2}', encoding="utf-8")
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
+    obsolete = Mock(side_effect=AssertionError("obsolete public loader called"))
+    monkeypatch.setattr(bot, "load_validated_local_config_overrides", obsolete)
+
+    assert bot.apply_local_config() is None
+
+    obsolete.assert_not_called()
+    assert bot.MAX_X_ERRORS_PER_WINDOW == 2
 
 
 CREDENTIAL_KEYS = ("CONSUMER_KEY", "CONSUMER_SECRET", "ACCESS_TOKEN", "ACCESS_SECRET", "MY_USER_ID")
