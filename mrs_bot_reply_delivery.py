@@ -63,6 +63,7 @@ class ReplyCycleDelivery:
     post: PostReply
     retire_rejected: Callable[[dict, Exception], None]
     ambiguous_outcome: type[Exception]
+    remote_operations_paused: type[Exception]
     api_error: type[Exception]
     confirmed_local_failure: type[Exception]
     proved_non_success: type[Exception]
@@ -116,8 +117,9 @@ class ReplyCycleDelivery:
         boundary. Retirement after a proved API refusal stays in its exception
         handler, so its failures propagate and cannot remove the sending journal
         before the lane has durably retired its target. Confirmed and ambiguous
-        outcomes always propagate to the existing recovery authority. Pre-send
-        lookup failures use the caller's read cooldown without retiring the draft.
+        outcomes always propagate to the existing recovery authority. Local
+        runtime pauses defer without API-health bookkeeping. Pre-send lookup
+        failures use the caller's read cooldown without retiring the draft.
         """
         error_scope = read_error_scope
         try:
@@ -164,6 +166,12 @@ class ReplyCycleDelivery:
                 failure_reason="ambiguous_remote_outcome",
             )
             raise
+        except self.remote_operations_paused:
+            self.log.info(
+                "Deferring %s reply delivery because remote operations are paused",
+                log_source,
+            )
+            return ReplyDeliveryStop.RETRYABLE
         except self.api_error as e:
             if error_scope == "write" and self.reply_not_allowed(e):
                 retire_terminal_target("reply_not_permitted")

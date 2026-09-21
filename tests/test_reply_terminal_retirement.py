@@ -26,6 +26,10 @@ class ProvedRejection(ApiError):
     """Represent a refusal that permits retirement of its sending journal."""
 
 
+class RemoteOperationsPaused(RuntimeError):
+    """Represent a local runtime-control pause before remote transmission."""
+
+
 def prepare_delivery(lane, outcome, *, save_failure=None, retirement_failure=None):
     """Build observable delivery dependencies with only in-memory state effects."""
     target = "105"
@@ -86,7 +90,8 @@ def prepare_delivery(lane, outcome, *, save_failure=None, retirement_failure=Non
         receipt_values=SimpleNamespace(bind_attempt=Mock()),
         tweets=SimpleNamespace(target_is_available=trace.available),
         post=trace.post, retire_rejected=trace.retire,
-        ambiguous_outcome=LookupError, api_error=ApiError,
+        ambiguous_outcome=LookupError,
+        remote_operations_paused=RemoteOperationsPaused, api_error=ApiError,
         confirmed_local_failure=ArithmeticError, proved_non_success=ProvedRejection,
         unrecoverable_confirmed=EOFError,
         reply_not_allowed=lambda error: error is rejection,
@@ -281,6 +286,37 @@ def test_retryable_delivery_failure_records_matching_cooldown_and_keeps_the_pend
     assert [entry[0] for entry in scenario.trace.mock_calls] == (
         ["available"] + (["post"] if stage == "post" else [])
         + ["log.exception", "posting_outcome", "api_error", "save"]
+    )
+
+
+@pytest.mark.parametrize("lane", ["mention", "quote_tweet"])
+@pytest.mark.parametrize("stage", ["available", "post"])
+def test_runtime_pause_defers_without_api_error_or_posting_failure(lane, stage):
+    scenario = prepare_delivery(lane, "proved")
+    scope = "quote" if lane == "quote_tweet" else "api"
+    scenario.state.update({
+        ("x_write_error_epochs" if stage == "post" else
+         "quote_x_error_epochs" if scope == "quote" else "x_error_epochs"): [100, 200],
+        ("x_write_api_cooldown_until_epoch" if stage == "post" else
+         "quote_api_cooldown_until_epoch" if scope == "quote" else
+         "api_cooldown_until_epoch"): 0,
+    })
+    before = copy.deepcopy(scenario.state)
+    pause = RemoteOperationsPaused("local maintenance pause")
+    getattr(scenario.trace, stage).side_effect = pause
+
+    assert scenario.run().status == (
+        "checked" if lane == "quote_tweet" else "api_error"
+    )
+    assert scenario.state == before
+    scenario.trace.api_error.assert_not_called()
+    scenario.trace.save.assert_not_called()
+    scenario.trace.posting_outcome.assert_not_called()
+    scenario.trace.retire.assert_not_called()
+    if stage == "available":
+        scenario.trace.post.assert_not_called()
+    assert [entry[0] for entry in scenario.trace.mock_calls] == (
+        ["available"] + (["post"] if stage == "post" else []) + ["log.info"]
     )
 
 

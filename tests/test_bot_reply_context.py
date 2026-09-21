@@ -227,6 +227,44 @@ def test_quote_context_preserves_budget_roles_reference_boundaries_and_media_bef
     assert (original, quote) == before
 
 
+def test_quote_context_keeps_image_only_original_as_media_subject(make_owner):
+    original = {
+        "id": "900",
+        "text": "https://t.co/photo",
+        "attachments": {"media_keys": ["photo-1"]},
+        "_attached_media": [{
+            "media_key": "photo-1",
+            "type": "photo",
+            "url": "https://pbs.twimg.com/media/photo.jpg",
+        }],
+    }
+    quote = {
+        "id": "910",
+        "author_id": "310",
+        "conversation_id": "910",
+        "text": "What do you make of this?",
+    }
+
+    prepared = make_owner().build_quote(original, quote)
+    context = prepared.context
+
+    assert context["visible_conversation"] == [{
+        "post_id": "910",
+        "author_role": "user",
+        "text": "What do you make of this?",
+    }]
+    assert context["parent_thread"] == []
+    assert context["quoted_post"] is None
+    assert context["quoted_post_id"] == "900"
+    assert context["quoted_post_relationship"] == "target_quote"
+    assert prepared.media_context["photos"] == [{
+        "media_key": "photo-1",
+        "url": "https://pbs.twimg.com/media/photo.jpg",
+        "attachment_role": "quoted_subject",
+        "source_post_id": "900",
+    }]
+
+
 def test_parent_chain_keeps_current_callback_order_and_original_parent_references(monkeypatch, make_owner):
     mention = {"id": "3", "referenced_tweets": [{"type": "replied_to", "id": "2"}]}
     parent = {"id": "2", "text_is_complete": True, "referenced_tweets": [{"type": "replied_to", "id": "1"}]}

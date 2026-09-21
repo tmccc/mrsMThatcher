@@ -563,7 +563,7 @@ class ReplyContext:
         original_tweet: dict,
         quote_tweet: dict,
     ) -> PreparedReplyContext:
-        """Build the canonical two-turn context for a direct quote-tweet."""
+        """Build canonical text and quoted-subject context for a quote-tweet."""
 
         target_id = str(quote_tweet.get("id") or "")
         original_id = str(original_tweet.get("id") or "")
@@ -581,8 +581,15 @@ class ReplyContext:
                 max(1, self.maximum_visible_chars - len(target_turn["text"])),
             ),
         }
+        visible_turns = [target_turn]
+        quoted_post = None
+        parent_thread = []
+        if original_turn["text"]:
+            visible_turns.insert(0, original_turn)
+            quoted_post = copy.deepcopy(original_turn)
+            parent_thread = [copy.deepcopy(original_turn)]
         bounded_visible = self.bound_visible_conversation(
-            [original_turn, target_turn],
+            visible_turns,
             target_post_id=target_id,
         )
         visible = [
@@ -602,10 +609,10 @@ class ReplyContext:
             "parent_post_id": original_id,
             "lane": "quote_tweet",
             "incoming_contribution": target_turn["text"],
-            "quoted_post": copy.deepcopy(original_turn),
+            "quoted_post": quoted_post,
             "quoted_post_id": original_turn["post_id"],
             "quoted_post_relationship": "target_quote",
-            "parent_thread": [copy.deepcopy(original_turn)],
+            "parent_thread": parent_thread,
             "visible_conversation": visible,
             "visual_description": None,
             "clarification_request": None,

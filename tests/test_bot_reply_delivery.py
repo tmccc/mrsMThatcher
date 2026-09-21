@@ -954,6 +954,7 @@ def test_cycle_delivery_binds_current_routing_without_running_callbacks(monkeypa
     bindings = {
         "retire_rejected": "retire_proved_rejected_conversational_reply_receipt",
         "ambiguous_outcome": "AmbiguousRemotePostOutcome",
+        "remote_operations_paused": "RemoteOperationsPaused",
         "api_error": "ApiError",
         "confirmed_local_failure": "ConfirmedReplyLocalPersistenceError",
         "proved_non_success": "ProvedRemotePostNonSuccess",
