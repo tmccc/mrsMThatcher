@@ -420,6 +420,59 @@ def test_zero_call_failures_consume_quote_candidate_limit_in_numeric_order(monke
     bot.create_post.assert_not_called()
 
 
+def test_image_only_original_reaches_quote_multimodal_evaluation(monkeypatch):
+    native_media_context = bot._reply_native_media.ReplyMedia.context
+    original, quotes = _configure_cycle(monkeypatch)
+    original.update({
+        "text": "https://t.co/photo",
+        "attachments": {"media_keys": ["photo-1"]},
+        "_attached_media": [{
+            "media_key": "photo-1",
+            "type": "photo",
+            "url": "https://pbs.twimg.com/media/photo.jpg",
+        }],
+    })
+
+    def prepare_media(candidate, **kwargs):
+        return native_media_context(bot._reply_media_owner(), candidate, **kwargs)
+
+    patch_reply_owner_method(
+        monkeypatch,
+        bot._reply_native_media.ReplyMedia,
+        "context",
+        prepare_media,
+    )
+    evaluate = Mock(return_value=bot.PipelineResult(
+        status="no_reply",
+        reason="model_selected_no_reply",
+        reason_code="model_selected_no_reply",
+        model_call_count=1,
+    ))
+    patch_reply_owner_method(
+        monkeypatch, generation_owner.ReplyGeneration, "evaluate", evaluate,
+    )
+    state = bot.default_state()
+
+    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+
+    evaluate.assert_called_once()
+    context, media = evaluate.call_args.args
+    assert context["target_id"] == str(quotes[0]["id"])
+    assert context["visible_conversation"][-1]["post_id"] == str(quotes[0]["id"])
+    assert context["quoted_post"] is None
+    assert context["quoted_post_id"] == "900"
+    assert media["mode"] == "multimodal"
+    assert media["photos"] == [{
+        "media_key": "photo-1",
+        "url": "https://pbs.twimg.com/media/photo.jpg",
+        "attachment_role": "quoted_subject",
+        "source_post_id": "900",
+    }]
+    assert state["reply_evaluation_records"]["910"]["reason"] == "model_selected_no_reply"
+    assert state["skipped_quote_post_ids"] == ["910"]
+    bot.create_post.assert_not_called()
+
+
 @pytest.mark.parametrize("first_is_spam", [False, True])
 def test_quote_scan_keeps_fixed_ledgers_but_shares_newly_classified_spam_authors(
     monkeypatch, first_is_spam,

@@ -7993,6 +7993,7 @@ def _reply_cycle_delivery(
         post=_post_conversational_reply_with_current_owners,
         retire_rejected=retire_proved_rejected_conversational_reply_receipt,
         ambiguous_outcome=AmbiguousRemotePostOutcome,
+        remote_operations_paused=RemoteOperationsPaused,
         api_error=ApiError,
         confirmed_local_failure=ConfirmedReplyLocalPersistenceError,
         proved_non_success=ProvedRemotePostNonSuccess,
