@@ -39,13 +39,13 @@ from mrs_provider_request_records import (  # noqa: E402
 )
 
 
-SCHEMA_VERSION = 6
-EXTRACTOR_VERSION = "prospective-conversation-extractor-v6"
-PARSER_VERSION = "prospective-conversation-log-parser-v6"
+SCHEMA_VERSION = 7
+EXTRACTOR_VERSION = "prospective-conversation-extractor-v7"
+PARSER_VERSION = "prospective-conversation-log-parser-v7"
 REGISTERED_REBUILD_SOURCE = (
-    5,
-    "prospective-conversation-extractor-v5",
-    "prospective-conversation-log-parser-v5",
+    6,
+    "prospective-conversation-extractor-v6",
+    "prospective-conversation-log-parser-v6",
 )
 HASH_BLOCK_SIZE = 1024 * 1024
 X_SNOWFLAKE_EPOCH_MS = 1_288_834_974_657
@@ -2441,6 +2441,18 @@ PIPELINE_SUMMARY_FIELDS = (
     "used_fact_ids",
 )
 
+PROVIDER_USAGE_SUMMARY_FIELDS = (
+    "request_attempt_count_status",
+    "provider_response_id",
+    "provider_latency_ms",
+    "input_tokens",
+    "cached_input_tokens",
+    "cache_write_input_tokens",
+    "output_tokens",
+    "reasoning_tokens",
+    "total_tokens",
+)
+
 
 def _pipeline_summary(kind: str, event: Mapping[str, Any], record: LogRecord) -> dict[str, Any]:
     result: dict[str, Any] = {
@@ -2448,10 +2460,95 @@ def _pipeline_summary(kind: str, event: Mapping[str, Any], record: LogRecord) ->
         "event_kind": kind,
         "observed_at": record.timestamp,
     }
-    for field in PIPELINE_SUMMARY_FIELDS:
+    fields = PIPELINE_SUMMARY_FIELDS + (
+        PROVIDER_USAGE_SUMMARY_FIELDS
+        if kind == "single_call_reply_provider_usage"
+        else ()
+    )
+    for field in fields:
         if field in event:
             result[field] = copy.deepcopy(event[field])
     return result
+
+
+PROVIDER_USAGE_TOKEN_FIELDS = (
+    "input_tokens",
+    "cached_input_tokens",
+    "cache_write_input_tokens",
+    "output_tokens",
+    "reasoning_tokens",
+    "total_tokens",
+)
+
+
+def provider_usage_summary(
+    posts: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Total provider-reported usage once per strongest available call identity."""
+
+    grouped: dict[tuple[str, str], list[Mapping[str, Any]]] = defaultdict(list)
+    raw_event_count = 0
+    for post in posts:
+        for summary in post.get("pipeline_stage_summaries") or []:
+            if (
+                not isinstance(summary, dict)
+                or summary.get("event_kind")
+                != "single_call_reply_provider_usage"
+            ):
+                continue
+            raw_event_count += 1
+            call_id = summary.get("call_id")
+            response_id = summary.get("provider_response_id")
+            event_id = str(summary.get("event_id") or "")
+            if isinstance(call_id, str) and call_id:
+                identity = ("call_id", call_id)
+            elif isinstance(response_id, str) and response_id:
+                identity = ("provider_response_id", response_id)
+            else:
+                identity = ("event_id", event_id)
+            grouped[identity].append(summary)
+
+    token_totals: dict[str, int | None] = {}
+    reported_counts: dict[str, int] = {}
+    lacking_token_data = 0
+    conflicting_token_events = 0
+    for rows in grouped.values():
+        has_token_data = False
+        has_conflict = False
+        for field in PROVIDER_USAGE_TOKEN_FIELDS:
+            values = {
+                row[field]
+                for row in rows
+                if type(row.get(field)) is int and row[field] >= 0
+            }
+            if values:
+                has_token_data = True
+            if len(values) > 1:
+                has_conflict = True
+                continue
+            if len(values) == 1:
+                value = next(iter(values))
+                token_totals[field] = (token_totals.get(field) or 0) + value
+                reported_counts[field] = reported_counts.get(field, 0) + 1
+        if not has_token_data:
+            lacking_token_data += 1
+        if has_conflict:
+            conflicting_token_events += 1
+
+    for field in PROVIDER_USAGE_TOKEN_FIELDS:
+        token_totals.setdefault(field, None)
+        reported_counts.setdefault(field, 0)
+    return {
+        "deduplication_identity": (
+            "call_id, else provider_response_id, else structured event fingerprint"
+        ),
+        "duplicate_event_count": raw_event_count - len(grouped),
+        "included_usage_event_count": len(grouped),
+        "usage_event_count_lacking_token_data": lacking_token_data,
+        "usage_event_count_with_conflicting_token_data": conflicting_token_events,
+        "token_reported_event_counts": reported_counts,
+        "token_totals": token_totals,
+    }
 
 
 def _looks_like_clarification_request(text: Any) -> bool:
@@ -5668,6 +5765,7 @@ def _build_extraction_report(
     cutoff: str,
     counts: Mapping[str, int],
     provider_request_coverage: Mapping[str, int],
+    provider_usage: Mapping[str, Any],
     coverage: bool,
     source_lag_seconds: int,
     warnings: Sequence[str],
@@ -5691,6 +5789,11 @@ def _build_extraction_report(
         f"- Provider request captures complete: `{provider_request_coverage['complete']}`",
         f"- Provider requests historical/not recorded: `{provider_request_coverage['historical_not_recorded']}`",
         f"- Provider request captures missing, failed, or corrupt: `{provider_request_coverage['incomplete']}`",
+        f"- Provider usage events included after correlation: `{provider_usage['included_usage_event_count']}`",
+        f"- Duplicate correlated provider usage events omitted from totals: `{provider_usage['duplicate_event_count']}`",
+        f"- Provider usage events lacking token data: `{provider_usage['usage_event_count_lacking_token_data']}`",
+        "- Provider token totals (unreported categories remain `null`): "
+        f"`{json.dumps(provider_usage['token_totals'], sort_keys=True, separators=(',', ':'))}`",
         f"- Open conversations: `{counts['open_conversation_count']}`",
         f"- Quiescent conversations: `{counts['quiescent_conversation_count']}`",
         "",
@@ -6751,6 +6854,16 @@ def _validate_batch_directory(
             errors.append(
                 f"{label} provider request coverage does not match outputs in {batch}"
             )
+    observed_provider_usage = provider_usage_summary(posts)
+    for label, value in (
+        ("batch manifest", manifest.get("provider_usage_summary")),
+        ("source manifest", source_manifest.get("provider_usage_summary")),
+        ("batch status", status_value.get("provider_usage_summary")),
+    ):
+        if value != observed_provider_usage:
+            errors.append(
+                f"{label} provider usage summary does not match outputs in {batch}"
+            )
     if manifest.get("counts") != observed_counts:
         errors.append(f"batch manifest counts do not match outputs in {batch}")
     for key, value in observed_counts.items():
@@ -7032,6 +7145,7 @@ def run_scan(
                 posts, conversations, candidates, len(inventory.files),
                 len(provider_requests),
             )
+            provider_usage = provider_usage_summary(posts)
             provider_request_coverage = {
                 "total": len(provider_requests),
                 "complete": sum(
@@ -7140,6 +7254,7 @@ def run_scan(
                     "minimum_free_bytes": MIN_FILESYSTEM_FREE_BYTES,
                     "parser_version": PARSER_VERSION,
                     "provider_request_coverage": provider_request_coverage,
+                    "provider_usage_summary": provider_usage,
                     "projected_batch_bytes": projected_bytes,
                     "prospective_boundary": boundary_text,
                     "quiescence_hours": float(quiescence_hours),
@@ -7197,6 +7312,7 @@ def run_scan(
                 "ordering": "mrsMThatcher.log.100 through .1, then mrsMThatcher.log",
                 "parser_version": PARSER_VERSION,
                 "provider_request_coverage": provider_request_coverage,
+                "provider_usage_summary": provider_usage,
                 "parse_warnings": list(parsed.warnings),
                 "parsed_source_hash_count": parsed.parsed_source_hash_count,
                 "prospective_boundary": boundary_text,
@@ -7214,6 +7330,7 @@ def run_scan(
                 "latest_source_timestamp": parsed.latest_source_timestamp,
                 "parser_version": PARSER_VERSION,
                 "provider_request_coverage": provider_request_coverage,
+                "provider_usage_summary": provider_usage,
                 "prospective_boundary": boundary_text,
                 "scan_cutoff": cutoff_text,
                 "schema_version": SCHEMA_VERSION,
@@ -7226,6 +7343,7 @@ def run_scan(
                 cutoff=cutoff_text,
                 counts=counts,
                 provider_request_coverage=provider_request_coverage,
+                provider_usage=provider_usage,
                 coverage=coverage,
                 source_lag_seconds=source_lag_seconds,
                 warnings=warnings,
@@ -7256,6 +7374,7 @@ def run_scan(
                 "output_file_hashes": output_hashes,
                 "parser_version": PARSER_VERSION,
                 "provider_request_coverage": provider_request_coverage,
+                "provider_usage_summary": provider_usage,
                 "previous_batch_id": previous_batch,
                 "prospective_boundary": boundary_text,
                 "quiescence_hours": float(quiescence_hours),
@@ -7379,6 +7498,7 @@ def uninitialised_status() -> dict[str, Any]:
         "open_conversation_count": 0,
         "parser_version": PARSER_VERSION,
         "provider_request_count": 0,
+        "provider_usage_summary": provider_usage_summary([]),
         "projected_batch_bytes": 0,
         "pruned_batch_ids": [],
         "protected_automatic_bytes": 0,
@@ -7491,6 +7611,10 @@ def get_status(output_root: Path) -> dict[str, Any]:
                 ),
                 "provider_request_count": int(
                     counts.get("provider_request_count") or 0
+                ),
+                "provider_usage_summary": copy.deepcopy(
+                    state_value.get("provider_usage_summary")
+                    or provider_usage_summary([])
                 ),
                 "required_free_bytes": int(
                     state_value.get("required_free_bytes") or 0

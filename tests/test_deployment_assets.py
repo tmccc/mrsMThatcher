@@ -286,7 +286,7 @@ def test_canonical_user_units_cover_live_services_without_secrets() -> None:
         "/disks/disk1/etc/mrsMThatcher/tools/extract_prospective_conversations.py "
         "scan --project-dir /disks/disk1/etc/mrsMThatcher "
         "--request-record-dir /disks/disk1/etc/mrsMThatcher/ai-request-records "
-        "--output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v6 "
+        "--output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v7 "
         "--prospective-start 2026-08-24T15:08:39Z --quiescence-hours 48"
     )
     assert expected_exec in prospective
@@ -304,7 +304,7 @@ def test_canonical_user_units_cover_live_services_without_secrets() -> None:
         line for line in prospective.splitlines() if line.startswith("ReadWritePaths=")
     ]
     assert read_write_lines == [
-        "ReadWritePaths=/disks/disk1/research/mrsMThatcher-prospective-conversations-v6"
+        "ReadWritePaths=/disks/disk1/research/mrsMThatcher-prospective-conversations-v7"
     ]
     assert "ProtectSystem=strict" in prospective
     assert "UMask=0077" in prospective
@@ -341,7 +341,7 @@ def test_user_unit_installer_prepares_and_gates_scheduled_tasks() -> None:
     assert 'OPENAI_COST_DIR="${HOME}/.local/state/mrsMThatcher/openai-costs"' in installer
     assert (
         'PROSPECTIVE_CONVERSATION_DIR="${MRS_PROSPECTIVE_CONVERSATION_DIR:-'
-        '/disks/disk1/research/mrsMThatcher-prospective-conversations-v6}"'
+        '/disks/disk1/research/mrsMThatcher-prospective-conversations-v7}"'
         in installer
     )
     assert (
@@ -370,8 +370,8 @@ def test_user_unit_installer_prepares_and_gates_scheduled_tasks() -> None:
     assert "systemctl --user enable --now mrs-openai-cost-cache.timer" in installer
     assert "systemctl --user enable --now mrs-prospective-conversations.timer" not in installer
     assert "systemctl --user start mrs-prospective-conversations.service" not in installer
-    assert "left prospective conversation v6 root absent for registered rebuild" in installer
-    assert "documented v5-to-v6 rebuild" in installer
+    assert "left prospective conversation v7 root absent for registered rebuild" in installer
+    assert "documented v6-to-v7 rebuild" in installer
     assert "mrs-prospective-conversations.service" in installer
     assert "mrs-prospective-conversations.timer" in installer
 
@@ -470,7 +470,7 @@ def test_user_unit_installer_reports_runtime_readiness_without_activating_units(
     cost_dir = tmp_path / "home" / ".local" / "state" / "mrsMThatcher" / "openai-costs"
     assert cost_dir.stat().st_mode & 0o777 == 0o700
     assert not prospective_dir.exists()
-    assert "left prospective conversation v6 root absent for registered rebuild" in result.stdout
+    assert "left prospective conversation v7 root absent for registered rebuild" in result.stdout
     assert "enable --now mrs-prospective-conversations.timer" not in result.stdout
     assert "start mrs-prospective-conversations.service" not in result.stdout
     assert "enable each desired unit separately" in result.stdout
@@ -579,7 +579,7 @@ def test_readme_deploys_complete_single_call_evidence_closure() -> None:
     assert all((PROJECT_DIR / relative_path).is_file() for relative_path in required)
 
 
-def test_readme_quiesces_v5_extractor_before_first_v6_deployment() -> None:
+def test_readme_quiesces_v6_extractor_before_first_v7_deployment() -> None:
     """Prevent the scheduled collector racing its registered schema rebuild."""
 
     readme = (PROJECT_DIR / "README.md").read_text(encoding="utf-8")
@@ -589,7 +589,7 @@ def test_readme_quiesces_v5_extractor_before_first_v6_deployment() -> None:
 
     assert "disable and stop `mrs-prospective-conversations.timer` before step 7" in deployment
     assert "verify that no extractor oneshot remains active" in deployment
-    assert "ordered v5-to-v6 rebuild, validation, manual oneshot" in deployment
+    assert "ordered v6-to-v7 rebuild, validation, manual oneshot" in deployment
     assert "Enable the hourly timer only after those checks succeed" in deployment
 
 

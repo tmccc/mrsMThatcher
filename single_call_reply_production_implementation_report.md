@@ -69,10 +69,10 @@ fallback, reviewer or secondary conversational provider path.
 - Storage: `false`
 - Output: strict `json_schema` named `single_call_reply_decision`
 - Tools: none
-- Prompt cache key: `mrsMThatcher-single-sol-c1e6145bd90b9811`
+- Prompt cache key: `mrsMThatcher-single-sol-a972a0e56f44b033`
 - Prompt cache: options explicitly supplied in implicit mode with a 30-minute TTL
 - Frozen prompt SHA-256:
-  `c1e6145bd90b9811258e91b598ff695ab69900878ed7c03e9210676638377d67`
+  `a972a0e56f44b03345fe457367822191dc0cbe83b2ca550aee55472a6cafe61f`
 - Frozen local schema SHA-256:
   `936ea48c371babd74944a227619531139f0386a28ac64130ccfae246b14655b5`
 

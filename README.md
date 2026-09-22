@@ -487,6 +487,13 @@ still contain facts. The prompt forbids invented facts and accepting unsupported
 premises. When evidence is inadequate, it favours a useful non-factual response,
 clarification or sensible silence. Natural courtesies, sympathy, opinions,
 disagreement and humour have no closed vocabulary or template requirement.
+When an account question is still live, a substantive partial answer counts as
+conversational progress: the model should acknowledge only what was supplied
+and may ask for the important remaining information. The existence of an earlier
+question does not itself require a reply, so emoji-only reactions, repetitions
+and courtesies after a completed exchange can still end in `no_reply`.
+Contributor-named sources remain untrusted and cannot be described as inspected
+or verified without matching trusted facts.
 
 Deterministic validation checks the structured inventory, exact ordered claim
 spans, fact-ID membership, evidence identity and durable hashes. Declared facts
@@ -1168,14 +1175,14 @@ installation for drift with:
 deploy/systemd-user/install.sh --check
 ```
 
-The optional network-free version-6 prospective conversation collector
+The optional network-free version-7 prospective conversation collector
 reconstructs account roots, historical-context replies, and exact same-author
 parent paths from the retained production log rotation without touching the
 bot or its state. It also retains bounded, content-free reply-photo collection
 and visual-analysis metadata for review. Its scheduled private root is
-`/disks/disk1/research/mrsMThatcher-prospective-conversations-v6`; the existing
-version-5 root remains a read-only migration source. Its operation, privacy
-model, registered v5-to-v6 rebuild, validation, manual review packs, and
+`/disks/disk1/research/mrsMThatcher-prospective-conversations-v7`; the existing
+version-6 root remains a read-only migration source. Its operation, privacy
+model, registered v6-to-v7 rebuild, validation, manual review packs, and
 controlled timer activation are documented in the
 [prospective conversation extractor runbook](docs/prospective_conversation_extractor.md).
 
@@ -1193,7 +1200,7 @@ executes the same checked bot script by default.
 
 The installer uses atomic per-file replacement and runs `daemon-reload`, but it
 does not enable, disable, start, stop, or restart any unit. Its non-mutating
-first-v6 installation also leaves the prospective v6 root absent for the
+first-v7 installation also leaves the prospective v7 root absent for the
 registered rebuild; prospective timer activation is intentionally omitted from
 its suggested commands. The non-mutating analytics `status` check always
 targets the runtime checkout at
@@ -1319,10 +1326,10 @@ for content validation.
     use a separately reviewed compatibility or migration recovery procedure
     when the earlier code cannot consume the current state.
 
-For the first deployment containing prospective extractor schema version 6,
+For the first deployment containing prospective extractor schema version 7,
 disable and stop `mrs-prospective-conversations.timer` before step 7 and verify
 that no extractor oneshot remains active. Keep it inactive through the checkout
-update and follow the ordered v5-to-v6 rebuild, validation, manual oneshot and
+update and follow the ordered v6-to-v7 rebuild, validation, manual oneshot and
 corpus inspection in the
 [prospective conversation extractor runbook](docs/prospective_conversation_extractor.md).
 Enable the hourly timer only after those checks succeed. This exception applies

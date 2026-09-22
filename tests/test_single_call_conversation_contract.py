@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import json
+from pathlib import Path
 
 import pytest
 
@@ -24,6 +25,7 @@ NATURAL_REPLIES = [
     ("humour", "I shall resist the temptation to appoint a committee for that."),
     ("premise_neutral", "Let us disagree without making enemies of one another."),
 ]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def evidence_inputs():
@@ -123,6 +125,68 @@ def test_no_reply_remains_valid():
         decision="no_reply", kind="no_reply", reply="", reason="unsupported_or_unverifiable",
     ), payload=payload)
     assert result["decision"] == "no_reply"
+
+
+def test_partial_answer_evaluation_cases_reach_the_one_call_unchanged():
+    """Preserve semantic fixtures and policy inputs without faking model judgement."""
+
+    cases = json.loads(
+        (
+            PROJECT_ROOT
+            / "tests/fixtures/single_call_partial_answer_evaluation_cases.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert [case["case_id"] for case in cases] == [
+        "source-identification-partial-answer",
+        "emoji-only-after-request",
+        "one-substantive-part-of-multipart-request",
+        "repetition-without-requested-evidence",
+        "completed-exchange-courtesy",
+    ]
+    assert [case["expected_editorial_preference"] for case in cases] == [
+        "useful_continuation",
+        "no_reply_reasonable",
+        "useful_continuation",
+        "no_reply_reasonable",
+        "no_reply_reasonable",
+    ]
+    assert "partial answer is conversational\nprogress" in pipeline.SYSTEM_PROMPT
+    assert "previous question alone never requires a\nreply" in pipeline.SYSTEM_PROMPT
+    assert "must not imply that you inspected, verified or\nconfirmed" in pipeline.SYSTEM_PROMPT
+
+    for case in cases:
+        visible = case["visible_conversation"]
+        source = context(turns=1)
+        source.update(
+            {
+                "target_id": visible[-1]["post_id"],
+                "thread_id": visible[0]["post_id"],
+                "root_post_id": visible[0]["post_id"],
+                "parent_post_id": visible[-2]["post_id"],
+                "incoming_contribution": visible[-1]["text"],
+                "parent_thread": copy.deepcopy(visible[:-1]),
+                "visible_conversation": copy.deepcopy(visible),
+            }
+        )
+        payload, _facts = pipeline.build_model_payload(
+            context=source,
+            repository=FakeRepository(0),
+        )
+        request, images = pipeline.build_openai_request(payload)
+        assert payload["visible_conversation"] == [
+            {
+                "post_id": turn["post_id"],
+                "role": turn["author_role"],
+                "text": turn["text"],
+            }
+            for turn in visible
+        ]
+        assert request["instructions"] == pipeline.SYSTEM_PROMPT
+        assert json.loads(request["input"])["visible_conversation"] == payload[
+            "visible_conversation"
+        ]
+        assert "tools" not in request
+        assert images == []
 
 
 @pytest.mark.parametrize("text,error", [

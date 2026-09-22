@@ -1,0 +1,156 @@
+[
+  {
+    "case_id": "source-identification-partial-answer",
+    "visible_conversation": [
+      {
+        "post_id": "ons-root",
+        "author_role": "account",
+        "text": "Whatever the difficulties, economies that flourish do so under the banner of the market and not of Marx."
+      },
+      {
+        "post_id": "ons-offer",
+        "author_role": "user",
+        "text": "@MrsMThatcher I can send you the annual percentage change for M0 and M4 under Margaret Thatcher and John Major. They were very erratic about tight monetary policy. M0(SA) should grow 0-4%pa, M4 growing 0-7%pa."
+      },
+      {
+        "post_id": "ons-request",
+        "author_role": "account",
+        "text": "Please do—include the source, series definitions and full period. Volatility alone would not prove policy inconsistency: distinguish targets from outcomes, and explain why those bands should govern when they conflict with inflation, spending or debt objectives."
+      },
+      {
+        "post_id": "ons-target",
+        "author_role": "user",
+        "text": "@MrsMThatcher ONS Economic Trends: Annual Supplement 2006 The annual percentage change for M0 and M4. Its on the internet."
+      }
+    ],
+    "expected_editorial_preference": "useful_continuation",
+    "progress_supplied": [
+      "a publication is named",
+      "the contributor identifies annual percentage change for M0 and M4 as the material intended"
+    ],
+    "important_gaps": [
+      "the figures or relevant table",
+      "the years or full period",
+      "the requested series definitions and argument"
+    ],
+    "must_not_imply": [
+      "the publication was inspected",
+      "the publication's contents were verified"
+    ]
+  },
+  {
+    "case_id": "emoji-only-after-request",
+    "visible_conversation": [
+      {
+        "post_id": "emoji-root",
+        "author_role": "user",
+        "text": "The figures prove the policy failed."
+      },
+      {
+        "post_id": "emoji-request",
+        "author_role": "account",
+        "text": "Please provide the figures, source and period."
+      },
+      {
+        "post_id": "emoji-target",
+        "author_role": "user",
+        "text": "👍"
+      }
+    ],
+    "expected_editorial_preference": "no_reply_reasonable",
+    "progress_supplied": [],
+    "important_gaps": [
+      "the figures",
+      "the source",
+      "the period"
+    ],
+    "must_not_imply": []
+  },
+  {
+    "case_id": "one-substantive-part-of-multipart-request",
+    "visible_conversation": [
+      {
+        "post_id": "multipart-root",
+        "author_role": "user",
+        "text": "The programme changed sharply."
+      },
+      {
+        "post_id": "multipart-request",
+        "author_role": "account",
+        "text": "Which years do you mean, what measure are you using, and where is the source?"
+      },
+      {
+        "post_id": "multipart-target",
+        "author_role": "user",
+        "text": "I mean the period from 1983 to 1987; I still need to find the table."
+      }
+    ],
+    "expected_editorial_preference": "useful_continuation",
+    "progress_supplied": [
+      "the contributor supplies the intended period"
+    ],
+    "important_gaps": [
+      "the measure",
+      "the source or table"
+    ],
+    "must_not_imply": [
+      "the supplied period is independently verified"
+    ]
+  },
+  {
+    "case_id": "repetition-without-requested-evidence",
+    "visible_conversation": [
+      {
+        "post_id": "repeat-root",
+        "author_role": "user",
+        "text": "The figures prove the policy failed."
+      },
+      {
+        "post_id": "repeat-request",
+        "author_role": "account",
+        "text": "Please provide the figures and their source rather than repeating the conclusion."
+      },
+      {
+        "post_id": "repeat-target",
+        "author_role": "user",
+        "text": "They prove the policy failed."
+      }
+    ],
+    "expected_editorial_preference": "no_reply_reasonable",
+    "progress_supplied": [],
+    "important_gaps": [
+      "the figures",
+      "the source"
+    ],
+    "must_not_imply": []
+  },
+  {
+    "case_id": "completed-exchange-courtesy",
+    "visible_conversation": [
+      {
+        "post_id": "courtesy-root",
+        "author_role": "account",
+        "text": "Which passage supports that reading?"
+      },
+      {
+        "post_id": "courtesy-answer",
+        "author_role": "user",
+        "text": "Paragraph 12 is the passage I meant."
+      },
+      {
+        "post_id": "courtesy-close",
+        "author_role": "account",
+        "text": "Thank you—that identifies the passage you meant."
+      },
+      {
+        "post_id": "courtesy-target",
+        "author_role": "user",
+        "text": "Thanks."
+      }
+    ],
+    "expected_editorial_preference": "no_reply_reasonable",
+    "progress_supplied": [],
+    "important_gaps": [],
+    "must_not_imply": []
+  }
+]

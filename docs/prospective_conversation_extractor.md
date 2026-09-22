@@ -11,9 +11,9 @@ frozen boundary:
 2026-08-24T15:08:39Z
 ```
 
-The activation format is deliberately versioned as schema `6`, extractor
-`prospective-conversation-extractor-v6`, and parser
-`prospective-conversation-log-parser-v6`. State, cache entries, manifests,
+The activation format is deliberately versioned as schema `7`, extractor
+`prospective-conversation-extractor-v7`, and parser
+`prospective-conversation-log-parser-v7`. State, cache entries, manifests,
 status files, and canonical posts must match those versions exactly.
 
 Collection is descriptive. A newly collected conversation is not thereby a
@@ -72,13 +72,13 @@ The extractor never reads or changes:
 The scheduled output root is fixed at:
 
 ```text
-/disks/disk1/research/mrsMThatcher-prospective-conversations-v6
+/disks/disk1/research/mrsMThatcher-prospective-conversations-v7
 ```
 
 Its layout is:
 
 ```text
-mrsMThatcher-prospective-conversations-v6/
+mrsMThatcher-prospective-conversations-v7/
 ├── state/
 │   ├── extractor-state.json
 │   ├── pseudonym-key
@@ -420,7 +420,7 @@ Run a scan manually with the production settings:
 ```bash
 python3 tools/extract_prospective_conversations.py scan \
   --project-dir /disks/disk1/etc/mrsMThatcher \
-  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v6 \
+  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v7 \
   --prospective-start 2026-08-24T15:08:39Z \
   --quiescence-hours 48
 ```
@@ -434,7 +434,7 @@ Inspect operational status without editing it:
 
 ```bash
 python3 tools/extract_prospective_conversations.py status \
-  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v6
+  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v7
 ```
 
 The command is read-only and returns valid JSON even before initialisation,
@@ -447,7 +447,7 @@ the absence of raw-author fields:
 
 ```bash
 python3 tools/extract_prospective_conversations.py validate \
-  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v6
+  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v7
 ```
 
 Validation exits non-zero on corruption and never repairs it implicitly.
@@ -456,7 +456,7 @@ Freeze a private review pack manually:
 
 ```bash
 python3 tools/extract_prospective_conversations.py freeze-review-pack \
-  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v6 \
+  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v7 \
   --pack-name prospective-review-2026-09-01 \
   --since 2026-08-24T15:08:39Z \
   --until 2026-09-01T00:00:00Z
@@ -482,27 +482,37 @@ An unmatched capture is retained as prepared/outcome-unknown; missing, corrupt
 and historical-not-recorded evidence is reported explicitly and is never
 reconstructed from current configuration.
 
-## Registered version-5 to version-6 rebuild
+Structured `single_call_reply_provider_usage` summaries retain the provider's
+reported input, cached-input, cache-write-input, output, reasoning and total
+token fields, together with model/call identity, provider response identity,
+latency and request-attempt metadata. Missing fields remain absent. Explicit
+zeroes remain zero. Batch status, manifests and the extraction report aggregate
+only non-negative provider-reported token values. Totals deduplicate first by
+`call_id`, then by `provider_response_id`, and finally by the structured-event
+fingerprint; each category records how many logical usage events supplied it,
+and a category with no reported values is `null` rather than zero.
+
+## Registered version-6 to version-7 rebuild
 
 An extractor or parser version mismatch fails before prior canonical posts or
-cache entries are reused. In particular, normal version-6 `scan` rejects a
-version-5 state rather than silently upgrading it. The only registered rebuild
-source tuple is schema 5,
-`prospective-conversation-extractor-v5`, and
-`prospective-conversation-log-parser-v5`.
+cache entries are reused. In particular, normal version-7 `scan` rejects a
+version-6 state rather than silently upgrading it. The only registered rebuild
+source tuple is schema 6,
+`prospective-conversation-extractor-v6`, and
+`prospective-conversation-log-parser-v6`.
 
-Version 6 invalidates version-5 caches because it registers request lifecycle
-and `call_id` fields and adds independently discovered exact capture files.
-Reusing an unchanged version-5 log hash alone would otherwise leave newly
-available captures invisible while claiming current parser provenance.
+Version 7 invalidates version-6 caches because canonical pipeline summaries now
+retain provider usage and correlation metadata and the batch status derives
+deduplicated token totals. Reusing an unchanged version-6 log hash would omit
+that historical structured evidence while claiming current parser provenance.
 
 Rebuild into a separate nonexistent destination:
 
 ```bash
 python3 tools/extract_prospective_conversations.py rebuild-to-new-root \
   --project-dir /disks/disk1/etc/mrsMThatcher \
-  --source-output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v5 \
-  --new-output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v6 \
+  --source-output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v6 \
+  --new-output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v7 \
   --until 2026-09-01T00:00:00Z
 ```
 
@@ -510,22 +520,22 @@ The command opens the old root read-only under its shared lock, verifies the
 registered tuple, reads its frozen boundary and quiescence policy, and copies
 the 32-byte pseudonym key without displaying it. The destination must not
 exist. Current retained production logs must span the boundary and are parsed
-from scratch by parser v6; no v5 canonical post or source cache is reused. The
+from scratch by parser v7; no v6 canonical post or source cache is reused. The
 command validates the complete new root and never changes, switches to, or
 deletes the old root. It does not alter the installed service output path.
 
 A later controlled deployment must perform these steps in order:
 
 1. Disable and stop only `mrs-prospective-conversations.timer`.
-2. Update the production checkout to the reviewed version-6 commit.
+2. Update the production checkout to the reviewed version-7 commit.
 3. Install the updated user units without enabling them.
-4. Run the registered rebuild from the exact v5 root into the v6 root.
-5. Run `validate` against the v6 root.
+4. Run the registered rebuild from the exact v6 root into the v7 root.
+5. Run `validate` against the v7 root.
 6. Run one manual `mrs-prospective-conversations.service` oneshot.
-7. Inspect the first v6 corpus and its warnings.
+7. Inspect the first v7 corpus and its warnings.
 8. Only then enable the hourly prospective extractor timer.
 
-Do not point version-6 code at the version-5 root, reuse v5 batches, or switch
+Do not point version-7 code at the version-6 root, reuse v6 batches, or switch
 the timer before validation and inspection.
 
 ## Atomicity, locking, and recovery
@@ -576,9 +586,9 @@ deploy/systemd-user/install.sh --install
 ```
 
 Installation verifies and copies the units, prepares unrelated scheduled-task
-state, and reloads the user manager. For a first version-6 deployment it
-deliberately leaves the v6 root nonexistent so the registered rebuild can
-create it. On later upgrades it verifies and prepares an existing real v6
+state, and reloads the user manager. For a first version-7 deployment it
+deliberately leaves the v7 root nonexistent so the registered rebuild can
+create it. On later upgrades it verifies and prepares an existing real v7
 directory. It does not enable, disable, start, stop, or restart any unit.
 Activate this collector only after completing the controlled rebuild,
 validation, manual oneshot, and corpus inspection described above:

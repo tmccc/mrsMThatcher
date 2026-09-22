@@ -764,6 +764,200 @@ def test_exact_provider_request_reaches_batch_and_frozen_review_pack(
     assert extractor.validate_output_root(output)["valid"] is True
 
 
+def test_provider_usage_survives_projection_and_aggregates_by_call_identity(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    complete_target = snowflake_id("2026-08-24T15:30:00Z")
+    absent_target = snowflake_id("2026-08-24T15:31:00Z")
+    zero_target = snowflake_id("2026-08-24T15:32:00Z")
+    complete_call = "11111111-2222-4333-8444-555555555555"
+    absent_call = "22222222-3333-4444-8555-666666666666"
+    zero_call = "33333333-4444-4555-8666-777777777777"
+    usage = {
+        "call_id": complete_call,
+        "lane": "mention",
+        "target_id": complete_target,
+        "strategy_version": "single-sol-reply-20260904",
+        "model": "gpt-5.6-sol",
+        "provider_response_id": "resp_usage_complete",
+        "provider_latency_ms": 1234,
+        "request_attempt_count": 2,
+        "request_attempt_count_status": "available",
+        "input_tokens": 101,
+        "cached_input_tokens": 22,
+        "cache_write_input_tokens": 3,
+        "output_tokens": 17,
+        "reasoning_tokens": 9,
+        "total_tokens": 118,
+    }
+    write_active(
+        project,
+        log_line("2026-08-24 15:00:00", "Pre-boundary coverage")
+        + event_line(
+            "2026-08-24 16:30:00",
+            "single_call_reply_provider_usage",
+            **usage,
+        )
+        + event_line(
+            "2026-08-24 16:30:01",
+            "single_call_reply_provider_usage",
+            **usage,
+        )
+        + event_line(
+            "2026-08-24 16:31:00",
+            "single_call_reply_provider_usage",
+            call_id=absent_call,
+            lane="mention",
+            target_id=absent_target,
+            model="gpt-5.6-sol",
+            provider_response_id="resp_usage_absent",
+            provider_latency_ms=4321,
+            request_attempt_count=1,
+        )
+        + event_line(
+            "2026-08-24 16:32:00",
+            "single_call_reply_provider_usage",
+            call_id=zero_call,
+            lane="mention",
+            target_id=zero_target,
+            model="gpt-5.6-sol",
+            provider_response_id="resp_usage_zero",
+            provider_latency_ms=0,
+            request_attempt_count=0,
+            request_attempt_count_status="available",
+            input_tokens=0,
+            cached_input_tokens=0,
+            cache_write_input_tokens=0,
+            output_tokens=0,
+            reasoning_tokens=0,
+            total_tokens=0,
+        ),
+    )
+
+    run_scan(project, output)
+
+    posts = {row["post_id"]: row for row in rows(output, "canonical-posts.jsonl")}
+    complete_events = [
+        row
+        for row in posts[complete_target]["pipeline_stage_summaries"]
+        if row["event_kind"] == "single_call_reply_provider_usage"
+    ]
+    assert len(complete_events) == 2
+    for projected in complete_events:
+        for field, value in usage.items():
+            if field not in {"lane", "target_id"}:
+                assert projected[field] == value
+
+    absent_event = posts[absent_target]["pipeline_stage_summaries"][0]
+    assert absent_event["call_id"] == absent_call
+    assert absent_event["provider_response_id"] == "resp_usage_absent"
+    assert absent_event["provider_latency_ms"] == 4321
+    assert absent_event["request_attempt_count"] == 1
+    assert "request_attempt_count_status" not in absent_event
+    assert not set(extractor.PROVIDER_USAGE_TOKEN_FIELDS) & set(absent_event)
+
+    zero_event = posts[zero_target]["pipeline_stage_summaries"][0]
+    assert zero_event["provider_latency_ms"] == 0
+    assert zero_event["request_attempt_count"] == 0
+    assert {
+        field: zero_event[field]
+        for field in extractor.PROVIDER_USAGE_TOKEN_FIELDS
+    } == {field: 0 for field in extractor.PROVIDER_USAGE_TOKEN_FIELDS}
+
+    conversations = rows(output, "conversations.jsonl")
+    projected_by_post = {
+        turn["post_id"]: turn["pipeline_stage_summaries"]
+        for conversation in conversations
+        for turn in conversation["turns"]
+    }
+    assert projected_by_post[complete_target] == posts[complete_target][
+        "pipeline_stage_summaries"
+    ]
+
+    expected_summary = {
+        "deduplication_identity": (
+            "call_id, else provider_response_id, else structured event fingerprint"
+        ),
+        "duplicate_event_count": 1,
+        "included_usage_event_count": 3,
+        "usage_event_count_lacking_token_data": 1,
+        "usage_event_count_with_conflicting_token_data": 0,
+        "token_reported_event_counts": {
+            field: 2 for field in extractor.PROVIDER_USAGE_TOKEN_FIELDS
+        },
+        "token_totals": {
+            "input_tokens": 101,
+            "cached_input_tokens": 22,
+            "cache_write_input_tokens": 3,
+            "output_tokens": 17,
+            "reasoning_tokens": 9,
+            "total_tokens": 118,
+        },
+    }
+    batch = current_batch(output)
+    status = extractor._strict_read_json(batch / "status.json")
+    manifest = extractor._strict_read_json(batch / "manifest.json")
+    report = (batch / "extraction-report.md").read_text(encoding="utf-8")
+    assert status["provider_usage_summary"] == expected_summary
+    assert manifest["provider_usage_summary"] == expected_summary
+    assert "Provider usage events included after correlation: `3`" in report
+    assert "Provider usage events lacking token data: `1`" in report
+    request_rows = rows(output, "provider-requests.jsonl")
+    assert {row["capture_status"] for row in request_rows} == {
+        "missing_expected_record"
+    }
+    assert all(
+        row["capture_status"] != "historical_not_recorded"
+        for row in request_rows
+    )
+    assert extractor.validate_output_root(output)["valid"] is True
+
+
+def test_historical_unrecorded_request_and_usage_remain_unavailable(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    target_id = snowflake_id("2026-08-24T15:40:00Z")
+    write_active(
+        project,
+        log_line("2026-08-24 15:00:00", "Pre-boundary coverage")
+        + event_line(
+            "2026-08-24 16:40:00",
+            "single_call_reply_decision",
+            lane="mention",
+            target_id=target_id,
+            model_call_count=1,
+            decision="no_reply",
+            reply_kind="no_reply",
+            reason_code="completed_exchange",
+        ),
+    )
+
+    run_scan(project, output)
+
+    request_rows = rows(output, "provider-requests.jsonl")
+    assert len(request_rows) == 1
+    request = request_rows[0]
+    assert request["capture_status"] == "historical_not_recorded"
+    assert request["call_id"] is None
+    assert not {
+        "request_body_utf8",
+        "request_body_sha256",
+        "request_body_byte_length",
+    } & set(request)
+    status = extractor._strict_read_json(current_batch(output) / "status.json")
+    usage = status["provider_usage_summary"]
+    assert usage["included_usage_event_count"] == 0
+    assert usage["usage_event_count_lacking_token_data"] == 0
+    assert usage["token_totals"] == {
+        field: None for field in extractor.PROVIDER_USAGE_TOKEN_FIELDS
+    }
+    assert extractor.validate_output_root(output)["valid"] is True
+
+
 @pytest.mark.parametrize("prior_429", [False, True])
 def test_real_transport_timeout_event_survives_parser_and_normaliser(
     prior_429: bool,
@@ -916,20 +1110,20 @@ def state_bytes(output: Path) -> bytes:
     return (output / "state" / "extractor-state.json").read_bytes()
 
 
-def mark_state_as_registered_v5(output: Path) -> None:
+def mark_state_as_registered_v6(output: Path) -> None:
     state_path = output / "state" / "extractor-state.json"
     state = extractor._strict_read_json(state_path)
     assert isinstance(state, dict)
     state.update(
         {
-            "schema_version": 5,
-            "extractor_version": "prospective-conversation-extractor-v5",
-            "parser_version": "prospective-conversation-log-parser-v5",
+            "schema_version": 6,
+            "extractor_version": "prospective-conversation-extractor-v6",
+            "parser_version": "prospective-conversation-log-parser-v6",
         }
     )
     for entry in state.get("source_file_cache", {}).values():
         if isinstance(entry, dict):
-            entry["parser_version"] = "prospective-conversation-log-parser-v5"
+            entry["parser_version"] = "prospective-conversation-log-parser-v6"
     rewrite_private_json(state_path, state, mode=0o600)
 
 
@@ -3626,14 +3820,14 @@ def test_send_attempt_history_is_bounded_per_target() -> None:
     ]
 
 
-def test_prospective_version_6_and_registered_v5_predecessor_are_exact() -> None:
-    assert extractor.SCHEMA_VERSION == 6
-    assert extractor.EXTRACTOR_VERSION == "prospective-conversation-extractor-v6"
-    assert extractor.PARSER_VERSION == "prospective-conversation-log-parser-v6"
+def test_prospective_version_7_and_registered_v6_predecessor_are_exact() -> None:
+    assert extractor.SCHEMA_VERSION == 7
+    assert extractor.EXTRACTOR_VERSION == "prospective-conversation-extractor-v7"
+    assert extractor.PARSER_VERSION == "prospective-conversation-log-parser-v7"
     assert extractor.REGISTERED_REBUILD_SOURCE == (
-        5,
-        "prospective-conversation-extractor-v5",
-        "prospective-conversation-log-parser-v5",
+        6,
+        "prospective-conversation-extractor-v6",
+        "prospective-conversation-log-parser-v6",
     )
     assert "reply_visual_description" in (
         extractor.STRUCTURED_CONVERSATION_EVENT_FIELDS
@@ -3710,7 +3904,7 @@ def test_validation_rejects_mixed_parser_versions_in_canonical_snapshot(
     assert any("canonical post parser mismatch" in value for value in problems)
 
 
-def test_registered_rebuild_v5_to_v6_preserves_key_pseudonyms_and_old_root(
+def test_registered_rebuild_v6_to_v7_preserves_key_pseudonyms_and_old_root(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
@@ -3722,7 +3916,7 @@ def test_registered_rebuild_v5_to_v6_preserves_key_pseudonyms_and_old_root(
         + first_exchange(author_id="stable-rebuild-user"),
     )
     run_scan(project, old_root)
-    mark_state_as_registered_v5(old_root)
+    mark_state_as_registered_v6(old_root)
     old_key = (old_root / "state" / "pseudonym-key").read_bytes()
     old_author = next(
         post["author_key"]
@@ -3758,7 +3952,7 @@ def test_registered_rebuild_v5_to_v6_preserves_key_pseudonyms_and_old_root(
     }
 
 
-def test_registered_v5_to_v6_rebuild_reparses_single_call_semantics(
+def test_registered_v6_to_v7_rebuild_reparses_single_call_semantics(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
@@ -3794,7 +3988,7 @@ def test_registered_v5_to_v6_rebuild_reparses_single_call_semantics(
     source_post["parent_post_id"] = None
     source_post["pipeline_stage_summaries"] = []
     rewrite_batch_posts_and_hashes(current_batch(old_root), source_posts)
-    mark_state_as_registered_v5(old_root)
+    mark_state_as_registered_v6(old_root)
 
     result = extractor.rebuild_to_new_root(
         project_dir=project,
@@ -3813,9 +4007,9 @@ def test_registered_v5_to_v6_rebuild_reparses_single_call_semantics(
 
     assert result["status"] == "rebuilt"
     assert source_manifest["parsed_source_hash_count"] == 1
-    assert rebuilt["schema_version"] == 6
+    assert rebuilt["schema_version"] == 7
     assert rebuilt["derivation_parser_version"] == (
-        "prospective-conversation-log-parser-v6"
+        "prospective-conversation-log-parser-v7"
     )
     assert rebuilt["root_post_id"] == "800"
     assert rebuilt["parent_post_id"] == "850"
@@ -3839,7 +4033,7 @@ def test_registered_rebuild_refuses_existing_destination_and_insufficient_bounda
     existing.mkdir()
     write_active(project, first_exchange())
     run_scan(project, old_root)
-    mark_state_as_registered_v5(old_root)
+    mark_state_as_registered_v6(old_root)
 
     with pytest.raises(extractor.ExtractorError, match="must not already exist"):
         extractor.rebuild_to_new_root(
@@ -4320,7 +4514,7 @@ def test_status_is_read_only_and_valid_when_uninitialised(tmp_path: Path) -> Non
     status = extractor.get_status(output)
 
     assert status["initialised"] is False
-    assert status["schema_version"] == 6
+    assert status["schema_version"] == 7
     assert status["last_retention_error"] is None
     assert status["automatic_batch_budget_bytes"] == 10 * 1024 * 1024 * 1024
     assert status["minimum_free_bytes"] == 10 * 1024 * 1024 * 1024
@@ -5904,7 +6098,7 @@ def test_source_lag_is_reported_warned_and_does_not_invalidate(tmp_path: Path) -
     assert extractor.validate_output_root(output)["valid"] is True
 
 
-def test_normal_scan_rejects_v4_state_and_rebuild_rejects_unregistered_tuple(
+def test_normal_scan_rejects_v6_state_and_rebuild_rejects_unregistered_tuple(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
@@ -5914,7 +6108,7 @@ def test_normal_scan_rejects_v4_state_and_rebuild_rejects_unregistered_tuple(
         log_line("2026-08-24 16:00:00", "Boundary coverage") + first_exchange(),
     )
     run_scan(project, old_root)
-    mark_state_as_registered_v5(old_root)
+    mark_state_as_registered_v6(old_root)
 
     with pytest.raises(extractor.ExtractorError, match="unsupported extractor state schema"):
         run_scan(project, old_root)

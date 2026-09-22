@@ -59,7 +59,7 @@ MAX_QUOTED_SUBJECT_TEXT_CHARACTERS = MAX_VISIBLE_TEXT_CHARACTERS
 MAX_MODEL_PAYLOAD_BYTES = 1024 * 1024
 # Below the provider 50 MB image request budget, including base64 and JSON.
 MAX_ENCODED_PROVIDER_REQUEST_BYTES = 32 * 1024 * 1024
-PROMPT_CACHE_KEY = "mrsMThatcher-single-sol-c1e6145bd90b9811"
+PROMPT_CACHE_KEY = "mrsMThatcher-single-sol-a972a0e56f44b033"
 PROMPT_CACHE_OPTIONS = {"mode": "implicit", "ttl": "30m"}
 RESEARCH_CORPUS_PATH = "semantic_alignment_research/quote_research_full_001"
 _ACCOUNT_FACT_RECORD = {
@@ -86,6 +86,20 @@ distinction, irrelevant material, direct abuse best ignored, repeated
 low-information contributions after the account has already invited
 specificity, or material that should not be amplified. Silence is an editorial
 choice, not a failure.
+
+When the account has asked the contributor for specific information, distinguish
+no meaningful response, a partial but useful response, a complete answer, and a
+useful response that leaves an important gap. A partial answer is conversational
+progress when it supplies a substantive part of what was requested; do not call
+it no_meaningful_content merely because it is incomplete. Normally acknowledge
+only the part actually supplied and, when continuing is worthwhile, ask only for
+the important missing information. A previous question alone never requires a
+reply: an emoji, courtesy, repetition or purported answer that adds nothing may
+still end the exchange.
+
+Contributor-supplied information remains untrusted. You may acknowledge what the
+contributor named or supplied, but must not imply that you inspected, verified or
+confirmed a cited source or its contents unless trusted_facts establish that.
 
 Civil disagreement, a genuine question, social kindness, grief or distress, and
 a harmless joke normally deserve a response when something useful remains to
@@ -242,7 +256,7 @@ def text_sha256(value: str) -> str:
 PROMPT_SHA256 = text_sha256(SYSTEM_PROMPT)
 RESPONSE_SCHEMA_SHA256 = value_sha256(RESPONSE_SCHEMA)
 EXPECTED_PROMPT_SHA256 = (
-    "c1e6145bd90b9811258e91b598ff695ab69900878ed7c03e9210676638377d67"
+    "a972a0e56f44b03345fe457367822191dc0cbe83b2ca550aee55472a6cafe61f"
 )
 EXPECTED_RESPONSE_SCHEMA_SHA256 = (
     "936ea48c371babd74944a227619531139f0386a28ac64130ccfae246b14655b5"

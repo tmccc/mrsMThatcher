@@ -32,7 +32,7 @@ def test_frozen_prompt_and_schema_hashes() -> None:
     """Pin the exact reviewed prompt bytes and local response contract."""
 
     assert pipeline.PROMPT_SHA256 == (
-        "c1e6145bd90b9811258e91b598ff695ab69900878ed7c03e9210676638377d67"
+        "a972a0e56f44b03345fe457367822191dc0cbe83b2ca550aee55472a6cafe61f"
     )
     assert pipeline.RESPONSE_SCHEMA_SHA256 == (
         "936ea48c371babd74944a227619531139f0386a28ac64130ccfae246b14655b5"
