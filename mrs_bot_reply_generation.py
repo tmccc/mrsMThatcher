@@ -77,18 +77,20 @@ def log_ai_reply_posting_outcome(
     if not isinstance(metadata, dict):
         draft = getattr(reply, "draft_record", None)
         metadata = draft if isinstance(draft, dict) else {}
-    log_event(
-        "single_call_reply_posting_outcome",
-        status=status,
-        lane=lane,
-        target_id=target_id,
-        reply_post_id=reply_post_id,
-        strategy_version=metadata.get("strategy_version"),
-        reply_kind=metadata.get("reply_kind"),
-        reason_code=metadata.get("reason_code"),
-        validated_draft_hash=metadata.get("validated_draft_hash"),
-        failure_reason=failure_reason,
-    )
+    fields = {
+        "status": status,
+        "lane": lane,
+        "target_id": target_id,
+        "reply_post_id": reply_post_id,
+        "strategy_version": metadata.get("strategy_version"),
+        "reply_kind": metadata.get("reply_kind"),
+        "reason_code": metadata.get("reason_code"),
+        "validated_draft_hash": metadata.get("validated_draft_hash"),
+        "failure_reason": failure_reason,
+    }
+    if metadata.get("call_id"):
+        fields["call_id"] = metadata["call_id"]
+    log_event("single_call_reply_posting_outcome", **fields)
 
 
 def _is_openai_provider_health_failure(category: object) -> bool:
@@ -167,17 +169,19 @@ class ReplyGeneration:
                 self.model_transport.model,
                 usage,
             )
-            self.log_event(
-                "single_call_reply_provider_usage",
-                lane=lane,
-                target_id=target_id,
-                strategy_version=self.strategy_version,
-                model=self.model_transport.model,
-                provider_response_id=result.provider_response_id,
-                provider_latency_ms=result.provider_latency_ms,
-                request_attempt_count=result.provider_request_attempt_count,
+            usage_fields = {
+                "lane": lane,
+                "target_id": target_id,
+                "strategy_version": self.strategy_version,
+                "model": self.model_transport.model,
+                "provider_response_id": result.provider_response_id,
+                "provider_latency_ms": result.provider_latency_ms,
+                "request_attempt_count": result.provider_request_attempt_count,
                 **usage,
-            )
+            }
+            if result.call_id:
+                usage_fields["call_id"] = result.call_id
+            self.log_event("single_call_reply_provider_usage", **usage_fields)
 
     def evaluate(
         self, context: dict[str, object], media_context: dict | None = None, *,

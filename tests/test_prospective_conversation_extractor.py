@@ -12,11 +12,16 @@ import sys
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
 from zoneinfo import ZoneInfo
 
 import pytest
 
 from tools import extract_prospective_conversations as extractor
+import mrs_log_digest as digest
+from mrs_bot_reply_model_transport import ReplyModelTransport
+from mrs_provider_request_records import read_provider_request_record
 
 
 BOUNDARY = "2026-08-24T15:08:39Z"
@@ -621,24 +626,157 @@ def rows(output: Path, name: str) -> list[dict[str, object]]:
     return extractor._load_jsonl(current_batch(output) / name)
 
 
+def test_exact_provider_request_reaches_batch_and_frozen_review_pack(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    body_value = {
+        "instructions": "private multilingual Ω 😀\n\\nliteral " + "z" * 5000 + " END",
+        "input": [{"type": "input_image", "image_url": "data:image/png;base64,AAEC/w=="}],
+    }
+    observed_by_provider: list[bytes] = []
+
+    class RequestException(Exception):
+        pass
+
+    class Timeout(RequestException):
+        pass
+
+    class ConnectTimeout(Timeout):
+        pass
+
+    class ConnectionError(RequestException):
+        pass
+
+    response = SimpleNamespace(
+        status_code=200,
+        headers={},
+        json=lambda: {"id": "fixture-provider-response"},
+        close=lambda: None,
+    )
+
+    def fake_post(*_args: object, **kwargs: object) -> object:
+        observed_by_provider.append(bytes(kwargs["data"]))
+        return response
+
+    ticks = iter((1.0, 1.01))
+    transport = ReplyModelTransport(
+        log=Mock(),
+        model="fixture-model",
+        reasoning_effort="low",
+        monotonic=lambda: next(ticks),
+        require_remote_operation_unpaused=lambda _operation: None,
+        report_bot_health_progress=lambda _boundary: None,
+        requests=SimpleNamespace(
+            post=fake_post,
+            RequestException=RequestException,
+            Timeout=Timeout,
+            ConnectTimeout=ConnectTimeout,
+            ConnectionError=ConnectionError,
+        ),
+        base_url="https://fixture.invalid/v1",
+        api_key="fixture-secret-not-recorded",
+        sleep=lambda _seconds: None,
+        now_epoch=lambda: 0,
+        error_type=RuntimeError,
+        request_record_directory=project / "ai-request-records",
+    )
+    transport_result = transport.call(
+        request=body_value,
+        timeout_seconds=180,
+        lane="mention",
+        target_id="100",
+    )
+    call_id = str(transport_result["call_id"])
+    record = read_provider_request_record(
+        project / "ai-request-records" / f"{call_id}.json.gz"
+    )
+    recorded_body = str(record["request_body_utf8"]).encode("utf-8")
+    body = observed_by_provider[0]
+    digest_rows, _coverage = digest.provider_request_export(
+        project / "ai-request-records",
+        [{
+            "kind": "single_call_reply_decision",
+            "time": "2026-09-22 12:00:00",
+            "call_id": call_id,
+            "lane": "mention",
+            "target_id": "100",
+            "model_call_count": 1,
+            "provider_request_attempt_count": 1,
+        }],
+        window_start=datetime(2026, 9, 22, 11, 59),
+        window_end=datetime(2026, 9, 22, 12, 1),
+    )
+    digest_body = str(digest_rows[0]["request_body_utf8"]).encode("utf-8")
+    write_active(
+        project,
+        first_exchange()
+        + continuation()
+        + event_line(
+            "2026-08-24 16:20:05",
+            "provider_request_prepared",
+            call_id=call_id,
+            lane="mention",
+            target_id="100",
+            request_body_sha256=hashlib.sha256(body).hexdigest(),
+            request_body_byte_length=len(body),
+        ),
+    )
+    run_scan(project, output, until="2099-01-01T00:00:00Z")
+    batch_rows = rows(output, "provider-requests.jsonl")
+    assert len(batch_rows) == 1
+    batch_body = str(batch_rows[0]["request_body_utf8"]).encode("utf-8")
+    assert batch_body == body
+    assert batch_rows[0]["association_status"] == "associated_target"
+    posts = rows(output, "canonical-posts.jsonl")
+    assert posts[0]["provider_call_ids"] == [call_id]
+
+    extractor.freeze_review_pack(
+        output_root=output,
+        pack_name="exact-input",
+        since=BOUNDARY,
+        until="2099-01-01T00:00:00Z",
+    )
+    shutil.rmtree(project / "ai-request-records")
+    pack_rows = extractor._load_jsonl(
+        output / "review-packs" / "exact-input" / "provider-requests.jsonl"
+    )
+    pack_body = str(pack_rows[0]["request_body_utf8"]).encode("utf-8")
+    expected = hashlib.sha256(body).hexdigest()
+    recovered_bodies = (
+        body,
+        recorded_body,
+        digest_body,
+        batch_body,
+        pack_body,
+    )
+    assert all(recovered == body for recovered in recovered_bodies)
+    assert {hashlib.sha256(recovered).hexdigest() for recovered in recovered_bodies} == {
+        expected
+    }
+    assert b"fixture-secret-not-recorded" not in json.dumps(record).encode("utf-8")
+    assert extractor.validate_output_root(output)["valid"] is True
+
+
 def state_bytes(output: Path) -> bytes:
     return (output / "state" / "extractor-state.json").read_bytes()
 
 
-def mark_state_as_registered_v4(output: Path) -> None:
+def mark_state_as_registered_v5(output: Path) -> None:
     state_path = output / "state" / "extractor-state.json"
     state = extractor._strict_read_json(state_path)
     assert isinstance(state, dict)
     state.update(
         {
-            "schema_version": 4,
-            "extractor_version": "prospective-conversation-extractor-v4",
-            "parser_version": "prospective-conversation-log-parser-v4",
+            "schema_version": 5,
+            "extractor_version": "prospective-conversation-extractor-v5",
+            "parser_version": "prospective-conversation-log-parser-v5",
         }
     )
     for entry in state.get("source_file_cache", {}).values():
         if isinstance(entry, dict):
-            entry["parser_version"] = "prospective-conversation-log-parser-v4"
+            entry["parser_version"] = "prospective-conversation-log-parser-v5"
     rewrite_private_json(state_path, state, mode=0o600)
 
 
@@ -2133,7 +2271,7 @@ def test_reply_media_and_visual_events_touch_canonical_observation_times() -> No
     assert conversations[0]["turns"][0]["post_id"] == target_id
 
 
-def test_v5_validation_rejects_corrupt_canonical_visual_metadata(
+def test_v6_validation_rejects_corrupt_canonical_visual_metadata(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
@@ -2212,7 +2350,7 @@ def test_v5_validation_rejects_corrupt_canonical_visual_metadata(
         )
 
 
-def test_v5_validation_rejects_conversation_visual_metadata_mismatch(
+def test_v6_validation_rejects_conversation_visual_metadata_mismatch(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
@@ -2251,7 +2389,7 @@ def test_v5_validation_rejects_conversation_visual_metadata_mismatch(
     )
 
 
-def test_v5_validation_rejects_candidate_visual_metadata_corruption(
+def test_v6_validation_rejects_candidate_visual_metadata_corruption(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
@@ -3335,14 +3473,14 @@ def test_send_attempt_history_is_bounded_per_target() -> None:
     ]
 
 
-def test_prospective_version_5_and_registered_v4_predecessor_are_exact() -> None:
-    assert extractor.SCHEMA_VERSION == 5
-    assert extractor.EXTRACTOR_VERSION == "prospective-conversation-extractor-v5"
-    assert extractor.PARSER_VERSION == "prospective-conversation-log-parser-v5"
+def test_prospective_version_6_and_registered_v5_predecessor_are_exact() -> None:
+    assert extractor.SCHEMA_VERSION == 6
+    assert extractor.EXTRACTOR_VERSION == "prospective-conversation-extractor-v6"
+    assert extractor.PARSER_VERSION == "prospective-conversation-log-parser-v6"
     assert extractor.REGISTERED_REBUILD_SOURCE == (
-        4,
-        "prospective-conversation-extractor-v4",
-        "prospective-conversation-log-parser-v4",
+        5,
+        "prospective-conversation-extractor-v5",
+        "prospective-conversation-log-parser-v5",
     )
     assert "reply_visual_description" in (
         extractor.STRUCTURED_CONVERSATION_EVENT_FIELDS
@@ -3419,7 +3557,7 @@ def test_validation_rejects_mixed_parser_versions_in_canonical_snapshot(
     assert any("canonical post parser mismatch" in value for value in problems)
 
 
-def test_registered_rebuild_v4_to_v5_preserves_key_pseudonyms_and_old_root(
+def test_registered_rebuild_v5_to_v6_preserves_key_pseudonyms_and_old_root(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
@@ -3431,7 +3569,7 @@ def test_registered_rebuild_v4_to_v5_preserves_key_pseudonyms_and_old_root(
         + first_exchange(author_id="stable-rebuild-user"),
     )
     run_scan(project, old_root)
-    mark_state_as_registered_v4(old_root)
+    mark_state_as_registered_v5(old_root)
     old_key = (old_root / "state" / "pseudonym-key").read_bytes()
     old_author = next(
         post["author_key"]
@@ -3467,7 +3605,7 @@ def test_registered_rebuild_v4_to_v5_preserves_key_pseudonyms_and_old_root(
     }
 
 
-def test_registered_v4_to_v5_rebuild_reparses_single_call_semantics(
+def test_registered_v5_to_v6_rebuild_reparses_single_call_semantics(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
@@ -3503,7 +3641,7 @@ def test_registered_v4_to_v5_rebuild_reparses_single_call_semantics(
     source_post["parent_post_id"] = None
     source_post["pipeline_stage_summaries"] = []
     rewrite_batch_posts_and_hashes(current_batch(old_root), source_posts)
-    mark_state_as_registered_v4(old_root)
+    mark_state_as_registered_v5(old_root)
 
     result = extractor.rebuild_to_new_root(
         project_dir=project,
@@ -3522,9 +3660,9 @@ def test_registered_v4_to_v5_rebuild_reparses_single_call_semantics(
 
     assert result["status"] == "rebuilt"
     assert source_manifest["parsed_source_hash_count"] == 1
-    assert rebuilt["schema_version"] == 5
+    assert rebuilt["schema_version"] == 6
     assert rebuilt["derivation_parser_version"] == (
-        "prospective-conversation-log-parser-v5"
+        "prospective-conversation-log-parser-v6"
     )
     assert rebuilt["root_post_id"] == "800"
     assert rebuilt["parent_post_id"] == "850"
@@ -3548,7 +3686,7 @@ def test_registered_rebuild_refuses_existing_destination_and_insufficient_bounda
     existing.mkdir()
     write_active(project, first_exchange())
     run_scan(project, old_root)
-    mark_state_as_registered_v4(old_root)
+    mark_state_as_registered_v5(old_root)
 
     with pytest.raises(extractor.ExtractorError, match="must not already exist"):
         extractor.rebuild_to_new_root(
@@ -4029,7 +4167,7 @@ def test_status_is_read_only_and_valid_when_uninitialised(tmp_path: Path) -> Non
     status = extractor.get_status(output)
 
     assert status["initialised"] is False
-    assert status["schema_version"] == 5
+    assert status["schema_version"] == 6
     assert status["last_retention_error"] is None
     assert status["automatic_batch_budget_bytes"] == 10 * 1024 * 1024 * 1024
     assert status["minimum_free_bytes"] == 10 * 1024 * 1024 * 1024
@@ -5623,7 +5761,7 @@ def test_normal_scan_rejects_v4_state_and_rebuild_rejects_unregistered_tuple(
         log_line("2026-08-24 16:00:00", "Boundary coverage") + first_exchange(),
     )
     run_scan(project, old_root)
-    mark_state_as_registered_v4(old_root)
+    mark_state_as_registered_v5(old_root)
 
     with pytest.raises(extractor.ExtractorError, match="unsupported extractor state schema"):
         run_scan(project, old_root)

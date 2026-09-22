@@ -2096,6 +2096,18 @@ def _render_single_call_replies(report: Dict[str, Any], out: List[str]) -> None:
         f"{format_openai_usd(cost_total.get('amount')) if cost_total.get('amount') is not None else 'unavailable'} "
         f"({cost_total.get('status', 'unavailable')})**."
     )
+    if "provider_request_coverage" in report:
+        request_coverage = report.get("provider_request_coverage") or {}
+        out.append(
+            "Exact provider-request coverage: **"
+            + _compact_counts(request_coverage.get("category_counts") or {})
+            + "** across **"
+            + str(request_coverage.get("logical_call_denominator", 0))
+            + " logical calls** and **"
+            + str(request_coverage.get("physical_attempt_denominator", 0))
+            + " physical attempts**. Complete bodies are included only in JSON; "
+            "this Markdown section is a labelled summary, not the complete input."
+        )
     legacy_multi_stage = report.get("legacy_multi_stage") or {}
     if (
         legacy_multi_stage.get("decision_count")

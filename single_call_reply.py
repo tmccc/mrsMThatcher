@@ -325,6 +325,7 @@ class PipelineResult:
     recent_conversational_reply_count: int = 0
     trusted_fact_count: int = 0
     supplied_image_count: int = 0
+    call_id: str | None = None
     provider_latency_ms: int | None = None
     provider_request_attempt_count: int = 0
     provider_status_code: int | None = None
@@ -2166,6 +2167,8 @@ def run_reply_pipeline(
         reset_epoch = getattr(exc, "reset_epoch", None)
         retry_after = getattr(exc, "retry_after_seconds", None)
         attempt_count = getattr(exc, "request_attempt_count", 1)
+        model_call_count = getattr(exc, "model_call_count", 1)
+        call_id = getattr(exc, "call_id", None)
         explicit_category = getattr(exc, "error_category", None)
         if isinstance(explicit_category, str) and explicit_category:
             error_category = explicit_category
@@ -2180,15 +2183,20 @@ def run_reply_pipeline(
             status="operational_failure",
             reason="provider_request_failed",
             error_category=error_category,
-            model_call_count=1,
+            model_call_count=(
+                model_call_count
+                if type(model_call_count) is int and model_call_count in {0, 1}
+                else 1
+            ),
             local_validation_status="not_run",
             payload_sha256=payload_hash,
             supplied_image_count=len(images),
             provider_request_attempt_count=(
                 attempt_count
-                if type(attempt_count) is int and attempt_count >= 1
+                if type(attempt_count) is int and attempt_count >= 0
                 else 1
             ),
+            call_id=(call_id if isinstance(call_id, str) and call_id else None),
             provider_status_code=(
                 status_code
                 if type(status_code) is int and 100 <= status_code <= 599
@@ -2211,6 +2219,7 @@ def run_reply_pipeline(
     raw_response = transport_result.get("response", transport_result)
     latency = transport_result.get("latency_ms")
     attempts = transport_result.get("request_attempt_count", 1)
+    call_id = transport_result.get("call_id")
     latency_ms = latency if type(latency) is int and latency >= 0 else None
     attempt_count = attempts if type(attempts) is int and attempts >= 1 else 1
     transport_status = transport_result.get("provider_status_code")
@@ -2269,6 +2278,7 @@ def run_reply_pipeline(
             provider_request_attempt_count=attempt_count,
             provider_response_id=response_id,
             provider_usage=usage,
+            call_id=(call_id if isinstance(call_id, str) and call_id else None),
             **transport_metadata,
             **counts,
         )
@@ -2288,6 +2298,7 @@ def run_reply_pipeline(
             provider_request_attempt_count=attempt_count,
             provider_response_id=response_id,
             provider_usage=usage,
+            call_id=(call_id if isinstance(call_id, str) and call_id else None),
             **transport_metadata,
             **counts,
         )
@@ -2316,6 +2327,7 @@ def run_reply_pipeline(
             provider_request_attempt_count=attempt_count,
             provider_response_id=response_id,
             provider_usage=usage,
+            call_id=(call_id if isinstance(call_id, str) and call_id else None),
             **transport_metadata,
             **counts,
         )
@@ -2328,6 +2340,7 @@ def run_reply_pipeline(
         "trusted_fact_count": len(payload["trusted_facts"]),
         "model_call_count": 1,
         "validated_draft_hash": draft["validated_draft_hash"],
+        "call_id": call_id if isinstance(call_id, str) and call_id else None,
     }
     reply = ValidatedReply(str(output["reply"]), draft, metadata)
     return PipelineResult(
@@ -2346,6 +2359,7 @@ def run_reply_pipeline(
         provider_request_attempt_count=attempt_count,
         provider_response_id=response_id,
         provider_usage=usage,
+        call_id=(call_id if isinstance(call_id, str) and call_id else None),
         **transport_metadata,
         **counts,
     )
@@ -2407,4 +2421,5 @@ def decision_telemetry(result: PipelineResult) -> dict[str, Any]:
         "provider_reset_epoch": result.provider_reset_epoch,
         "provider_retry_after_seconds": result.provider_retry_after_seconds,
         "provider_response_id": result.provider_response_id,
+        "call_id": result.call_id,
     }

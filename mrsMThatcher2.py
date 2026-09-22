@@ -712,6 +712,7 @@ STATE_FILE = BASE_DIR / "bot_state.json"
 INSTALLATION_MARKER_FILE = BASE_DIR / ".mrsMThatcher.initialised.json"
 INSTALLATION_IN_PROGRESS_FILE = BASE_DIR / ".mrsMThatcher.initialising.json"
 LOG_FILE = Path(os.getenv("MRS_LOG_FILE", str(BASE_DIR / "mrsMThatcher.log"))).expanduser()
+AI_REQUEST_RECORD_DIR = BASE_DIR / "ai-request-records"
 if SELF_TEST_REQUESTED and "MRS_LOG_FILE" not in os.environ:
     LOG_FILE = BASE_DIR / "mrsMThatcher.selftest.log"
 if TEST_MODE and path_is_same_or_child(LOG_FILE, PRODUCTION_BASE_DIR):
@@ -7170,6 +7171,8 @@ def _reply_model_transport_owner() -> _reply_model_transport.ReplyModelTransport
         sleep=sleep,
         now_epoch=now_epoch,
         error_type=ApiError,
+        request_record_directory=AI_REQUEST_RECORD_DIR,
+        log_event=log_event,
     )
 
 

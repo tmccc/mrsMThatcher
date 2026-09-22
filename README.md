@@ -192,6 +192,7 @@ X reads and `POST /2/tweets` continue to use `X_API_BASE_URL`.
 
 - `MRS_BASE_DIR` defaults to `/disks/disk1/etc/mrsMThatcher`
 - `MRS_LOG_FILE` defaults to `<MRS_BASE_DIR>/mrsMThatcher.log`
+- exact provider requests are retained under `<MRS_BASE_DIR>/ai-request-records/`
 - `X_API_BASE_URL` defaults to `https://api.x.com`
 - `X_UPLOAD_BASE_URL` inherits the resolved `X_API_BASE_URL` when unset
 - `OPENAI_API_BASE_URL` defaults to `https://api.openai.com/v1`
@@ -241,6 +242,7 @@ deployed as a coherent set:
 - `mrs_bot_reply_history.py`
 - `mrs_bot_reply_generation.py`
 - `mrs_bot_reply_model_transport.py`
+- `mrs_provider_request_records.py`
 - `mrs_bot_reply_cycle_interfaces.py`
 - `mrs_bot_reply_preparation.py`
 - `mrs_bot_reply_receipt_values.py`
@@ -530,6 +532,27 @@ A 429 receives at most one immediate retry, and only when provider metadata
 specifies a delay of at most one second. Longer or unknown delays persist a
 cooldown and defer the candidate. Recovered 429s also persist provider-health
 and cooldown accounting before decision telemetry or another candidate call.
+
+Immediately before the HTTP transport begins, the bot serialises the final
+validated application request once, durably stores that exact UTF-8 body in an
+owner-private gzip JSON record under `<MRS_BASE_DIR>/ai-request-records/`, and
+sends those same bytes. Records include a unique logical `call_id`, body byte
+length and SHA-256, target/lane correlation, and non-secret transport metadata.
+They include the complete selected private context and inline image data URLs,
+so they are private operational data, are not written to ordinary debug output,
+and must not be shared as though they were public conversation exports. Ordinary
+log rotation does not remove them; they remain until explicit operator cleanup.
+A recording failure defers the candidate before any provider attempt and does
+not count as provider-health evidence. Capture presence proves preparation, not
+provider receipt or success.
+
+`mrs_log_digest.py --json` and `--json-output` embed verified complete records
+under `provider_requests`; `provider_request_correlations` keeps bounded event
+references and `provider_request_coverage` reports complete, historical,
+missing, corrupt and unmatched categories over logical calls and physical
+attempts. Use `--request-record-dir` only when the captures are not beneath the
+selected `--project-dir`. Markdown reports coverage and previews only; it does
+not label a preview as the complete model input.
 
 Configure it through the ignored local configuration after review:
 
@@ -1134,14 +1157,14 @@ installation for drift with:
 deploy/systemd-user/install.sh --check
 ```
 
-The optional network-free version-5 prospective conversation collector
+The optional network-free version-6 prospective conversation collector
 reconstructs account roots, historical-context replies, and exact same-author
 parent paths from the retained production log rotation without touching the
 bot or its state. It also retains bounded, content-free reply-photo collection
 and visual-analysis metadata for review. Its scheduled private root is
-`/disks/disk1/research/mrsMThatcher-prospective-conversations-v5`; the existing
-version-4 root remains a read-only migration source. Its operation, privacy
-model, registered v4-to-v5 rebuild, validation, manual review packs, and
+`/disks/disk1/research/mrsMThatcher-prospective-conversations-v6`; the existing
+version-5 root remains a read-only migration source. Its operation, privacy
+model, registered v5-to-v6 rebuild, validation, manual review packs, and
 controlled timer activation are documented in the
 [prospective conversation extractor runbook](docs/prospective_conversation_extractor.md).
 
@@ -1159,7 +1182,7 @@ executes the same checked bot script by default.
 
 The installer uses atomic per-file replacement and runs `daemon-reload`, but it
 does not enable, disable, start, stop, or restart any unit. Its non-mutating
-first-v5 installation also leaves the prospective v5 root absent for the
+first-v6 installation also leaves the prospective v6 root absent for the
 registered rebuild; prospective timer activation is intentionally omitted from
 its suggested commands. The non-mutating analytics `status` check always
 targets the runtime checkout at
@@ -1285,10 +1308,10 @@ for content validation.
     use a separately reviewed compatibility or migration recovery procedure
     when the earlier code cannot consume the current state.
 
-For the first deployment containing prospective extractor schema version 5,
+For the first deployment containing prospective extractor schema version 6,
 disable and stop `mrs-prospective-conversations.timer` before step 7 and verify
 that no extractor oneshot remains active. Keep it inactive through the checkout
-update and follow the ordered v4-to-v5 rebuild, validation, manual oneshot and
+update and follow the ordered v5-to-v6 rebuild, validation, manual oneshot and
 corpus inspection in the
 [prospective conversation extractor runbook](docs/prospective_conversation_extractor.md).
 Enable the hourly timer only after those checks succeed. This exception applies

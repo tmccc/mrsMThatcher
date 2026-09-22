@@ -383,6 +383,13 @@ from mrs_log_digest_single_call import (
     record_single_call_reply_provider_usage,
     record_single_call_reply_posting_outcome,
     record_single_call_reply_draft_recovered,
+    record_provider_request_lifecycle,
+)
+from mrs_provider_request_records import (
+    InvalidRequestRecord,
+    discover_request_record_paths,
+    read_provider_request_record,
+    request_record_path,
 )
 from mrs_log_digest_reply_pipeline import (
     record_ai_reply_pipeline_decision,
@@ -2121,6 +2128,15 @@ def analyse(
                 record_single_call_reply_draft_recovered(
                     event_obj, r.ts, add_event=add_event,
                 )
+            elif event_obj and event_obj.get("event") in {
+                "provider_request_prepared",
+                "provider_request_recording_failed",
+                "provider_request_attempt_started",
+                "provider_request_attempt_outcome",
+            }:
+                record_provider_request_lifecycle(
+                    event_obj, r.ts, add_event=add_event,
+                )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_decision":
                 record_ai_reply_pipeline_decision(
                     event_obj, r.ts,
@@ -2569,6 +2585,18 @@ def analyse(
         "production_consistency": production_consistency_report(events, stats),
         "historical_context_quality": context_quality,
         "single_call_reply": single_call_quality,
+        "provider_request_correlations": [
+            item for item in events
+            if item.get("kind") in {
+                "single_call_reply_decision",
+                "single_call_reply_provider_usage",
+                "single_call_reply_posting_outcome",
+                "provider_request_prepared",
+                "provider_request_recording_failed",
+                "provider_request_attempt_started",
+                "provider_request_attempt_outcome",
+            }
+        ],
         "legacy_multi_stage": legacy_multi_stage,
         "asset_health": asset_health,
         "media_upload": {
@@ -2793,6 +2821,130 @@ def validate_output_destinations(
             )
 
 
+def provider_request_export(
+    directory: Path,
+    correlations: Iterable[Mapping[str, Any]],
+    *,
+    window_start: datetime | None,
+    window_end: datetime | None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Resolve complete request captures for calls and unmatched files in a window."""
+
+    rows = [dict(item) for item in correlations]
+    referenced_ids = {
+        str(item["call_id"])
+        for item in rows
+        if isinstance(item.get("call_id"), str) and item.get("call_id")
+    }
+    historical = [
+        item for item in rows
+        if item.get("kind") == "single_call_reply_decision"
+        and item.get("model_call_count") == 1
+        and not item.get("call_id")
+    ]
+    exported: list[dict[str, Any]] = []
+    category_counts: Counter[str] = Counter()
+    observed_paths: set[Path] = set()
+    recording_failed_ids = {
+        str(item["call_id"])
+        for item in rows
+        if item.get("kind") == "provider_request_recording_failed"
+        and isinstance(item.get("call_id"), str)
+        and item.get("call_id")
+    }
+
+    for call_id in sorted(referenced_ids):
+        if call_id in recording_failed_ids:
+            category_counts["recording_failed"] += 1
+            exported.append({
+                "call_id": call_id,
+                "capture_status": "recording_failed",
+            })
+            continue
+        path = request_record_path(directory, call_id)
+        observed_paths.add(path)
+        try:
+            record = read_provider_request_record(path)
+        except InvalidRequestRecord as exc:
+            status = (
+                "missing_expected_record" if not path.exists()
+                else "corrupt_or_hash_mismatch"
+            )
+            category_counts[status] += 1
+            exported.append({
+                "call_id": call_id,
+                "capture_status": status,
+                "error": str(exc),
+            })
+            continue
+        category_counts["complete"] += 1
+        exported.append({**record, "capture_status": "complete"})
+
+    try:
+        discovered = discover_request_record_paths(directory)
+    except InvalidRequestRecord as exc:
+        discovered = ()
+        category_counts["capture_directory_invalid"] += 1
+        exported.append({
+            "call_id": None,
+            "capture_status": "capture_directory_invalid",
+            "error": str(exc),
+        })
+    for path in discovered:
+        if path in observed_paths:
+            continue
+        try:
+            modified = datetime.fromtimestamp(path.lstat().st_mtime)
+        except OSError:
+            continue
+        if window_start is not None and modified < window_start:
+            continue
+        if window_end is not None and modified > window_end + timedelta(seconds=2):
+            continue
+        try:
+            record = read_provider_request_record(path)
+        except InvalidRequestRecord as exc:
+            category_counts["corrupt_or_hash_mismatch"] += 1
+            exported.append({
+                "call_id": path.name[:-8],
+                "capture_status": "corrupt_or_hash_mismatch",
+                "error": str(exc),
+            })
+            continue
+        category_counts["unmatched_capture"] += 1
+        exported.append({
+            **record,
+            "capture_status": "unmatched_prepared_or_outcome_unknown",
+        })
+
+    category_counts["historical_not_recorded"] += len(historical)
+    physical_attempt_count = sum(
+        item.get("kind") == "provider_request_attempt_started" for item in rows
+    )
+    if not physical_attempt_count:
+        physical_attempt_count = sum(
+            int(item.get("provider_request_attempt_count") or 0)
+            for item in rows
+            if item.get("kind") == "single_call_reply_decision"
+            and item.get("model_call_count") == 1
+        )
+    coverage = {
+        "logical_call_denominator": len(referenced_ids) + len(historical),
+        "physical_attempt_denominator": physical_attempt_count,
+        "category_counts": dict(sorted(category_counts.items())),
+        "historical_not_recorded_calls": [
+            {
+                "time": item.get("time"),
+                "lane": item.get("lane"),
+                "target_id": item.get("target_id"),
+                "capture_status": "historical_not_recorded",
+            }
+            for item in historical
+        ],
+    }
+    return sorted(exported, key=lambda item: str(item.get("call_id") or "")), coverage
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     """Run the command-line entry point."""
     ap = argparse.ArgumentParser(description="Summarise MrsMThatcher bot logs into a compact digest.")
@@ -2817,6 +2969,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--max-text", type=int, default=280, help="Maximum prose-preview length; identifiers, analysis fields and exact reply evidence retain their own bounds. Default: 280.")
     ap.add_argument("--glob", default="mrsMThatcher*.log*", help="Log glob to use when no explicit log files are supplied. Default: mrsMThatcher*.log*")
     ap.add_argument("--project-dir", type=Path, default=Path(__file__).resolve().parent, help="Project directory for config, metadata, history and auto-discovered logs.")
+    ap.add_argument("--request-record-dir", type=Path, help="Private provider-request capture directory; defaults to <project-dir>/ai-request-records.")
     ap.add_argument("--state-file", type=Path, default=Path(".mrs_log_digest_state.json"), help="Resume-state file, relative to --project-dir unless absolute.")
     ap.add_argument("--no-state", action="store_true", help="Do not read or update the resume-state file.")
     ap.add_argument("--reset-state", action="store_true", help="Ignore any existing resume-state file for this run; save the new end timestamp afterwards.")
@@ -3139,6 +3292,21 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     selected_window_end = until or max(
         (record.ts for record in records), default=None
     )
+    request_record_directory = args.request_record_dir or (
+        project_dir / "ai-request-records"
+    )
+    request_record_directory = request_record_directory.expanduser()
+    if not request_record_directory.is_absolute():
+        request_record_directory = project_dir / request_record_directory
+    correlations = report.get("provider_request_correlations") or []
+    provider_requests, provider_request_coverage = provider_request_export(
+        request_record_directory,
+        correlations if isinstance(correlations, list) else [],
+        window_start=selected_window_start,
+        window_end=selected_window_end,
+    )
+    report["provider_requests"] = provider_requests
+    report["provider_request_coverage"] = provider_request_coverage
     report["openai_published_cost"] = openai_published_cost_report(
         cache_path=OPENAI_COST_CACHE_PATH,
         window_start_local=selected_window_start,

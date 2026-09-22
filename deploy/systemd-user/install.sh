@@ -15,7 +15,7 @@ fi
 readonly RUNTIME_PROJECT_DIR="${MRS_RUNTIME_PROJECT_DIR:-/disks/disk1/etc/mrsMThatcher}"
 readonly TARGET_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user"
 readonly OPENAI_COST_DIR="${HOME}/.local/state/mrsMThatcher/openai-costs"
-readonly PROSPECTIVE_CONVERSATION_DIR="${MRS_PROSPECTIVE_CONVERSATION_DIR:-/disks/disk1/research/mrsMThatcher-prospective-conversations-v5}"
+readonly PROSPECTIVE_CONVERSATION_DIR="${MRS_PROSPECTIVE_CONVERSATION_DIR:-/disks/disk1/research/mrsMThatcher-prospective-conversations-v6}"
 readonly ANALYTICS_PROGRAM="${RUNTIME_PROJECT_DIR}/mrs_engagement_analytics.py"
 readonly UNITS=(
   mrsMThatcher.service
@@ -105,7 +105,7 @@ print_enable_commands() {
     '  systemctl --user enable mrs-engagement-analytics.timer' \
     '  systemctl --user enable --now mrs-openai-cost-cache.timer' \
     '  systemctl --user enable --now mrs-support-health-monitor.timer' \
-    'prospective-conversation activation is deliberately omitted; complete the documented v4-to-v5 rebuild, validation, manual oneshot, and corpus inspection first'
+    'prospective-conversation activation is deliberately omitted; complete the documented v5-to-v6 rebuild, validation, manual oneshot, and corpus inspection first'
 }
 
 prepare_scheduled_task_state() {
@@ -130,7 +130,7 @@ prepare_scheduled_task_state() {
     printf 'prepared existing private prospective conversation state: %s\n' \
       "${PROSPECTIVE_CONVERSATION_DIR}"
   else
-    printf 'left prospective conversation v5 root absent for registered rebuild: %s\n' \
+    printf 'left prospective conversation v6 root absent for registered rebuild: %s\n' \
       "${PROSPECTIVE_CONVERSATION_DIR}"
   fi
 }

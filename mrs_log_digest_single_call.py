@@ -29,6 +29,16 @@ from single_call_reply_validation import (
 VALIDATION_FAILURE_CANDIDATE_LIMIT = 40
 
 
+def _call_id(value: object) -> str | None:
+    """Return one bounded UUID-shaped logical call identifier."""
+
+    if not isinstance(value, str) or not 32 <= len(value) <= 64:
+        return None
+    if not set(value) <= set("0123456789abcdef-"):
+        return None
+    return value
+
+
 def _validation_error_fields(
     event: Mapping[str, Any], *, projected: bool = False,
 ) -> Dict[str, Any]:
@@ -573,6 +583,7 @@ def record_single_call_reply_decision(
         provider_response_id=bounded_event_text(
             event_obj.get("provider_response_id"), max_characters=300
         ),
+        call_id=_call_id(event_obj.get("call_id")),
         **_validation_error_fields(event_obj),
         **rejected_fields,
     )
@@ -620,6 +631,7 @@ def record_single_call_reply_provider_usage(
         ),
         request_attempt_count=request_attempt_count,
         request_attempt_count_status=request_attempt_count_status,
+        call_id=_call_id(event_obj.get("call_id")),
         input_tokens=bounded_event_nonnegative_integer(
             event_obj.get("input_tokens"), maximum=100_000_000
         ),
@@ -688,6 +700,51 @@ def record_single_call_reply_posting_outcome(
         ),
         failure_reason=bounded_event_text(
             event_obj.get("failure_reason"), max_characters=200
+        ),
+        call_id=_call_id(event_obj.get("call_id")),
+    )
+
+
+def record_provider_request_lifecycle(
+    event_obj: Dict[str, Any],
+    ts: datetime,
+    *,
+    add_event: Callable[..., Dict[str, Any]],
+) -> None:
+    """Project compact request-capture and physical-attempt lifecycle evidence."""
+
+    kind = str(event_obj.get("event") or "")
+    if kind not in {
+        "provider_request_prepared",
+        "provider_request_recording_failed",
+        "provider_request_attempt_started",
+        "provider_request_attempt_outcome",
+    }:
+        return
+    add_event(
+        kind,
+        ts,
+        call_id=_call_id(event_obj.get("call_id")),
+        lane=normalise_reply_lane(event_obj.get("lane")),
+        target_id=(
+            event_obj.get("target_id")
+            if valid_string_public_post_id(event_obj.get("target_id")) else ""
+        ),
+        attempt_number=bounded_event_nonnegative_integer(
+            event_obj.get("attempt_number"), maximum=2,
+        ),
+        request_attempt_count=bounded_event_nonnegative_integer(
+            event_obj.get("request_attempt_count"), maximum=2,
+        ),
+        outcome=bounded_event_text(event_obj.get("outcome"), max_characters=80),
+        provider_status_code=bounded_event_nonnegative_integer(
+            event_obj.get("provider_status_code"), maximum=599,
+        ),
+        request_body_sha256=bounded_event_text(
+            event_obj.get("request_body_sha256"), max_characters=64,
+        ),
+        request_body_byte_length=bounded_event_nonnegative_integer(
+            event_obj.get("request_body_byte_length"), maximum=32 * 1024 * 1024,
         ),
     )
 

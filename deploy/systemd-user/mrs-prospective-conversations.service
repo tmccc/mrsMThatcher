@@ -6,14 +6,14 @@ ConditionPathExists=/disks/disk1/etc/mrsMThatcher/mrsMThatcher.log
 Type=oneshot
 WorkingDirectory=/disks/disk1/etc/mrsMThatcher
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/usr/bin/python3 /disks/disk1/etc/mrsMThatcher/tools/extract_prospective_conversations.py scan --project-dir /disks/disk1/etc/mrsMThatcher --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v5 --prospective-start 2026-08-24T15:08:39Z --quiescence-hours 48
+ExecStart=/usr/bin/python3 /disks/disk1/etc/mrsMThatcher/tools/extract_prospective_conversations.py scan --project-dir /disks/disk1/etc/mrsMThatcher --request-record-dir /disks/disk1/etc/mrsMThatcher/ai-request-records --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v6 --prospective-start 2026-08-24T15:08:39Z --quiescence-hours 48
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
 ProtectProc=invisible
 ProcSubset=pid
-ReadWritePaths=/disks/disk1/research/mrsMThatcher-prospective-conversations-v5
+ReadWritePaths=/disks/disk1/research/mrsMThatcher-prospective-conversations-v6
 InaccessiblePaths=-/disks/disk1/etc/mrsMThatcher/mrsMThatcher.env -/disks/disk1/etc/mrsMThatcher/bot_state.json -/disks/disk1/etc/mrsMThatcher/mrsMThatcher.control.json -/disks/disk1/etc/mrsMThatcher/mrsMThatcher.local.json
 RestrictAddressFamilies=AF_UNIX
 RestrictNamespaces=true

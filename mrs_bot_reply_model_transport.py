@@ -15,6 +15,14 @@ from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from email.utils import parsedate_to_datetime
+from pathlib import Path
+
+from mrs_provider_request_records import (
+    RequestRecordingError,
+    new_call_id,
+    record_provider_request,
+    serialise_request_body,
+)
 
 
 @dataclass(frozen=True)
@@ -32,6 +40,25 @@ class ReplyModelTransport:
     sleep: Callable
     now_epoch: Callable
     error_type: type[Exception]
+    request_record_directory: Path | None = None
+    log_event: Callable | None = None
+
+    def _emit(self, event: str, **fields: object) -> None:
+        """Emit non-authoritative lifecycle telemetry without affecting transport."""
+
+        if self.log_event is None:
+            return
+        try:
+            self.log_event(event, **fields)
+        except Exception:
+            try:
+                self.log.exception(
+                    "Failed to emit provider request lifecycle event=%s call_id=%s",
+                    event,
+                    fields.get("call_id"),
+                )
+            except Exception:
+                pass
 
     def definite_connection_failure_before_transmission(
         self,
@@ -63,6 +90,7 @@ class ReplyModelTransport:
         reset_epoch: int | None = None,
         retry_after_seconds: int | None = None,
         request_attempt_count: int = 1,
+        call_id: str | None = None,
     ) -> Exception:
         """Build the current API exception with provider accounting metadata."""
         error = self.error_type(
@@ -74,6 +102,7 @@ class ReplyModelTransport:
         error.error_category = category
         error.retry_after_seconds = retry_after_seconds
         error.request_attempt_count = request_attempt_count
+        error.call_id = call_id
         return error
 
     def retry_metadata(self, response: object) -> tuple[int | None, int | None]:
@@ -121,6 +150,43 @@ class ReplyModelTransport:
     ) -> dict[str, object]:
         """Send one executable Responses request, retrying only proved non-execution."""
 
+        call_id = new_call_id()
+        try:
+            request_body = serialise_request_body(request)
+            if self.request_record_directory is not None:
+                record = record_provider_request(
+                    self.request_record_directory,
+                    request=request,
+                    request_body=request_body,
+                    call_id=call_id,
+                    lane=lane,
+                    target_post_id=target_id,
+                    endpoint_path="/responses",
+                    timeout_seconds=timeout_seconds,
+                )
+        except RequestRecordingError as exc:
+            exc.call_id = call_id
+            self._emit(
+                "provider_request_recording_failed",
+                call_id=call_id,
+                lane=lane,
+                target_id=target_id,
+                request_attempt_count=0,
+                failure_category="local_request_recording",
+            )
+            raise
+        if self.request_record_directory is not None:
+            self._emit(
+                "provider_request_prepared",
+                call_id=call_id,
+                lane=lane,
+                target_id=target_id,
+                captured_at=record["captured_at"],
+                request_body_sha256=record["request_body_sha256"],
+                request_body_byte_length=record["request_body_byte_length"],
+                record_version=record["record_version"],
+            )
+
         self.log.info(
             "Calling single-call reply provider=OpenAI model=%s "
             "reasoning_effort=%s lane=%s target_id=%s",
@@ -136,6 +202,13 @@ class ReplyModelTransport:
             self.require_remote_operation_unpaused(
                 f"OpenAI single-call reply target {target_id}"
             )
+            self._emit(
+                "provider_request_attempt_started",
+                call_id=call_id,
+                attempt_number=attempt,
+                lane=lane,
+                target_id=target_id,
+            )
             self.report_bot_health_progress("ai_call")
             try:
                 response = self.requests.post(
@@ -144,7 +217,7 @@ class ReplyModelTransport:
                         "Authorization": f"Bearer {self.api_key}",
                         "Content-Type": "application/json",
                     },
-                    json=request,
+                    data=request_body,
                     timeout=timeout_seconds,
                     allow_redirects=False,
                 )
@@ -153,6 +226,14 @@ class ReplyModelTransport:
                     attempt == 1
                     and self.definite_connection_failure_before_transmission(exc)
                 ):
+                    self._emit(
+                        "provider_request_attempt_outcome",
+                        call_id=call_id,
+                        attempt_number=attempt,
+                        lane=lane,
+                        target_id=target_id,
+                        outcome="known_pre_transmission_failure",
+                    )
                     self.log.warning(
                         "OpenAI single-call reply had a definite pre-transmission "
                         "connection failure; retrying once target_id=%s",
@@ -162,9 +243,19 @@ class ReplyModelTransport:
                 raise self._transport_error(
                     exc, attempt=attempt, first_429_seen=first_429_seen,
                     first_429_retry_metadata=first_429_retry_metadata,
+                    call_id=call_id,
                 ) from exc
             finally:
                 self.report_bot_health_progress("ai_call")
+            self._emit(
+                "provider_request_attempt_outcome",
+                call_id=call_id,
+                attempt_number=attempt,
+                lane=lane,
+                target_id=target_id,
+                outcome="response_received",
+                provider_status_code=getattr(response, "status_code", None),
+            )
             if response.status_code == 429:
                 if attempt == 1:
                     first_429_seen = True
@@ -187,17 +278,20 @@ class ReplyModelTransport:
                         category="provider_http_429", status_code=429,
                         reset_epoch=first_429_retry_metadata[0],
                         retry_after_seconds=delay, request_attempt_count=attempt,
+                        call_id=call_id,
                     )
             data = self._decode_response(
                 response,
                 attempt=attempt,
                 first_429_seen=first_429_seen,
                 first_429_retry_metadata=first_429_retry_metadata,
+                call_id=call_id,
             )
             result = {
                 "response": data,
                 "latency_ms": max(0, round((self.monotonic() - started) * 1000)),
                 "request_attempt_count": attempt,
+                "call_id": call_id,
             }
             if first_429_seen:
                 result.update(
@@ -217,8 +311,15 @@ class ReplyModelTransport:
         attempt: int,
         first_429_seen: bool,
         first_429_retry_metadata: tuple[int | None, int | None],
+        call_id: str,
     ) -> Exception:
         """Classify a failed request while retaining earlier rate-limit evidence."""
+        self._emit(
+            "provider_request_attempt_outcome",
+            call_id=call_id,
+            attempt_number=attempt,
+            outcome="ambiguous_transport_outcome",
+        )
         if first_429_seen:
             reset_epoch, retry_after_seconds = first_429_retry_metadata
             return self.error(
@@ -233,6 +334,7 @@ class ReplyModelTransport:
                 reset_epoch=reset_epoch,
                 retry_after_seconds=retry_after_seconds,
                 request_attempt_count=attempt,
+                call_id=call_id,
             )
         return self.error(
             "OpenAI single-call reply transport failed",
@@ -242,6 +344,7 @@ class ReplyModelTransport:
                 else "provider_transport"
             ),
             request_attempt_count=attempt,
+            call_id=call_id,
         )
 
     @contextmanager
@@ -262,6 +365,7 @@ class ReplyModelTransport:
         attempt: int,
         first_429_seen: bool,
         first_429_retry_metadata: tuple[int | None, int | None],
+        call_id: str,
     ) -> Exception:
         """Build a decoding/shape error after cleanup, preserving prior rate limits."""
         return self.error(
@@ -271,6 +375,7 @@ class ReplyModelTransport:
             reset_epoch=first_429_retry_metadata[0] if first_429_seen else None,
             retry_after_seconds=first_429_retry_metadata[1] if first_429_seen else None,
             request_attempt_count=attempt,
+            call_id=call_id,
         )
 
     def _decode_response(
@@ -280,6 +385,7 @@ class ReplyModelTransport:
         attempt: int,
         first_429_seen: bool,
         first_429_retry_metadata: tuple[int | None, int | None],
+        call_id: str,
     ) -> dict[str, object]:
         """Decode a response and close it before constructing provider errors."""
 
@@ -312,6 +418,7 @@ class ReplyModelTransport:
                 attempt=attempt,
                 first_429_seen=first_429_seen,
                 first_429_retry_metadata=first_429_retry_metadata,
+                call_id=call_id,
             ) from exc
         if http_error:
             raise self.error(
@@ -328,6 +435,7 @@ class ReplyModelTransport:
                 reset_epoch=reset_epoch,
                 retry_after_seconds=retry_after_seconds,
                 request_attempt_count=attempt,
+                call_id=call_id,
             )
         if not isinstance(data, dict):
             raise self._envelope_error(
@@ -335,5 +443,6 @@ class ReplyModelTransport:
                 attempt=attempt,
                 first_429_seen=first_429_seen,
                 first_429_retry_metadata=first_429_retry_metadata,
+                call_id=call_id,
             )
         return data

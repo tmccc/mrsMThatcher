@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError, replace
+import copy
+import hashlib
 import inspect
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -14,6 +17,10 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_reply_model_transport as model_transport
+from mrs_provider_request_records import (
+    RequestRecordingError,
+    read_provider_request_record,
+)
 from tests.helpers.single_call_fixtures import FakeHttpResponse, raw_decision, response_envelope
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
@@ -181,6 +188,8 @@ def test_transport_keeps_request_reference_and_closes_retry_responses_in_order(m
     else:
         result = owner.call(**options)
         assert result["response"] is envelope
+        call_id = result.pop("call_id")
+        assert isinstance(call_id, str) and len(call_id) == 36
         assert result == {
             "response": envelope, "latency_ms": 13, "request_attempt_count": 2,
             "provider_status_code": 429, "provider_reset_epoch": 2_000_000_001,
@@ -196,11 +205,105 @@ def test_transport_keeps_request_reference_and_closes_retry_responses_in_order(m
     trace.sleep.assert_called_once_with(1)
     for args, kwargs in trace.post.call_args_list:
         assert args == ("http://127.0.0.1:9/v1/responses",)
-        assert kwargs["json"] is request
+        assert kwargs["data"] == json.dumps(request, allow_nan=False).encode("utf-8")
         assert kwargs == {
             "headers": {"Authorization": "Bearer dummy-stage11", "Content-Type": "application/json"},
-            "json": request, "timeout": 23, "allow_redirects": False,
+            "data": json.dumps(request, allow_nan=False).encode("utf-8"),
+            "timeout": 23, "allow_redirects": False,
         }
+
+
+def test_exact_request_record_and_http_body_are_the_same_bytes(
+    tmp_path: Path, make_owner,
+):
+    envelope = response_envelope(raw_decision())
+    response = FakeHttpResponse(200, body=envelope)
+    post = Mock(return_value=response)
+    events = Mock()
+    request = {
+        "model": "fixture-model",
+        "instructions": "Long sentinel Ω 😀\n\\nliteral END-SENTINEL",
+        "input": [{
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": json.dumps({
+                    "lane": "mention",
+                    "identities": {
+                        "target_post_id": "123456789012345678",
+                        "root_post_id": "123456789012345670",
+                        "parent_post_id": None,
+                        "subject_post_id": "123456789012345670",
+                    },
+                }, ensure_ascii=False)},
+                {"type": "input_image", "image_url": "data:image/png;base64,AAEC/w=="},
+            ],
+        }],
+    }
+    original = copy.deepcopy(request)
+    directory = tmp_path / "ai-request-records"
+    owner = make_owner(
+        requests=SimpleNamespace(
+            post=post,
+            RequestException=bot.requests.RequestException,
+            Timeout=bot.requests.Timeout,
+            ConnectTimeout=bot.requests.ConnectTimeout,
+            ConnectionError=bot.requests.ConnectionError,
+        ),
+        request_record_directory=directory,
+        log_event=events,
+        require_remote_operation_unpaused=Mock(),
+        report_bot_health_progress=Mock(),
+        monotonic=Mock(side_effect=[1.0, 1.01]),
+        log=Mock(),
+    )
+
+    result = owner.call(
+        request=request, timeout_seconds=23, lane="mention",
+        target_id="123456789012345678",
+    )
+
+    assert request == original
+    sent = post.call_args.kwargs["data"]
+    record = read_provider_request_record(
+        directory / f"{result['call_id']}.json.gz"
+    )
+    recorded = record["request_body_utf8"].encode("utf-8")
+    assert sent == recorded
+    assert record["request_body_sha256"] == hashlib.sha256(sent).hexdigest()
+    assert record["request_body_byte_length"] == len(sent)
+    assert record["root_post_id"] == "123456789012345670"
+    assert "Authorization" not in json.dumps(record)
+    assert events.call_args_list[0].args[0] == "provider_request_prepared"
+
+
+def test_capture_failure_makes_no_provider_attempt_or_health_strike(
+    monkeypatch, tmp_path: Path, make_owner,
+):
+    failure = RequestRecordingError("fixture fsync failure")
+    monkeypatch.setattr(
+        model_transport, "record_provider_request", Mock(side_effect=failure),
+    )
+    post, health, pause = Mock(), Mock(), Mock()
+    owner = make_owner(
+        requests=SimpleNamespace(
+            post=post, RequestException=bot.requests.RequestException,
+        ),
+        request_record_directory=tmp_path / "ai-request-records",
+        log_event=Mock(),
+        require_remote_operation_unpaused=pause,
+        report_bot_health_progress=health,
+        log=Mock(),
+    )
+    with pytest.raises(RequestRecordingError) as caught:
+        owner.call(
+            request={"model": "fixture"}, timeout_seconds=23,
+            lane="mention", target_id="123456789012345678",
+        )
+    assert caught.value is failure
+    assert caught.value.request_attempt_count == 0
+    post.assert_not_called()
+    health.assert_not_called()
+    pause.assert_not_called()
 
 
 @pytest.mark.parametrize("failure_site", ["decoder", "metadata_429", "metadata_503"])

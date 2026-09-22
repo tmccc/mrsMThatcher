@@ -3,21 +3,71 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 import copy
+import hashlib
+import json
 import os
+import shutil
 import subprocess
 import sys
 
 import pytest
 
 import mrs_log_digest as digest
+from mrs_provider_request_records import record_provider_request
 from single_call_reply_validation import (
     MAX_REJECTED_REPLY_TEXT_CHARACTERS,
     MAX_VALIDATION_ERROR_CODES,
 )
 
 from tests.helpers.digest_records import structured_record
+
+
+def test_digest_provider_request_export_embeds_complete_body_after_source_removal(
+    tmp_path: Path,
+):
+    call_id = "11111111-2222-4333-8444-555555555555"
+    request = {
+        "instructions": "private Ω 😀\n\\nliteral " + "x" * 5000 + " END",
+        "input": [{"type": "input_image", "image_url": "data:image/png;base64,AAEC/w=="}],
+    }
+    body = json.dumps(request, allow_nan=False).encode("utf-8")
+    directory = tmp_path / "ai-request-records"
+    record_provider_request(
+        directory,
+        request=request,
+        request_body=body,
+        call_id=call_id,
+        lane="mention",
+        target_post_id="123456789012345678",
+        endpoint_path="/responses",
+        timeout_seconds=180,
+        captured_at="2026-09-04T11:59:59Z",
+    )
+    correlations = [{
+        "kind": "single_call_reply_decision",
+        "time": "2026-09-04 12:00:00",
+        "call_id": call_id,
+        "lane": "mention",
+        "target_id": "123456789012345678",
+        "model_call_count": 1,
+        "provider_request_attempt_count": 1,
+    }]
+    exported, coverage = digest.provider_request_export(
+        directory, correlations,
+        window_start=datetime(2026, 9, 4, 12),
+        window_end=datetime(2026, 9, 4, 12, 1),
+    )
+    shutil.rmtree(directory)
+    copied = json.loads(json.dumps(exported, ensure_ascii=False))
+    recovered = copied[0]["request_body_utf8"].encode("utf-8")
+    assert recovered == body
+    assert copied[0]["request_body_sha256"] == hashlib.sha256(body).hexdigest()
+    assert copied[0]["capture_status"] == "complete"
+    assert coverage["logical_call_denominator"] == 1
+    assert coverage["physical_attempt_denominator"] == 1
 
 
 def _validation_failure_record(offset, **fields):

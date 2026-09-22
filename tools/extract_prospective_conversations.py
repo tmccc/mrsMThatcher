@@ -31,14 +31,21 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
 from zoneinfo import ZoneInfo
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from mrs_provider_request_records import (  # noqa: E402
+    InvalidRequestRecord,
+    discover_request_record_paths,
+    read_provider_request_record,
+)
 
-SCHEMA_VERSION = 5
-EXTRACTOR_VERSION = "prospective-conversation-extractor-v5"
-PARSER_VERSION = "prospective-conversation-log-parser-v5"
+
+SCHEMA_VERSION = 6
+EXTRACTOR_VERSION = "prospective-conversation-extractor-v6"
+PARSER_VERSION = "prospective-conversation-log-parser-v6"
 REGISTERED_REBUILD_SOURCE = (
-    4,
-    "prospective-conversation-extractor-v4",
-    "prospective-conversation-log-parser-v4",
+    5,
+    "prospective-conversation-extractor-v5",
+    "prospective-conversation-log-parser-v5",
 )
 HASH_BLOCK_SIZE = 1024 * 1024
 X_SNOWFLAKE_EPOCH_MS = 1_288_834_974_657
@@ -162,6 +169,7 @@ BATCH_FILES = (
     "canonical-posts.jsonl",
     "conversations.jsonl",
     "review-candidates.jsonl",
+    "provider-requests.jsonl",
     "status.json",
     "extraction-report.md",
 )
@@ -170,6 +178,7 @@ PACK_FILES = (
     "manifest.json",
     "conversations.jsonl",
     "review-candidates.jsonl",
+    "provider-requests.jsonl",
     "review-pack.md",
 )
 PACK_HASHED_FILES = tuple(name for name in PACK_FILES if name != "manifest.json")
@@ -365,6 +374,81 @@ def canonical_json_bytes(value: Any, *, newline: bool = True) -> bytes:
 def jsonl_bytes(rows: Iterable[Mapping[str, Any]]) -> bytes:
     """Serialize mapping rows as canonical newline-terminated JSON Lines."""
     return b"".join(canonical_json_bytes(dict(row)) for row in rows)
+
+
+def load_provider_request_captures(
+    directory: Path,
+    *,
+    cutoff: datetime,
+) -> list[dict[str, Any]]:
+    """Load bounded verified captures available by the offline scan cutoff."""
+
+    try:
+        paths = discover_request_record_paths(directory)
+    except InvalidRequestRecord as exc:
+        raise ExtractorError(str(exc)) from exc
+    rows: list[dict[str, Any]] = []
+    for path in sorted(paths, key=lambda item: item.name):
+        try:
+            modified = datetime.fromtimestamp(
+                path.lstat().st_mtime, tz=timezone.utc
+            )
+        except OSError as exc:
+            raise ExtractorError(
+                f"cannot inspect provider request capture {path.name}"
+            ) from exc
+        try:
+            record = read_provider_request_record(path)
+        except InvalidRequestRecord as exc:
+            if modified > cutoff:
+                continue
+            rows.append({
+                "call_id": path.name[:-8],
+                "capture_status": "corrupt_or_hash_mismatch",
+                "error": str(exc),
+                "association_status": "unassociated",
+            })
+            continue
+        captured = parse_optional_timestamp(record.get("captured_at"))
+        if captured is None:
+            rows.append({
+                "call_id": record.get("call_id"),
+                "capture_status": "corrupt_or_hash_mismatch",
+                "error": "capture timestamp is invalid",
+                "association_status": "unassociated",
+            })
+            continue
+        if captured > cutoff:
+            continue
+        rows.append({
+            **record,
+            "capture_status": "complete",
+            "association_status": "unassociated",
+        })
+    return rows
+
+
+def associate_provider_request_captures(
+    captures: Sequence[dict[str, Any]],
+    posts: Sequence[dict[str, Any]],
+) -> None:
+    """Associate captures by recorded target ID without promoting private text."""
+
+    posts_by_id = {
+        str(post.get("post_id")): post
+        for post in posts
+        if str(post.get("post_id") or "")
+    }
+    for capture in captures:
+        target_id = str(capture.get("target_post_id") or "")
+        call_id = str(capture.get("call_id") or "")
+        target = posts_by_id.get(target_id)
+        if target is None or not call_id:
+            continue
+        target["provider_call_ids"] = sorted(
+            set(target.get("provider_call_ids") or []) | {call_id}
+        )
+        capture["association_status"] = "associated_target"
 
 
 def sha256_bytes(value: bytes) -> str:
@@ -2161,6 +2245,11 @@ def _set_identity(post: dict[str, Any], field: str, value: Any) -> None:
 PIPELINE_EVENT_KINDS = frozenset(
     {
         "single_call_reply_decision",
+        "single_call_reply_provider_usage",
+        "provider_request_prepared",
+        "provider_request_recording_failed",
+        "provider_request_attempt_started",
+        "provider_request_attempt_outcome",
         "ai_reply_pipeline_decision",
         "ai_reply_pipeline_effective_outcome",
         "ai_reply_pipeline_failure",
@@ -2296,6 +2385,13 @@ def _registered_value(
     return (next(iter(values)) if values else ""), False
 
 PIPELINE_SUMMARY_FIELDS = (
+    "call_id",
+    "attempt_number",
+    "request_attempt_count",
+    "request_body_sha256",
+    "request_body_byte_length",
+    "outcome",
+    "provider_status_code",
     "claim_audit_outcomes",
     "claim_cleanup_called",
     "claim_risk_categories",
@@ -3549,6 +3645,15 @@ def normalise_canonical_posts(
         if isinstance(supplied_ids, list):
             target["trusted_fact_ids"] = sorted(
                 {str(value) for value in supplied_ids if str(value)}
+            )
+        call_id = event.get("call_id")
+        if (
+            isinstance(call_id, str)
+            and 32 <= len(call_id) <= 64
+            and set(call_id) <= set("0123456789abcdef-")
+        ):
+            target["provider_call_ids"] = sorted(
+                set(target.get("provider_call_ids") or []) | {call_id}
             )
         if kind in PIPELINE_EVENT_KINDS:
             summary = _pipeline_summary(kind, event, record)
@@ -5021,6 +5126,10 @@ def _snapshot_hash(
     canonical_posts_hash: str,
     conversations_hash: str,
     review_candidates_hash: str,
+    provider_requests_hash: str = (
+        "e3b0c44298fc1c149afbf4c8996fb924"
+        "27ae41e4649b934ca495991b7852b855"
+    ),
 ) -> str:
     return sha256_bytes(
         canonical_json_bytes(
@@ -5029,6 +5138,7 @@ def _snapshot_hash(
                 "conversations_sha256": conversations_hash,
                 "extractor_version": EXTRACTOR_VERSION,
                 "parser_version": PARSER_VERSION,
+                "provider_requests_sha256": provider_requests_hash,
                 "review_candidates_sha256": review_candidates_hash,
                 "schema_version": SCHEMA_VERSION,
             },
@@ -5042,6 +5152,7 @@ def _count_snapshot(
     conversations: Sequence[Mapping[str, Any]],
     candidates: Sequence[Mapping[str, Any]],
     source_count: int,
+    provider_request_count: int = 0,
 ) -> dict[str, int]:
     return {
         "canonical_post_count": len(posts),
@@ -5056,6 +5167,7 @@ def _count_snapshot(
         ),
         "reconstructed_conversation_count": len(conversations),
         "review_candidate_count": len(candidates),
+        "provider_request_count": provider_request_count,
         "source_file_count": source_count,
     }
 
@@ -5554,6 +5666,7 @@ def _build_extraction_report(
     boundary: str,
     cutoff: str,
     counts: Mapping[str, int],
+    provider_request_coverage: Mapping[str, int],
     coverage: bool,
     source_lag_seconds: int,
     warnings: Sequence[str],
@@ -5573,6 +5686,10 @@ def _build_extraction_report(
         f"- Reconstructed conversations: `{counts['reconstructed_conversation_count']}`",
         f"- Prospective-eligible conversations: `{counts['prospective_eligible_conversation_count']}`",
         f"- Review candidates: `{counts['review_candidate_count']}`",
+        f"- Provider requests expected or discovered: `{provider_request_coverage['total']}`",
+        f"- Provider request captures complete: `{provider_request_coverage['complete']}`",
+        f"- Provider requests historical/not recorded: `{provider_request_coverage['historical_not_recorded']}`",
+        f"- Provider request captures missing, failed, or corrupt: `{provider_request_coverage['incomplete']}`",
         f"- Open conversations: `{counts['open_conversation_count']}`",
         f"- Quiescent conversations: `{counts['quiescent_conversation_count']}`",
         "",
@@ -5945,6 +6062,7 @@ def _validate_batch_directory(
             str(hashes.get("canonical-posts.jsonl") or ""),
             str(hashes.get("conversations.jsonl") or ""),
             str(hashes.get("review-candidates.jsonl") or ""),
+            str(hashes.get("provider-requests.jsonl") or ""),
         )
         if manifest.get("canonical_snapshot_sha256") != expected_snapshot:
             errors.append(f"canonical snapshot hash mismatch in {batch}")
@@ -5952,10 +6070,48 @@ def _validate_batch_directory(
         posts = _load_jsonl(batch / "canonical-posts.jsonl")
         conversations = _load_jsonl(batch / "conversations.jsonl")
         candidates = _load_jsonl(batch / "review-candidates.jsonl")
+        provider_requests = _load_jsonl(batch / "provider-requests.jsonl")
     except ExtractorError as exc:
         errors.append(str(exc))
         return errors
     source_files = source_manifest.get("source_files")
+    provider_call_ids: list[str] = []
+    historical_call_keys: list[str] = []
+    for request_row in provider_requests:
+        call_id = request_row.get("call_id")
+        status = request_row.get("capture_status")
+        if status == "historical_not_recorded" and call_id is None:
+            legacy_key = request_row.get("legacy_call_key")
+            if not isinstance(legacy_key, str) or not legacy_key:
+                errors.append(f"historical provider request has no legacy key in {batch}")
+            else:
+                historical_call_keys.append(legacy_key)
+            continue
+        if not isinstance(call_id, str) or not call_id:
+            errors.append(f"provider request has no call ID in {batch}")
+            continue
+        provider_call_ids.append(call_id)
+        if status == "complete":
+            body = request_row.get("request_body_utf8")
+            if not isinstance(body, str):
+                errors.append(f"complete provider request has no body in {batch}")
+                continue
+            body_bytes = body.encode("utf-8")
+            if (
+                request_row.get("request_body_byte_length") != len(body_bytes)
+                or request_row.get("request_body_sha256")
+                != sha256_bytes(body_bytes)
+            ):
+                errors.append(f"provider request body integrity mismatch in {batch}")
+        elif status not in {
+            "corrupt_or_hash_mismatch", "missing_expected_record",
+            "recording_failed",
+        }:
+            errors.append(f"provider request capture status is invalid in {batch}")
+    if provider_call_ids != sorted(set(provider_call_ids)):
+        errors.append(f"provider request call IDs are duplicated or unordered in {batch}")
+    if historical_call_keys != sorted(set(historical_call_keys)):
+        errors.append(f"historical provider call keys are duplicated or unordered in {batch}")
     if not isinstance(source_files, list):
         errors.append(f"source manifest source_files is not a list in {batch}")
     else:
@@ -6552,8 +6708,48 @@ def _validate_batch_directory(
         ),
         "reconstructed_conversation_count": len(conversations),
         "review_candidate_count": len(candidates),
+        "provider_request_count": len(provider_requests),
         "source_file_count": len(source_files) if isinstance(source_files, list) else -1,
     }
+    observed_provider_coverage = {
+        "total": len(provider_requests),
+        "complete": sum(
+            row.get("capture_status") == "complete" for row in provider_requests
+        ),
+        "historical_not_recorded": sum(
+            row.get("capture_status") == "historical_not_recorded"
+            for row in provider_requests
+        ),
+        "missing_expected_record": sum(
+            row.get("capture_status") == "missing_expected_record"
+            for row in provider_requests
+        ),
+        "recording_failed": sum(
+            row.get("capture_status") == "recording_failed"
+            for row in provider_requests
+        ),
+        "corrupt_or_hash_mismatch": sum(
+            row.get("capture_status") == "corrupt_or_hash_mismatch"
+            for row in provider_requests
+        ),
+    }
+    observed_provider_coverage["incomplete"] = sum(
+        observed_provider_coverage[key]
+        for key in (
+            "missing_expected_record",
+            "recording_failed",
+            "corrupt_or_hash_mismatch",
+        )
+    )
+    for label, value in (
+        ("batch manifest", manifest.get("provider_request_coverage")),
+        ("source manifest", source_manifest.get("provider_request_coverage")),
+        ("batch status", status_value.get("provider_request_coverage")),
+    ):
+        if value != observed_provider_coverage:
+            errors.append(
+                f"{label} provider request coverage does not match outputs in {batch}"
+            )
     if manifest.get("counts") != observed_counts:
         errors.append(f"batch manifest counts do not match outputs in {batch}")
     for key, value in observed_counts.items():
@@ -6635,6 +6831,7 @@ def run_scan(
     until: str | None = None,
     quiescence_hours: float = 48.0,
     scan_start: datetime | None = None,
+    request_record_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Run one locked scan and return its concise journal result."""
     if not isinstance(quiescence_hours, (int, float)) or isinstance(
@@ -6698,6 +6895,75 @@ def run_scan(
                 pseudonym_key,
                 parser_statistics=parser_statistics,
             )
+            capture_directory = request_record_dir or (
+                project / "ai-request-records"
+            )
+            if not capture_directory.is_absolute():
+                capture_directory = project / capture_directory
+            provider_requests = load_provider_request_captures(
+                capture_directory,
+                cutoff=cutoff,
+            )
+            associate_provider_request_captures(provider_requests, posts)
+            for post in posts:
+                for summary in post.get("pipeline_stage_summaries") or []:
+                    if (
+                        not isinstance(summary, dict)
+                        or summary.get("event_kind")
+                        != "single_call_reply_decision"
+                        or summary.get("model_call_count") != 1
+                        or summary.get("call_id")
+                    ):
+                        continue
+                    legacy_key = stable_id(
+                        "historical-provider-call", summary.get("event_id")
+                    )
+                    unavailable = {
+                        "legacy_call_key": legacy_key,
+                        "capture_status": "historical_not_recorded",
+                    }
+                    post["provider_request_unavailable"] = _merge_unique_objects(
+                        list(post.get("provider_request_unavailable") or []),
+                        [unavailable],
+                    )
+                    provider_requests.append({
+                        "call_id": None,
+                        "legacy_call_key": legacy_key,
+                        "target_post_id": str(post.get("post_id") or ""),
+                        "lane": post.get("lane"),
+                        "capture_status": "historical_not_recorded",
+                        "association_status": "associated_target",
+                    })
+            retained_call_ids = {
+                str(row.get("call_id") or "") for row in provider_requests
+            }
+            recording_failed_ids = {
+                str(summary.get("call_id") or "")
+                for post in posts
+                for summary in post.get("pipeline_stage_summaries") or []
+                if isinstance(summary, dict)
+                and summary.get("event_kind")
+                == "provider_request_recording_failed"
+            }
+            for post in posts:
+                for call_id in post.get("provider_call_ids") or []:
+                    if call_id in retained_call_ids:
+                        continue
+                    provider_requests.append({
+                        "call_id": call_id,
+                        "target_post_id": str(post.get("post_id") or ""),
+                        "capture_status": (
+                            "recording_failed"
+                            if call_id in recording_failed_ids
+                            else "missing_expected_record"
+                        ),
+                        "association_status": "associated_target",
+                    })
+                    retained_call_ids.add(call_id)
+            provider_requests.sort(key=lambda row: (
+                str(row.get("call_id") or ""),
+                str(row.get("legacy_call_key") or ""),
+            ))
             conversations, candidates = build_conversations(
                 posts,
                 boundary=boundary_value,
@@ -6752,14 +7018,49 @@ def run_scan(
             canonical_data = jsonl_bytes(posts)
             conversations_data = jsonl_bytes(conversations)
             candidates_data = jsonl_bytes(candidates)
+            provider_requests_data = jsonl_bytes(provider_requests)
             canonical_hash = sha256_bytes(canonical_data)
             conversations_hash = sha256_bytes(conversations_data)
             candidates_hash = sha256_bytes(candidates_data)
+            provider_requests_hash = sha256_bytes(provider_requests_data)
             snapshot_hash = _snapshot_hash(
-                canonical_hash, conversations_hash, candidates_hash
+                canonical_hash, conversations_hash, candidates_hash,
+                provider_requests_hash,
             )
             counts = _count_snapshot(
-                posts, conversations, candidates, len(inventory.files)
+                posts, conversations, candidates, len(inventory.files),
+                len(provider_requests),
+            )
+            provider_request_coverage = {
+                "total": len(provider_requests),
+                "complete": sum(
+                    row.get("capture_status") == "complete"
+                    for row in provider_requests
+                ),
+                "historical_not_recorded": sum(
+                    row.get("capture_status") == "historical_not_recorded"
+                    for row in provider_requests
+                ),
+                "missing_expected_record": sum(
+                    row.get("capture_status") == "missing_expected_record"
+                    for row in provider_requests
+                ),
+                "recording_failed": sum(
+                    row.get("capture_status") == "recording_failed"
+                    for row in provider_requests
+                ),
+                "corrupt_or_hash_mismatch": sum(
+                    row.get("capture_status") == "corrupt_or_hash_mismatch"
+                    for row in provider_requests
+                ),
+            }
+            provider_request_coverage["incomplete"] = sum(
+                provider_request_coverage[key]
+                for key in (
+                    "missing_expected_record",
+                    "recording_failed",
+                    "corrupt_or_hash_mismatch",
+                )
             )
             cutoff_text = str(format_utc(cutoff))
             started_text = str(format_utc(started))
@@ -6837,6 +7138,7 @@ def run_scan(
                     "latest_source_timestamp": parsed.latest_source_timestamp,
                     "minimum_free_bytes": MIN_FILESYSTEM_FREE_BYTES,
                     "parser_version": PARSER_VERSION,
+                    "provider_request_coverage": provider_request_coverage,
                     "projected_batch_bytes": projected_bytes,
                     "prospective_boundary": boundary_text,
                     "quiescence_hours": float(quiescence_hours),
@@ -6893,6 +7195,7 @@ def run_scan(
                 "ignored_target_like_event_other_count": ignored_target_like_other_count,
                 "ordering": "mrsMThatcher.log.100 through .1, then mrsMThatcher.log",
                 "parser_version": PARSER_VERSION,
+                "provider_request_coverage": provider_request_coverage,
                 "parse_warnings": list(parsed.warnings),
                 "parsed_source_hash_count": parsed.parsed_source_hash_count,
                 "prospective_boundary": boundary_text,
@@ -6909,6 +7212,7 @@ def run_scan(
                 "extractor_version": EXTRACTOR_VERSION,
                 "latest_source_timestamp": parsed.latest_source_timestamp,
                 "parser_version": PARSER_VERSION,
+                "provider_request_coverage": provider_request_coverage,
                 "prospective_boundary": boundary_text,
                 "scan_cutoff": cutoff_text,
                 "schema_version": SCHEMA_VERSION,
@@ -6920,6 +7224,7 @@ def run_scan(
                 boundary=boundary_text,
                 cutoff=cutoff_text,
                 counts=counts,
+                provider_request_coverage=provider_request_coverage,
                 coverage=coverage,
                 source_lag_seconds=source_lag_seconds,
                 warnings=warnings,
@@ -6929,6 +7234,7 @@ def run_scan(
                 "conversations.jsonl": conversations_data,
                 "extraction-report.md": report_data,
                 "review-candidates.jsonl": candidates_data,
+                "provider-requests.jsonl": provider_requests_data,
                 "source-manifest.json": source_manifest_data,
                 "status.json": status_data,
             }
@@ -6948,6 +7254,7 @@ def run_scan(
                 "extractor_version": EXTRACTOR_VERSION,
                 "output_file_hashes": output_hashes,
                 "parser_version": PARSER_VERSION,
+                "provider_request_coverage": provider_request_coverage,
                 "previous_batch_id": previous_batch,
                 "prospective_boundary": boundary_text,
                 "quiescence_hours": float(quiescence_hours),
@@ -7070,6 +7377,7 @@ def uninitialised_status() -> dict[str, Any]:
         "minimum_free_bytes": MIN_FILESYSTEM_FREE_BYTES,
         "open_conversation_count": 0,
         "parser_version": PARSER_VERSION,
+        "provider_request_count": 0,
         "projected_batch_bytes": 0,
         "pruned_batch_ids": [],
         "protected_automatic_bytes": 0,
@@ -7180,6 +7488,9 @@ def get_status(output_root: Path) -> dict[str, Any]:
                 "review_candidate_count": int(
                     counts.get("review_candidate_count") or 0
                 ),
+                "provider_request_count": int(
+                    counts.get("provider_request_count") or 0
+                ),
                 "required_free_bytes": int(
                     state_value.get("required_free_bytes") or 0
                 ),
@@ -7250,6 +7561,7 @@ def _validate_pack_directory(
         manifest = _strict_read_json(pack / "manifest.json")
         conversations = _load_jsonl(pack / "conversations.jsonl")
         candidates = _load_jsonl(pack / "review-candidates.jsonl")
+        provider_requests = _load_jsonl(pack / "provider-requests.jsonl")
     except ExtractorError as exc:
         return [str(exc)]
     if not isinstance(manifest, dict):
@@ -7288,6 +7600,9 @@ def _validate_pack_directory(
                     "conversations_sha256": hashes.get("conversations.jsonl"),
                     "extractor_version": EXTRACTOR_VERSION,
                     "parser_version": PARSER_VERSION,
+                    "provider_requests_sha256": hashes.get(
+                        "provider-requests.jsonl"
+                    ),
                     "review_candidates_sha256": hashes.get(
                         "review-candidates.jsonl"
                     ),
@@ -7302,16 +7617,50 @@ def _validate_pack_directory(
     for name, rows in (
         ("conversations.jsonl", conversations),
         ("review-candidates.jsonl", candidates),
+        ("provider-requests.jsonl", provider_requests),
     ):
         for index, row in enumerate(rows, start=1):
             for problem in _walk_forbidden_keys(row):
                 errors.append(f"{pack.name}/{name}:{index}: {problem}")
+    pack_call_ids: list[str] = []
+    pack_historical_keys: list[str] = []
+    for request_row in provider_requests:
+        call_id = request_row.get("call_id")
+        if request_row.get("capture_status") == "historical_not_recorded" and call_id is None:
+            legacy_key = request_row.get("legacy_call_key")
+            if not isinstance(legacy_key, str) or not legacy_key:
+                errors.append(f"review pack historical provider request has no key: {pack}")
+            else:
+                pack_historical_keys.append(legacy_key)
+            continue
+        if not isinstance(call_id, str) or not call_id:
+            errors.append(f"review pack provider request has no call ID: {pack}")
+            continue
+        pack_call_ids.append(call_id)
+        if request_row.get("capture_status") == "complete":
+            body = request_row.get("request_body_utf8")
+            if not isinstance(body, str):
+                errors.append(f"review pack complete provider request has no body: {pack}")
+                continue
+            body_bytes = body.encode("utf-8")
+            if (
+                request_row.get("request_body_byte_length") != len(body_bytes)
+                or request_row.get("request_body_sha256")
+                != sha256_bytes(body_bytes)
+            ):
+                errors.append(f"review pack provider request integrity mismatch: {pack}")
+    if pack_call_ids != sorted(set(pack_call_ids)):
+        errors.append(f"review pack provider call IDs are duplicated or unordered: {pack}")
+    if pack_historical_keys != sorted(set(pack_historical_keys)):
+        errors.append(f"review pack historical provider keys are duplicated or unordered: {pack}")
     order = [
         (str(row.get("start_time") or ""), str(row.get("conversation_key") or ""))
         for row in conversations
     ]
     if order != sorted(order):
         errors.append(f"review pack conversation ordering is invalid: {pack}")
+    if manifest.get("provider_request_count") != len(provider_requests):
+        errors.append(f"review pack provider-request count is invalid: {pack}")
     return errors
 
 
@@ -7687,6 +8036,7 @@ def freeze_review_pack(
             assert isinstance(batch_manifest, dict)
             conversations = _load_jsonl(batch / "conversations.jsonl")
             candidates = _load_jsonl(batch / "review-candidates.jsonl")
+            provider_requests = _load_jsonl(batch / "provider-requests.jsonl")
             selected_candidates = [
                 row
                 for row in candidates
@@ -7715,8 +8065,32 @@ def freeze_review_pack(
                     str(row.get("conversation_key") or ""),
                 )
             )
+            selected_call_ids: set[str] = set()
+            selected_post_ids: set[str] = set()
+            for row in [*selected_conversations, *selected_candidates]:
+                stack: list[Any] = [row]
+                while stack:
+                    value = stack.pop()
+                    if isinstance(value, dict):
+                        post_id = value.get("post_id")
+                        if isinstance(post_id, str) and post_id:
+                            selected_post_ids.add(post_id)
+                        ids = value.get("provider_call_ids")
+                        if isinstance(ids, list):
+                            selected_call_ids.update(
+                                str(item) for item in ids if str(item)
+                            )
+                        stack.extend(value.values())
+                    elif isinstance(value, list):
+                        stack.extend(value)
+            selected_provider_requests = [
+                row for row in provider_requests
+                if str(row.get("call_id") or "") in selected_call_ids
+                or str(row.get("target_post_id") or "") in selected_post_ids
+            ]
             conversations_data = jsonl_bytes(selected_conversations)
             candidates_data = jsonl_bytes(selected_candidates)
+            provider_requests_data = jsonl_bytes(selected_provider_requests)
             markdown_data = _review_pack_markdown(
                 pack_name=pack_name,
                 source_batch=batch.name,
@@ -7730,6 +8104,7 @@ def freeze_review_pack(
             non_manifest = {
                 "conversations.jsonl": conversations_data,
                 "review-candidates.jsonl": candidates_data,
+                "provider-requests.jsonl": provider_requests_data,
                 "review-pack.md": markdown_data,
             }
             output_hashes = {
@@ -7741,6 +8116,9 @@ def freeze_review_pack(
                         "conversations_sha256": output_hashes["conversations.jsonl"],
                         "extractor_version": EXTRACTOR_VERSION,
                         "parser_version": PARSER_VERSION,
+                        "provider_requests_sha256": output_hashes[
+                            "provider-requests.jsonl"
+                        ],
                         "review_candidates_sha256": output_hashes[
                             "review-candidates.jsonl"
                         ],
@@ -7761,6 +8139,7 @@ def freeze_review_pack(
                 "parser_version": PARSER_VERSION,
                 "prospective_boundary": batch_manifest.get("prospective_boundary"),
                 "review_candidate_count": len(selected_candidates),
+                "provider_request_count": len(selected_provider_requests),
                 "schema_version": SCHEMA_VERSION,
                 "since": since_text,
                 "source_batch_creation_timestamp": batch_manifest.get(
@@ -7966,6 +8345,10 @@ def _build_parser() -> argparse.ArgumentParser:
     scan_parser.add_argument("--prospective-start", required=True)
     scan_parser.add_argument("--until")
     scan_parser.add_argument("--quiescence-hours", type=float, default=48.0)
+    scan_parser.add_argument(
+        "--request-record-dir", type=Path,
+        help="provider capture directory; defaults to <project-dir>/ai-request-records",
+    )
 
     status_parser = subparsers.add_parser("status", help="print read-only status")
     status_parser.add_argument("--output-root", type=Path, required=True)
@@ -8005,6 +8388,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 prospective_start=arguments.prospective_start,
                 until=arguments.until,
                 quiescence_hours=arguments.quiescence_hours,
+                request_record_dir=arguments.request_record_dir,
             )
             sys.stdout.buffer.write(canonical_json_bytes(result))
             return 0
