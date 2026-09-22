@@ -777,4 +777,5 @@ def record_single_call_reply_draft_recovered(
         model_call_count=bounded_event_nonnegative_integer(
             event_obj.get("model_call_count"), maximum=1
         ),
+        call_id=_call_id(event_obj.get("call_id")),
     )

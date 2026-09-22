@@ -544,15 +544,26 @@ and must not be shared as though they were public conversation exports. Ordinary
 log rotation does not remove them; they remain until explicit operator cleanup.
 A recording failure defers the candidate before any provider attempt and does
 not count as provider-health evidence. Capture presence proves preparation, not
-provider receipt or success.
+provider receipt or success. New pending reply drafts retain the capture
+`call_id` inside their validated hash so restart recovery, sending receipts and
+final posting telemetry keep the same correlation without another provider
+call, including when recovery locally rejects the draft. Schema-4 drafts and
+receipts created before this additive field remain
+valid with capture identity explicitly unavailable; their historical hashes
+are neither rewritten nor guessed.
 
 `mrs_log_digest.py --json` and `--json-output` embed verified complete records
 under `provider_requests`; `provider_request_correlations` keeps bounded event
 references and `provider_request_coverage` reports complete, historical,
 missing, corrupt and unmatched categories over logical calls and physical
-attempts. Use `--request-record-dir` only when the captures are not beneath the
-selected `--project-dir`. Markdown reports coverage and previews only; it does
-not label a preview as the complete model input.
+attempts. The physical denominator is scoped to the selected log window: for
+each identified logical call it uses de-duplicated attempt-start events when
+present, otherwise that call's decision-time attempt metadata. Legacy decisions
+without capture identity contribute their own supported attempt count; recovery
+events contribute no later or lifetime attempts. Use `--request-record-dir`
+only when the captures are not beneath the selected `--project-dir`. Markdown
+reports coverage and previews only; it does not label a preview as the complete
+model input.
 
 Configure it through the ignored local configuration after review:
 

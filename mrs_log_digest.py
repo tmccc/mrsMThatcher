@@ -2591,6 +2591,7 @@ def analyse(
                 "single_call_reply_decision",
                 "single_call_reply_provider_usage",
                 "single_call_reply_posting_outcome",
+                "single_call_reply_draft_recovered",
                 "provider_request_prepared",
                 "provider_request_recording_failed",
                 "provider_request_attempt_started",
@@ -2918,16 +2919,58 @@ def provider_request_export(
         })
 
     category_counts["historical_not_recorded"] += len(historical)
-    physical_attempt_count = sum(
-        item.get("kind") == "provider_request_attempt_started" for item in rows
-    )
-    if not physical_attempt_count:
-        physical_attempt_count = sum(
-            int(item.get("provider_request_attempt_count") or 0)
-            for item in rows
-            if item.get("kind") == "single_call_reply_decision"
+    starts_by_call: dict[str, set[tuple[str, object]]] = {}
+    anonymous_starts: set[tuple[str, object]] = set()
+    decision_attempts_by_call: dict[str, int] = {}
+
+    def source_identity(item: Mapping[str, Any], index: int) -> object:
+        """Use retained record provenance when lifecycle identity is unavailable."""
+
+        refs = item.get("source_refs")
+        if isinstance(refs, list) and refs:
+            return json.dumps(
+                refs, allow_nan=False, sort_keys=True, separators=(",", ":"),
+            )
+        return index
+
+    for index, item in enumerate(rows):
+        if item.get("kind") == "provider_request_attempt_started":
+            call_id = item.get("call_id")
+            attempt_number = item.get("attempt_number")
+            attempt_identity = (
+                ("attempt_number", attempt_number)
+                if type(attempt_number) is int and attempt_number >= 1
+                else ("source", source_identity(item, index))
+            )
+            if isinstance(call_id, str) and call_id:
+                starts_by_call.setdefault(call_id, set()).add(attempt_identity)
+            else:
+                anonymous_starts.add(("source", source_identity(item, index)))
+        elif (
+            item.get("kind") == "single_call_reply_decision"
             and item.get("model_call_count") == 1
+            and isinstance(item.get("call_id"), str)
+            and item.get("call_id")
+        ):
+            attempt_count = item.get("provider_request_attempt_count")
+            if type(attempt_count) is int and attempt_count >= 0:
+                call_id = str(item["call_id"])
+                decision_attempts_by_call[call_id] = max(
+                    decision_attempts_by_call.get(call_id, 0), attempt_count,
+                )
+
+    physical_attempt_count = len(anonymous_starts)
+    for call_id in referenced_ids:
+        starts = starts_by_call.get(call_id)
+        physical_attempt_count += (
+            len(starts) if starts else decision_attempts_by_call.get(call_id, 0)
         )
+    physical_attempt_count += sum(
+        item["provider_request_attempt_count"]
+        for item in historical
+        if type(item.get("provider_request_attempt_count")) is int
+        and item["provider_request_attempt_count"] >= 0
+    )
     coverage = {
         "logical_call_denominator": len(referenced_ids) + len(historical),
         "physical_attempt_denominator": physical_attempt_count,

@@ -196,21 +196,23 @@ def apply_confirmed_reply_receipt(
             candidate_source=candidate_source,
             reply_epoch=reply_epoch,
         )
-        log_event(
-            "single_call_reply_posting_outcome",
-            status="confirmed",
-            lane=candidate_source,
-            target_id=target_id,
-            reply_post_id=reply_post_id,
-            strategy_version=ai_reply_draft.get("strategy_version"),
-            reply_kind=ai_reply_draft.get("reply_kind"),
-            reason_code=ai_reply_draft.get("reason_code"),
-            used_fact_count=len(ai_reply_draft.get("used_fact_ids") or []),
-            supplied_image_count=len(ai_reply_draft.get("supplied_images") or []),
-            model_call_count=ai_reply_draft.get("model_call_count"),
-            validated_draft_hash=ai_reply_draft.get("validated_draft_hash"),
-            failure_reason="",
-        )
+        outcome_fields = {
+            "status": "confirmed",
+            "lane": candidate_source,
+            "target_id": target_id,
+            "reply_post_id": reply_post_id,
+            "strategy_version": ai_reply_draft.get("strategy_version"),
+            "reply_kind": ai_reply_draft.get("reply_kind"),
+            "reason_code": ai_reply_draft.get("reason_code"),
+            "used_fact_count": len(ai_reply_draft.get("used_fact_ids") or []),
+            "supplied_image_count": len(ai_reply_draft.get("supplied_images") or []),
+            "model_call_count": ai_reply_draft.get("model_call_count"),
+            "validated_draft_hash": ai_reply_draft.get("validated_draft_hash"),
+            "failure_reason": "",
+        }
+        if ai_reply_draft.get("call_id"):
+            outcome_fields["call_id"] = ai_reply_draft["call_id"]
+        log_event("single_call_reply_posting_outcome", **outcome_fields)
     if isinstance(clarification, dict):
         clarifications.record_completed(
             state, clarification, author_id=author_id, target_id=target_id,

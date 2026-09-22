@@ -175,3 +175,4 @@ production_incident_reviews/
 mrsMThatcher.local.json.*
 pre_*deployment*/
 pre_generated*/
+/ai-request-records/

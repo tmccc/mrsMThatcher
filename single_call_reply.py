@@ -278,6 +278,7 @@ class ReplyValidationError(SingleCallReplyError):
         """Normalise validation failures into one stable error category."""
 
         self.errors = tuple(sorted(set(str(error) for error in errors)))
+        self.persisted_draft_call_id: str | None = None
         self.category = (
             "schema_validation"
             if any(error in SCHEMA_VALIDATION_ERROR_CODES for error in self.errors)
@@ -1809,6 +1810,7 @@ _DRAFT_FIELDS = {
     "created_at",
     "validated_draft_hash",
 }
+_DRAFT_CORRELATION_FIELDS = _DRAFT_FIELDS | {"call_id"}
 
 
 def _image_bindings(images: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
@@ -1832,8 +1834,9 @@ def create_durable_draft(
     fact_map: Mapping[str, Mapping[str, str]],
     images: Sequence[Mapping[str, Any]],
     target_author_id: str,
+    call_id: str | None = None,
 ) -> dict[str, Any]:
-    """Bind a valid reply to its exact one-call inputs and local sources."""
+    """Bind a valid reply to its exact one-call inputs, capture and sources."""
 
     if output.get("decision") != "reply":
         raise ValueError("only a reply decision may create a durable draft")
@@ -1886,12 +1889,26 @@ def create_durable_draft(
         "model_call_count": 1,
         "created_at": utc_now(),
     }
+    if call_id is not None:
+        if not _valid_call_id(call_id):
+            raise ValueError("provider request call ID is invalid")
+        draft["call_id"] = call_id
     draft["validated_draft_hash"] = value_sha256(draft)
     return draft
 
 
 def _valid_sha256(value: object) -> bool:
     return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
+def _valid_call_id(value: object) -> bool:
+    """Return whether a provider-capture identity is safe and bounded."""
+
+    return (
+        isinstance(value, str)
+        and 32 <= len(value) <= 64
+        and set(value) <= set("0123456789abcdef-")
+    )
 
 
 def validate_persisted_draft(
@@ -1903,7 +1920,11 @@ def validate_persisted_draft(
 ) -> dict[str, Any]:
     """Revalidate only the current strategy's durable draft without a model call."""
 
-    if not isinstance(draft, dict) or set(draft) != _DRAFT_FIELDS:
+    draft_fields = set(draft) if isinstance(draft, dict) else set()
+    if not isinstance(draft, dict) or (
+        draft_fields != _DRAFT_FIELDS
+        and draft_fields != _DRAFT_CORRELATION_FIELDS
+    ):
         raise ValueError("pending single-call draft fields mismatch")
     if (
         draft.get("draft_schema_version") != DRAFT_SCHEMA_VERSION
@@ -1921,6 +1942,8 @@ def validate_persisted_draft(
     unsigned.pop("validated_draft_hash", None)
     if not _valid_sha256(stored_hash) or stored_hash != value_sha256(unsigned):
         raise ValueError("pending single-call draft hash mismatch")
+    if "call_id" in draft and not _valid_call_id(draft.get("call_id")):
+        raise ValueError("pending single-call draft call ID is invalid")
     created_at = draft.get("created_at")
     if not isinstance(created_at, str) or not created_at.endswith("Z"):
         raise ValueError("pending single-call draft creation time is invalid")
@@ -2057,22 +2080,28 @@ def validate_persisted_draft(
         "quoted_subject": quoted_subject,
         "recent_account_replies": [],
     }
-    validate_model_output(
-        json.dumps(
-            {
-                "decision": "reply",
-                "reply_kind": draft.get("reply_kind"),
-                "reply": draft.get("proposed_reply"),
-                "used_fact_ids": used_ids,
-                "factual_claims": draft.get("factual_claims"),
-                "reason_code": draft.get("reason_code"),
-            },
-            ensure_ascii=False,
-            separators=(",", ":"),
-        ),
-        payload=validation_payload,
-        comparison_replies=comparison_replies,
-    )
+    try:
+        validate_model_output(
+            json.dumps(
+                {
+                    "decision": "reply",
+                    "reply_kind": draft.get("reply_kind"),
+                    "reply": draft.get("proposed_reply"),
+                    "used_fact_ids": used_ids,
+                    "factual_claims": draft.get("factual_claims"),
+                    "reason_code": draft.get("reason_code"),
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+            payload=validation_payload,
+            comparison_replies=comparison_replies,
+        )
+    except ReplyValidationError as exc:
+        # Reaching this boundary proves that the exact persisted field set,
+        # draft hash and optional call ID have already passed validation.
+        exc.persisted_draft_call_id = draft.get("call_id")
+        raise
     return copy.deepcopy(draft)
 
 
@@ -2309,6 +2338,7 @@ def run_reply_pipeline(
             fact_map=fact_map,
             images=images,
             target_author_id=str(context.get("target_author_id") or ""),
+            call_id=(call_id if isinstance(call_id, str) and call_id else None),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return PipelineResult(

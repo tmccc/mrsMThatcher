@@ -2245,6 +2245,7 @@ def _set_identity(post: dict[str, Any], field: str, value: Any) -> None:
 PIPELINE_EVENT_KINDS = frozenset(
     {
         "single_call_reply_decision",
+        "single_call_reply_draft_recovered",
         "single_call_reply_provider_usage",
         "provider_request_prepared",
         "provider_request_recording_failed",

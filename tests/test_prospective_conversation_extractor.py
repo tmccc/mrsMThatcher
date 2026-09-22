@@ -9,6 +9,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import zlib
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -21,7 +22,11 @@ import pytest
 from tools import extract_prospective_conversations as extractor
 import mrs_log_digest as digest
 from mrs_bot_reply_model_transport import ReplyModelTransport
-from mrs_provider_request_records import read_provider_request_record
+from mrs_provider_request_records import (
+    InvalidRequestRecord,
+    read_provider_request_record,
+    record_provider_request,
+)
 
 
 BOUNDARY = "2026-08-24T15:08:39Z"
@@ -715,12 +720,12 @@ def test_exact_provider_request_reaches_batch_and_frozen_review_pack(
         + continuation()
         + event_line(
             "2026-08-24 16:20:05",
-            "provider_request_prepared",
+            "single_call_reply_posting_outcome",
             call_id=call_id,
             lane="mention",
             target_id="100",
-            request_body_sha256=hashlib.sha256(body).hexdigest(),
-            request_body_byte_length=len(body),
+            status="confirmed",
+            reply_post_id="900",
         ),
     )
     run_scan(project, output, until="2099-01-01T00:00:00Z")
@@ -757,6 +762,154 @@ def test_exact_provider_request_reaches_batch_and_frozen_review_pack(
     }
     assert b"fixture-secret-not-recorded" not in json.dumps(record).encode("utf-8")
     assert extractor.validate_output_root(output)["valid"] is True
+
+
+@pytest.mark.parametrize("prior_429", [False, True])
+def test_real_transport_timeout_event_survives_parser_and_normaliser(
+    prior_429: bool,
+) -> None:
+    """Actual ambiguous transport evidence keeps its target and attempt number."""
+
+    class RequestException(Exception):
+        pass
+
+    class Timeout(RequestException):
+        pass
+
+    class ReadTimeout(Timeout):
+        pass
+
+    class ConnectTimeout(Timeout):
+        pass
+
+    class ConnectionError(RequestException):
+        pass
+
+    class ProviderError(RuntimeError):
+        def __init__(self, message: str, **fields: object) -> None:
+            super().__init__(message)
+            self.status_code = fields.get("status_code")
+            self.reset_epoch = fields.get("reset_epoch")
+
+    timeout = ReadTimeout("synthetic ambiguous timeout")
+    responses: list[object] = []
+    if prior_429:
+        responses.append(SimpleNamespace(
+            status_code=429,
+            headers={"Retry-After": "0"},
+            close=lambda: None,
+        ))
+    responses.append(timeout)
+    emitted: list[tuple[str, dict[str, object]]] = []
+    owner = ReplyModelTransport(
+        log=Mock(),
+        model="fixture-model",
+        reasoning_effort="low",
+        monotonic=lambda: 1.0,
+        require_remote_operation_unpaused=lambda _operation: None,
+        report_bot_health_progress=lambda _boundary: None,
+        requests=SimpleNamespace(
+            post=Mock(side_effect=responses),
+            RequestException=RequestException,
+            Timeout=Timeout,
+            ConnectTimeout=ConnectTimeout,
+            ConnectionError=ConnectionError,
+        ),
+        base_url="https://fixture.invalid/v1",
+        api_key="fixture-secret",
+        sleep=lambda _seconds: None,
+        now_epoch=lambda: 100,
+        error_type=ProviderError,
+        log_event=lambda name, **fields: emitted.append((name, fields)),
+    )
+
+    with pytest.raises(ProviderError) as caught:
+        owner.call(
+            request={"model": "fixture-model"},
+            timeout_seconds=20,
+            lane="mention",
+            target_id="900",
+        )
+
+    expected_attempt = 2 if prior_429 else 1
+    assert caught.value.__cause__ is timeout
+    assert caught.value.request_attempt_count == expected_attempt
+    assert caught.value.status_code == (429 if prior_429 else None)
+    lines = "".join(
+        event_line(
+            f"2026-09-04 12:00:0{index}", name, **fields,
+        )
+        for index, (name, fields) in enumerate(emitted)
+    )
+    records, warnings = extractor.parse_log_records(lines.encode())
+    statistics: dict[str, object] = {}
+    posts = extractor.normalise_canonical_posts(
+        records, [], b"t" * 32, parser_statistics=statistics,
+    )
+
+    outcomes = [
+        summary
+        for summary in posts[0]["pipeline_stage_summaries"]
+        if summary["event_kind"] == "provider_request_attempt_outcome"
+    ]
+    ambiguous = next(
+        summary for summary in outcomes
+        if summary.get("outcome") == "ambiguous_transport_outcome"
+    )
+    assert warnings == []
+    assert statistics["registered_event_missing_target_count"] == 0
+    assert ambiguous["call_id"] == caught.value.call_id
+    assert ambiguous["attempt_number"] == expected_attempt
+    assert posts[0]["lane"] == "mention"
+    assert posts[0]["post_id"] == "900"
+    if prior_429:
+        assert [summary["attempt_number"] for summary in outcomes] == [1, 2]
+        assert outcomes[0]["provider_status_code"] == 429
+
+
+def test_invalid_deflate_capture_isolated_in_conversation_export(
+    tmp_path: Path,
+) -> None:
+    """One invalid DEFLATE member is reported without hiding a valid capture."""
+
+    directory = tmp_path / "ai-request-records"
+    valid_id = "11111111-2222-4333-8444-555555555555"
+    corrupt_id = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+    valid_body = b'{"model":"fixture","input":"complete"}'
+    record_provider_request(
+        directory,
+        request={"model": "fixture", "input": "complete"},
+        request_body=valid_body,
+        call_id=valid_id,
+        lane="mention",
+        target_post_id="100",
+        endpoint_path="/responses",
+        timeout_seconds=20,
+        captured_at="2026-09-04T12:00:00Z",
+    )
+    corrupt = directory / f"{corrupt_id}.json.gz"
+    corrupt.write_bytes(
+        bytes.fromhex("1f8b08000000000002ff") + b"\x07" + b"\x00" * 8
+    )
+    corrupt.chmod(0o600)
+    observed = datetime(2026, 9, 4, 12, tzinfo=timezone.utc).timestamp()
+    os.utime(corrupt, (observed, observed))
+
+    with pytest.raises(InvalidRequestRecord) as caught:
+        read_provider_request_record(corrupt)
+    assert isinstance(caught.value.__cause__, zlib.error)
+
+    capture_rows = extractor.load_provider_request_captures(
+        directory,
+        cutoff=extractor.parse_aware_timestamp(
+            "2026-09-05T00:00:00Z", option="test cutoff",
+        ),
+    )
+    by_id = {row["call_id"]: row for row in capture_rows}
+    assert by_id[valid_id]["capture_status"] == "complete"
+    assert by_id[valid_id]["request_body_utf8"].encode("utf-8") == valid_body
+    assert by_id[corrupt_id]["capture_status"] == "corrupt_or_hash_mismatch"
+    assert "corrupt provider request record" in by_id[corrupt_id]["error"]
 
 
 def state_bytes(output: Path) -> bytes:

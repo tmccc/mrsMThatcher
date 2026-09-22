@@ -243,7 +243,7 @@ class ReplyModelTransport:
                 raise self._transport_error(
                     exc, attempt=attempt, first_429_seen=first_429_seen,
                     first_429_retry_metadata=first_429_retry_metadata,
-                    call_id=call_id,
+                    call_id=call_id, lane=lane, target_id=target_id,
                 ) from exc
             finally:
                 self.report_bot_health_progress("ai_call")
@@ -312,12 +312,16 @@ class ReplyModelTransport:
         first_429_seen: bool,
         first_429_retry_metadata: tuple[int | None, int | None],
         call_id: str,
+        lane: str,
+        target_id: str,
     ) -> Exception:
         """Classify a failed request while retaining earlier rate-limit evidence."""
         self._emit(
             "provider_request_attempt_outcome",
             call_id=call_id,
             attempt_number=attempt,
+            lane=lane,
+            target_id=target_id,
             outcome="ambiguous_transport_outcome",
         )
         if first_429_seen:

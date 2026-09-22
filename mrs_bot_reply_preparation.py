@@ -38,19 +38,21 @@ def persist_validated_reply_draft(
     )
     if not draft_stored:
         log_validation_failure()
-        log_event(
-            "single_call_reply_posting_outcome",
-            status="draft_persistence_failed",
-            lane=str(candidate_source),
-            target_id=target_id,
-            strategy_version=SINGLE_CALL_STRATEGY_VERSION,
-            reply_kind=reply_text.draft_record.get("reply_kind"),
-            reason_code=reply_text.draft_record.get("reason_code"),
-            validated_draft_hash=reply_text.draft_record.get(
+        fields = {
+            "status": "draft_persistence_failed",
+            "lane": str(candidate_source),
+            "target_id": target_id,
+            "strategy_version": SINGLE_CALL_STRATEGY_VERSION,
+            "reply_kind": reply_text.draft_record.get("reply_kind"),
+            "reason_code": reply_text.draft_record.get("reason_code"),
+            "validated_draft_hash": reply_text.draft_record.get(
                 "validated_draft_hash"
             ),
-            failure_reason="draft_persistence_validation_failed",
-        )
+            "failure_reason": "draft_persistence_validation_failed",
+        }
+        if reply_text.draft_record.get("call_id"):
+            fields["call_id"] = reply_text.draft_record["call_id"]
+        log_event("single_call_reply_posting_outcome", **fields)
         persistence.save(state, durable=True)
         return False
     persistence.save(state, durable=True)

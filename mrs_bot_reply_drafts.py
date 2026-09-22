@@ -125,8 +125,9 @@ class ReplyDrafts:
         recent_replies: list[object] | None,
         validation_codes: tuple[str, ...],
         rejected_text: dict[str, object],
+        call_id: str | None,
     ) -> PipelineResult:
-        """Build the zero-call failure diagnostics after retiring an invalid draft."""
+        """Build zero-call failure diagnostics with validated draft identity."""
         visible = [
             turn
             for turn in (context.get("visible_conversation") or [])
@@ -158,6 +159,7 @@ class ReplyDrafts:
                 if isinstance(record, dict)
                 else 0
             ),
+            call_id=call_id,
         )
         return result
 
@@ -212,6 +214,7 @@ class ReplyDrafts:
             result = self._local_validation_failure_result(
                 record, context, recent_replies=recent_replies,
                 validation_codes=validation_codes, rejected_text=rejected_text,
+                call_id=getattr(exc, "persisted_draft_call_id", None),
             )
             self.generation.record_result(
                 result, lane=candidate_source, target_id=target_id,
@@ -245,15 +248,19 @@ class ReplyDrafts:
             "validated_draft_hash": validated["validated_draft_hash"],
             "recovered_without_provider_call": True,
         }
-        self.log_event(
-            "single_call_reply_draft_recovered",
-            lane=str(candidate_source),
-            target_id=str(target_id),
-            strategy_version=self.strategy_version,
-            model=self.model,
-            validated_draft_hash=validated["validated_draft_hash"],
-            model_call_count=0,
-        )
+        if validated.get("call_id"):
+            metadata["call_id"] = validated["call_id"]
+        recovery_fields = {
+            "lane": str(candidate_source),
+            "target_id": str(target_id),
+            "strategy_version": self.strategy_version,
+            "model": self.model,
+            "validated_draft_hash": validated["validated_draft_hash"],
+            "model_call_count": 0,
+        }
+        if validated.get("call_id"):
+            recovery_fields["call_id"] = validated["call_id"]
+        self.log_event("single_call_reply_draft_recovered", **recovery_fields)
         return self.result_type(
             status="reply",
             reason="persisted_draft_recovered",
@@ -269,6 +276,7 @@ class ReplyDrafts:
             payload_sha256=validated["model_payload_sha256"],
             trusted_fact_count=len(validated["trusted_fact_ids"]),
             supplied_image_count=len(validated.get("supplied_images") or []),
+            call_id=validated.get("call_id"),
         )
 
     def clear(
@@ -292,18 +300,20 @@ class ReplyDrafts:
         pending_key = pending_ai_reply_draft_key(target_id, candidate_source)
         pending_record = drafts.get(pending_key) if isinstance(drafts, dict) else None
         if isinstance(pending_record, dict):
-            self.log_event(
-                "single_call_reply_posting_outcome",
-                status="posting_failed_terminal",
-                lane=candidate_source,
-                target_id=target_id,
-                reply_post_id="",
-                strategy_version=pending_record.get("strategy_version"),
-                reply_kind=pending_record.get("reply_kind"),
-                reason_code=pending_record.get("reason_code"),
-                validated_draft_hash=pending_record.get("validated_draft_hash"),
-                failure_reason="reply_not_permitted_preflight",
-            )
+            fields = {
+                "status": "posting_failed_terminal",
+                "lane": candidate_source,
+                "target_id": target_id,
+                "reply_post_id": "",
+                "strategy_version": pending_record.get("strategy_version"),
+                "reply_kind": pending_record.get("reply_kind"),
+                "reason_code": pending_record.get("reason_code"),
+                "validated_draft_hash": pending_record.get("validated_draft_hash"),
+                "failure_reason": "reply_not_permitted_preflight",
+            }
+            if pending_record.get("call_id"):
+                fields["call_id"] = pending_record["call_id"]
+            self.log_event("single_call_reply_posting_outcome", **fields)
             self.clear(state, target_id, candidate_source)
 
     def receipt_draft_is_valid(self, data: dict, text: object) -> bool:

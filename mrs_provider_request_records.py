@@ -16,6 +16,7 @@ import os
 import stat
 import tempfile
 import uuid
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -291,7 +292,7 @@ def read_provider_request_record(path: Path) -> dict[str, Any]:
         value = json.loads(raw.decode("utf-8"))
     except InvalidRequestRecord:
         raise
-    except (OSError, EOFError, UnicodeError, json.JSONDecodeError) as exc:
+    except (OSError, EOFError, UnicodeError, json.JSONDecodeError, zlib.error) as exc:
         raise InvalidRequestRecord(f"corrupt provider request record: {path.name}") from exc
     finally:
         if descriptor >= 0:

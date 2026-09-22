@@ -12,11 +12,16 @@ import os
 import shutil
 import subprocess
 import sys
+import zlib
 
 import pytest
 
 import mrs_log_digest as digest
-from mrs_provider_request_records import record_provider_request
+from mrs_provider_request_records import (
+    InvalidRequestRecord,
+    read_provider_request_record,
+    record_provider_request,
+)
 from single_call_reply_validation import (
     MAX_REJECTED_REPLY_TEXT_CHARACTERS,
     MAX_VALIDATION_ERROR_CODES,
@@ -68,6 +73,271 @@ def test_digest_provider_request_export_embeds_complete_body_after_source_remova
     assert copied[0]["capture_status"] == "complete"
     assert coverage["logical_call_denominator"] == 1
     assert coverage["physical_attempt_denominator"] == 1
+
+
+def test_recovered_completion_resolves_capture_outside_digest_window(tmp_path: Path):
+    call_id = "11111111-2222-4333-8444-555555555556"
+    directory = tmp_path / "ai-request-records"
+    body = b'{"input":"day one complete request"}'
+    record_provider_request(
+        directory,
+        request={"input": "day one complete request"},
+        request_body=body,
+        call_id=call_id,
+        lane="mention",
+        target_post_id="123456789012345678",
+        endpoint_path="/responses",
+        timeout_seconds=180,
+        captured_at="2026-09-04T10:00:00Z",
+    )
+    path = directory / f"{call_id}.json.gz"
+    day_one = datetime(2026, 9, 4, 10).timestamp()
+    os.utime(path, (day_one, day_one))
+
+    exported, coverage = digest.provider_request_export(
+        directory,
+        [{
+            "kind": "single_call_reply_posting_outcome",
+            "time": "2026-09-05 12:00:00",
+            "call_id": call_id,
+            "lane": "mention",
+            "target_id": "123456789012345678",
+            "status": "confirmed",
+        }],
+        window_start=datetime(2026, 9, 5, 11, 59),
+        window_end=datetime(2026, 9, 5, 12, 1),
+    )
+
+    assert len(exported) == 1
+    assert exported[0]["capture_status"] == "complete"
+    assert exported[0]["request_body_utf8"].encode("utf-8") == body
+    assert coverage["logical_call_denominator"] == 1
+    assert coverage["physical_attempt_denominator"] == 0
+
+
+@pytest.mark.parametrize("referenced", [False, True], ids=["discovered", "referenced"])
+def test_digest_invalid_deflate_capture_isolated_from_valid_record(
+    tmp_path: Path,
+    referenced: bool,
+):
+    directory = tmp_path / "ai-request-records"
+    valid_id = "11111111-2222-4333-8444-555555555557"
+    corrupt_id = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeef"
+    valid_body = b'{"model":"fixture","input":"complete"}'
+    record_provider_request(
+        directory,
+        request={"model": "fixture", "input": "complete"},
+        request_body=valid_body,
+        call_id=valid_id,
+        lane="mention",
+        target_post_id="123456789012345678",
+        endpoint_path="/responses",
+        timeout_seconds=180,
+        captured_at="2026-09-04T12:00:00Z",
+    )
+    corrupt = directory / f"{corrupt_id}.json.gz"
+    corrupt.write_bytes(
+        bytes.fromhex("1f8b08000000000002ff") + b"\x07" + b"\x00" * 8
+    )
+    corrupt.chmod(0o600)
+    observed = datetime.now().timestamp()
+    os.utime(corrupt, (observed, observed))
+
+    with pytest.raises(InvalidRequestRecord) as caught:
+        read_provider_request_record(corrupt)
+    assert isinstance(caught.value.__cause__, zlib.error)
+
+    ids = (valid_id, corrupt_id) if referenced else ()
+    correlations = [
+        {"kind": "provider_request_prepared", "call_id": call_id}
+        for call_id in ids
+    ]
+    exported, coverage = digest.provider_request_export(
+        directory,
+        correlations,
+        window_start=datetime.fromtimestamp(observed - 2),
+        window_end=datetime.fromtimestamp(observed + 2),
+    )
+    by_id = {row["call_id"]: row for row in exported}
+
+    assert by_id[valid_id]["capture_status"] == (
+        "complete" if referenced else "unmatched_prepared_or_outcome_unknown"
+    )
+    assert by_id[valid_id]["request_body_utf8"].encode("utf-8") == valid_body
+    assert by_id[corrupt_id]["capture_status"] == "corrupt_or_hash_mismatch"
+    assert coverage["category_counts"]["corrupt_or_hash_mismatch"] == 1
+
+
+def test_provider_capture_directory_is_ignored_without_blanket_gzip_rule(
+    tmp_path: Path,
+):
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    shutil.copy2(Path(digest.__file__).with_name(".gitignore"), repository / ".gitignore")
+    (repository / "ai-request-records").mkdir()
+    capture = repository / "ai-request-records" / "fixture.json.gz"
+    fixture = repository / "legitimate-fixture.json.gz"
+    recorder = repository / "mrs_provider_request_records.py"
+    capture.write_bytes(b"private synthetic capture")
+    fixture.write_bytes(b"legitimate fixture")
+    recorder.write_text("# synthetic recorder module\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=repository, check=True)
+
+    ignored = subprocess.run(
+        ["git", "check-ignore", "--quiet", "ai-request-records/fixture.json.gz"],
+        cwd=repository,
+    )
+    status = subprocess.run(
+        ["git", "status", "--short", "--untracked-files=all"],
+        cwd=repository,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+
+    assert ignored.returncode == 0
+    assert "ai-request-records/fixture.json.gz" not in status
+    assert "legitimate-fixture.json.gz" in status
+    assert "mrs_provider_request_records.py" in status
+
+
+@pytest.mark.parametrize(
+    ("rows", "logical", "physical"),
+    [
+        (
+            [
+                {
+                    "kind": "single_call_reply_decision",
+                    "target_id": "same",
+                    "model_call_count": 1,
+                    "provider_request_attempt_count": 1,
+                },
+                {
+                    "kind": "provider_request_attempt_started",
+                    "call_id": "11111111-2222-4333-8444-555555555551",
+                    "target_id": "same",
+                    "attempt_number": 1,
+                },
+                {
+                    "kind": "single_call_reply_decision",
+                    "call_id": "11111111-2222-4333-8444-555555555551",
+                    "target_id": "same",
+                    "model_call_count": 1,
+                    "provider_request_attempt_count": 1,
+                },
+            ],
+            2,
+            2,
+        ),
+        (
+            [
+                {
+                    "kind": "single_call_reply_decision",
+                    "target_id": str(index),
+                    "model_call_count": 1,
+                    "provider_request_attempt_count": 1,
+                }
+                for index in range(2)
+            ],
+            2,
+            2,
+        ),
+        (
+            [
+                {
+                    "kind": "provider_request_attempt_started",
+                    "call_id": "11111111-2222-4333-8444-555555555552",
+                    "target_id": "same",
+                    "attempt_number": attempt,
+                }
+                for attempt in (1, 1, 2, 2)
+            ]
+            + [{
+                "kind": "single_call_reply_decision",
+                "call_id": "11111111-2222-4333-8444-555555555552",
+                "target_id": "same",
+                "model_call_count": 1,
+                "provider_request_attempt_count": 2,
+            }],
+            1,
+            2,
+        ),
+        (
+            [
+                {
+                    "kind": "provider_request_attempt_started",
+                    "call_id": call_id,
+                    "target_id": "same",
+                    "attempt_number": 1,
+                }
+                for call_id in (
+                    "11111111-2222-4333-8444-555555555553",
+                    "11111111-2222-4333-8444-555555555554",
+                )
+            ]
+            + [
+                {
+                    "kind": "single_call_reply_decision",
+                    "call_id": call_id,
+                    "target_id": "same",
+                    "model_call_count": 1,
+                    "provider_request_attempt_count": 1,
+                }
+                for call_id in (
+                    "11111111-2222-4333-8444-555555555553",
+                    "11111111-2222-4333-8444-555555555554",
+                )
+            ],
+            2,
+            2,
+        ),
+        (
+            [
+                {
+                    "kind": "provider_request_prepared",
+                    "call_id": "11111111-2222-4333-8444-555555555555",
+                    "target_id": "same",
+                },
+                {
+                    "kind": "provider_request_recording_failed",
+                    "call_id": "11111111-2222-4333-8444-555555555556",
+                    "target_id": "other",
+                    "request_attempt_count": 0,
+                },
+                {
+                    "kind": "single_call_reply_draft_recovered",
+                    "call_id": "11111111-2222-4333-8444-555555555557",
+                    "target_id": "third",
+                    "model_call_count": 0,
+                },
+            ],
+            3,
+            0,
+        ),
+    ],
+    ids=[
+        "mixed-rollout",
+        "all-legacy",
+        "deduplicated-retry",
+        "same-target",
+        "zero-attempts",
+    ],
+)
+def test_provider_request_attempt_denominator_is_per_logical_call(
+    tmp_path: Path,
+    rows: list[dict[str, object]],
+    logical: int,
+    physical: int,
+):
+    _exported, coverage = digest.provider_request_export(
+        tmp_path / "absent-captures",
+        rows,
+        window_start=datetime(2026, 9, 4, 12),
+        window_end=datetime(2026, 9, 4, 13),
+    )
+
+    assert coverage["logical_call_denominator"] == logical
+    assert coverage["physical_attempt_denominator"] == physical
 
 
 def _validation_failure_record(offset, **fields):

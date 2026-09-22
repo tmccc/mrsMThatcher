@@ -447,6 +447,7 @@ def test_recovered_duplicate_draft_emits_rule_and_retires_without_provider_call(
     assert result.status == "operational_failure" and result.reply is None
     assert result.reason == "persisted_draft_local_validation_failed"
     assert result.error_category == "local_validation" and result.model_call_count == 0
+    assert result.call_id is None
     provider.assert_not_called()
     assert len(events) == 1
     kind, decision = events[0]
@@ -455,6 +456,7 @@ def test_recovered_duplicate_draft_emits_rule_and_retires_without_provider_call(
     assert decision["failure_reason"] == "persisted_draft_local_validation_failed"
     assert decision["local_validation_status"] == "failed"
     assert decision["model_call_count"] == 0
+    assert decision["call_id"] is None
     assert decision["rejected_reply_text"] == str(reply)
     assert decision["rejected_reply_text_status"] == "available"
     assert decision["rejected_reply_text_character_count"] == len(reply)

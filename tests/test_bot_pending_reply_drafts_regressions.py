@@ -8,13 +8,20 @@ from tests.helpers.reply_evaluation import legacy_reply_evaluator
 import copy
 import json
 import hashlib
+import os
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
+import mrs_log_digest as digest
+import mrs_provider_request_records as request_records
 import single_call_reply as pipeline
+from mrs_bot_reply_generation import log_ai_reply_posting_outcome
+from mrs_bot_reply_model_transport import ReplyModelTransport
+from mrs_provider_request_records import read_provider_request_record
 from reply_evidence import EvidenceRepository
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime
@@ -32,9 +39,414 @@ from tests.helpers.single_call_fixtures import (
     raw_decision,
     response_envelope,
 )
+from tools import extract_prospective_conversations as extractor
 
 
 pytestmark = pytest.mark.allow_loopback_network
+
+
+def test_capture_identity_survives_draft_receipt_and_reconciliation_round_trips(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Recovery and confirmed reconciliation retain one exact provider call."""
+
+    class RequestException(Exception):
+        pass
+
+    class Timeout(RequestException):
+        pass
+
+    class ConnectTimeout(Timeout):
+        pass
+
+    class ConnectionError(RequestException):
+        pass
+
+    text = "Responsibility matters more than rhetoric."
+    response = SimpleNamespace(
+        status_code=200,
+        headers={},
+        json=lambda: response_envelope(raw_decision(reply=text)),
+        close=lambda: None,
+    )
+    sent_bodies: list[bytes] = []
+
+    def post(*_args: object, **kwargs: object) -> object:
+        sent_bodies.append(bytes(kwargs["data"]))
+        return response
+
+    ticks = iter((1.0, 1.01))
+    transport = ReplyModelTransport(
+        log=Mock(),
+        model=pipeline.MODEL,
+        reasoning_effort=pipeline.REASONING_EFFORT,
+        monotonic=lambda: next(ticks),
+        require_remote_operation_unpaused=lambda _operation: None,
+        report_bot_health_progress=lambda _boundary: None,
+        requests=SimpleNamespace(
+            post=post,
+            RequestException=RequestException,
+            Timeout=Timeout,
+            ConnectTimeout=ConnectTimeout,
+            ConnectionError=ConnectionError,
+        ),
+        base_url="https://fixture.invalid/v1",
+        api_key="fixture-secret",
+        sleep=lambda _seconds: None,
+        now_epoch=lambda: 0,
+        error_type=RuntimeError,
+        request_record_directory=tmp_path / "ai-request-records",
+    )
+    context = unit_reply_context(target_id="100")
+    result = pipeline.run_reply_pipeline(
+        context=context,
+        config=enabled_config(),
+        repository=UNIT_REPLY_REPOSITORY,
+        transport=transport.call,
+    )
+
+    assert result.status == "reply" and result.reply is not None
+    assert result.call_id and result.reply.draft_record["call_id"] == result.call_id
+    capture = read_provider_request_record(
+        tmp_path / "ai-request-records" / f"{result.call_id}.json.gz"
+    )
+    assert capture["request_body_utf8"].encode("utf-8") == sent_bodies[0]
+
+    monkeypatch.setattr(
+        bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY,
+    )
+    state = bot.default_state()
+    first_owner = bot._reply_draft_owner()
+    assert first_owner.store(
+        state, "100", "mention", result.reply, context=context,
+    )
+    round_tripped = json.loads(json.dumps(state))
+    recovery_events: list[tuple[str, dict[str, object]]] = []
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **fields: recovery_events.append((name, fields)),
+    )
+    recovered = bot._reply_draft_owner().recover(
+        round_tripped, "100", "mention", context=context,
+    )
+
+    assert recovered is not None and recovered.reply is not None
+    assert recovered.model_call_count == recovered.provider_request_attempt_count == 0
+    assert recovered.call_id == result.call_id
+    assert recovered.reply.draft_record["call_id"] == result.call_id
+    assert recovered.reply.pipeline_metadata["call_id"] == result.call_id
+    recovered_event = next(
+        fields for name, fields in recovery_events
+        if name == "single_call_reply_draft_recovered"
+    )
+    assert recovered_event["call_id"] == result.call_id
+
+    posting_events: list[tuple[str, dict[str, object]]] = []
+    log_ai_reply_posting_outcome(
+        reply=recovered.reply,
+        status="confirmed",
+        lane="mention",
+        target_id="100",
+        reply_post_id="999",
+        failure_reason="",
+        log_event=lambda name, **fields: posting_events.append((name, fields)),
+    )
+    assert posting_events[0][1]["call_id"] == result.call_id
+
+    receipt = unit_confirmed_reply_receipt(target_id="100", text=text)
+    receipt["reply_context"] = copy.deepcopy(context)
+    receipt["ai_reply_draft"] = copy.deepcopy(recovered.reply.draft_record)
+    receipt = json.loads(json.dumps(receipt))
+    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt)
+    reconciliation_events: list[tuple[str, dict[str, object]]] = []
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **fields: reconciliation_events.append((name, fields)),
+    )
+    bot.apply_confirmed_reply_receipt(bot.default_state(), receipt)
+    confirmed = next(
+        fields for name, fields in reconciliation_events
+        if name == "single_call_reply_posting_outcome"
+    )
+    assert confirmed["status"] == "confirmed"
+    assert confirmed["call_id"] == result.call_id
+    assert len(sent_bodies) == 1
+
+
+def test_duplicate_recovery_retains_historical_capture_across_digest_window(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A rejected recovered draft keeps its validated creation-time call ID."""
+
+    class RequestException(Exception):
+        pass
+
+    class Timeout(RequestException):
+        pass
+
+    class ConnectTimeout(Timeout):
+        pass
+
+    class ConnectionError(RequestException):
+        pass
+
+    text = "Responsibility matters more than rhetoric."
+    response = SimpleNamespace(
+        status_code=200,
+        headers={},
+        json=lambda: response_envelope(raw_decision(reply=text)),
+        close=lambda: None,
+    )
+    sent_bodies: list[bytes] = []
+    transport_events: list[tuple[str, dict[str, object]]] = []
+
+    def post(*_args: object, **kwargs: object) -> object:
+        sent_bodies.append(bytes(kwargs["data"]))
+        return response
+
+    monkeypatch.setattr(
+        request_records,
+        "utc_now_text",
+        lambda: "2026-09-03T10:00:00Z",
+    )
+    ticks = iter((1.0, 1.01))
+    transport = ReplyModelTransport(
+        log=Mock(),
+        model=pipeline.MODEL,
+        reasoning_effort=pipeline.REASONING_EFFORT,
+        monotonic=lambda: next(ticks),
+        require_remote_operation_unpaused=lambda _operation: None,
+        report_bot_health_progress=lambda _boundary: None,
+        requests=SimpleNamespace(
+            post=post,
+            RequestException=RequestException,
+            Timeout=Timeout,
+            ConnectTimeout=ConnectTimeout,
+            ConnectionError=ConnectionError,
+        ),
+        base_url="https://fixture.invalid/v1",
+        api_key="fixture-secret",
+        sleep=lambda _seconds: None,
+        now_epoch=lambda: 0,
+        error_type=RuntimeError,
+        request_record_directory=tmp_path / "ai-request-records",
+        log_event=lambda name, **fields: transport_events.append((name, fields)),
+    )
+    context = unit_reply_context(target_id="100")
+    generated = pipeline.run_reply_pipeline(
+        context=context,
+        config=enabled_config(),
+        repository=UNIT_REPLY_REPOSITORY,
+        transport=transport.call,
+    )
+
+    assert generated.status == "reply" and generated.reply is not None
+    assert generated.call_id
+    capture_path = (
+        tmp_path / "ai-request-records" / f"{generated.call_id}.json.gz"
+    )
+    capture = read_provider_request_record(capture_path)
+    assert capture["captured_at"] == "2026-09-03T10:00:00Z"
+    assert capture["request_body_utf8"].encode("utf-8") == sent_bodies[0]
+    prepared = next(
+        fields for name, fields in transport_events
+        if name == "provider_request_prepared"
+    )
+    assert prepared["call_id"] == generated.call_id
+    assert prepared["captured_at"] == capture["captured_at"]
+    capture_mtime = datetime(2026, 9, 3, 10).timestamp()
+    os.utime(capture_path, (capture_mtime, capture_mtime))
+
+    monkeypatch.setattr(
+        bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY,
+    )
+    monkeypatch.setattr(bot, "now_epoch", lambda: 2_000_000_000)
+    state = bot.default_state()
+    assert bot._reply_draft_owner().store(
+        state, "100", "mention", generated.reply, context=context,
+    )
+    stored = state["pending_ai_reply_drafts"]["mention:100"]
+    assert stored["call_id"] == generated.call_id
+    state["ai_reply_history"] = [{
+        "target_id": "90",
+        "reply_post_id": "900",
+        "candidate_source": "mention",
+        "reply_epoch": 1_999_999_999,
+        "proposed_reply": text,
+    }]
+    round_tripped = json.loads(json.dumps(state))
+    decision_events: list[tuple[str, dict[str, object]]] = []
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **fields: decision_events.append((name, fields)),
+    )
+    recovery_owner = bot._reply_draft_owner()
+    recovered = recovery_owner.recover(
+        round_tripped,
+        "100",
+        "mention",
+        context=context,
+        recent_replies=recovery_owner.history.recovery_replies(
+            round_tripped, context=context,
+        ),
+    )
+
+    assert recovered is not None
+    assert recovered.status == "operational_failure"
+    assert recovered.reason == "persisted_draft_local_validation_failed"
+    assert recovered.error_category == "local_validation"
+    assert recovered.validation_error_codes == ("exact_duplicate_reply",)
+    assert recovered.call_id == generated.call_id
+    assert recovered.reply is None
+    assert recovered.model_call_count == 0
+    assert recovered.provider_request_attempt_count == 0
+    assert round_tripped.get("pending_ai_reply_drafts") is None
+    assert len(sent_bodies) == 1
+
+    assert len(decision_events) == 1
+    event_name, event_fields = decision_events[0]
+    assert event_name == "single_call_reply_decision"
+    assert event_fields["call_id"] == generated.call_id
+    assert event_fields["model_call_count"] == 0
+    assert event_fields["provider_request_attempt_count"] == 0
+
+    later = datetime(2026, 9, 4, 12)
+    record = digest.Record(
+        later,
+        "INFO",
+        "log_event",
+        1,
+        "EVENT " + json.dumps({"event": event_name, **event_fields}),
+        "mrsMThatcher.log",
+        1,
+    )
+    report = digest.analyse([record])
+    correlations = report["provider_request_correlations"]
+    assert len(correlations) == 1
+    parsed_decision = correlations[0]
+    assert parsed_decision["call_id"] == generated.call_id
+    assert parsed_decision["model_call_count"] == 0
+    assert parsed_decision["provider_request_attempt_count"] == 0
+    exported, coverage = digest.provider_request_export(
+        tmp_path / "ai-request-records",
+        correlations,
+        window_start=later,
+        window_end=later,
+    )
+    assert len(exported) == 1
+    assert exported[0]["call_id"] == generated.call_id
+    assert exported[0]["capture_status"] == "complete"
+    recovered_body = exported[0]["request_body_utf8"].encode("utf-8")
+    assert recovered_body == sent_bodies[0]
+    assert exported[0]["request_body_sha256"] == hashlib.sha256(
+        sent_bodies[0]
+    ).hexdigest()
+    assert coverage["logical_call_denominator"] == 1
+    assert coverage["physical_attempt_denominator"] == 0
+
+    line = (
+        "2026-09-04 12:00:00 INFO mrsMThatcher2.test:1 - EVENT "
+        + json.dumps(
+            {"event": event_name, **event_fields},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n"
+    )
+    parsed, warnings = extractor.parse_log_records(line.encode("utf-8"))
+    statistics: dict[str, object] = {}
+    posts = extractor.normalise_canonical_posts(
+        parsed, [], b"t" * 32, parser_statistics=statistics,
+    )
+    assert warnings == []
+    assert statistics["registered_event_missing_target_count"] == 0
+    assert posts[0]["provider_call_ids"] == [generated.call_id]
+
+    capture_path.unlink()
+    missing, missing_coverage = digest.provider_request_export(
+        tmp_path / "ai-request-records",
+        correlations,
+        window_start=later,
+        window_end=later,
+    )
+    assert missing == [{
+        "call_id": generated.call_id,
+        "capture_status": "missing_expected_record",
+        "error": (
+            "provider request record is unavailable: "
+            f"{generated.call_id}.json.gz"
+        ),
+    }]
+    assert missing_coverage["physical_attempt_denominator"] == 0
+    assert recovered.reply is None
+    assert len(sent_bodies) == 1
+
+
+def test_tampered_draft_call_id_is_not_trusted_as_failure_correlation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A call ID changed outside the draft hash remains ordinary invalid data."""
+
+    context = unit_reply_context(target_id="100")
+    record = copy.deepcopy(unit_approved_reply(context).draft_record)
+    record.pop("validated_draft_hash")
+    record["call_id"] = "11111111-2222-4333-8444-555555555555"
+    record["validated_draft_hash"] = pipeline.value_sha256(record)
+    record["call_id"] = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+    state = {"pending_ai_reply_drafts": {"mention:100": record}}
+    events: list[tuple[str, dict[str, object]]] = []
+    monkeypatch.setattr(
+        bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY,
+    )
+    monkeypatch.setattr(
+        bot, "log_event", lambda name, **fields: events.append((name, fields)),
+    )
+
+    recovered = bot._reply_draft_owner().recover(
+        state,
+        "100",
+        "mention",
+        context=context,
+        recent_replies=[{"post_id": "900", "text": str(record["proposed_reply"])}],
+    )
+
+    assert recovered is not None
+    assert recovered.status == "draft_discarded"
+    assert recovered.reason == "obsolete_or_invalid_persisted_draft"
+    assert recovered.call_id is None
+    assert state == {}
+    assert events == []
+
+
+def test_legacy_pending_draft_recovers_without_inventing_capture_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The pre-correlation schema-4 shape retains its hash and safe recovery."""
+
+    context = unit_reply_context(target_id="100")
+    reply = unit_approved_reply(context)
+    assert "call_id" not in reply.draft_record
+    state = bot.default_state()
+    monkeypatch.setattr(
+        bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY,
+    )
+    assert bot._reply_draft_owner().store(
+        state, "100", "mention", reply, context=context,
+    )
+    recovered = bot._reply_draft_owner().recover(
+        json.loads(json.dumps(state)), "100", "mention", context=context,
+    )
+
+    assert recovered is not None and recovered.reply is not None
+    assert recovered.call_id is None
+    assert recovered.reply.pipeline_metadata.get("call_id") is None
+    assert "call_id" not in recovered.reply.draft_record
 
 
 def test_pending_ai_reply_survives_state_round_trip_and_is_reused(
