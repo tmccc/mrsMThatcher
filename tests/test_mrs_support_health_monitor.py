@@ -493,13 +493,8 @@ def test_unix_systemd_timestamp_parsing(raw: str, expected: int) -> None:
 
 
 def test_invalid_systemd_timestamp_fails_inspection() -> None:
-    def runner(
-        _arguments: list[str], **_kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        return completed(timer_show_output(last="Thu 2026-08-27 20:00:00 BST"))
-
     with pytest.raises(monitor.ObservationError, match="invalid Unix timestamp"):
-        monitor.inspect_timer("mrs-job.timer", runner=runner)
+        monitor._parse_systemd_epoch("not-a-systemd-timestamp")
 
 
 def test_systemctl_show_requests_unix_timestamps() -> None:
@@ -514,6 +509,32 @@ def test_systemctl_show_requests_unix_timestamps() -> None:
     inspected = monitor.inspect_timer("mrs-job.timer", runner=runner)
     assert inspected.last_trigger_epoch == NOW - 600
     assert "--timestamp=unix" in calls[0]
+
+
+def test_systemd_255_human_timestamps_fall_back_to_raw_dbus_microseconds() -> None:
+    calls: list[list[str]] = []
+
+    def runner(
+        arguments: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(arguments)
+        if arguments[0] == monitor.SYSTEMCTL:
+            return completed(
+                timer_show_output(
+                    last="Thu 2026-08-27 20:00:00 BST",
+                    next_value="Thu 2026-08-27 20:15:00 BST",
+                )
+            )
+        if "GetUnit" in arguments:
+            return completed('o "/org/freedesktop/systemd1/unit/mrs_2djob_2etimer"\n')
+        return completed(f"t {(NOW - 600) * 1_000_000}\nt {(NOW + 300) * 1_000_000}\n")
+
+    inspected = monitor.inspect_timer("mrs-job.timer", runner=runner)
+
+    assert inspected.last_trigger_epoch == NOW - 600
+    assert inspected.next_trigger_epoch == NOW + 300
+    assert "--timestamp=unix" in calls[0]
+    assert any(call[0] == monitor.BUSCTL for call in calls)
 
 
 def test_systemd_249_fallback_reads_raw_dbus_microseconds() -> None:

@@ -473,7 +473,7 @@ def _systemd_properties(
         "--property=" + ",".join(properties),
     ]
     result = _run(arguments, runner=runner)
-    legacy_mode = False
+    raw_timestamp_fallback = False
     if result.returncode != 0 and "Invalid value: unix" in (result.stderr or ""):
         # systemd 249 does not implement systemctl's Unix timestamp renderer.
         # Retain systemctl for the bounded unit-property inspection, then read
@@ -483,7 +483,7 @@ def _systemd_properties(
             [argument for argument in arguments if argument != "--timestamp=unix"],
             runner=runner,
         )
-        legacy_mode = True
+        raw_timestamp_fallback = True
     if result.returncode != 0:
         raise ObservationError(
             f"systemctl could not inspect {unit} (exit {result.returncode})"
@@ -496,7 +496,17 @@ def _systemd_properties(
     missing = [key for key in properties if key not in parsed]
     if missing:
         raise ObservationError(f"systemctl omitted required properties for {unit}")
-    if legacy_mode:
+    if not raw_timestamp_fallback:
+        try:
+            for name in timestamp_properties:
+                _parse_systemd_epoch(parsed[name])
+        except ObservationError:
+            # systemd 255 accepts --timestamp=unix but can still render these
+            # properties as localized human-readable timestamps.  Use the
+            # stable uint64 D-Bus values whenever the requested format was not
+            # actually honored.
+            raw_timestamp_fallback = True
+    if raw_timestamp_fallback:
         if parsed.get("LoadState") == "loaded":
             parsed.update(
                 _legacy_systemd_timestamps(
