@@ -743,6 +743,87 @@ def test_offline_activation_refuses_legacy_then_opens_after_reconciliation(
     assert clean_record["blocking_after_scheduler"] is False
 
 
+def test_stopped_device_only_rebind_replaces_exact_current_pair(
+    tmp_path: Path,
+) -> None:
+    """A ZFS-style device renumber keeps all stronger current bindings."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    activate.activate_protocol_offline(**_activation_kwargs(state_directory))
+    audit_path = state_directory / protocol.ACTIVATION_AUDIT_BASENAME
+    audit_value = json.loads(audit_path.read_bytes())
+    current_device = int(state_directory.stat().st_dev)
+    prior_inventory = audit_value["retirement_ledger_initial_inventory_sha256"]
+    audit_value["project_device"] = current_device + 1
+    audit_path.chmod(0o600)
+    audit_path.write_bytes(protocol._canonical_json_bytes(audit_value))
+    audit_path.chmod(protocol.ACTIVATION_AUDIT_MODE)
+    _fsync_directory(state_directory)
+
+    with pytest.raises(
+        activate.ProtocolActivationRefused,
+        match="current activation audit does not bind this project",
+    ):
+        activate.activate_protocol_offline(
+            **_activation_kwargs(state_directory)
+        )
+
+    kwargs = _activation_kwargs(state_directory)
+    kwargs["current_device_rebind_confirmed"] = True
+    rebound = activate.activate_protocol_offline(**kwargs)
+
+    assert rebound.activation_reused_existing is False
+    final_audit = json.loads(audit_path.read_bytes())
+    assert final_audit["project_device"] == current_device
+    assert final_audit["project_inode"] == state_directory.stat().st_ino
+    assert final_audit["retirement_ledger_initial_inventory_sha256"] == (
+        prior_inventory
+    )
+    assert protocol.inspect_protocol_activation(
+        state_directory / protocol.ACTIVATION_BASENAME
+    ).activation_kind == protocol.ESTABLISHED_INSTALL_ACTIVATION_KIND
+
+
+def test_stopped_device_rebind_never_accepts_project_inode_change(
+    tmp_path: Path,
+) -> None:
+    """Explicit device rebind cannot bless a different project directory."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    activate.activate_protocol_offline(**_activation_kwargs(state_directory))
+    audit_path = state_directory / protocol.ACTIVATION_AUDIT_BASENAME
+    audit_value = json.loads(audit_path.read_bytes())
+    audit_value["project_device"] = int(state_directory.stat().st_dev) + 1
+    audit_value["project_inode"] = int(state_directory.stat().st_ino) + 1
+    audit_path.chmod(0o600)
+    audit_path.write_bytes(protocol._canonical_json_bytes(audit_value))
+    audit_path.chmod(protocol.ACTIVATION_AUDIT_MODE)
+    _fsync_directory(state_directory)
+    before = _activation_transaction_namespace_snapshot(state_directory)
+    kwargs = _activation_kwargs(state_directory)
+    kwargs["current_device_rebind_confirmed"] = True
+
+    with pytest.raises(
+        activate.ProtocolActivationRefused,
+        match="current activation audit does not bind this project",
+    ):
+        activate.activate_protocol_offline(**kwargs)
+
+    assert _activation_transaction_namespace_snapshot(state_directory) == before
+
+
 def test_stopped_v1_to_v2_migration_disables_pre_v2_runtime(
     tmp_path: Path,
 ) -> None:
@@ -2247,8 +2328,20 @@ def test_activation_cli_accepts_complete_documented_invocation() -> None:
         "/operator/clean-state-attestation.json"
     )
     assert args.clean_state_attestation_sha256 == "a" * 64
+    assert args.confirm_current_device_rebind is False
     assert args.confirm_clean_offline_activation is True
     assert args.confirm_supervisor_stopped is True
+
+
+def test_activation_cli_accepts_explicit_current_device_rebind() -> None:
+    """The device-only repair authority is always explicit at the CLI."""
+
+    arguments = _valid_activation_cli_arguments()
+    arguments.append("--confirm-current-device-rebind")
+
+    args = activate.build_parser().parse_args(arguments)
+
+    assert args.confirm_current_device_rebind is True
 
 
 def test_activation_cli_rejects_duplicate_project_identity_options(

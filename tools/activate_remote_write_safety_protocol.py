@@ -19,6 +19,13 @@ not pretend to prove supervisor policy.  After activation, rollback to a
 protocol-unaware runtime is prohibited unless a separate stopped validation
 establishes the explicitly reviewed clean rollback state.
 
+An explicit stopped device-rebind mode handles filesystems, such as ZFS, whose
+Linux device number can change across a clean reboot.  It accepts only a
+current ledger-aware pair whose project inode and every non-device binding are
+still exact, disables the old sentinel before removing its audit, validates the
+existing retirement ledgers, and publishes a newly attested pair for the
+current device identity.  It does not accept any other malformed state.
+
 The v2 activator also performs the sole supported v1 migration.  It validates
 the complete v1 pair, durably removes the v1 permission sentinel before its
 audit, and only then publishes the v2 audit and sentinel.  Thus every crash
@@ -36,12 +43,13 @@ import json
 import math
 import os
 import re
+import secrets
 import socket
 import stat
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -57,6 +65,7 @@ from remote_write_safety_protocol import (  # noqa: E402
     PRE_LEDGER_ACTIVATION_AUDIT_SCHEMA_VERSION,
     PROTOCOL_VERSION,
     ProtocolActivationError,
+    _inspect_activation_sentinel_at,
     _inspect_stable_regular_at,
     _inspect_legacy_protocol_activation_at,
     _inspect_pre_ledger_protocol_activation_at,
@@ -64,6 +73,7 @@ from remote_write_safety_protocol import (  # noqa: E402
     _parse_activation_audit,
     _parse_legacy_activation_audit,
     _parse_pre_ledger_activation_audit,
+    _revalidate_stable_path_at,
     build_established_install_activation_audit_bytes,
     _create_or_revalidate_protocol_activation_at,
 )
@@ -252,6 +262,9 @@ class _ActivationNamespacePlan:
     pre_ledger_sentinel_identity: tuple[int, int] | None
     pre_ledger_audit_identity: tuple[int, int] | None
     current_audit_value: dict[str, object] | None
+    current_device_rebind_from: int | None = None
+    current_sentinel_identity: tuple[int, int] | None = None
+    current_audit_identity: tuple[int, int] | None = None
 
 
 def _canonical_json_bytes(value: object) -> bytes:
@@ -626,7 +639,103 @@ def _entry_absent(directory_fd: int, basename: str) -> bool:
     return False
 
 
-def _activation_namespace_plan(directory_fd: int) -> _ActivationNamespacePlan:
+def _current_device_rebind_plan(
+    directory_fd: int,
+    *,
+    audit: Any,
+    audit_value: dict[str, object],
+    current_sentinel: bool,
+) -> _ActivationNamespacePlan:
+    """Validate one exact current pair whose parent device alone changed."""
+
+    directory_identity = os.fstat(directory_fd)
+    prior_device = int(audit_value["project_device"])
+    if (
+        prior_device == int(directory_identity.st_dev)
+        or int(audit_value["project_inode"]) != int(directory_identity.st_ino)
+    ):
+        raise ProtocolActivationRefused(
+            "current activation is not an exact device-only rebind candidate"
+        )
+    expected_ledger_contract = retirement_ledger_contract_sha256(
+        tuple(Path(name) for name in RECEIPT_BASENAMES)
+    )
+    expected_sha256 = hashlib.sha256(ACTIVATION_BYTES).hexdigest()
+    if (
+        audit_value["activation_sha256"] != expected_sha256
+        or audit_value["activation_size"] != len(ACTIVATION_BYTES)
+        or audit_value["activation_mode"] != oct(ACTIVATION_MODE)
+        or audit_value["retirement_ledger_contract_sha256"]
+        != expected_ledger_contract
+    ):
+        raise ProtocolActivationRefused(
+            "current activation has non-device binding changes"
+        )
+
+    sentinel_identity: tuple[int, int] | None = None
+    if current_sentinel:
+        try:
+            sentinel = _inspect_activation_sentinel_at(directory_fd)
+        except ProtocolActivationError as exc:
+            raise ProtocolActivationRefused(
+                "current device-rebind sentinel is invalid"
+            ) from exc
+        if (
+            audit_value["activation_sha256"]
+            != hashlib.sha256(sentinel.data).hexdigest()
+            or audit_value["activation_size"] != len(sentinel.data)
+            or audit_value["activation_mode"]
+            != oct(stat.S_IMODE(sentinel.metadata.st_mode))
+        ):
+            raise ProtocolActivationRefused(
+                "current activation has non-device binding changes"
+            )
+        _revalidate_stable_path_at(
+            directory_fd,
+            ACTIVATION_BASENAME,
+            sentinel,
+            label="remote-write protocol activation sentinel",
+        )
+        sentinel_identity = (
+            int(sentinel.metadata.st_dev),
+            int(sentinel.metadata.st_ino),
+        )
+    elif not _entry_absent(directory_fd, ACTIVATION_BASENAME):
+        raise ProtocolActivationRefused(
+            "device-rebind sentinel namespace changed during inspection"
+        )
+
+    _revalidate_stable_path_at(
+        directory_fd,
+        ACTIVATION_AUDIT_BASENAME,
+        audit,
+        label="remote-write protocol activation audit",
+    )
+    return _ActivationNamespacePlan(
+        migrate_legacy=False,
+        migrate_pre_ledger=False,
+        resume_after_legacy_sentinel_removal=False,
+        resume_after_pre_ledger_sentinel_removal=False,
+        reuse_current=False,
+        legacy_sentinel_identity=None,
+        legacy_audit_identity=None,
+        pre_ledger_sentinel_identity=None,
+        pre_ledger_audit_identity=None,
+        current_audit_value=audit_value,
+        current_device_rebind_from=prior_device,
+        current_sentinel_identity=sentinel_identity,
+        current_audit_identity=(
+            int(audit.metadata.st_dev),
+            int(audit.metadata.st_ino),
+        ),
+    )
+
+
+def _activation_namespace_plan(
+    directory_fd: int,
+    *,
+    allow_current_device_rebind: bool = False,
+) -> _ActivationNamespacePlan:
     """Classify only safe complete or durably ordered activation states."""
 
     current_sentinel = not _entry_absent(directory_fd, ACTIVATION_BASENAME)
@@ -774,11 +883,20 @@ def _activation_namespace_plan(directory_fd: int) -> _ActivationNamespacePlan:
                 pre_ledger_audit_identity=audit_identity,
                 current_audit_value=None,
             )
-        if (
-            int(current_value["project_device"]) != int(directory_identity.st_dev)
-            or int(current_value["project_inode"])
-            != int(directory_identity.st_ino)
-        ):
+        device_matches = int(current_value["project_device"]) == int(
+            directory_identity.st_dev
+        )
+        inode_matches = int(current_value["project_inode"]) == int(
+            directory_identity.st_ino
+        )
+        if not device_matches or not inode_matches:
+            if allow_current_device_rebind and not device_matches and inode_matches:
+                return _current_device_rebind_plan(
+                    directory_fd,
+                    audit=inspected,
+                    audit_value=current_value,
+                    current_sentinel=current_sentinel,
+                )
             raise ProtocolActivationRefused(
                 "current activation audit does not bind this project"
             )
@@ -854,6 +972,123 @@ def _disable_prior_activation_permission(
             )
         os.unlink(ACTIVATION_BASENAME, dir_fd=directory_fd)
         os.fsync(directory_fd)
+    if (
+        plan.current_device_rebind_from is not None
+        and plan.current_sentinel_identity is not None
+    ):
+        current_sentinel = os.stat(
+            ACTIVATION_BASENAME,
+            dir_fd=directory_fd,
+            follow_symlinks=False,
+        )
+        if (
+            int(current_sentinel.st_dev),
+            int(current_sentinel.st_ino),
+        ) != plan.current_sentinel_identity:
+            raise ProtocolActivationRefused(
+                "device-rebind activation sentinel changed before replacement"
+            )
+        os.unlink(ACTIVATION_BASENAME, dir_fd=directory_fd)
+        os.fsync(directory_fd)
+
+
+def _replace_device_rebind_audit_at(
+    directory_fd: int,
+    plan: _ActivationNamespacePlan,
+    data: bytes,
+) -> None:
+    """Atomically replace the old-device audit while permission is disabled."""
+
+    if plan.current_device_rebind_from is None:
+        return
+    if not _entry_absent(directory_fd, ACTIVATION_BASENAME):
+        raise ProtocolActivationRefused(
+            "device-rebind activation permission remained enabled"
+        )
+    current_audit = os.stat(
+        ACTIVATION_AUDIT_BASENAME,
+        dir_fd=directory_fd,
+        follow_symlinks=False,
+    )
+    if (
+        int(current_audit.st_dev),
+        int(current_audit.st_ino),
+    ) != plan.current_audit_identity:
+        raise ProtocolActivationRefused(
+            "device-rebind activation audit changed before replacement"
+        )
+
+    temporary = (
+        f".{ACTIVATION_AUDIT_BASENAME}.device-rebind.pending."
+        f"{os.getpid()}.{secrets.token_hex(12)}"
+    )
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow:
+        raise ProtocolActivationRefused(
+            "O_NOFOLLOW is required for device-rebind audit replacement"
+        )
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(
+            temporary,
+            os.O_RDWR
+            | os.O_CREAT
+            | os.O_EXCL
+            | nofollow
+            | getattr(os, "O_CLOEXEC", 0),
+            0o600,
+            dir_fd=directory_fd,
+        )
+        view = memoryview(data)
+        while view:
+            written = os.write(descriptor, view)
+            if written <= 0:
+                raise OSError("short write while staging device-rebind audit")
+            view = view[written:]
+        os.fsync(descriptor)
+        os.fchmod(descriptor, ACTIVATION_AUDIT_MODE)
+        os.fsync(descriptor)
+        staged = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(staged.st_mode)
+            or staged.st_nlink != 1
+            or staged.st_uid != os.geteuid()
+            or stat.S_IMODE(staged.st_mode) != ACTIVATION_AUDIT_MODE
+            or staged.st_size != len(data)
+            or os.pread(descriptor, len(data) + 1, 0) != data
+        ):
+            raise ProtocolActivationRefused(
+                "staged device-rebind activation audit failed validation"
+            )
+        os.close(descriptor)
+        descriptor = None
+        os.replace(
+            temporary,
+            ACTIVATION_AUDIT_BASENAME,
+            src_dir_fd=directory_fd,
+            dst_dir_fd=directory_fd,
+        )
+        os.fsync(directory_fd)
+        final = _inspect_stable_regular_at(
+            directory_fd,
+            ACTIVATION_AUDIT_BASENAME,
+            expected_mode=ACTIVATION_AUDIT_MODE,
+            maximum_size=16 * 1024,
+            label="device-rebound remote-write protocol activation audit",
+            fsync_file=True,
+        )
+        if final.data != data:
+            raise ProtocolActivationRefused(
+                "device-rebind activation audit changed after replacement"
+            )
+        os.fsync(directory_fd)
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        try:
+            os.unlink(temporary, dir_fd=directory_fd)
+        except FileNotFoundError:
+            pass
 
 
 def _remove_prior_activation_audit(
@@ -1062,6 +1297,7 @@ def activate_protocol_offline(
     expected_project_device: int,
     expected_project_inode: int,
     supervisor_stopped_confirmed: bool,
+    current_device_rebind_confirmed: bool = False,
     clean_state_attestation_path: Path | None = None,
     expected_clean_state_attestation_sha256: str | None = None,
 ) -> ProtocolActivationResult:
@@ -1176,7 +1412,10 @@ def activate_protocol_offline(
             project_identity=project_identity,
             activator_cli_sha256=cli_sha256,
         )
-        namespace_plan = _activation_namespace_plan(project_fd)
+        namespace_plan = _activation_namespace_plan(
+            project_fd,
+            allow_current_device_rebind=current_device_rebind_confirmed,
+        )
         activation_reused_existing = namespace_plan.reuse_current
 
         def verify_ledger_mutation_authority(_operation: str) -> None:
@@ -1218,7 +1457,6 @@ def activate_protocol_offline(
             plan=namespace_plan,
             verify_mutation_authority=verify_ledger_mutation_authority,
         )
-        _remove_prior_activation_audit(project_fd, namespace_plan)
         activation_audit_bytes = build_established_install_activation_audit_bytes(
             project_device=int(project_identity.st_dev),
             project_inode=int(project_identity.st_ino),
@@ -1233,6 +1471,14 @@ def activate_protocol_offline(
                 retirement_ledger_initial_inventory
             ),
         )
+        if namespace_plan.current_device_rebind_from is not None:
+            _replace_device_rebind_audit_at(
+                project_fd,
+                namespace_plan,
+                activation_audit_bytes,
+            )
+        else:
+            _remove_prior_activation_audit(project_fd, namespace_plan)
         created = _create_or_revalidate_protocol_activation_at(
             project_fd,
             activation_audit_bytes=activation_audit_bytes,
@@ -1423,6 +1669,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exact SHA-256 of the externally supplied attestation bytes.",
     )
     parser.add_argument(
+        "--confirm-current-device-rebind",
+        action="store_true",
+        help=(
+            "Authorize replacement of an otherwise exact current activation "
+            "pair when only its recorded project device number changed."
+        ),
+    )
+    parser.add_argument(
         "--confirm-clean-offline-activation",
         action="store_true",
         help="Acknowledge that marker and receipt reconciliation is complete.",
@@ -1461,6 +1715,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             expected_project_device=args.expected_project_device,
             expected_project_inode=args.expected_project_inode,
             supervisor_stopped_confirmed=True,
+            current_device_rebind_confirmed=(
+                args.confirm_current_device_rebind
+            ),
             clean_state_attestation_path=args.clean_state_attestation,
             expected_clean_state_attestation_sha256=(
                 args.clean_state_attestation_sha256
