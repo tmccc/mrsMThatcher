@@ -49,7 +49,7 @@ def test_configuration_is_small_exact_and_fail_closed() -> None:
     assert pipeline.default_config() == {
         "enabled": False,
         "strategy_version": "single-sol-reply-20260904",
-        "model": "gpt-5.6-sol",
+        "model": "gpt-6-sol",
         "timeout_seconds": 180,
     }
     assert pipeline.validate_config(pipeline.default_config()) == []
@@ -758,12 +758,17 @@ def test_text_candidate_builds_one_exact_responses_request() -> None:
     )
     assert result.status == "reply"
     assert result.model_call_count == 1
+    assert result.reply is not None
+    assert result.reply.draft_record["model"] == "gpt-6-sol"
+    assert result.reply.draft_record["reasoning_effort"] == "high"
+    assert result.reply.draft_record["temperature"] is None
+    assert pipeline.decision_telemetry(result)["temperature"] is None
     assert len(calls) == 1
     request = calls[0]["request"]
-    assert request["model"] == "gpt-5.6-sol"
+    assert request["model"] == "gpt-6-sol"
     assert request["instructions"] == pipeline.SYSTEM_PROMPT
     assert request["reasoning"] == {"effort": "high"}
-    assert request["temperature"] == 1
+    assert "temperature" not in request
     assert request["max_output_tokens"] == 8192
     assert request["store"] is False
     assert request["prompt_cache_key"] == pipeline.PROMPT_CACHE_KEY
@@ -1519,6 +1524,22 @@ def test_validated_draft_recovers_without_transport() -> None:
         "validated_draft_hash"
     ]
     assert draft["model_call_count"] == 1
+    stale_draft = copy.deepcopy(result.reply.draft_record)
+    stale_draft["model"] = "gpt-5.6-sol"
+    stale_draft["temperature"] = 1
+    stale_draft["validated_draft_hash"] = pipeline.value_sha256(
+        {
+            key: value
+            for key, value in stale_draft.items()
+            if key != "validated_draft_hash"
+        }
+    )
+    with pytest.raises(ValueError, match="draft contract mismatch"):
+        pipeline.validate_persisted_draft(
+            stale_draft,
+            context=source_context,
+            repository=repository,
+        )
     with pytest.raises(
         pipeline.ReplyValidationError,
         match="exact_duplicate_reply",

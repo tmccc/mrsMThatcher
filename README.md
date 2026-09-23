@@ -579,7 +579,7 @@ Configure it through the ignored local configuration after review:
   "single_call_reply": {
     "enabled": true,
     "strategy_version": "single-sol-reply-20260904",
-    "model": "gpt-5.6-sol",
+    "model": "gpt-6-sol",
     "timeout_seconds": 180
   }
 }
@@ -590,8 +590,8 @@ The global OpenAI circuit-breaker threshold is configured separately as
 accepts the retired `MAX_XAI_ERRORS_PER_WINDOW` name only as an unambiguous
 migration alias; do not retain both names.
 
-The request always uses `gpt-5.6-sol`, reasoning effort `high`, temperature `1`,
-`max_output_tokens=8192`, `store=false`, strict JSON Schema output and no tools.
+The request always uses `gpt-6-sol`, reasoning effort `high`, no temperature
+override, `max_output_tokens=8192`, `store=false`, strict JSON Schema output and no tools.
 The model sees at most 12 visible turns and 12,000 visible-text characters,
 eight earlier same-author interactions, 30 recent confirmed conversational
 replies, 32 compact trusted facts selected from at most eight evidence packets,

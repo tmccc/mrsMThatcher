@@ -299,7 +299,7 @@ def prepare_base_dir(
         "single_call_reply": {
             "enabled": True,
             "strategy_version": "single-sol-reply-20260904",
-            "model": "gpt-5.6-sol",
+            "model": "gpt-6-sol",
             "timeout_seconds": 10,
         },
     }

@@ -21,6 +21,7 @@ from tests.helpers.bot_runtime import (
     bot,
 )
 from tests.helpers.bot_fixtures import (
+    default_sigint_handler,
     isolate_bot_runtime,
     image_analysis_for_paths,
     configure_simple_quote_post,
@@ -1395,18 +1396,48 @@ def test_regular_ambiguous_create_without_marker_uses_durable_attempt_barrier(
     assert ended_guards == [guard_token]
 
 
-def test_confirmed_post_sigint_deferral_restores_handler_and_delivers_pending() -> None:
-    prior_handler = signal.getsignal(signal.SIGINT)
+def test_confirmed_post_sigint_deferral_restores_handler_and_delivers_pending(
+    default_sigint_handler: None,
+) -> None:
+    assert signal.getsignal(signal.SIGINT) == signal.default_int_handler
     guard = bot.begin_confirmed_post_sigint_deferral()
-    try:
-        guard.handle(signal.SIGINT, None)
-        assert guard.pending is True
-        with pytest.raises(KeyboardInterrupt):
-            bot.end_confirmed_post_sigint_deferral(guard)
-    finally:
-        signal.signal(signal.SIGINT, prior_handler)
+    guard.handle(signal.SIGINT, None)
+    assert guard.pending is True
+    with pytest.raises(KeyboardInterrupt):
+        bot.end_confirmed_post_sigint_deferral(guard)
 
-    assert signal.getsignal(signal.SIGINT) == prior_handler
+    assert signal.getsignal(signal.SIGINT) == signal.default_int_handler
+
+
+def test_confirmed_post_sigint_deferral_preserves_ignored_handler(
+    default_sigint_handler: None,
+) -> None:
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    guard = bot.begin_confirmed_post_sigint_deferral()
+    guard.handle(signal.SIGINT, None)
+
+    bot.end_confirmed_post_sigint_deferral(guard)
+
+    assert signal.getsignal(signal.SIGINT) == signal.SIG_IGN
+
+
+def test_confirmed_post_sigint_deferral_restores_and_invokes_custom_handler(
+    default_sigint_handler: None,
+) -> None:
+    delivered: list[tuple[int, object | None]] = []
+
+    def custom_handler(signum: int, frame: object | None) -> None:
+        delivered.append((signum, frame))
+
+    signal.signal(signal.SIGINT, custom_handler)
+    guard = bot.begin_confirmed_post_sigint_deferral()
+    pending_frame = object()
+    guard.handle(signal.SIGINT, pending_frame)
+
+    bot.end_confirmed_post_sigint_deferral(guard)
+
+    assert signal.getsignal(signal.SIGINT) is custom_handler
+    assert delivered == [(signal.SIGINT, pending_frame)]
 
 
 def test_confirmed_post_sigint_deferral_handles_process_signal_from_worker() -> None:
@@ -1417,21 +1448,28 @@ import threading
 import time
 import mrsMThatcher2 as bot
 
-guard = bot.begin_confirmed_post_sigint_deferral()
-sender = threading.Thread(target=lambda: os.kill(os.getpid(), signal.SIGINT))
-sender.start()
-sender.join()
-deadline = time.monotonic() + 2
-while not guard.pending and time.monotonic() < deadline:
-    time.sleep(0.01)
-if not guard.pending:
-    raise SystemExit("SIGINT was not deferred")
+inherited_handler = signal.getsignal(signal.SIGINT)
+signal.signal(signal.SIGINT, signal.default_int_handler)
 try:
-    bot.end_confirmed_post_sigint_deferral(guard)
-except KeyboardInterrupt:
-    print("deferred-and-delivered")
-else:
-    raise SystemExit("pending SIGINT was not delivered")
+    guard = bot.begin_confirmed_post_sigint_deferral()
+    sender = threading.Thread(target=lambda: os.kill(os.getpid(), signal.SIGINT))
+    sender.start()
+    sender.join()
+    deadline = time.monotonic() + 2
+    while not guard.pending and time.monotonic() < deadline:
+        time.sleep(0.01)
+    if not guard.pending:
+        raise SystemExit("SIGINT was not deferred")
+    try:
+        bot.end_confirmed_post_sigint_deferral(guard)
+    except KeyboardInterrupt:
+        print("deferred-and-delivered")
+    else:
+        raise SystemExit("pending SIGINT was not delivered")
+finally:
+    signal.signal(signal.SIGINT, inherited_handler)
+if signal.getsignal(signal.SIGINT) != inherited_handler:
+    raise SystemExit("inherited SIGINT handler was not restored")
 """
     result = subprocess.run(
         [sys.executable, "-c", code],

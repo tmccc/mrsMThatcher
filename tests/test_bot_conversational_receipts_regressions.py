@@ -22,6 +22,7 @@ from tests.helpers.bot_runtime import (
 )
 from tests.helpers.bot_fixtures import (
     _configure_test_x_base,
+    default_sigint_handler,
     isolate_bot_runtime,
     install_receipt_bound_x_request_stub,
 )
@@ -1819,11 +1820,11 @@ def test_reply_sigint_during_confirmed_promotion_reconciles_without_duplicate(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     lane: str,
+    default_sigint_handler: None,
 ) -> None:
     sending = unit_sending_v4_reply_receipt(lane=lane)
     original_replace = bot.replace_bound_source_receipt
     original_begin = bot.begin_confirmed_post_sigint_deferral
-    prior_handler = signal.getsignal(signal.SIGINT)
     guard_holder: dict[str, bot.ConfirmedPostSigintDeferral] = {}
     remote_calls = 0
 
@@ -1856,18 +1857,16 @@ def test_reply_sigint_during_confirmed_promotion_reconciles_without_duplicate(
     )
     install_receipt_bound_x_request_stub(monkeypatch, confirmed_remote)
 
-    try:
-        with pytest.raises(KeyboardInterrupt):
-            bot.post_conversational_reply_with_durable_identity(
-                state=bot.default_state(),
-                receipt_template=sending,
-                reply_text=str(sending["reply_text"]),
-                reply_to_id=str(sending["target_id"]),
-                made_with_ai=False,
-                lane=lane,
-            )
-    finally:
-        signal.signal(signal.SIGINT, prior_handler)
+    with pytest.raises(KeyboardInterrupt):
+        bot.post_conversational_reply_with_durable_identity(
+            state=bot.default_state(),
+            receipt_template=sending,
+            reply_text=str(sending["reply_text"]),
+            reply_to_id=str(sending["target_id"]),
+            made_with_ai=False,
+            lane=lane,
+        )
+    assert signal.getsignal(signal.SIGINT) == signal.default_int_handler
 
     status, receipt = bot.load_confirmed_reply_receipt()
     assert status == "valid"

@@ -406,7 +406,7 @@ class FakeApiServer:
                 return {
                     "id": "resp_fixture",
                     "status": "completed",
-                    "model": "gpt-5.6-sol",
+                    "model": "gpt-6-sol",
                     "output": [
                         {
                             "type": "message",

@@ -1189,7 +1189,7 @@ def test_image_only_direct_quote_reaches_one_multimodal_sol_call(
         config={
             "enabled": True,
             "strategy_version": STRATEGY_VERSION,
-            "model": "gpt-5.6-sol",
+            "model": "gpt-6-sol",
             "timeout_seconds": 180,
         },
         repository=UNIT_REPLY_REPOSITORY,
@@ -1199,7 +1199,7 @@ def test_image_only_direct_quote_reaches_one_multimodal_sol_call(
                 "response": {
                     "id": "resp_image_only_quote",
                     "status": "completed",
-                    "model": "gpt-5.6-sol",
+                    "model": "gpt-6-sol",
                     "output": [
                         {
                             "type": "message",

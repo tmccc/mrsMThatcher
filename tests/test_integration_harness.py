@@ -5026,9 +5026,9 @@ def test_native_photo_uses_one_multimodal_responses_request(
         assert len(server.openai_requests) == 1
         assert server.xai_requests == []
         request = server.openai_requests[0]
-        assert request["model"] == "gpt-5.6-sol"
+        assert request["model"] == "gpt-6-sol"
         assert request["reasoning"] == {"effort": "high"}
-        assert request["temperature"] == 1
+        assert "temperature" not in request
         assert request["max_output_tokens"] == 8192
         assert request["store"] is False
         assert "tools" not in request
@@ -5629,7 +5629,7 @@ def test_connection_refused_for_x_and_openai_are_recorded(tmp_path: Path) -> Non
             "openai_responses": [{
                 "body": {
                     "status": "completed",
-                    "model": "gpt-5.6-sol",
+                    "model": "gpt-6-sol",
                     "output": [],
                 }
             }]

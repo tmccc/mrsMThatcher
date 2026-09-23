@@ -34,9 +34,9 @@ from single_call_reply_validation import (
 
 STRATEGY_VERSION = "single-sol-reply-20260904"
 DRAFT_SCHEMA_VERSION = 4
-MODEL = "gpt-5.6-sol"
+MODEL = "gpt-6-sol"
 REASONING_EFFORT = "high"
-TEMPERATURE = 1
+TEMPERATURE = None
 MAX_OUTPUT_TOKENS = 8_192
 MAX_WEIGHTED_CHARACTERS = 270
 MAX_VISIBLE_TURNS = 12
@@ -1114,7 +1114,6 @@ def build_openai_request(
         "model": MODEL,
         "instructions": SYSTEM_PROMPT,
         "reasoning": {"effort": REASONING_EFFORT},
-        "temperature": TEMPERATURE,
         "text": {
             "format": {
                 "type": "json_schema",

@@ -11,7 +11,9 @@ from datetime import datetime
 import hashlib
 import json
 from pathlib import Path
+import signal
 from types import SimpleNamespace
+from typing import Iterator
 
 import pytest
 
@@ -21,6 +23,18 @@ from tests.helpers.quote_candidate_overrides import patch_completed_research_quo
 from tests.helpers.protocol_activation import create_test_protocol_activation
 from tests.helpers.reply_fixtures import UNIT_REPLY_REPOSITORY, patch_tweet_lookup_method
 import remote_write_transport_journal as transport_journal_module
+
+
+@pytest.fixture
+def default_sigint_handler() -> Iterator[None]:
+    """Install Python's default SIGINT handler and restore the inherited one."""
+
+    inherited_handler = signal.getsignal(signal.SIGINT)
+    signal.signal(signal.SIGINT, signal.default_int_handler)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGINT, inherited_handler)
 
 
 def _configure_test_x_base(

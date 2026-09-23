@@ -119,6 +119,8 @@ def test_v3_draft_receipts_reconcile_but_pending_drafts_cannot_send(monkeypatch)
     draft.pop('factual_claims')
     draft.pop('time_context')
     draft['draft_schema_version'] = 3
+    draft['model'] = 'gpt-5.6-sol'
+    draft['temperature'] = 1
     draft['prompt_sha256'] = bot._LEGACY_SINGLE_SOL_PROMPT_SHA256
     draft['response_schema_sha256'] = bot._LEGACY_SINGLE_SOL_RESPONSE_SCHEMA_SHA256
     draft['validated_draft_hash'] = bot._legacy_reply_value_sha256({key: value for key, value in draft.items() if key != 'validated_draft_hash'})
