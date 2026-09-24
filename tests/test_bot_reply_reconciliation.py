@@ -454,6 +454,7 @@ def test_application_keeps_queue_draft_pagination_and_cache_reference_order(monk
             bot, relay, Mock(side_effect=AssertionError(f"obsolete root relay used: {relay}")),
         )
     current_datetime = Mock(wraps=bot.datetime)
+    current_datetime.fromtimestamp = Mock()
     current_datetime.fromtimestamp.return_value.isoformat.return_value = "ambient-confirmed-time"
     monkeypatch.setattr(bot, "datetime", current_datetime)
     monkeypatch.setattr(bot, "MY_USER_ID", "current-account")

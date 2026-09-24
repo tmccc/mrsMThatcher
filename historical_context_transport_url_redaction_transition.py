@@ -1188,6 +1188,14 @@ def _attribution_predicate_ast_projection_sha256(source: bytes) -> str:
         assignments[name]
         for name in ATTRIBUTION_PREDICATE_GLOBALS
     ] + functions
+    for root in nodes:
+        for node in ast.walk(root):
+            # Python 3.12 added an empty ``type_params`` field to function and
+            # class AST nodes.  Omit only that empty, version-added field so
+            # the same non-generic source keeps its reviewed Python 3.10 hash;
+            # non-empty type parameters remain part of the projection.
+            if getattr(node, "type_params", None) == []:
+                delattr(node, "type_params")
     projection = [
         ast.dump(node, annotate_fields=True, include_attributes=False)
         for node in nodes
