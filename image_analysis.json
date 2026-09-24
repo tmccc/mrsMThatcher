@@ -3,6 +3,7 @@
   "created_at": "2026-07-05T17:14:21+00:00",
   "current_hashes": [
     "0092a3540800c4373236d1ee7a09812f51ac1a2e742b32c2ee49e0f0ced965ff",
+    "02ed3fed93a63d636e4776d3e7dbc8ffd52ae73d30217fa8a1046743d702062f",
     "042cd4436753acb607fe997305ceb40349e4c8f0e46e417be996d8e3fb851717",
     "04db47bd4c09a6e14a236bee9abe5664b8bb5775a0bebc920cf6ea0827711e08",
     "069289b13ed357f51e34f078304ebdf000764320511cf442fcac1b52ce0e4acc",
@@ -10,12 +11,15 @@
     "14d156f4febfb21f37ca4979e72389891b4a7998c66d4c744fb3fcf28830c578",
     "17d2965e855668f27e3d4e17ede3ed92b7da21333a01b4805e59d295155af1df",
     "2468c1ee08aa57a0164cf5903c80de8169da597bc9ce922d9fc29e27739ac968",
+    "26b3cfd7f656c877d55d7bb7b05139215ccbfdff3ac85f8f803f31687f0c29ee",
     "28b3b58a5984c882f62864356b76e1c2b7a7ba3af408fb9e3999017398ba5584",
     "28e0b8a92e5cf025fda52a6f22fe326fadac6cf7d6d9598649dcdb8c51619472",
     "2a12403a4a2b5e6d7c40d71b27c96ff17ae9a238f75765ec5909527ecf6b0100",
     "2c16ce452b28dbd067b4419981a3d4f92099cc8c60964bf291c7e4955d74ed7c",
     "2d769e4504dd9800d571d9022f155adab1fffe6f2a4fcc4f58a05565ee9895fe",
     "305d7a0023859204cf243c918268ba53b00e5b934c505ba3c2ae11e6a2003dc6",
+    "311d8c231f11faabf03a7c3d2f69bea5d53cacb8bc748cc0e930d4a8737b7193",
+    "3188968cb14581aedb5d92bee30860f7ea669e36632dc85b5b6e12645b3527c2",
     "338db418e3dcaf95a16d4d91a63fe7570a55ca32b0653d62a8420dac672bc78e",
     "3428b9875d945d196f3eb3509a4bc297fba7ac4082689cabf023441f49955c0e",
     "35c6800c53d580ae8e72bc9092baef4731d406f6cdce4434bf1f34e7f253bb92",
@@ -30,18 +34,22 @@
     "4ef39fce6b4ed901674b1e1e5fe8c601f1930c6c9ecf826de052c354267414ca",
     "537f0347e30c75290ee1150a80fe5b962b46d145243268969723e41845dc6c9c",
     "542ff5edee3aadb388a4e37ac45fb06d750406dd21954b8cf22bace338560516",
+    "558e13755abf3c6fa94561876671c234feddbbc016e16a516d8a64aea1e536f9",
     "60335b8f439aedaa74d8a1192d37c3b10b60d2edf6ac855580c9d1ccb78a6446",
     "6234d9985e55740aff9452c57b125ef384bfa3d14bf0733edcb0f84b3d3cc940",
     "63f51478a1a7b87e1052477d0c7d7d70d3dfcf498b893eaa58e6c91d79ad9f50",
+    "6472b1280fecc5446a3c7bff438a2374378657ef2f53969e2b15d020b5716056",
     "6731ce7fd2770587f1a805c8f48c87b65cd3a37217f6b74d6eaa4c0b1b3d56e4",
     "726d569db22d10bb3d8c4f2914d92cf07dc0dc756ffd9d03b38eeaab5bc69826",
     "733c5de83000b8e5b6c41df43bd76a410e12a22fc763ce0b49e57a4068bf01d7",
     "7662dcedac7c09dc94c8aeee994847a7e86fc5efb8cd8334eaff23df4bb6da07",
     "76c80b0c25a492efea705a2ce0a74c9914c3deab18505826f23eae815d96ee05",
     "813562e46bbcb273fe4f048e6386c6f4b93edc2936a4603d4eb3d650f8d73bd8",
+    "8d2d7dbc497f40c100a1e35a61c36afb7e1b6853fdf957d08689c1c4aa76c4ea",
     "90e6483abb5c742b1c8405b09089aff7d0e64894fe3e7f8953b3e4fcb8498e66",
     "9beb16b2e7151f1282d31a06a4c4cecb246f1d7e21deecfcc2fe6205a63134fa",
     "a00d5add6f791a77a856b04b32459781047384718d119dfb94e028f673f986b4",
+    "a03acca69b8a76f961ce6290a5c57662efaec2fbe19b91af7cc984658e50db16",
     "a5cc03d6433cbff4f38e72da66ce4299532a0bdc981b248af1adb063ffa79105",
     "a6976f8aae0c9194cbe4dcd01b9eb668a89975a19c1a762be86edc8228eceb36",
     "a73c566e7c58b5383b9b4d444982035651bac72bb6aa171ed049069d47614534",
@@ -51,6 +59,7 @@
     "b451e351209765f900c04226f8ac40cf76f84b84318e3a912d1334f1cac46194",
     "b730e1f1a28fd71e01cb5e2b9aaabfa0412d1bcd679cec3f3f522fec39df3070",
     "b8e19c84b69244075e60a1061e8991274dd4a318d31a5fe06fd150bfa7bddf27",
+    "b9246cf6e7f0432e84ed6159c1b5f05cb19f3d6875e255a4b6597c8369d6bb93",
     "bbece6db8c9d9ce3c40786fd7b192af27b9a1856614ab293c6b0e7b40c4c10e5",
     "bda197fb2f3bb6ccc4e3323ffdc9ba9106d48f9fc929d8741865cdd52f1e574a",
     "c727dc524a2da35c98978891db588b393805fa87cbadb0c16dc9958ec7e97acd",
@@ -60,11 +69,16 @@
     "cd8d960a563f22936248b1306f29014f443a206bb8aef901802016462810e359",
     "d0c84994ae123cdaa5baaf53f531e992fa25467923d70d0f2cb5833cabc46478",
     "d7b6414a5d2ea0fc0ca84696be252865eb3b6519d3301d1a21d5fa2cca88cb84",
+    "dbb2ddb8f92df668cd9f42f57cd3c3eb789ad3dc32ae6485901b275916ce7654",
     "ddfc763dea0887cb9b806899f36044af52d1c2b920d1e97dd2e7e3dcc74fa965",
+    "dead35e07ef33bbd34e0ea8bc768751bbb92d47364cec51ec885a0ba5366ed82",
+    "e7fe04473225170d0ea51818dc5a9c8d4ccf34da44f9e1b0ac12cc2cf11ba5fb",
+    "e81d53112d1cd4b5172492d7fca1c31630ae75b6ee98301fab8580a18cf3b621",
     "e9fe1f70f928e3a715b55807fa4d421374ae1e6c746121639fcf574abb17477e",
     "eb250a4534412da58fbbf2247c7c041041972ccde4f77ce86888523d86e648c3",
     "ec1f2c768e0548992c6779859cbf8bcceb9809a8b391bc1b204f918943b277d5",
     "f174bce4483b8db3af79ae2c500222c822177abdffb666c93b867e0c6cacfeb3",
+    "f8e17edd2a129714a3e9ad41c26f038284b8a4d983ffc9a02111351cf72aa1ed",
     "f94e47bb3153c28dd5b7bbd5b6717f8273b3b727f4377a5840c9deded25351e4",
     "faf154698368de9516208123d224394cd201748dfc1ec150d33656a800eae719",
     "fc03c6a7d115641c5837f4e1d7ecfb1fdbcb561bb2b42c801573f02da477e8e2",
@@ -74,6 +88,76 @@
   ],
   "failures": {},
   "file_metadata": {
+    "1EBCAF45-6078-4B82-B867-81B790386957.PNG": {
+      "mtime_ns": 1790173421000000000,
+      "size_bytes": 2182828,
+      "suffix": ".png"
+    },
+    "27089818-B476-43DD-A5E2-72BFF2A93BDD.PNG": {
+      "mtime_ns": 1790173423000000000,
+      "size_bytes": 3283489,
+      "suffix": ".png"
+    },
+    "289FFA0B-E83B-4B9F-BEF6-E1C2CAF1BE38.PNG": {
+      "mtime_ns": 1790174427000000000,
+      "size_bytes": 2052351,
+      "suffix": ".png"
+    },
+    "7F490D2B-C19E-4C88-81D6-3E8BDE07AD76.PNG": {
+      "mtime_ns": 1790174428000000000,
+      "size_bytes": 2161200,
+      "suffix": ".png"
+    },
+    "96BBBD26-F6A6-4D82-A854-A7C9308E6317.PNG": {
+      "mtime_ns": 1790173419000000000,
+      "size_bytes": 3341029,
+      "suffix": ".png"
+    },
+    "B4111E37-ACF8-4553-88D4-9431D9B35400.PNG": {
+      "mtime_ns": 1790173420000000000,
+      "size_bytes": 3544399,
+      "suffix": ".png"
+    },
+    "B946C573-134A-4FC5-8C64-3431C878D68C.PNG": {
+      "mtime_ns": 1790174430000000000,
+      "size_bytes": 2155182,
+      "suffix": ".png"
+    },
+    "C1917C9F-E834-48E8-AB37-D6B198C5E66D.PNG": {
+      "mtime_ns": 1790173424000000000,
+      "size_bytes": 3302236,
+      "suffix": ".png"
+    },
+    "ChatGPT Image 23 Sept 2026, 06_52_49.png": {
+      "mtime_ns": 1790142863000000000,
+      "size_bytes": 2113807,
+      "suffix": ".png"
+    },
+    "ChatGPT Image 23 Sept 2026, 06_54_33.png": {
+      "mtime_ns": 1790142878000000000,
+      "size_bytes": 2220427,
+      "suffix": ".png"
+    },
+    "ChatGPT Image Sep 23, 2026 at 08_21_12 AM.png": {
+      "mtime_ns": 1790148074000000000,
+      "size_bytes": 1960348,
+      "suffix": ".png"
+    },
+    "ChatGPT Image Sep 23, 2026 at 08_21_34 AM.png": {
+      "mtime_ns": 1790148095000000000,
+      "size_bytes": 2013658,
+      "suffix": ".png"
+    },
+    "ChatGPT Image Sep 23, 2026 at 08_21_50 AM.png": {
+      "mtime_ns": 1790148111000000000,
+      "size_bytes": 1965588,
+      "suffix": ".png"
+    },
+    "ChatGPT Image Sep 23, 2026 at 08_22_02 AM.png": {
+      "mtime_ns": 1790148313000000000,
+      "size_bytes": 2090209,
+      "suffix": ".png"
+    },
     "t01.jpg": {
       "mtime_ns": 1518028372982381640,
       "size_bytes": 19388,
@@ -540,6 +624,149 @@
           "text_tokens": 2280
         },
         "total_tokens": 3632
+      }
+    },
+    "02ed3fed93a63d636e4776d3e7dbc8ffd52ae73d30217fa8a1046743d702062f": {
+      "analysed_at": "2026-09-23T14:32:38+00:00",
+      "analysis": {
+        "composition": {
+          "background_complexity": 60,
+          "orientation": "portrait",
+          "shot_type": "half_body",
+          "subject_prominence": 75
+        },
+        "description": "AI-generated illustration of a formally dressed woman seated at a polished wooden desk in a grand nighttime office, writing on papers with a fountain pen. Visible elements include a red leather dispatch box labeled 'PRIME MINISTER', a green banker's lamp, black telephone, Union Jack flag, framed text 'STABILITY STRENGTH SECURITY', and a newspaper headline 'Britain's Future Demands Renewal' on the desk. The illuminated clock tower is visible through the window.",
+        "historical_context": {
+          "confidence": 20,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": [
+            "Union Jack",
+            "Prime Minister dispatch box",
+            "British clock tower"
+          ]
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative",
+            "pragmatic",
+            "solemn"
+          ],
+          "best_for_topics": [
+            "government",
+            "leadership",
+            "national_identity",
+            "patriotism",
+            "defence",
+            "law_and_order"
+          ],
+          "general_reusability": 70,
+          "matching_summary": "Strong match for formal, authoritative quotations about governance, national strength, or official duty due to the serious mood, official symbols, and static composition.",
+          "semantic_specificity": 65,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "writing",
+            "reading documents"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "determined"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 75,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Formal indoor office scene at night with a single woman writing at a desk surrounded by official documents, British symbols, and city skyline view.",
+        "scene_types": [
+          "office_or_working",
+          "formal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators such as weather, foliage, or holiday decorations are present.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "ornate government-style office",
+            "nighttime window view",
+            "wood paneling",
+            "heavy curtains"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "government",
+          "leadership",
+          "national_identity",
+          "patriotism"
+        ],
+        "tone": [
+          "serious",
+          "authoritative",
+          "pragmatic"
+        ],
+        "visible_elements": [
+          "wooden desk",
+          "red dispatch box",
+          "fountain pen",
+          "papers and documents",
+          "green desk lamp",
+          "black telephone",
+          "Union Jack flag",
+          "framed text sign",
+          "newspaper",
+          "clock tower view",
+          "leather chair",
+          "bookshelves"
+        ],
+        "visible_text": {
+          "present": true,
+          "summary": "Red box: 'PRIME MINISTER'; sign: 'STABILITY STRENGTH SECURITY'; newspaper: 'The Daily Telegraph Britain’s Future Demands Renewal'; 'CONFIDENTIAL' on papers."
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/png",
+      "image_hash": "02ed3fed93a63d636e4776d3e7dbc8ffd52ae73d30217fa8a1046743d702062f",
+      "paths": [
+        "96BBBD26-F6A6-4D82-A854-A7C9308E6317.PNG"
+      ],
+      "preparation": "original",
+      "prompt_version": "png-image-analysis-2026-09-23-v1",
+      "response_id": "3efeb8f4-bfd4-925b-ac24-4ebb5a628efc",
+      "source_size_bytes": 3341029,
+      "source_suffix": ".png",
+      "usage": {
+        "completion_tokens": 735,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 667,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 61395500,
+        "num_sources_used": 0,
+        "prompt_tokens": 4043,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2304,
+          "image_tokens": 1586,
+          "text_tokens": 2457
+        },
+        "total_tokens": 5445
       }
     },
     "042cd4436753acb607fe997305ceb40349e4c8f0e46e417be996d8e3fb851717": {
@@ -1398,6 +1625,149 @@
         "total_tokens": 5817
       }
     },
+    "26b3cfd7f656c877d55d7bb7b05139215ccbfdff3ac85f8f803f31687f0c29ee": {
+      "analysed_at": "2026-09-23T14:32:12+00:00",
+      "analysis": {
+        "composition": {
+          "background_complexity": 85,
+          "orientation": "portrait",
+          "shot_type": "half_body",
+          "subject_prominence": 75
+        },
+        "description": "AI-generated illustration of a middle-aged woman in a navy blue coat and pearl necklace, holding a white hard hat marked with a black H, standing in an indoor control area overlooking a vast steelworks. She gazes rightward with a serious expression. The background shows active industrial operations with glowing molten metal, heavy machinery, cranes, steam, and banners reading 'STRENGTH THROUGH INDUSTRY' alongside a Union Jack flag and 'BRITISH STEEL' signage. Foreground includes a clipboard, 'PRODUCTIVITY BUILDS BRITAIN' mug, and plant operations log.",
+        "historical_context": {
+          "confidence": 40,
+          "event_or_context_hint": "industrial site visit or inspection",
+          "specificity": "general",
+          "visible_symbols": [
+            "Union Jack",
+            "British Steel branding",
+            "safety helmet"
+          ]
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative",
+            "pragmatic"
+          ],
+          "best_for_topics": [
+            "economy",
+            "work",
+            "national_identity",
+            "leadership",
+            "defence"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Strong accompaniment for quotations on British industry, manufacturing, economic strength, national production, or leadership in industrial settings. The formal attire and factory backdrop suit serious, pragmatic, or authoritative tones about work and national identity.",
+          "semantic_specificity": 70,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "standing",
+            "observing",
+            "holding hard hat"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "determined"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 80,
+          "overall": 88,
+          "subject_clarity": 92,
+          "technical_quality": 90
+        },
+        "scene_summary": "Woman in formal outerwear holding a safety helmet while observing a busy steel production facility from an elevated indoor control position.",
+        "scene_types": [
+          "industrial_or_workplace",
+          "other"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible; indoor industrial setting with no weather, foliage, or holiday elements.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "control room overlooking factory floor",
+            "large viewing windows",
+            "industrial steelworks interior",
+            "control consoles and railings"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "economy",
+          "work",
+          "national_identity"
+        ],
+        "tone": [
+          "serious",
+          "authoritative",
+          "pragmatic"
+        ],
+        "visible_elements": [
+          "hard hat",
+          "navy blue coat",
+          "pearl necklace",
+          "British flag",
+          "molten metal",
+          "industrial cranes",
+          "control panels",
+          "safety signage",
+          "British Steel logo",
+          "clipboard",
+          "mug",
+          "plant operations log",
+          "steam and smoke",
+          "metal beams"
+        ],
+        "visible_text": {
+          "present": true,
+          "summary": "British Steel logo and slogan 'INVEST PRODUCE EXPORT A STRONGER BRITAIN'; 'STRENGTH THROUGH INDUSTRY' with Union Jack; 'QUALITY PEOPLE PROGRESS'; 'SAFETY TODAY TOMORROW ALWAYS'; 'PRODUCTIVITY BUILDS BRITAIN' on mug; 'PLANT OPERATIONS LOG No.4'"
+        },
+        "visual_energy": "medium"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/png",
+      "image_hash": "26b3cfd7f656c877d55d7bb7b05139215ccbfdff3ac85f8f803f31687f0c29ee",
+      "paths": [
+        "1EBCAF45-6078-4B82-B867-81B790386957.PNG"
+      ],
+      "preparation": "original",
+      "prompt_version": "png-image-analysis-2026-09-23-v1",
+      "response_id": "7a754f39-425b-9703-9e73-f991d77664c8",
+      "source_size_bytes": 2182828,
+      "source_suffix": ".png",
+      "usage": {
+        "completion_tokens": 804,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 451,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 79896500,
+        "num_sources_used": 0,
+        "prompt_tokens": 4043,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 192,
+          "image_tokens": 1586,
+          "text_tokens": 2457
+        },
+        "total_tokens": 5298
+      }
+    },
     "28b3b58a5984c882f62864356b76e1c2b7a7ba3af408fb9e3999017398ba5584": {
       "analysed_at": "2026-07-05T20:13:17+00:00",
       "analysis": {
@@ -2132,6 +2502,274 @@
           "text_tokens": 2280
         },
         "total_tokens": 3755
+      }
+    },
+    "311d8c231f11faabf03a7c3d2f69bea5d53cacb8bc748cc0e930d4a8737b7193": {
+      "analysed_at": "2026-09-23T14:43:18+00:00",
+      "analysis": {
+        "composition": {
+          "background_complexity": 35,
+          "orientation": "landscape",
+          "shot_type": "head_and_shoulders",
+          "subject_prominence": 85
+        },
+        "description": "AI-generated illustration of a mature woman with voluminous light-brown hair in a formal updo, wearing a dark navy suit jacket, patterned blouse, pearl earrings, a jeweled brooch, and a large ring. She sits indoors with her left hand raised to her chin in a contemplative gesture, looking slightly off-camera with a serious expression. The background shows wooden furniture, a lit table lamp, framed pictures, and a table with papers and glassware.",
+        "historical_context": {
+          "confidence": 0,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "reflective",
+            "serious",
+            "authoritative"
+          ],
+          "best_for_topics": [
+            "personal_reflection",
+            "leadership",
+            "responsibility"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Best paired with quotations emphasizing contemplation, decision-making, or measured authority in a formal indoor setting.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "contemplating",
+            "listening"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "reflective",
+            "concerned"
+          ]
+        },
+        "quality": {
+          "composition": 78,
+          "crop_suitability_for_x": 85,
+          "overall": 82,
+          "subject_clarity": 88,
+          "technical_quality": 80
+        },
+        "scene_summary": "Head-and-shoulders view of a formally dressed woman in a thoughtful indoor pose, hand to chin, serious expression.",
+        "scene_types": [
+          "formal_portrait",
+          "office_or_working"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators such as foliage, weather, or decorations are visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "wooden furniture",
+            "table lamp",
+            "framed pictures",
+            "polished table",
+            "upholstered chair"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [],
+        "tone": [
+          "serious",
+          "reflective"
+        ],
+        "visible_elements": [
+          "navy suit jacket",
+          "pearl earrings",
+          "jeweled brooch",
+          "statement ring",
+          "patterned blouse",
+          "hand to chin",
+          "table lamp",
+          "framed artwork",
+          "wooden furniture",
+          "papers on table"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/png",
+      "image_hash": "311d8c231f11faabf03a7c3d2f69bea5d53cacb8bc748cc0e930d4a8737b7193",
+      "paths": [
+        "B946C573-134A-4FC5-8C64-3431C878D68C.PNG"
+      ],
+      "preparation": "original",
+      "prompt_version": "png-image-analysis-2026-09-23-v1",
+      "response_id": "81f7d663-80b8-9117-8c09-2779c0150ddd",
+      "source_size_bytes": 2155182,
+      "source_suffix": ".png",
+      "usage": {
+        "completion_tokens": 637,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 876,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 64258000,
+        "num_sources_used": 0,
+        "prompt_tokens": 4050,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2304,
+          "image_tokens": 1593,
+          "text_tokens": 2457
+        },
+        "total_tokens": 5563
+      }
+    },
+    "3188968cb14581aedb5d92bee30860f7ea669e36632dc85b5b6e12645b3527c2": {
+      "analysed_at": "2026-09-23T14:33:29+00:00",
+      "analysis": {
+        "composition": {
+          "background_complexity": 35,
+          "orientation": "portrait",
+          "shot_type": "close_up",
+          "subject_prominence": 90
+        },
+        "description": "AI-generated illustration showing a close-up of a formally dressed woman with styled light brown hair, pearl earrings and necklace, wearing a dark blue jacket over a patterned blouse. She stands at a blue podium with two microphones, right hand extended and index finger pointing forward in a forceful gesture. Her expression is intense with mouth open. A large Union Jack flag is visible against a solid blue backdrop.",
+        "historical_context": {
+          "confidence": 10,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": [
+            "Union Jack flag"
+          ]
+        },
+        "pairing": {
+          "best_for_tones": [
+            "authoritative",
+            "combative",
+            "serious",
+            "defiant"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "patriotism",
+            "national_identity",
+            "government",
+            "defence"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Best paired with quotations on strong leadership, national pride, assertive governance or defence themes. The prominent flag, formal setting and emphatic gesture support authoritative or defiant tones.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "speaking",
+            "pointing",
+            "gesturing"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "forceful",
+            "determined"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 75,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Close-up AI illustration of a woman delivering a speech from a podium, gesturing emphatically with one hand raised and finger pointed, national flag prominent in the background.",
+        "scene_types": [
+          "podium_speech",
+          "patriotic_flags"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible in the illustration.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "podium",
+            "blue backdrop",
+            "Union Jack flag"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "patriotism",
+          "national_identity"
+        ],
+        "tone": [
+          "authoritative",
+          "combative",
+          "serious",
+          "defiant"
+        ],
+        "visible_elements": [
+          "woman",
+          "styled hair",
+          "pearl earrings",
+          "pearl necklace",
+          "dark blue jacket",
+          "patterned blouse",
+          "pointing hand",
+          "microphones",
+          "podium",
+          "Union Jack flag",
+          "blue backdrop"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "high"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/png",
+      "image_hash": "3188968cb14581aedb5d92bee30860f7ea669e36632dc85b5b6e12645b3527c2",
+      "paths": [
+        "ChatGPT Image 23 Sept 2026, 06_52_49.png"
+      ],
+      "preparation": "original",
+      "prompt_version": "png-image-analysis-2026-09-23-v1",
+      "response_id": "dbec6bd1-2b74-9242-a0d1-3e18da59f2dd",
+      "source_size_bytes": 2113807,
+      "source_suffix": ".png",
+      "usage": {
+        "completion_tokens": 604,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 1174,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 93171500,
+        "num_sources_used": 0,
+        "prompt_tokens": 4059,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 192,
+          "image_tokens": 1602,
+          "text_tokens": 2457
+        },
+        "total_tokens": 5837
       }
     },
     "338db418e3dcaf95a16d4d91a63fe7570a55ca32b0653d62a8420dac672bc78e": {
@@ -3831,6 +4469,135 @@
         "total_tokens": 3462
       }
     },
+    "558e13755abf3c6fa94561876671c234feddbbc016e16a516d8a64aea1e536f9": {
+      "analysed_at": "2026-09-23T14:34:18+00:00",
+      "analysis": {
+        "composition": {
+          "background_complexity": 35,
+          "orientation": "portrait",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "AI-generated illustration showing a woman in a formal blue suit standing outdoors before a black door marked with the large white numeral 10. She smiles and raises her right hand in a waving gesture while holding a black handbag in her left hand. Pearl jewellery and a patterned blouse are visible beneath the double-breasted jacket. The setting includes a stone façade and a brass door knocker.",
+        "historical_context": {
+          "confidence": 40,
+          "event_or_context_hint": "appearance outside a door marked 10, suggestive of an official UK government building entrance",
+          "specificity": "suggestive",
+          "visible_symbols": [
+            "door number 10",
+            "official brass plaque"
+          ]
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "optimistic",
+            "authoritative"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "government",
+            "national_identity"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Best paired with quotations about leadership or official duty that benefit from a positive, composed public appearance at a recognisable government doorway. Avoids combative or highly informal tones.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "waving",
+            "smiling"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "warm"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 80,
+          "overall": 88,
+          "subject_clarity": 92,
+          "technical_quality": 90
+        },
+        "scene_summary": "Half-body view of a formally dressed woman waving and smiling in front of a black door numbered 10.",
+        "scene_types": [
+          "outdoor_public_event",
+          "generic_statesmanlike"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible; clothing and setting are year-round.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "black door with white numeral 10",
+            "stone building façade",
+            "brass door furniture"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [],
+        "tone": [
+          "warm",
+          "optimistic"
+        ],
+        "visible_elements": [
+          "blue suit jacket",
+          "waving raised hand",
+          "gold ring",
+          "pearl earrings",
+          "pearl necklace",
+          "black handbag",
+          "door number 10",
+          "brass lion-head knocker",
+          "brass plaque",
+          "stone wall"
+        ],
+        "visible_text": {
+          "present": true,
+          "summary": "Large white numerals '10' on black door; partial brass plaque reading 'LORD PRIVY SEAL'"
+        },
+        "visual_energy": "medium"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/png",
+      "image_hash": "558e13755abf3c6fa94561876671c234feddbbc016e16a516d8a64aea1e536f9",
+      "paths": [
+        "ChatGPT Image Sep 23, 2026 at 08_21_34 AM.png"
+      ],
+      "preparation": "original",
+      "prompt_version": "png-image-analysis-2026-09-23-v1",
+      "response_id": "4118c95e-0266-92ad-b3ed-f114309bfd1d",
+      "source_size_bytes": 2013658,
+      "source_suffix": ".png",
+      "usage": {
+        "completion_tokens": 669,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 802,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 63320500,
+        "num_sources_used": 0,
+        "prompt_tokens": 4059,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2304,
+          "image_tokens": 1602,
+          "text_tokens": 2457
+        },
+        "total_tokens": 5530
+      }
+    },
     "60335b8f439aedaa74d8a1192d37c3b10b60d2edf6ac855580c9d1ccb78a6446": {
       "analysed_at": "2026-07-05T20:14:41+00:00",
       "analysis": {
@@ -4193,6 +4960,148 @@
           "text_tokens": 2280
         },
         "total_tokens": 4672
+      }
+    },
+    "6472b1280fecc5446a3c7bff438a2374378657ef2f53969e2b15d020b5716056": {
+      "analysed_at": "2026-09-23T14:34:56+00:00",
+      "analysis": {
+        "composition": {
+          "background_complexity": 45,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "AI-generated illustration of a middle-aged woman with styled light brown hair wearing a blue double-breasted blazer, pearl necklace, and brooch, standing at an ornate wooden dispatch box in a formal legislative chamber. She leans forward with an intense expression, mouth open, and right arm extended to point directly forward. A microphone is positioned in front of her. Background shows wooden paneling, green leather benches, and two seated men in dark suits with neutral expressions.",
+        "historical_context": {
+          "confidence": 60,
+          "event_or_context_hint": "formal address within a legislative chamber",
+          "specificity": "general",
+          "visible_symbols": [
+            "dispatch box",
+            "parliamentary benches"
+          ]
+        },
+        "pairing": {
+          "best_for_tones": [
+            "authoritative",
+            "combative",
+            "defiant",
+            "serious"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "parliament",
+            "state_power",
+            "government",
+            "law_and_order"
+          ],
+          "general_reusability": 75,
+          "matching_summary": "Strong match for quotations about assertive leadership, parliamentary authority, or decisive political speech; the direct pointing gesture and intense expression convey command and confrontation.",
+          "semantic_specificity": 65,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "very_formal",
+          "primary_subject_activities": [
+            "speaking",
+            "pointing",
+            "addressing assembly"
+          ],
+          "primary_subject_moods": [
+            "forceful",
+            "determined",
+            "serious"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 80,
+          "overall": 88,
+          "subject_clarity": 92,
+          "technical_quality": 90
+        },
+        "scene_summary": "Forceful public address by a formally dressed woman at the dispatch box inside a traditional parliamentary chamber, captured mid-gesture.",
+        "scene_types": [
+          "podium_speech",
+          "parliament"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "Indoor parliamentary setting with no seasonal indicators visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "legislative chamber",
+            "wooden dispatch box",
+            "green leather seating",
+            "ornate woodwork",
+            "formal parliamentary interior"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "parliament",
+          "leadership",
+          "state_power"
+        ],
+        "tone": [
+          "authoritative",
+          "combative",
+          "defiant",
+          "serious"
+        ],
+        "visible_elements": [
+          "blue blazer",
+          "pearl necklace",
+          "gold brooch",
+          "dispatch box",
+          "microphone",
+          "wooden paneling",
+          "green benches",
+          "formal suit",
+          "pointing gesture",
+          "papers"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "high"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/png",
+      "image_hash": "6472b1280fecc5446a3c7bff438a2374378657ef2f53969e2b15d020b5716056",
+      "paths": [
+        "ChatGPT Image Sep 23, 2026 at 08_22_02 AM.png"
+      ],
+      "preparation": "original",
+      "prompt_version": "png-image-analysis-2026-09-23-v1",
+      "response_id": "5b983ce7-6f33-9b06-b413-cab4a5b703f9",
+      "source_size_bytes": 2090209,
+      "source_suffix": ".png",
+      "usage": {
+        "completion_tokens": 687,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 629,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 81621500,
+        "num_sources_used": 0,
+        "prompt_tokens": 4059,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 192,
+          "image_tokens": 1602,
+          "text_tokens": 2457
+        },
+        "total_tokens": 5375
       }
     },
     "6731ce7fd2770587f1a805c8f48c87b65cd3a37217f6b74d6eaa4c0b1b3d56e4": {
@@ -4917,6 +5826,139 @@
         "total_tokens": 4845
       }
     },
+    "8d2d7dbc497f40c100a1e35a61c36afb7e1b6853fdf957d08689c1c4aa76c4ea": {
+      "analysed_at": "2026-09-23T14:43:02+00:00",
+      "analysis": {
+        "composition": {
+          "background_complexity": 55,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "AI-generated illustration depicting a woman with voluminous light brown hair in a blue textured jacket over a blue floral blouse, standing at a wooden dispatch box with ornate metalwork in a chamber featuring green leather benches. She leans forward with mouth open and right hand extended in a pointing gesture, wearing pearl earrings and a brooch. Several men in dark suits are seated behind her in the background.",
+        "historical_context": {
+          "confidence": 10,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "authoritative",
+            "serious",
+            "combative"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "parliament",
+            "government",
+            "democracy"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Best paired with quotations on parliamentary debate, formal political address, or assertive leadership in institutional settings.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "small_group",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "speaking",
+            "pointing",
+            "gesturing"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "determined"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 80,
+          "overall": 88,
+          "subject_clarity": 92,
+          "technical_quality": 90
+        },
+        "scene_summary": "Formal parliamentary speech scene with a central female speaker gesturing emphatically at the dispatch box amid green benches and suited observers.",
+        "scene_types": [
+          "podium_speech",
+          "parliament"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators such as weather, foliage, or decorations are visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "parliamentary chamber",
+            "green benches",
+            "wooden furniture",
+            "formal seating"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "parliament",
+          "government",
+          "leadership"
+        ],
+        "tone": [
+          "authoritative",
+          "serious"
+        ],
+        "visible_elements": [
+          "blue jacket",
+          "floral blouse",
+          "dispatch box",
+          "pointing hand",
+          "green leather benches",
+          "microphone",
+          "wooden paneling",
+          "suit jackets",
+          "pearl earrings",
+          "brooch"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "medium"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/png",
+      "image_hash": "8d2d7dbc497f40c100a1e35a61c36afb7e1b6853fdf957d08689c1c4aa76c4ea",
+      "paths": [
+        "7F490D2B-C19E-4C88-81D6-3E8BDE07AD76.PNG"
+      ],
+      "preparation": "original",
+      "prompt_version": "png-image-analysis-2026-09-23-v1",
+      "response_id": "83649c05-f953-9a20-8614-4fb002ec20a6",
+      "source_size_bytes": 2161200,
+      "source_suffix": ".png",
+      "usage": {
+        "completion_tokens": 619,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 934,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 65258000,
+        "num_sources_used": 0,
+        "prompt_tokens": 4050,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2304,
+          "image_tokens": 1593,
+          "text_tokens": 2457
+        },
+        "total_tokens": 5603
+      }
+    },
     "90e6483abb5c742b1c8405b09089aff7d0e64894fe3e7f8953b3e4fcb8498e66": {
       "analysed_at": "2026-07-05T20:10:31+00:00",
       "analysis": {
@@ -5292,6 +6334,145 @@
           "text_tokens": 2280
         },
         "total_tokens": 5757
+      }
+    },
+    "a03acca69b8a76f961ce6290a5c57662efaec2fbe19b91af7cc984658e50db16": {
+      "analysed_at": "2026-09-23T14:34:01+00:00",
+      "analysis": {
+        "composition": {
+          "background_complexity": 55,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "AI-generated illustration of a middle-aged woman with voluminous styled light-brown hair, wearing a navy blazer, cream polka-dot blouse with bow, pearl earrings and brooch, seated at a polished wooden desk. She holds a fountain pen above papers with a serious expression. A Union Jack flag is visible behind her left shoulder; a black-and-gold nameplate reading 'PRIME MINISTER' sits on the desk amid inkwells, stacked documents, a teacup and saucer, and a mantel clock with framed painting in the background.",
+        "historical_context": {
+          "confidence": 0,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": [
+            "Union Jack flag",
+            "Prime Minister nameplate"
+          ]
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative",
+            "reflective",
+            "solemn"
+          ],
+          "best_for_topics": [
+            "government",
+            "leadership",
+            "patriotism",
+            "work",
+            "responsibility"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Best paired with formal quotations on official duty, national service, or authoritative leadership; low visual energy suits contemplative or serious tones.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "writing",
+            "reviewing documents"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "determined"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 80,
+          "overall": 88,
+          "subject_clarity": 92,
+          "technical_quality": 90
+        },
+        "scene_summary": "Formal indoor office scene of a single woman writing at a desk with a Union Jack flag and Prime Minister nameplate.",
+        "scene_types": [
+          "formal_portrait",
+          "office_or_working",
+          "patriotic_flags"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "ornate government office",
+            "wooden desk",
+            "fireplace mantel",
+            "flag background"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "government",
+          "leadership",
+          "patriotism",
+          "work"
+        ],
+        "tone": [
+          "serious",
+          "authoritative"
+        ],
+        "visible_elements": [
+          "Union Jack flag",
+          "wooden desk",
+          "nameplate 'PRIME MINISTER'",
+          "fountain pen",
+          "documents",
+          "inkwells",
+          "teacup",
+          "mantel clock",
+          "framed painting",
+          "leather chair"
+        ],
+        "visible_text": {
+          "present": true,
+          "summary": "Nameplate reading 'PRIME MINISTER' on desk"
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/png",
+      "image_hash": "a03acca69b8a76f961ce6290a5c57662efaec2fbe19b91af7cc984658e50db16",
+      "paths": [
+        "ChatGPT Image Sep 23, 2026 at 08_21_12 AM.png"
+      ],
+      "preparation": "original",
+      "prompt_version": "png-image-analysis-2026-09-23-v1",
+      "response_id": "6c4dd879-2c72-9ee9-8e44-40665a99ed77",
+      "source_size_bytes": 1960348,
+      "source_suffix": ".png",
+      "usage": {
+        "completion_tokens": 686,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 960,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 89871500,
+        "num_sources_used": 0,
+        "prompt_tokens": 4059,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 192,
+          "image_tokens": 1602,
+          "text_tokens": 2457
+        },
+        "total_tokens": 5705
       }
     },
     "a5cc03d6433cbff4f38e72da66ce4299532a0bdc981b248af1adb063ffa79105": {
@@ -6394,6 +7575,139 @@
         "total_tokens": 4783
       }
     },
+    "b9246cf6e7f0432e84ed6159c1b5f05cb19f3d6875e255a4b6597c8369d6bb93": {
+      "analysed_at": "2026-09-23T14:33:10+00:00",
+      "analysis": {
+        "composition": {
+          "background_complexity": 40,
+          "orientation": "portrait",
+          "shot_type": "half_body",
+          "subject_prominence": 75
+        },
+        "description": "AI-generated illustration of a middle-aged woman seated in a first-class train compartment, wearing a blue blazer and patterned scarf, intently reading official documents. A blue folder marked 'CABINET CONFIDENTIAL' and papers headed 'FOREIGN AND COMMONWEALTH OFFICE' rest on a polished wooden table beside a teacup and saucer. The window reveals a blurred rural landscape of green fields and hills under an overcast sky. A 'FIRST CLASS' headrest cover is visible on the seat.",
+        "historical_context": {
+          "confidence": 0,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "reflective",
+            "authoritative",
+            "pragmatic"
+          ],
+          "best_for_topics": [
+            "government",
+            "work",
+            "leadership",
+            "foreign_policy"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Best paired with quotations on governance, official duties, or reflective decision-making. The train setting and confidential documents suggest a private, working atmosphere suitable for serious or contemplative political text.",
+          "semantic_specificity": 70,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "reading documents",
+            "reviewing papers"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "reflective"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 75,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Woman reading confidential government documents while seated in a moving train with countryside visible through the window.",
+        "scene_types": [
+          "office_or_working",
+          "other"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No visible seasonal indicators such as foliage, weather, or decorations.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "train compartment",
+            "first-class seating",
+            "window view of countryside",
+            "wooden table"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "government",
+          "work"
+        ],
+        "tone": [
+          "serious",
+          "reflective",
+          "authoritative"
+        ],
+        "visible_elements": [
+          "blue blazer",
+          "patterned scarf",
+          "confidential folder",
+          "official documents",
+          "teacup and saucer",
+          "polished wooden table",
+          "train window",
+          "rural landscape",
+          "FIRST CLASS headrest",
+          "curtains"
+        ],
+        "visible_text": {
+          "present": true,
+          "summary": "CABINET CONFIDENTIAL on blue folder; FOREIGN AND COMMONWEALTH OFFICE and other printed text on white documents; FIRST CLASS on headrest cover."
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/png",
+      "image_hash": "b9246cf6e7f0432e84ed6159c1b5f05cb19f3d6875e255a4b6597c8369d6bb93",
+      "paths": [
+        "C1917C9F-E834-48E8-AB37-D6B198C5E66D.PNG"
+      ],
+      "preparation": "original",
+      "prompt_version": "png-image-analysis-2026-09-23-v1",
+      "response_id": "0eb53a9e-3606-9647-a4ab-deb306c56dea",
+      "source_size_bytes": 3302236,
+      "source_suffix": ".png",
+      "usage": {
+        "completion_tokens": 687,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 603,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 58595500,
+        "num_sources_used": 0,
+        "prompt_tokens": 4043,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2304,
+          "image_tokens": 1586,
+          "text_tokens": 2457
+        },
+        "total_tokens": 5333
+      }
+    },
     "bbece6db8c9d9ce3c40786fd7b192af27b9a1856614ab293c6b0e7b40c4c10e5": {
       "analysed_at": "2026-07-05T20:07:18+00:00",
       "analysis": {
@@ -7480,6 +8794,142 @@
         "total_tokens": 4151
       }
     },
+    "dbb2ddb8f92df668cd9f42f57cd3c3eb789ad3dc32ae6485901b275916ce7654": {
+      "analysed_at": "2026-09-23T14:34:41+00:00",
+      "analysis": {
+        "composition": {
+          "background_complexity": 55,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "AI-generated illustration of a woman in formal dark attire seated at a polished wooden desk in a wood-paneled office, right hand resting on her chin in a contemplative pose. Visible on the desk are an open folder labeled CABINET, books, inkwells, a teacup, and a red dispatch box. Background includes a Union Jack flag, bookshelf with leather-bound volumes, a bronze bust, framed photograph, and floral arrangement.",
+        "historical_context": {
+          "confidence": 0,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": [
+            "Union Jack flag",
+            "bust sculpture",
+            "CABINET folder"
+          ]
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "reflective",
+            "authoritative"
+          ],
+          "best_for_topics": [
+            "government",
+            "leadership",
+            "work",
+            "responsibility"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Best paired with quotations on governance, duty, or quiet contemplation in formal professional settings.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "very_formal",
+          "primary_subject_activities": [
+            "seated at desk",
+            "hand resting on chin"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "reflective"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 78,
+          "overall": 88,
+          "subject_clarity": 92,
+          "technical_quality": 90
+        },
+        "scene_summary": "Formal indoor office portrait of a single woman seated at a desk, appearing thoughtful amid official documents and national symbols.",
+        "scene_types": [
+          "formal_portrait",
+          "office_or_working",
+          "generic_statesmanlike"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators or decorations visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "wood-paneled office",
+            "large desk",
+            "bookshelves",
+            "curtained window"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "government",
+          "work"
+        ],
+        "tone": [
+          "serious",
+          "reflective"
+        ],
+        "visible_elements": [
+          "wooden desk",
+          "CABINET folder",
+          "Union Jack flag",
+          "leather-bound books",
+          "bronze bust",
+          "framed photograph",
+          "vase of flowers",
+          "red dispatch box",
+          "teacup and saucer",
+          "leather chair"
+        ],
+        "visible_text": {
+          "present": true,
+          "summary": "CABINET printed on folder cover"
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/png",
+      "image_hash": "dbb2ddb8f92df668cd9f42f57cd3c3eb789ad3dc32ae6485901b275916ce7654",
+      "paths": [
+        "ChatGPT Image Sep 23, 2026 at 08_21_50 AM.png"
+      ],
+      "preparation": "original",
+      "prompt_version": "png-image-analysis-2026-09-23-v1",
+      "response_id": "f5b67edd-d78e-9cde-bf82-97316e0c8e8e",
+      "source_size_bytes": 1965588,
+      "source_suffix": ".png",
+      "usage": {
+        "completion_tokens": 600,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 1258,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 95171500,
+        "num_sources_used": 0,
+        "prompt_tokens": 4059,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 192,
+          "image_tokens": 1602,
+          "text_tokens": 2457
+        },
+        "total_tokens": 5917
+      }
+    },
     "ddfc763dea0887cb9b806899f36044af52d1c2b920d1e97dd2e7e3dcc74fa965": {
       "analysed_at": "2026-07-05T20:08:14+00:00",
       "analysis": {
@@ -7598,6 +9048,422 @@
           "text_tokens": 2280
         },
         "total_tokens": 3841
+      }
+    },
+    "dead35e07ef33bbd34e0ea8bc768751bbb92d47364cec51ec885a0ba5366ed82": {
+      "analysed_at": "2026-09-23T14:32:54+00:00",
+      "analysis": {
+        "composition": {
+          "background_complexity": 55,
+          "orientation": "portrait",
+          "shot_type": "full_body",
+          "subject_prominence": 75
+        },
+        "description": "AI-generated illustration of a woman in a formal blue coat, pearl necklace, and gloves walking on a wet riverside pavement at dusk while holding a black umbrella and a briefcase, with the illuminated Houses of Parliament and Big Ben visible in the rainy background.",
+        "historical_context": {
+          "confidence": 25,
+          "event_or_context_hint": "British political figure near parliamentary buildings",
+          "specificity": "suggestive",
+          "visible_symbols": [
+            "Big Ben",
+            "Houses of Parliament"
+          ]
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative",
+            "solemn"
+          ],
+          "best_for_topics": [
+            "government",
+            "leadership",
+            "national_identity"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Best paired with quotations on political duty, resolve or British governance; mood supports formal, contemplative or determined tones rather than celebratory or humorous ones.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "walking"
+          ],
+          "primary_subject_moods": [
+            "serious"
+          ]
+        },
+        "quality": {
+          "composition": 82,
+          "crop_suitability_for_x": 80,
+          "overall": 88,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Full-body view of a solitary formally dressed woman walking purposefully in rain beside the Thames, iconic London parliamentary buildings and wet reflections in the background.",
+        "scene_types": [
+          "outdoor_public_event",
+          "generic_statesmanlike"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [
+            "rain",
+            "wet reflective pavement"
+          ],
+          "explanation": "Rainy evening scene with no identifiable seasonal markers such as foliage, decorations or weather-specific to spring, summer, autumn or winter.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "riverside promenade",
+            "wet stone paving",
+            "evening street lighting",
+            "iconic London landmarks"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [
+          "government"
+        ],
+        "tone": [
+          "serious",
+          "authoritative"
+        ],
+        "visible_elements": [
+          "black umbrella",
+          "black briefcase",
+          "blue overcoat",
+          "pearl necklace",
+          "brooch",
+          "black gloves",
+          "wet pavement",
+          "street lamps",
+          "Big Ben",
+          "Houses of Parliament",
+          "rain droplets",
+          "river"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "medium"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/png",
+      "image_hash": "dead35e07ef33bbd34e0ea8bc768751bbb92d47364cec51ec885a0ba5366ed82",
+      "paths": [
+        "B4111E37-ACF8-4553-88D4-9431D9B35400.PNG"
+      ],
+      "preparation": "original",
+      "prompt_version": "png-image-analysis-2026-09-23-v1",
+      "response_id": "a1225aaa-b2e3-9016-9c48-86cb903e519b",
+      "source_size_bytes": 3544399,
+      "source_suffix": ".png",
+      "usage": {
+        "completion_tokens": 631,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 1036,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 68020500,
+        "num_sources_used": 0,
+        "prompt_tokens": 4043,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2304,
+          "image_tokens": 1586,
+          "text_tokens": 2457
+        },
+        "total_tokens": 5710
+      }
+    },
+    "e7fe04473225170d0ea51818dc5a9c8d4ccf34da44f9e1b0ac12cc2cf11ba5fb": {
+      "analysed_at": "2026-09-23T14:32:25+00:00",
+      "analysis": {
+        "composition": {
+          "background_complexity": 45,
+          "orientation": "portrait",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "AI-generated illustration of a woman in a formal navy blue suit and pearl jewelry standing at a wooden vanity table, intently reading a handwritten document. A large illuminated mirror reflects her profile and shows a poster with a Union Jack and the words 'A STRONGER BRITAIN'. The table holds stacked papers labeled 'CONSERVATIVE PARTY CONFERENCE SPEECH', a black handbag, floral arrangement, and small personal items. The setting appears to be a backstage or dressing-room area with warm lighting from vanity bulbs.",
+        "historical_context": {
+          "confidence": 40,
+          "event_or_context_hint": "Suggestive of conference speech preparation with patriotic messaging",
+          "specificity": "general",
+          "visible_symbols": [
+            "Union Jack",
+            "conference speech papers"
+          ]
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative",
+            "reflective",
+            "defiant"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "patriotism",
+            "government",
+            "national_identity"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Strong match for quotations on leadership, national strength, or formal political preparation; low energy and formal tone suit reflective or authoritative quotes rather than energetic or humorous ones.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "reading document",
+            "preparing speech"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "determined",
+            "reflective"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 80,
+          "overall": 88,
+          "subject_clarity": 92,
+          "technical_quality": 87
+        },
+        "scene_summary": "Formal preparatory moment of a suited woman reviewing notes at a lit vanity mirror in a conference-related backstage space, with visible speech papers and patriotic signage in reflection.",
+        "scene_types": [
+          "formal_portrait",
+          "office_or_working",
+          "other"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible; scene is indoor and timeless.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "backstage dressing area",
+            "vanity table with mirror",
+            "warm artificial lighting",
+            "wooden furniture",
+            "conference-related signage"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "leadership",
+          "patriotism",
+          "government"
+        ],
+        "tone": [
+          "serious",
+          "authoritative",
+          "reflective"
+        ],
+        "visible_elements": [
+          "navy blue suit",
+          "pearl necklace and earrings",
+          "handwritten notes",
+          "vanity mirror with bulbs",
+          "Union Jack poster",
+          "A STRONGER BRITAIN text",
+          "black handbag",
+          "floral arrangement",
+          "Conservative Party Conference Speech papers",
+          "wooden desk",
+          "small glass and metal objects"
+        ],
+        "visible_text": {
+          "present": true,
+          "summary": "Handwritten notes on paper; 'A STRONGER BRITAIN' on poster with Union Jack; 'CONSERVATIVE PARTY CONFERENCE SPEECH' on document stack"
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/png",
+      "image_hash": "e7fe04473225170d0ea51818dc5a9c8d4ccf34da44f9e1b0ac12cc2cf11ba5fb",
+      "paths": [
+        "27089818-B476-43DD-A5E2-72BFF2A93BDD.PNG"
+      ],
+      "preparation": "original",
+      "prompt_version": "png-image-analysis-2026-09-23-v1",
+      "response_id": "1fd91fd2-0665-9d6c-ac7e-370dd96d0417",
+      "source_size_bytes": 3283489,
+      "source_suffix": ".png",
+      "usage": {
+        "completion_tokens": 759,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 589,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 82221500,
+        "num_sources_used": 0,
+        "prompt_tokens": 4043,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 192,
+          "image_tokens": 1586,
+          "text_tokens": 2457
+        },
+        "total_tokens": 5391
+      }
+    },
+    "e81d53112d1cd4b5172492d7fca1c31630ae75b6ee98301fab8580a18cf3b621": {
+      "analysed_at": "2026-09-23T14:42:47+00:00",
+      "analysis": {
+        "composition": {
+          "background_complexity": 60,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "AI-generated illustration of a middle-aged woman with styled light-brown hair seated at a polished wooden desk, writing on a document with a fountain pen. She wears a dark blue jacket, patterned blouse with a large bow, pearl earrings and brooch. On the desk are papers, a teacup, telephone, and desk items. Behind her is a large window showing the Palace of Westminster and Big Ben clock tower under bright daylight. The room has dark wood paneling, curtains, bookshelves, and a mantel clock.",
+        "historical_context": {
+          "confidence": 20,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": [
+            "Big Ben",
+            "Palace of Westminster"
+          ]
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative",
+            "pragmatic",
+            "reflective"
+          ],
+          "best_for_topics": [
+            "government",
+            "parliament",
+            "work",
+            "leadership",
+            "responsibility"
+          ],
+          "general_reusability": 75,
+          "matching_summary": "Strong match for formal, reflective, or governmental quotations involving duty, decision-making, or parliamentary work. Low visual energy suits contemplative or serious tones rather than energetic or celebratory ones.",
+          "semantic_specificity": 65,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "writing",
+            "reviewing documents"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "determined"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 80,
+          "overall": 88,
+          "subject_clarity": 92,
+          "technical_quality": 90
+        },
+        "scene_summary": "Formal indoor office scene with a woman writing at a desk, overlooking the Houses of Parliament.",
+        "scene_types": [
+          "office_or_working"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible; indoor setting with no weather, foliage, or holiday cues.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "wood-panelled office",
+            "large window with parliamentary view",
+            "formal furnishings"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "government",
+          "work",
+          "parliament"
+        ],
+        "tone": [
+          "serious",
+          "authoritative",
+          "pragmatic"
+        ],
+        "visible_elements": [
+          "desk",
+          "fountain pen",
+          "documents",
+          "teacup",
+          "telephone",
+          "Big Ben",
+          "Palace of Westminster",
+          "wood paneling",
+          "curtains",
+          "bookshelves",
+          "mantel clock",
+          "blouse bow",
+          "brooch",
+          "pearl earrings"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/png",
+      "image_hash": "e81d53112d1cd4b5172492d7fca1c31630ae75b6ee98301fab8580a18cf3b621",
+      "paths": [
+        "289FFA0B-E83B-4B9F-BEF6-E1C2CAF1BE38.PNG"
+      ],
+      "preparation": "original",
+      "prompt_version": "png-image-analysis-2026-09-23-v1",
+      "response_id": "aab916f4-fadf-95e1-8046-c5fdf271f1f5",
+      "source_size_bytes": 2052351,
+      "source_suffix": ".png",
+      "usage": {
+        "completion_tokens": 689,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 490,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 78084000,
+        "num_sources_used": 0,
+        "prompt_tokens": 4050,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 192,
+          "image_tokens": 1593,
+          "text_tokens": 2457
+        },
+        "total_tokens": 5229
       }
     },
     "e9fe1f70f928e3a715b55807fa4d421374ae1e6c746121639fcf574abb17477e": {
@@ -8066,6 +9932,133 @@
           "text_tokens": 2280
         },
         "total_tokens": 5203
+      }
+    },
+    "f8e17edd2a129714a3e9ad41c26f038284b8a4d983ffc9a02111351cf72aa1ed": {
+      "analysed_at": "2026-09-23T14:33:45+00:00",
+      "analysis": {
+        "composition": {
+          "background_complexity": 35,
+          "orientation": "portrait",
+          "shot_type": "close_up",
+          "subject_prominence": 90
+        },
+        "description": "AI-generated close-up illustration of a middle-aged woman with voluminous light brown hair in a formal updo, wearing pearl earrings, a patterned blue-and-white scarf, and a dark blue jacket with a pearl brooch, standing at a podium with multiple black microphones. She has a serious upward gaze. The background features a blue curtain and a large Union Jack flag. The style is polished and illustrative rather than photographic.",
+        "historical_context": {
+          "confidence": 10,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": [
+            "Union Jack"
+          ]
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative",
+            "solemn"
+          ],
+          "best_for_topics": [
+            "patriotism",
+            "national_identity",
+            "leadership",
+            "government"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Strong match for formal political or patriotic quotations emphasizing national symbols and serious leadership tone; low energy suits reflective or solemn quotes.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "addressing audience"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "determined"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 80,
+          "overall": 88,
+          "subject_clarity": 92,
+          "technical_quality": 90
+        },
+        "scene_summary": "Close-up of a formally dressed woman at a podium with microphones against a Union Jack backdrop.",
+        "scene_types": [
+          "podium_speech"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "podium with microphones",
+            "flag backdrop",
+            "blue curtain"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "patriotism",
+          "national_identity"
+        ],
+        "tone": [
+          "serious",
+          "authoritative"
+        ],
+        "visible_elements": [
+          "multiple microphones",
+          "pearl earrings",
+          "pearl brooch",
+          "patterned scarf",
+          "Union Jack flag",
+          "blue curtain",
+          "podium"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/png",
+      "image_hash": "f8e17edd2a129714a3e9ad41c26f038284b8a4d983ffc9a02111351cf72aa1ed",
+      "paths": [
+        "ChatGPT Image 23 Sept 2026, 06_54_33.png"
+      ],
+      "preparation": "original",
+      "prompt_version": "png-image-analysis-2026-09-23-v1",
+      "response_id": "075be217-15db-97ac-a36a-d4719f5166be",
+      "source_size_bytes": 2220427,
+      "source_suffix": ".png",
+      "usage": {
+        "completion_tokens": 590,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 763,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 82546500,
+        "num_sources_used": 0,
+        "prompt_tokens": 4059,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 192,
+          "image_tokens": 1602,
+          "text_tokens": 2457
+        },
+        "total_tokens": 5412
       }
     },
     "f94e47bb3153c28dd5b7bbd5b6717f8273b3b727f4377a5840c9deded25351e4": {
@@ -8790,6 +10783,20 @@
   },
   "model": "grok-4.3",
   "path_index": {
+    "1EBCAF45-6078-4B82-B867-81B790386957.PNG": "26b3cfd7f656c877d55d7bb7b05139215ccbfdff3ac85f8f803f31687f0c29ee",
+    "27089818-B476-43DD-A5E2-72BFF2A93BDD.PNG": "e7fe04473225170d0ea51818dc5a9c8d4ccf34da44f9e1b0ac12cc2cf11ba5fb",
+    "289FFA0B-E83B-4B9F-BEF6-E1C2CAF1BE38.PNG": "e81d53112d1cd4b5172492d7fca1c31630ae75b6ee98301fab8580a18cf3b621",
+    "7F490D2B-C19E-4C88-81D6-3E8BDE07AD76.PNG": "8d2d7dbc497f40c100a1e35a61c36afb7e1b6853fdf957d08689c1c4aa76c4ea",
+    "96BBBD26-F6A6-4D82-A854-A7C9308E6317.PNG": "02ed3fed93a63d636e4776d3e7dbc8ffd52ae73d30217fa8a1046743d702062f",
+    "B4111E37-ACF8-4553-88D4-9431D9B35400.PNG": "dead35e07ef33bbd34e0ea8bc768751bbb92d47364cec51ec885a0ba5366ed82",
+    "B946C573-134A-4FC5-8C64-3431C878D68C.PNG": "311d8c231f11faabf03a7c3d2f69bea5d53cacb8bc748cc0e930d4a8737b7193",
+    "C1917C9F-E834-48E8-AB37-D6B198C5E66D.PNG": "b9246cf6e7f0432e84ed6159c1b5f05cb19f3d6875e255a4b6597c8369d6bb93",
+    "ChatGPT Image 23 Sept 2026, 06_52_49.png": "3188968cb14581aedb5d92bee30860f7ea669e36632dc85b5b6e12645b3527c2",
+    "ChatGPT Image 23 Sept 2026, 06_54_33.png": "f8e17edd2a129714a3e9ad41c26f038284b8a4d983ffc9a02111351cf72aa1ed",
+    "ChatGPT Image Sep 23, 2026 at 08_21_12 AM.png": "a03acca69b8a76f961ce6290a5c57662efaec2fbe19b91af7cc984658e50db16",
+    "ChatGPT Image Sep 23, 2026 at 08_21_34 AM.png": "558e13755abf3c6fa94561876671c234feddbbc016e16a516d8a64aea1e536f9",
+    "ChatGPT Image Sep 23, 2026 at 08_21_50 AM.png": "dbb2ddb8f92df668cd9f42f57cd3c3eb789ad3dc32ae6485901b275916ce7654",
+    "ChatGPT Image Sep 23, 2026 at 08_22_02 AM.png": "6472b1280fecc5446a3c7bff438a2374378657ef2f53969e2b15d020b5716056",
     "t01.jpg": "2c16ce452b28dbd067b4419981a3d4f92099cc8c60964bf291c7e4955d74ed7c",
     "t02.jpg": "0092a3540800c4373236d1ee7a09812f51ac1a2e742b32c2ee49e0f0ced965ff",
     "t03.jpg": "305d7a0023859204cf243c918268ba53b00e5b934c505ba3c2ae11e6a2003dc6",
@@ -8863,10 +10870,10 @@
   "prompt_version": "image-analysis-2026-07-05-v4",
   "schema_version": 3,
   "source": {
-    "file_count": 69,
+    "file_count": 83,
     "image_dir": "/disks/disk1/etc/mrsMThatcher/images",
     "recursive": false,
-    "unique_content_count": 69
+    "unique_content_count": 83
   },
-  "updated_at": "2026-07-05T20:15:00+00:00"
+  "updated_at": "2026-09-23T14:43:18+00:00"
 }
