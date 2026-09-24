@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from mrs_bot_main_post_receipt_storage import MainPostReceipts
     from mrs_bot_main_post_receipts import MainPostReceiptValues
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
+    from mrs_bot_state_generation import StateCommitProof
 
 
 def apply_meme_post_receipt(
@@ -508,7 +509,7 @@ def reconcile_regular_post_receipt(
         )
 
 
-    def retire_transport_journal(commit_proof) -> None:
+    def retire_transport_journal(commit_proof: StateCommitProof) -> None:
         """Read recovered transport identity after the outbox is durable."""
         retire_lane_transport_journal_if_present(
             commit_proof=commit_proof,

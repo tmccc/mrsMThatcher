@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from mrs_bot_main_post_receipt_storage import MainPostReceipts
     from mrs_bot_main_post_receipts import MainPostReceiptValues
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
+    from mrs_bot_state_generation import StateCommitProof
 
 
 # Availability is separate from a callback's value, including an assigned None.
@@ -206,7 +207,7 @@ def _complete_quote_post(
 ) -> None:
     """Persist confirmed state and retire recovery authority before final events."""
 
-    def retire_transport_journal(commit_proof) -> None:
+    def retire_transport_journal(commit_proof: StateCommitProof) -> None:
         """Retire live transport authority only after the outbox is durable."""
         retire_lane_transport_journal_if_present(
             commit_proof=commit_proof,

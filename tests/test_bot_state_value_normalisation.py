@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import inspect
 from pathlib import Path
 import subprocess
 import sys
@@ -49,34 +48,6 @@ assert 'single_call_reply' not in sys.modules
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-def test_adapters_forward_only_public_arguments_and_preserve_native_errors(monkeypatch):
-    methods = {'normalise_state_int': 'integer', 'normalise_state_epoch': 'epoch', 'normalise_string_list': 'strings', 'normalise_int_list': 'integers', 'normalise_epoch_list': 'epochs', 'normalise_string_map': 'string_map', 'normalise_int_map': 'integer_map', 'normalise_record_map': 'record_map', 'normalise_optional_scalar': 'optional_scalar', 'normalise_optional_numeric_id': 'optional_id'}
-    for name, method in methods.items():
-        adapter = getattr(bot, name)
-        public = inspect.signature(adapter).parameters
-        owned = inspect.signature(getattr(values.StateValues, method)).parameters
-        assert tuple(owned)[1:] == tuple(public)
-        for key, parameter in public.items():
-            assert owned[key].kind == parameter.kind
-            assert owned[key].default == parameter.default
-        original, result = object(), object()
-        options = {key: object() for key, param in public.items() if param.kind == param.KEYWORD_ONLY}
-        target = Mock(return_value=result)
-        with monkeypatch.context() as patch:
-            factory = Mock(return_value=SimpleNamespace(**{method: target}))
-            patch.setattr(bot, "_state_values_owner", factory)
-            assert adapter(original, **options) is result
-            assert target.call_args.args[0] is original
-            assert target.call_args.kwargs.keys() == options.keys()
-            assert all(target.call_args.kwargs[key] is value for key, value in options.items())
-            factory.assert_called_once_with()
-            failure = TypeError("current owner failure")
-            target.side_effect = failure
-            with pytest.raises(TypeError) as caught:
-                adapter(original, **options)
-            assert caught.value is failure
-
-
 def test_composition_binds_current_policy_without_runtime_work(monkeypatch):
     assert bot.bounded_tweet_id_value is values.bounded_tweet_id_value
     previous = None
@@ -97,14 +68,14 @@ def patch_value_method(monkeypatch, method, callback):
 
 def test_nested_normalization_stays_in_its_owner(monkeypatch, tmp_path):
     def forbidden(*args, **kwargs):
-        raise AssertionError("normalizer bounced through root")
-    monkeypatch.setattr(bot, "normalise_state_int", forbidden)
-    monkeypatch.setattr(bot, "normalise_int_list", forbidden)
+        raise AssertionError("normalizer created another root owner")
+    monkeypatch.setattr(bot, "_state_values_owner", forbidden)
     monkeypatch.setattr(bot, "bounded_tweet_id_value", forbidden)
+    owner = values.StateValues(log=Mock(), maximum_epoch=10)
     options = {"key": "value", "path": tmp_path}
-    assert bot.normalise_state_epoch("7", **options) == 7
-    assert bot.normalise_epoch_list(["7"], **options) == [7]
-    assert bot.normalise_optional_numeric_id("007", **options) == "007"
+    assert owner.epoch("7", **options) == 7
+    assert owner.epochs(["7"], **options) == [7]
+    assert owner.optional_id("007", **options) == "007"
 
 
 def test_ids_and_optional_scalars_keep_distinct_types_and_equality_shortcuts(tmp_path):
@@ -119,6 +90,7 @@ def test_ids_and_optional_scalars_keep_distinct_types_and_equality_shortcuts(tmp
             raise AssertionError("empty equality must precede conversion")
 
     options = {"key": "id", "path": tmp_path}
+    owner = values.StateValues(log=Mock(), maximum_epoch=10)
     assert bot.bounded_tweet_id_value("") is None
     assert bot.bounded_tweet_id_value("", allow_empty=True) == 0
     assert bot.bounded_tweet_id_value(EmptyLike(), allow_empty=True) == 0
@@ -128,14 +100,14 @@ def test_ids_and_optional_scalars_keep_distinct_types_and_equality_shortcuts(tmp
     assert bot.bounded_tweet_id_value("٠١٢") == 12
     assert bot.bounded_tweet_id_value("0" * 29 + "7") == 7
     assert bot.bounded_tweet_id_value("0" * 30 + "7") is None
-    assert bot.normalise_optional_numeric_id(EmptyLike(), **options) == ""
-    assert bot.normalise_optional_numeric_id(7, **options) == "7"
-    assert bot.normalise_optional_numeric_id(Text("007"), **options) == "007"
-    assert bot.normalise_optional_numeric_id(True, **options) is None
-    assert bot.normalise_optional_scalar(True, **options) == "True"
-    assert bot.normalise_optional_scalar(Text("007"), **options) == "007"
-    assert bot.normalise_optional_scalar(None, **options) == ""
-    assert bot.normalise_optional_scalar(7.0, **options) is None
+    assert owner.optional_id(EmptyLike(), **options) == ""
+    assert owner.optional_id(7, **options) == "7"
+    assert owner.optional_id(Text("007"), **options) == "007"
+    assert owner.optional_id(True, **options) is None
+    assert owner.optional_scalar(True, **options) == "True"
+    assert owner.optional_scalar(Text("007"), **options) == "007"
+    assert owner.optional_scalar(None, **options) == ""
+    assert owner.optional_scalar(7.0, **options) is None
 
 
 def test_current_regex_and_optional_id_callback_keep_text_and_error_order(monkeypatch, tmp_path):
@@ -149,11 +121,11 @@ def test_current_regex_and_optional_id_callback_keep_text_and_error_order(monkey
         bot.bounded_tweet_id_value("007")
     assert caught.value is failure
     monkeypatch.setattr(values, "bounded_tweet_id_value", bounded)
-    monkeypatch.setattr(bot, "log", logger)
-    assert bot.normalise_optional_numeric_id("007", key="id", path=tmp_path) == "007"
+    owner = values.StateValues(log=logger, maximum_epoch=10)
+    assert owner.optional_id("007", key="id", path=tmp_path) == "007"
     bounded.assert_called_once_with("007")
     bounded.return_value = None
-    assert bot.normalise_optional_numeric_id(7, key="id", path=tmp_path) is None
+    assert owner.optional_id(7, key="id", path=tmp_path) is None
     logger.error.assert_called_once_with(
         "State candidate %s has invalid %s value %r; ignoring", tmp_path, "id", 7,
     )
@@ -161,7 +133,7 @@ def test_current_regex_and_optional_id_callback_keep_text_and_error_order(monkey
 
 def test_state_int_truth_conversion_and_narrow_error_boundary(monkeypatch, tmp_path):
     logger = Mock()
-    monkeypatch.setattr(bot, "log", logger)
+    owner = values.StateValues(log=logger, maximum_epoch=10)
     options = {"key": "count", "path": tmp_path}
     events = []
     truth, failure = False, None
@@ -178,20 +150,20 @@ def test_state_int_truth_conversion_and_narrow_error_boundary(monkeypatch, tmp_p
             return 7
 
     value = Number()
-    assert bot.normalise_state_int(value, **options) == 0
+    assert owner.integer(value, **options) == 0
     assert events == ["truth"]
     truth = True
     events.clear()
-    assert bot.normalise_state_int(value, **options) == 7
+    assert owner.integer(value, **options) == 7
     assert events == ["truth", "int"]
-    assert bot.normalise_state_int(" 007 ", **options) == 7
-    assert bot.normalise_state_int(-1, **options) is None
+    assert owner.integer(" 007 ", **options) == 7
+    assert owner.integer(-1, **options) is None
     logger.error.assert_called_once_with(
         "State candidate %s has negative %s value %r; ignoring", tmp_path, "count", -1,
     )
     for failure in (TypeError("type"), ValueError("value"), OverflowError("overflow")):
         logger.reset_mock()
-        assert bot.normalise_state_int(value, **options) is None
+        assert owner.integer(value, **options) is None
         logger.error.assert_called_once_with(
             "State candidate %s has invalid %s value %r; ignoring", tmp_path, "count", value,
         )
@@ -199,7 +171,7 @@ def test_state_int_truth_conversion_and_narrow_error_boundary(monkeypatch, tmp_p
     failure = RuntimeError("native conversion failure")
     logger.reset_mock()
     with pytest.raises(RuntimeError) as caught:
-        bot.normalise_state_int(value, **options)
+        owner.integer(value, **options)
     assert caught.value is failure
     logger.error.assert_not_called()
 
@@ -207,19 +179,19 @@ def test_state_int_truth_conversion_and_narrow_error_boundary(monkeypatch, tmp_p
 def test_state_int_uses_owned_math_outside_the_conversion_catch(monkeypatch, tmp_path):
     finite, logger = Mock(return_value=False), Mock()
     monkeypatch.setattr(values, "math", SimpleNamespace(isfinite=finite))
-    monkeypatch.setattr(bot, "log", logger)
+    owner = values.StateValues(log=logger, maximum_epoch=10)
     options = {"key": "count", "path": tmp_path}
-    assert bot.normalise_state_int(True, **options) is None
+    assert owner.integer(True, **options) is None
     finite.assert_not_called()
-    assert bot.normalise_state_int(2.0, **options) is None
+    assert owner.integer(2.0, **options) is None
     finite.assert_called_once_with(2.0)
     finite.return_value = True
-    assert bot.normalise_state_int(2.0, **options) == 2
+    assert owner.integer(2.0, **options) == 2
     failure = ValueError("native math failure")
     finite.side_effect = failure
     logger.reset_mock()
     with pytest.raises(ValueError) as caught:
-        bot.normalise_state_int(2.0, **options)
+        owner.integer(2.0, **options)
     assert caught.value is failure
     logger.error.assert_not_called()
 
@@ -229,27 +201,26 @@ def test_epochs_use_current_callbacks_inclusive_cap_and_original_list(monkeypatc
     number, epochs = Mock(return_value=10), Mock(return_value=[0, 10])
     patch_value_method(monkeypatch, "integer", number)
     patch_value_method(monkeypatch, "integers", epochs)
-    monkeypatch.setattr(bot, "MAX_REASONABLE_STATE_EPOCH", 10)
-    monkeypatch.setattr(bot, "log", logger)
+    owner = values.StateValues(log=logger, maximum_epoch=10)
     options = {"key": "epoch", "path": tmp_path}
-    assert bot.normalise_state_epoch(original, **options) == 10
-    assert bot.normalise_epoch_list(original, **options) is epochs.return_value
+    assert owner.epoch(original, **options) == 10
+    assert owner.epochs(original, **options) is epochs.return_value
     number.assert_called_once_with(original, **options)
     epochs.assert_called_once_with(original, **options)
     logger.error.assert_not_called()
-    monkeypatch.setattr(bot, "MAX_REASONABLE_STATE_EPOCH", 9)
-    assert bot.normalise_state_epoch(original, **options) is None
-    assert bot.normalise_epoch_list(original, **options) is None
+    owner = values.StateValues(log=logger, maximum_epoch=9)
+    assert owner.epoch(original, **options) is None
+    assert owner.epochs(original, **options) is None
     assert logger.error.call_args_list == [
         call("State candidate %s has impossible epoch %s=%r; ignoring", tmp_path, "epoch", original),
         call("State candidate %s has impossible %s epoch item %r; ignoring", tmp_path, "epoch", 10),
     ]
     epochs.return_value = [10, object()]
-    assert bot.normalise_epoch_list(original, **options) is None
+    assert owner.epochs(original, **options) is None
     number.return_value = epochs.return_value = None
     logger.reset_mock()
-    assert bot.normalise_state_epoch(original, **options) is None
-    assert bot.normalise_epoch_list(original, **options) is None
+    assert owner.epoch(original, **options) is None
+    assert owner.epochs(original, **options) is None
     logger.error.assert_not_called()
 
 
@@ -265,18 +236,18 @@ def test_string_containers_skip_only_none_and_preserve_collision_order(monkeypat
             raise ValueError("native string failure")
 
     options = {"key": "items", "path": tmp_path}
-    assert bot.normalise_string_list(Rows([None, 0, False, ""]), **options) == ["0", "False", ""]
-    source = Mapping({1: False, "after": 0, "1": "", Unconvertible(): None})
-    assert list(bot.normalise_string_map(source, **options).items()) == [("1", ""), ("after", "0")]
     logger = Mock()
-    monkeypatch.setattr(bot, "log", logger)
-    assert bot.normalise_string_list((), **options) is None
+    owner = values.StateValues(log=logger, maximum_epoch=10)
+    assert owner.strings(Rows([None, 0, False, ""]), **options) == ["0", "False", ""]
+    source = Mapping({1: False, "after": 0, "1": "", Unconvertible(): None})
+    assert list(owner.string_map(source, **options).items()) == [("1", ""), ("after", "0")]
+    assert owner.strings((), **options) is None
     logger.error.assert_called_once_with(
         "State candidate %s has invalid %s type %s; ignoring", tmp_path, "items", "tuple",
     )
     logger.reset_mock()
     with pytest.raises(ValueError, match="native string failure"):
-        bot.normalise_string_map({1: Unconvertible()}, **options)
+        owner.string_map({1: Unconvertible()}, **options)
     logger.error.assert_not_called()
 
 
@@ -284,8 +255,9 @@ def test_int_collections_keep_callback_stop_and_key_format_conversion_order(monk
     first, rejected, later = object(), object(), object()
     normalizer = Mock(side_effect=[1, None])
     patch_value_method(monkeypatch, "integer", normalizer)
+    owner = values.StateValues(log=Mock(), maximum_epoch=10)
     options = {"key": "counts", "path": tmp_path}
-    assert bot.normalise_int_list([first, rejected, later], **options) is None
+    assert owner.integers([first, rejected, later], **options) is None
     assert normalizer.call_args_list == [call(first, **options), call(rejected, **options)]
     events = []
 
@@ -310,14 +282,14 @@ def test_int_collections_keep_callback_stop_and_key_format_conversion_order(monk
     patch_value_method(monkeypatch, "integer", normalize)
     one, two = Key("one"), Key("two")
     source = {one: 1, "after": 2, two: 3}
-    assert list(bot.normalise_int_map(source, **options).items()) == [("same", 3), ("after", 2)]
+    assert list(owner.integer_map(source, **options).items()) == [("same", 3), ("after", 2)]
     assert events == [
         ("format", "one"), ("normalize", "counts.one"), ("str", "one"),
         ("normalize", "counts.after"),
         ("format", "two"), ("normalize", "counts.two"), ("str", "two"),
     ]
     events.clear()
-    assert bot.normalise_int_map({one: None, two: 2}, **options) is None
+    assert owner.integer_map({one: None, two: 2}, **options) is None
     assert events == [("format", "one"), ("normalize", "counts.one")]
 
 
@@ -333,15 +305,16 @@ def test_record_maps_keep_shallow_copies_collision_order_and_early_failure(monke
     row = Record(nested=nested)
     source = {1: {"old": True}, "after": row, "1": row}
     options = {"key": "records", "path": tmp_path}
-    result = bot.normalise_record_map(source, **options)
+    logger = Mock()
+    owner = values.StateValues(log=logger, maximum_epoch=10)
+    result = owner.record_map(source, **options)
     assert list(result) == ["1", "after"]
     assert result["1"] == result["after"] == row
     assert result["1"] is not row and result["after"] is not row
     assert result["1"] is not result["after"]
     assert result["1"]["nested"] is result["after"]["nested"] is nested
-    bad_key, logger = Unconvertible(), Mock()
-    monkeypatch.setattr(bot, "log", logger)
-    assert bot.normalise_record_map({bad_key: None, Unconvertible(): row}, **options) is None
+    bad_key = Unconvertible()
+    assert owner.record_map({bad_key: None, Unconvertible(): row}, **options) is None
     logger.error.assert_called_once_with(
         "State candidate %s has invalid %s.%s type %s; ignoring",
         tmp_path, "records", bad_key, "NoneType",
@@ -359,11 +332,11 @@ def test_collection_subclasses_keep_native_iteration_failures(monkeypatch, tmp_p
         def items(self):
             raise failure
 
-    monkeypatch.setattr(bot, "log", logger)
+    owner = values.StateValues(log=logger, maximum_epoch=10)
     for normalizer, source in (
-        (bot.normalise_string_list, Rows()), (bot.normalise_int_list, Rows()),
-        (bot.normalise_string_map, Mapping()), (bot.normalise_int_map, Mapping()),
-        (bot.normalise_record_map, Mapping()),
+        (owner.strings, Rows()), (owner.integers, Rows()),
+        (owner.string_map, Mapping()), (owner.integer_map, Mapping()),
+        (owner.record_map, Mapping()),
     ):
         with pytest.raises(RuntimeError) as caught:
             normalizer(source, key="items", path=tmp_path)

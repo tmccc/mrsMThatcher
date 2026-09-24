@@ -2284,46 +2284,6 @@ def _state_values_owner() -> _state_value_normalisation.StateValues:
 bounded_tweet_id_value = _state_value_normalisation.bounded_tweet_id_value
 
 
-def normalise_state_int(value: object, *, key: str, path: Path) -> int | None:
-    """Normalise state int."""
-    return _state_values_owner().integer(value, key=key, path=path)
-
-
-def normalise_state_epoch(value: object, *, key: str, path: Path) -> int | None:
-    """Normalise state epoch."""
-    return _state_values_owner().epoch(value, key=key, path=path)
-
-
-def normalise_string_list(value: object, *, key: str, path: Path) -> list[str] | None:
-    """Normalise string list."""
-    return _state_values_owner().strings(value, key=key, path=path)
-
-
-def normalise_int_list(value: object, *, key: str, path: Path) -> list[int] | None:
-    """Normalise int list."""
-    return _state_values_owner().integers(value, key=key, path=path)
-
-
-def normalise_epoch_list(value: object, *, key: str, path: Path) -> list[int] | None:
-    """Normalise epoch list."""
-    return _state_values_owner().epochs(value, key=key, path=path)
-
-
-def normalise_string_map(value: object, *, key: str, path: Path) -> dict[str, str] | None:
-    """Normalise string map."""
-    return _state_values_owner().string_map(value, key=key, path=path)
-
-
-def normalise_int_map(value: object, *, key: str, path: Path) -> dict[str, int] | None:
-    """Normalise int map."""
-    return _state_values_owner().integer_map(value, key=key, path=path)
-
-
-def normalise_record_map(value: object, *, key: str, path: Path) -> dict[str, dict] | None:
-    """Normalise record map."""
-    return _state_values_owner().record_map(value, key=key, path=path)
-
-
 def quote_repeated_cursor_suppression_record(
     post_id: object,
     value: object,
@@ -2567,16 +2527,6 @@ def mention_pagination_has_canonical_page_ownership(
 def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dict | None:
     """Validate compact per-author no-reply strike and quarantine records."""
     return _author_quarantine_owner().normalise(value, path=path)
-
-
-def normalise_optional_scalar(value: object, *, key: str, path: Path) -> str | None:
-    """Normalise optional scalar."""
-    return _state_values_owner().optional_scalar(value, key=key, path=path)
-
-
-def normalise_optional_numeric_id(value: object, *, key: str, path: Path) -> str | None:
-    """Normalise optional numeric ID."""
-    return _state_values_owner().optional_id(value, key=key, path=path)
 
 
 def validate_meme_schedule_state(state: dict, *, path: Path) -> bool:

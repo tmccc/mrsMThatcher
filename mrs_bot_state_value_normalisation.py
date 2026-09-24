@@ -1,7 +1,8 @@
 """Normalise durable state scalar and collection values.
 
-A fresh StateValues owner binds the current logger and epoch cap on
-each root call; fixed numeric operations and the shared bounded ID grammar live here; nested scalar and collection operations call their owner directly.
+A fresh StateValues owner binds the current logger and epoch cap when the root
+composes state normalization; fixed numeric operations and the shared bounded
+ID grammar live here; nested scalar and collection operations call their owner directly.
 Distinct ID/scalar coercions, validation and logging order, shallow record copies
 and epoch-list identity stay unchanged. Full state/schema/reader validation, higher-level mention/cache/receipt
 policy and durable I/O remain in their existing locations. The owner retains

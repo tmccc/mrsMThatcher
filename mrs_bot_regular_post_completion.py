@@ -9,6 +9,10 @@ callbacks or mutable state are retained beyond a call.
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mrs_bot_state_generation import StateCommitProof
 
 
 def complete_regular_post_persistence(
@@ -17,10 +21,10 @@ def complete_regular_post_persistence(
     state: dict,
     receipt: dict,
     *,
-    save_regular_post_protected_state: Callable,
-    enqueue_historical_context_obligation: Callable,
-    retire_transport_journal: Callable[[], None],
-    remove_regular_post_receipt: Callable,
+    save_regular_post_protected_state: Callable[..., StateCommitProof],
+    enqueue_historical_context_obligation: Callable[[dict], dict],
+    retire_transport_journal: Callable[[StateCommitProof], None],
+    remove_regular_post_receipt: Callable[..., None],
 ) -> None:
     """Save confirmed state and evidence before retiring recovery authority.
 

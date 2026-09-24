@@ -149,8 +149,6 @@ def test_normalization_keeps_permissive_ids_optional_scalars_and_new_reference_c
         state_values.StateValues, "epoch",
         lambda self, *args, **kwargs: epoch(*args, **kwargs),
     )
-    root_epoch = Mock(side_effect=AssertionError("cache used obsolete root epoch relay"))
-    monkeypatch.setattr(bot, "normalise_state_epoch", root_epoch)
     result = bot.normalise_tweet_cache(source, path=path)
     assert result == {"17": {
         "id": "99", "author_id": "", "conversation_id": "99", "created_at": "",
@@ -161,7 +159,6 @@ def test_normalization_keeps_permissive_ids_optional_scalars_and_new_reference_c
     assert result["17"]["referenced_tweets"] is not refs
     assert result["17"]["referenced_tweets"][0] is not refs[0]
     epoch.assert_called_once_with("100", key="tweet_cache.17.cached_epoch", path=path)
-    root_epoch.assert_not_called()
     assert source == before
 
 

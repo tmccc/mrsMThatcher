@@ -63,7 +63,7 @@ if TYPE_CHECKING:
     from mrs_bot_quote_discovery import QuoteWatchPosts
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
     from mrs_bot_runtime_control import RuntimeControls
-    from single_call_reply import PipelineResult
+    from single_call_reply import PipelineResult, ValidatedReply as ValidatedReplyValue
 
 
 def quote_tweet_is_old_enough(
@@ -1004,7 +1004,7 @@ def _resolve_reply_evaluation(
 def _prepare_reply_receipt(
     candidate: _QuoteCandidate,
     original_post_id: str,
-    reply_text: object,
+    reply_text: ValidatedReplyValue,
     reply_context: dict,
     state: dict,
     *,
@@ -1064,7 +1064,7 @@ def _prepare_reply_receipt(
 def _retire_terminal_target(
     state: dict,
     quote_id: str,
-    reply_text: object,
+    reply_text: ValidatedReplyValue,
     *,
     failure_reason: str,
     reason: str,
@@ -1102,7 +1102,7 @@ def _retire_terminal_target(
 
 def _deliver_reply(
     quote_id: str,
-    reply_text: object,
+    reply_text: ValidatedReplyValue,
     receipt_template: dict,
     state: dict,
     *,

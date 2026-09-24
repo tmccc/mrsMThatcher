@@ -19,7 +19,10 @@ from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
-VALUE_METHODS = {'normalise_string_list': 'strings', 'normalise_epoch_list': 'epochs', 'normalise_string_map': 'string_map', 'normalise_int_map': 'integer_map', 'normalise_record_map': 'record_map', 'normalise_optional_scalar': 'optional_scalar', 'normalise_optional_numeric_id': 'optional_id', 'normalise_state_int': 'integer', 'normalise_state_epoch': 'epoch'}
+VALUE_METHODS = {
+    'strings', 'epochs', 'string_map', 'integer_map', 'record_map',
+    'optional_scalar', 'optional_id', 'integer', 'epoch',
+}
 
 AUTHORITY_METHODS = {'canonical_mention_pending_candidates': 'canonical_candidates', 'normalise_mention_pagination': 'normalise_pagination', 'normalise_mention_backlog_reset_guard': 'normalise_reset_guard', 'normalise_mention_backlog': 'normalise_backlog', 'validate_pending_mention_candidate_authority': 'validate_pending'}
 
@@ -34,7 +37,7 @@ def patch_normalization(monkeypatch, name, callback):
     """Observe the normalization owner while leaving runtime callbacks current."""
     if name in VALUE_METHODS:
         monkeypatch.setattr(
-            state_values.StateValues, VALUE_METHODS[name],
+            state_values.StateValues, name,
             lambda self, *args, **kwargs: callback(*args, **kwargs),
         )
     elif name in AUTHORITY_METHODS:
@@ -285,22 +288,22 @@ def test_candidate_keeps_group_order_callback_references_and_history_children(mo
              "ai_reply_history": [{"index": i} for i in range(1001)]}
     # One representative per group observes orchestration without duplicating normalizers.
     groups = [
-        ("replied_to_ids", "normalise_string_list", []),
-        ("x_error_epochs", "normalise_epoch_list", []),
-        ("hot_post_reply_since_ids", "normalise_string_map", {}),
+        ("replied_to_ids", "strings", []),
+        ("x_error_epochs", "epochs", []),
+        ("hot_post_reply_since_ids", "string_map", {}),
         ("quote_lookup_repeated_cursor_suppressions", "normalise_quote_repeated_cursor_suppressions", {}),
-        ("hot_post_reply_check_counts", "normalise_int_map", {}),
-        ("pending_ai_reply_drafts", "normalise_record_map", {}),
+        ("hot_post_reply_check_counts", "integer_map", {}),
+        ("pending_ai_reply_drafts", "record_map", {}),
         ("mention_pending_candidates", "canonical_mention_pending_candidates", {}),
-        ("daily_reply_date", "normalise_optional_scalar", ""),
-        ("last_seen_mention_id", "normalise_optional_numeric_id", ""),
+        ("daily_reply_date", "optional_scalar", ""),
+        ("last_seen_mention_id", "optional_id", ""),
         ("tweet_cache", "normalise_tweet_cache", {}),
         ("mention_pagination", "normalise_mention_pagination", {}),
         ("mention_backlog_reset_guard", "normalise_mention_backlog_reset_guard", {}),
         ("mention_backlog", "normalise_mention_backlog", {}),
         ("author_evaluation_quarantines", "normalise_author_evaluation_quarantines", {}),
-        ("daily_reply_count", "normalise_state_int", 3),
-        ("last_reply_epoch", "normalise_state_epoch", 9),
+        ("daily_reply_count", "integer", 3),
+        ("last_reply_epoch", "epoch", 9),
     ]
     for key, name, returned in groups:
         state[key] = object()
@@ -320,7 +323,6 @@ def test_candidate_keeps_group_order_callback_references_and_history_children(mo
     obsolete_relays = {
         name: Mock(side_effect=AssertionError(f"candidate used obsolete root relay: {name}"))
         for name in (
-            "normalise_state_epoch",
             "normalise_tweet_cache",
             "normalise_author_evaluation_quarantines",
             "prune_author_evaluation_quarantines",
@@ -336,8 +338,8 @@ def test_candidate_keeps_group_order_callback_references_and_history_children(mo
         "require_compatible_state_reader", "default_state",
         *[name for _, name, _ in groups[:13]],
         "prune_reply_evaluation_records", "validate_pending_mention_candidate_authority",
-        "normalise_author_evaluation_quarantines", "normalise_state_int",
-        "normalise_state_epoch", "validate_meme_schedule_version_for_candidate",
+        "normalise_author_evaluation_quarantines", "integer",
+        "epoch", "validate_meme_schedule_version_for_candidate",
         "prune_author_evaluation_quarantines",
     ]
     assert result is defaults and result is not state
@@ -367,7 +369,7 @@ def test_candidate_none_keeps_earlier_recovery_event_and_stops_before_authority(
     trace.cursors.return_value = ({}, 3)
     trace.scalar.return_value = None
     monkeypatch.setattr(bot, "normalise_quote_repeated_cursor_suppressions", trace.cursors)
-    patch_normalization(monkeypatch, "normalise_optional_scalar", trace.scalar)
+    patch_normalization(monkeypatch, "optional_scalar", trace.scalar)
     patch_normalization(monkeypatch, "prune_reply_evaluation_records", trace.prune)
     patch_normalization(monkeypatch, "validate_pending_mention_candidate_authority", trace.authority)
     cursor, scalar, events = object(), object(), []
@@ -415,7 +417,7 @@ def test_overflow_hash_and_reset_precede_pruning_and_authority_with_partial_even
     trace.sha256.return_value.hexdigest.return_value = "0123456789abcdefextra"
     monkeypatch.setattr(bot, "MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT", 1)
     patch_normalization(monkeypatch, "normalise_mention_backlog", trace.backlog)
-    patch_normalization(monkeypatch, "normalise_optional_numeric_id", trace.watermark)
+    patch_normalization(monkeypatch, "optional_id", trace.watermark)
     monkeypatch.setattr(validation, "hashlib", SimpleNamespace(sha256=trace.sha256))
     monkeypatch.setattr(bot, "validate_meme_schedule_version_for_candidate", trace.schedule)
     patch_normalization(monkeypatch, "prune_author_evaluation_quarantines", trace.final)

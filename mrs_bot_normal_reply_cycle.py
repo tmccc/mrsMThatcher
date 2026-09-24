@@ -70,7 +70,7 @@ if TYPE_CHECKING:
     from mrs_bot_reply_history import ReplyHistory
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
     from mrs_bot_runtime_control import RuntimeControls
-    from single_call_reply import PipelineResult
+    from single_call_reply import PipelineResult, ValidatedReply as ValidatedReplyValue
 
 
 @dataclass(frozen=True)
@@ -1029,7 +1029,7 @@ def _retire_terminal_target(
     state: dict,
     candidate: _ReplyCandidate,
     replied_to_ids: set[str],
-    reply_text: object,
+    reply_text: ValidatedReplyValue,
     *,
     failure_reason: str,
     reason: str,
@@ -1075,7 +1075,7 @@ def _deliver_reply(
     state: dict,
     candidate: _ReplyCandidate,
     replied_to_ids: set[str],
-    reply_text: object,
+    reply_text: ValidatedReplyValue,
     receipt_template: dict,
     *,
     config: NormalReplyConfig,

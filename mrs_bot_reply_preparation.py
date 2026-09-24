@@ -14,13 +14,14 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mrs_bot_reply_cycle_interfaces import ReplyCyclePersistence
+    from single_call_reply import ValidatedReply as ValidatedReplyValue
 
 
 def persist_validated_reply_draft(
     state: dict,
     target_id: str,
     candidate_source: str,
-    reply_text: object,
+    reply_text: ValidatedReplyValue,
     reply_context: dict,
     *,
     SINGLE_CALL_STRATEGY_VERSION: str,
