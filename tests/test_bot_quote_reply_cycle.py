@@ -72,11 +72,9 @@ assert 'single_call_reply' not in sys.modules
 
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
     names = {
-        "quote_tweet_is_old_enough": 4,
         "quote_tweet_directly_quotes_original": 0,
         "mark_quote_tweet_skipped": 0,
         "mark_quote_tweet_replied": 0,
-        "mark_quote_spam_author": 1,
         "maybe_reply_to_quote_tweets": None,
     }
     owner_factories = {
@@ -98,8 +96,12 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         if count is None:
             assert tuple(public) == ("state",)
             assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
-            assert len(parameters) == 34
-            assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 33
+            assert {"quote_tweet_is_old_enough", "mark_quote_spam_author"}.isdisjoint(parameters)
+            assert {"now_epoch", "parse_x_datetime_to_epoch"} <= parameters.keys()
+            for helper in (cycle._candidate_is_eligible, cycle._author_allows_evaluation):
+                assert {"quote_tweet_is_old_enough", "mark_quote_spam_author"}.isdisjoint(
+                    inspect.signature(helper).parameters
+                )
             removed = {
                 key for key in vars(interfaces) if key.startswith("QUOTE_CHECK_STATUS_")
             } | {
@@ -166,6 +168,9 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
                     draft_owner.assert_called_once_with(
                         history=current["history"], generation=current["generation"],
                     )
+                    assert bot._reply_cycle_interfaces.QuoteReplyConfig.call_args.kwargs[
+                        "minimum_quote_age_seconds"
+                    ] == bot.QUOTE_REPLY_DELAY_SECONDS
                 actual_args, actual_kwargs = owner.call_args
                 assert len(actual_args) == len(args)
                 assert all(actual is expected for actual, expected in zip(actual_args, args))
@@ -227,31 +232,62 @@ def test_fixed_statuses_and_terminal_lookup_use_their_owners():
     assert bot.daily_author_reply_counts is accounting_owner.daily_author_reply_counts
 
 
-def test_age_uses_current_parser_clock_delay_and_native_errors(monkeypatch):
+def test_age_uses_supplied_parser_clock_delay_and_native_errors():
     quote = {"id": "910", "created_at": object()}
     parser, clock, log = Mock(return_value=100), Mock(return_value=199), Mock()
-    monkeypatch.setattr(bot, "parse_x_datetime_to_epoch", parser)
-    monkeypatch.setattr(bot, "now_epoch", clock)
-    monkeypatch.setattr(bot, "QUOTE_REPLY_DELAY_SECONDS", 100)
-    monkeypatch.setattr(bot, "log", log)
-    assert bot.quote_tweet_is_old_enough(quote) is False
+    trace = Mock()
+    trace.attach_mock(parser, "parse")
+    trace.attach_mock(clock, "clock")
+
+    def old_enough():
+        return cycle.quote_tweet_is_old_enough(
+            quote, QUOTE_REPLY_DELAY_SECONDS=100, log=log,
+            now_epoch=clock, parse_x_datetime_to_epoch=parser,
+        )
+
+    assert old_enough() is False
+    assert trace.mock_calls[:2] == [call.parse(quote["created_at"]), call.clock()]
     clock.return_value = 200
-    assert bot.quote_tweet_is_old_enough(quote) is True
+    assert old_enough() is True
     parser.assert_called_with(quote["created_at"])
     assert parser.call_args.args[0] is quote["created_at"]
     log.debug.assert_called_with(
         "Quote tweet id=%s age_seconds=%s required_delay=%s", "910", 100, 100,
     )
+    clock.return_value = 201
+    assert old_enough() is True
     parser.return_value = None
     clock.reset_mock()
-    assert bot.quote_tweet_is_old_enough(quote) is False
+    assert old_enough() is False
     clock.assert_not_called()
     assert "retried later" in log.warning.call_args.args[0]
     failure = TypeError("current parser failed")
     parser.side_effect = failure
     with pytest.raises(TypeError) as caught:
-        bot.quote_tweet_is_old_enough(quote)
+        old_enough()
     assert caught.value is failure
+
+
+def test_cycle_binds_current_age_inputs_on_each_invocation(monkeypatch):
+    _configure_cycle(monkeypatch)
+    state = bot.default_state()
+    age_check = Mock(return_value=False)
+    monkeypatch.setattr(cycle, "quote_tweet_is_old_enough", age_check)
+
+    for threshold in (100, 200):
+        clock = Mock(return_value=2_000_000_000 + threshold)
+        parser = Mock(return_value=2_000_000_000)
+        monkeypatch.setattr(bot, "QUOTE_REPLY_DELAY_SECONDS", threshold)
+        monkeypatch.setattr(bot, "now_epoch", clock)
+        monkeypatch.setattr(bot, "parse_x_datetime_to_epoch", parser)
+        assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+        assert age_check.call_args.kwargs == {
+            "QUOTE_REPLY_DELAY_SECONDS": threshold,
+            "log": bot.log,
+            "now_epoch": clock,
+            "parse_x_datetime_to_epoch": parser,
+        }
+    assert age_check.call_count == 2
 
 
 def test_direct_quote_uses_only_structured_references_and_retweet_veto(monkeypatch):
@@ -320,8 +356,7 @@ def test_markers_preserve_bounded_and_durable_lists_and_mutation_before_failure(
     assert state["seen_quote_post_ids"][-1] == "3002"
     assert "3002" not in state["replied_to_quote_post_ids"]
     log = Mock()
-    monkeypatch.setattr(bot, "log", log)
-    bot.mark_quote_spam_author(state, 3003)
+    cycle.mark_quote_spam_author(state, 3003, log=log)
     assert len(state["quote_spam_author_ids"]) == 2000
     assert state["quote_spam_author_ids"][-1] == "3003"
     assert log.info.call_args.args[1:] == ("3003", 2000)
@@ -492,12 +527,31 @@ def test_quote_scan_keeps_fixed_ledgers_but_shares_newly_classified_spam_authors
             for key in ("seen_quote_post_ids", "replied_to_quote_post_ids",
                         "skipped_quote_post_ids", "replied_to_ids"):
                 state.setdefault(key, []).append("911")
-            state.setdefault("quote_spam_author_ids", []).append(author_id)
+            if not first_is_spam:
+                state.setdefault("quote_spam_author_ids", []).append(author_id)
         return first_is_spam
 
     generate = Mock(return_value=bot.PipelineResult(
         status="no_reply", reason="model_selected_no_reply", model_call_count=1,
     ))
+    trace = Mock()
+    mark_spam = Mock(wraps=cycle.mark_quote_spam_author)
+    trace.attach_mock(mark_spam, "mark_spam")
+    monkeypatch.setattr(cycle, "mark_quote_spam_author", mark_spam)
+    original_save = bot.save_state
+    saved_spam_snapshots = []
+
+    def save_with_snapshot(saved_state, **kwargs):
+        saved_spam_snapshots.append((
+            saved_state is state,
+            list(saved_state["skipped_quote_post_ids"]),
+            list(saved_state["quote_spam_author_ids"]),
+        ))
+        return original_save(saved_state, **kwargs)
+
+    save = Mock(wraps=save_with_snapshot)
+    trace.attach_mock(save, "save")
+    monkeypatch.setattr(bot, "save_state", save)
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", classify)
     patch_reply_owner_method(monkeypatch, generation_owner.ReplyGeneration, "evaluate", generate)
     monkeypatch.setattr(bot, "MAX_QUOTE_POSTS_PER_CHECK", 2)
@@ -508,7 +562,15 @@ def test_quote_scan_keeps_fixed_ledgers_but_shares_newly_classified_spam_authors
         # the second quote is stopped before another classifier/model call.
         assert len(classifier_calls) == 1
         generate.assert_not_called()
+        mark_spam.assert_called_once_with(state, author_id, log=bot.log)
+        assert mark_spam.call_args.args[0] is state
+        names = [entry[0] for entry in trace.mock_calls]
+        assert names.index("mark_spam") < names.index("save", names.index("mark_spam"))
+        first_save_after_mark = names[:names.index("mark_spam")].count("save")
+        same_state, skipped, spam = saved_spam_snapshots[first_save_after_mark]
+        assert same_state and "910" in skipped and author_id in spam
     else:
+        mark_spam.assert_not_called()
         assert len(classifier_calls) == 2
         assert [entry.args[0]["target_id"] for entry in generate.call_args_list] == ["910", "911"]
     assert author_id in state["quote_spam_author_ids"]
@@ -624,7 +686,7 @@ def test_lookup_failure_continues_only_when_fetching_the_original(monkeypatch, b
         parent: [{"id": target, "referenced_tweets": [{"type": "quoted", "id": parent}]}]
         for parent, target in [("900", "910"), ("901", "911")]
     }
-    monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _quote: False)
+    monkeypatch.setattr(cycle, "quote_tweet_is_old_enough", lambda _quote, **_kwargs: False)
     if boundary == "original":
         lookup.side_effect = [failure, original]
     else:

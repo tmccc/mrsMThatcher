@@ -112,6 +112,7 @@ def prepare_delivery(lane, outcome, *, save_failure=None, retirement_failure=Non
         dependencies.update(
             config=QuoteReplyConfig(
                 **settings, quote_checks_enabled=True,
+                minimum_quote_age_seconds=0,
                 maximum_candidates=3, maximum_daily_quote_replies=3,
             ),
         )

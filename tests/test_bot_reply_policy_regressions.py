@@ -475,7 +475,7 @@ def test_quote_tweet_model_no_reply_is_durable_beyond_bounded_scan_lists(
     monkeypatch.setattr(bot._quote_discovery.QuoteWatchPosts, "lookup", lambda _owner, _state: ["900"])
     patch_tweet_lookup_method(monkeypatch, "get_cached", lambda *_args, **_kwargs: dict(own_post))
     monkeypatch.setattr(bot, "get_quote_tweets_for_posts", lambda *_args, **_kwargs: {"900": [dict(quote_post)]})
-    monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _tweet: True)
+    monkeypatch.setattr(bot._quote_reply_cycle, "quote_tweet_is_old_enough", lambda _tweet, **_kwargs: True)
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
     patch_reply_owner_method(
@@ -544,7 +544,7 @@ def test_quote_tweet_generic_403_remains_ambiguous_and_durable(
     monkeypatch.setattr(bot._quote_discovery.QuoteWatchPosts, "lookup", lambda _owner, _state: ["900"])
     patch_tweet_lookup_method(monkeypatch, "get_cached", lambda *_args, **_kwargs: dict(own_post))
     monkeypatch.setattr(bot, "get_quote_tweets_for_posts", lambda *_args, **_kwargs: {"900": [dict(quote_post)]})
-    monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _tweet: True)
+    monkeypatch.setattr(bot._quote_reply_cycle, "quote_tweet_is_old_enough", lambda _tweet, **_kwargs: True)
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
     patch_reply_owner_method(
@@ -998,8 +998,12 @@ def test_completed_clarification_threads_are_not_evicted_from_terminal_ledger() 
 
 
 def test_quote_tweet_missing_created_at_is_not_old_enough() -> None:
-    assert bot.quote_tweet_is_old_enough({"id": "123"}) is False
-    assert bot.quote_tweet_is_old_enough({"id": "123", "created_at": "not a date"}) is False
+    for quote in ({"id": "123"}, {"id": "123", "created_at": "not a date"}):
+        assert bot._quote_reply_cycle.quote_tweet_is_old_enough(
+            quote, QUOTE_REPLY_DELAY_SECONDS=bot.QUOTE_REPLY_DELAY_SECONDS,
+            log=bot.log, now_epoch=bot.now_epoch,
+            parse_x_datetime_to_epoch=bot.parse_x_datetime_to_epoch,
+        ) is False
 
 
 def test_completed_reply_target_ledger_never_evicts_old_ids() -> None:

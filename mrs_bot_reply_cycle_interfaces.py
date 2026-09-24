@@ -81,9 +81,10 @@ class NormalReplyConfig(ReplyCycleConfig):
 
 @dataclass(frozen=True)
 class QuoteReplyConfig(ReplyCycleConfig):
-    """Quote lookup activation and candidate/daily limits."""
+    """Quote lookup activation, age and candidate/daily limits."""
 
     quote_checks_enabled: bool
+    minimum_quote_age_seconds: int
     maximum_candidates: int
     maximum_daily_quote_replies: int
 

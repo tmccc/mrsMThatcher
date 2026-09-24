@@ -1047,7 +1047,7 @@ def test_quote_search_processes_new_quote_despite_legacy_cursor_suppression(
         lambda *_args, **_kwargs: dict(original),
     )
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
-    monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _tweet: True)
+    monkeypatch.setattr(bot._quote_reply_cycle, "quote_tweet_is_old_enough", lambda _tweet, **_kwargs: True)
     monkeypatch.setattr(
         bot,
         "is_probably_spam_or_not_worth_replying",

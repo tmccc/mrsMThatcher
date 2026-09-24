@@ -8025,17 +8025,6 @@ def get_quote_tweets_for_posts(post_ids: list[str], state: dict | None = None) -
     )
 
 
-def quote_tweet_is_old_enough(quote_tweet: dict) -> bool:
-    """Return whether quote tweet is old enough."""
-    return _quote_reply_cycle.quote_tweet_is_old_enough(
-        quote_tweet,
-        QUOTE_REPLY_DELAY_SECONDS=QUOTE_REPLY_DELAY_SECONDS,
-        log=log,
-        now_epoch=now_epoch,
-        parse_x_datetime_to_epoch=parse_x_datetime_to_epoch,
-    )
-
-
 def quote_tweet_directly_quotes_original(quote_tweet: dict, original_post_id: str) -> bool:
     """
     The /quote_tweets endpoint can surface reposts/retweets of someone else's
@@ -8068,15 +8057,6 @@ def mark_quote_tweet_replied(state: dict, quote_id: str) -> None:
     )
 
 
-def mark_quote_spam_author(state: dict, author_id: str) -> None:
-    """Mark quote spam author."""
-    return _quote_reply_cycle.mark_quote_spam_author(
-        state,
-        author_id,
-        log=log,
-    )
-
-
 # ---------------------------------------------------------------------
 # Runtime assembly: quote-tweet reply cycle
 # ---------------------------------------------------------------------
@@ -8098,6 +8078,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
             minimum_reply_spacing=MIN_SECONDS_BETWEEN_REPLIES,
             user_id=MY_USER_ID,
             quote_checks_enabled=ENABLE_QUOTE_TWEET_CHECKS,
+            minimum_quote_age_seconds=QUOTE_REPLY_DELAY_SECONDS,
             maximum_candidates=MAX_QUOTE_POSTS_PER_CHECK,
             maximum_daily_quote_replies=MAX_QUOTE_REPLIES_PER_DAY,
         ),
@@ -8128,9 +8109,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         log=log,
         log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
         log_event=log_event,
-        mark_quote_spam_author=mark_quote_spam_author,
         now_epoch=now_epoch,
-        quote_tweet_is_old_enough=quote_tweet_is_old_enough,
         parse_x_datetime_to_epoch=parse_x_datetime_to_epoch,
         reply_evaluations=_reply_evaluation_owner(),
         reply_evidence_repository=reply_evidence_repository,

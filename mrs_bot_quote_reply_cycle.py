@@ -225,10 +225,8 @@ def maybe_reply_to_quote_tweets(
     log: Logger,
     log_ai_reply_posting_outcome: Callable,
     log_event: Callable,
-    mark_quote_spam_author: Callable,
     now_epoch: Callable,
     parse_x_datetime_to_epoch: Callable,
-    quote_tweet_is_old_enough: Callable,
     reply_evaluations: ReplyEvaluations,
     history: ReplyHistory,
     reply_evidence_repository: Callable,
@@ -365,7 +363,8 @@ def maybe_reply_to_quote_tweets(
                 scan_history,
                 config=config,
                 log=log,
-                quote_tweet_is_old_enough=quote_tweet_is_old_enough,
+                now_epoch=now_epoch,
+                parse_x_datetime_to_epoch=parse_x_datetime_to_epoch,
                 persistence=persistence,
             ):
                 continue
@@ -381,7 +380,6 @@ def maybe_reply_to_quote_tweets(
                 is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying,
                 log=log,
                 log_event=log_event,
-                mark_quote_spam_author=mark_quote_spam_author,
                 persistence=persistence,
             ):
                 continue
@@ -569,7 +567,8 @@ def _candidate_is_eligible(
     *,
     config: QuoteReplyConfig,
     log: Logger,
-    quote_tweet_is_old_enough: Callable,
+    now_epoch: Callable,
+    parse_x_datetime_to_epoch: Callable,
     persistence: ReplyCyclePersistence,
 ) -> bool:
     """Apply identity, relationship and age gates against the cycle's original snapshots."""
@@ -644,7 +643,13 @@ def _candidate_is_eligible(
         persistence.save(state)
         return False
 
-    if not quote_tweet_is_old_enough(quote_tweet):
+    if not quote_tweet_is_old_enough(
+        quote_tweet,
+        QUOTE_REPLY_DELAY_SECONDS=config.minimum_quote_age_seconds,
+        log=log,
+        now_epoch=now_epoch,
+        parse_x_datetime_to_epoch=parse_x_datetime_to_epoch,
+    ):
         log.info(
             "Quote tweet %s is too recent; leaving unmarked so it can be checked later",
             quote_id,
@@ -666,7 +671,6 @@ def _author_allows_evaluation(
     is_probably_spam_or_not_worth_replying: Callable,
     log: Logger,
     log_event: Callable,
-    mark_quote_spam_author: Callable,
     persistence: ReplyCyclePersistence,
 ) -> bool:
     """Check cleaned text and author limits, retaining cap context and newly found spam."""
@@ -731,7 +735,7 @@ def _author_allows_evaluation(
         )
         log.debug("Quote spam check text for quote_id=%s: %r", quote_id, spam_check_text)
         mark_quote_tweet_skipped(state, quote_id)
-        mark_quote_spam_author(state, author_id)
+        mark_quote_spam_author(state, author_id, log=log)
         quote_spam_author_ids.add(author_id)
         persistence.save(state)
         return False
