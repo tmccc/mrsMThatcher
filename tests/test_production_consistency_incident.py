@@ -11,6 +11,7 @@ from types import SimpleNamespace
 import pytest
 
 import mrs_bot_asset_metadata as asset_metadata
+from mrs_bot_main_post_assembly import MainPostAssembly
 
 from tests.helpers.quote_candidate_overrides import patch_completed_research_quotes
 
@@ -413,8 +414,8 @@ def test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repos
     x_post_calls: list[dict] = []
     original_apply = bot._main_post_reconciliation.apply_regular_post_receipt
     original_enqueue = bot.enqueue_historical_context_obligation
-    original_remove = bot.remove_regular_post_receipt
-    original_save = bot.save_regular_post_protected_state
+    original_remove = MainPostAssembly.remove_regular
+    original_save = MainPostAssembly.save_regular_protected_state
     _enable_incident_protected_saves(monkeypatch)
 
     def tracked_apply(*args, **kwargs):
@@ -422,8 +423,8 @@ def test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repos
         order.append("main_state_applied")
         return result
 
-    def tracked_save(*args, **kwargs):
-        proof = original_save(*args, **kwargs)
+    def tracked_save(assembly, *args, **kwargs):
+        proof = original_save(assembly, *args, **kwargs)
         proof.require_receipt(receipt)
         order.append("main_state_saved")
         return proof
@@ -433,14 +434,14 @@ def test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repos
         order.append("context_obligation_enqueued")
         return obligation
 
-    def tracked_remove(receipt_to_remove: dict, *, commit_proof):
+    def tracked_remove(assembly, receipt_to_remove: dict, *, commit_proof):
         assert receipt_to_remove == receipt
         assert bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.exists()
         commit_proof.require_receipt(receipt_to_remove)
         assert bot.load_state()["last_main_post_id"] == receipt["post_id"]
         assert receipt["quote_hash"] in bot.load_used_set(bot.LINES_USED_FILE)
         assert receipt["image_basename"] in bot.load_used_set(bot.IMAGES_USED_FILE)
-        original_remove(receipt_to_remove, commit_proof=commit_proof)
+        original_remove(assembly, receipt_to_remove, commit_proof=commit_proof)
         order.append("main_receipt_removed")
 
     def context_only_attempt(**_kwargs):
@@ -457,16 +458,9 @@ def test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repos
         "apply_regular_post_receipt",
         tracked_apply,
     )
-    monkeypatch.setattr(
-        bot,
-        "apply_regular_post_receipt",
-        lambda *_args, **_kwargs: pytest.fail(
-            "receipt reconciliation returned through root apply relay"
-        ),
-    )
-    monkeypatch.setattr(bot, "save_regular_post_protected_state", tracked_save)
+    monkeypatch.setattr(MainPostAssembly, "save_regular_protected_state", tracked_save)
     monkeypatch.setattr(bot, "enqueue_historical_context_obligation", tracked_enqueue)
-    monkeypatch.setattr(bot, "remove_regular_post_receipt", tracked_remove)
+    monkeypatch.setattr(MainPostAssembly, "remove_regular", tracked_remove)
     monkeypatch.setattr(
         bot,
         "maybe_post_historical_context_reply",
@@ -477,8 +471,8 @@ def test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repos
     lines_used: set[str] = set()
     images_used: set[str] = set()
     state = bot.default_state()
-    assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is True
-    assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is False
+    assert bot._main_post_assembly().recovery_operation().reconcile_regular(lines_used, images_used, state) is True
+    assert bot._main_post_assembly().recovery_operation().reconcile_regular(lines_used, images_used, state) is False
 
     assert order == [
         "main_state_applied",
@@ -532,7 +526,7 @@ def test_confirmed_main_reconciliation_survives_unexpected_auxiliary_worker_faul
     lines_used: set[str] = set()
     images_used: set[str] = set()
     state = bot.default_state()
-    assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is True
+    assert bot._main_post_assembly().recovery_operation().reconcile_regular(lines_used, images_used, state) is True
 
     assert not bot.REGULAR_POST_RECEIPT_FILE.exists()
     assert state["last_main_post_id"] == receipt["post_id"]
@@ -651,7 +645,7 @@ def test_main_receipt_replay_accepts_all_existing_outbox_terminal_and_active_sta
         lambda **_kwargs: {"status": "skipped_future_policy"},
     )
 
-    assert bot.reconcile_regular_post_receipt(set(), set(), bot.default_state()) is True
+    assert bot._main_post_assembly().recovery_operation().reconcile_regular(set(), set(), bot.default_state()) is True
     assert not bot.REGULAR_POST_RECEIPT_FILE.exists()
     assert bot.load_state()["last_main_post_id"] == receipt["post_id"]
     assert receipt["quote_hash"] in bot.load_used_set(bot.LINES_USED_FILE)

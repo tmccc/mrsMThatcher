@@ -16,6 +16,9 @@ from mrs_bot_main_post_receipts import MainPostReceiptValues
 from tests.helpers.bot_runtime import bot
 from tests.helpers.reply_fixtures import patch_tweet_lookup_method
 from tests.helpers.bot_fixtures import (
+    patch_main_post_promotion,
+    patch_main_post_removal,
+    patch_main_post_handoff,
     isolate_bot_runtime,
     mock_confirmed_main_post,
     install_receipt_bound_x_request_stub,
@@ -38,11 +41,7 @@ def test_successful_meme_post_persists_post_and_future_schedule_in_one_state_sav
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
     monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -84,11 +83,7 @@ def test_meme_helper_failure_after_confirmation_leaves_receipt(
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
     monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -129,11 +124,7 @@ def test_daily_meme_missing_post_id_fails_without_success_side_effects(
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
     monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -171,11 +162,7 @@ def test_meme_post_uses_confirmed_time_across_midnight(tmp_path: Path, monkeypat
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
     monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(bot, "log_event", lambda *args, **kwargs: None)
     pre_confirm_epoch = int(datetime(2026, 7, 6, 23, 59, 50).timestamp())
     confirmed_epoch = int(datetime(2026, 7, 7, 0, 0, 5).timestamp())
@@ -245,11 +232,7 @@ def test_meme_schedule_finalisation_failure_after_confirmation_is_confirmed_loca
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
     monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -279,7 +262,7 @@ def test_meme_schedule_finalisation_failure_after_confirmation_is_confirmed_loca
     assert state["posted_meme_filenames"] == []
 
     expected = original_materialize(
-        bot._main_post_receipt_values_owner(), pending, _validate_result=False,
+        bot._main_post_assembly().values(), pending, _validate_result=False,
     )
     monkeypatch.setattr(
         MainPostReceiptValues,
@@ -314,11 +297,7 @@ def test_confirmed_meme_state_failure_reconciles_receipt(
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
     monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -346,8 +325,8 @@ def test_confirmed_meme_state_failure_reconciles_receipt(
 
     monkeypatch.setattr(bot, "save_state", real_save_state)
     recovered: dict = {}
-    assert bot.reconcile_meme_post_receipt(recovered) is True
-    assert bot.reconcile_meme_post_receipt(recovered) is False
+    assert bot._main_post_assembly().recovery_operation().reconcile_meme(recovered) is True
+    assert bot._main_post_assembly().recovery_operation().reconcile_meme(recovered) is False
     assert recovered["last_main_post_id"] == "970001"
     assert recovered["posted_meme_filenames"] == ["001_meme.png"]
     assert recovered["next_meme_post_epoch"] == receipt["next_meme_post_epoch"]
@@ -455,11 +434,7 @@ def test_confirmed_meme_receipt_write_failure_keeps_normal_schedule(
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
     monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -510,11 +485,7 @@ def test_confirmed_meme_sigint_is_delivered_only_after_durable_receipt(
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
     monkeypatch.setattr(bot, "upload_media", lambda _path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -751,8 +722,8 @@ def test_meme_normal_success_atomically_promotes_sending_attempt(
 
     monkeypatch.setattr(bot, "create_post", actual_create_post)
     install_receipt_bound_x_request_stub(monkeypatch, confirmed_create)
-    monkeypatch.setattr(
-        bot, "remove_meme_post_receipt", lambda *_args, **_kwargs: None
+    patch_main_post_removal(
+        monkeypatch, "daily_meme", lambda *_args, **_kwargs: None
     )
     bot.post_next_meme(state)
 
@@ -779,11 +750,7 @@ def test_meme_ambiguous_create_without_marker_uses_durable_attempt_barrier(
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
     monkeypatch.setattr(bot, "upload_media", lambda _path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
 
     def ambiguous_create(**kwargs: object) -> dict:
@@ -830,11 +797,7 @@ def test_meme_emergency_canonical_state_survives_backup_failure(
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
     monkeypatch.setattr(bot, "upload_media", lambda _path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -843,9 +806,8 @@ def test_meme_emergency_canonical_state_survives_backup_failure(
         ),
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
-    monkeypatch.setattr(
-        bot,
-        "promote_main_post_attempt_to_confirmed_pending_schedule",
+    patch_main_post_promotion(
+        monkeypatch,
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("receipt failed")),
     )
     monkeypatch.setattr(
@@ -885,16 +847,11 @@ def test_meme_total_persistence_loss_latches_all_remote_writes(
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
     monkeypatch.setattr(bot, "upload_media", lambda _path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(bot, "create_post", confirmed_create)
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
-    monkeypatch.setattr(
-        bot,
-        "promote_main_post_attempt_to_confirmed_pending_schedule",
+    patch_main_post_promotion(
+        monkeypatch,
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("receipt failed")),
     )
     monkeypatch.setattr(
@@ -941,11 +898,7 @@ def test_meme_total_persistence_and_marker_loss_uses_durable_attempt_barrier(
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
     monkeypatch.setattr(bot, "upload_media", lambda _path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -954,9 +907,8 @@ def test_meme_total_persistence_and_marker_loss_uses_durable_attempt_barrier(
         ),
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
-    monkeypatch.setattr(
-        bot,
-        "promote_main_post_attempt_to_confirmed_pending_schedule",
+    patch_main_post_promotion(
+        monkeypatch,
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("receipt failed")),
     )
     monkeypatch.setattr(
@@ -1003,11 +955,7 @@ def test_confirmed_meme_with_incomplete_emergency_state_latches(
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
     monkeypatch.setattr(bot, "upload_media", lambda _path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -1062,11 +1010,7 @@ def test_meme_receipt_removal_failure_keeps_future_meme_schedule(
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
     monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -1075,9 +1019,8 @@ def test_meme_receipt_removal_failure_keeps_future_meme_schedule(
         ),
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
-    monkeypatch.setattr(
-        bot,
-        "remove_meme_post_receipt",
+    patch_main_post_removal(
+        monkeypatch, "daily_meme",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("remove failed")),
     )
     monkeypatch.setattr(bot, "log_event", lambda *args, **kwargs: None)

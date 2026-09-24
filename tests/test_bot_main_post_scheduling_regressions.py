@@ -17,6 +17,7 @@ import pytest
 
 from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from mrs_bot_main_post_receipts import MainPostReceiptValues
+from mrs_bot_main_post_assembly import MainPostAssembly
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,
@@ -25,6 +26,7 @@ from tests.helpers.bot_fixtures import (
     valid_regular_receipt,
     valid_regular_receipt_v2,
     schema_current_main_attempt,
+    patch_main_post_removal,
 )
 
 
@@ -64,7 +66,7 @@ def test_pending_schedule_plan_survives_current_configuration_change(
         lines_used: set[str] = set()
         images_used: set[str] = set()
         state: dict = {}
-        bot.apply_regular_post_receipt(
+        bot._main_post_assembly().recovery_operation().apply_regular(
             receipt,
             lines_used,
             images_used,
@@ -75,7 +77,7 @@ def test_pending_schedule_plan_survives_current_configuration_change(
         next_dt = datetime.fromtimestamp(receipt["next_meme_post_epoch"])
         assert (next_dt.hour, next_dt.minute) == (16, 0)
         state = {}
-        bot.apply_meme_post_receipt(receipt, state)
+        bot._main_post_assembly().recovery_operation().apply_meme(receipt, state)
     expected_schedule_version = 0 if lane == "quote_image" else 2
     assert receipt["meme_schedule_version"] == expected_schedule_version
     assert state["meme_schedule_version"] == expected_schedule_version
@@ -165,14 +167,14 @@ def test_current_pending_schedule_replay_ignores_ambient_timezone_across_dst(
                 )
                 assert bot.regular_post_receipt_is_semantically_valid(receipt)
                 state: dict = {}
-                bot.apply_regular_post_receipt(receipt, set(), set(), state)
+                bot._main_post_assembly().recovery_operation().apply_regular(receipt, set(), set(), state)
             else:
                 receipt = bot.materialize_bound_meme_schedule_receipt(
                     copy.deepcopy(pending)
                 )
                 assert bot.meme_post_receipt_is_semantically_valid(receipt)
                 state = {}
-                bot.apply_meme_post_receipt(receipt, state)
+                bot._main_post_assembly().recovery_operation().apply_meme(receipt, state)
             reloaded_state = json.loads(bot.canonical_atomic_json_bytes(state))
             assert bot.validate_meme_schedule_state(
                 reloaded_state,
@@ -756,7 +758,7 @@ def test_regular_schedule_finalisation_failure_after_confirmation_is_confirmed_l
     assert "last_main_post_id" not in state
 
     expected = original_materialize(
-        bot._main_post_receipt_values_owner(), pending, _validate_result=False,
+        bot._main_post_assembly().values(), pending, _validate_result=False,
     )
     monkeypatch.setattr(
         MainPostReceiptValues,
@@ -866,7 +868,7 @@ def test_regular_schedule_failure_replays_exact_bound_meme_delay(
     assert pending is not None
     assert pending["source_attempt"]["recovery_plan"]["meme_delay_seconds"] == 3600
     expected = original_materialize(
-        bot._main_post_receipt_values_owner(), pending, _validate_result=False,
+        bot._main_post_assembly().values(), pending, _validate_result=False,
     )
     assert expected["next_meme_post_epoch"] == confirmed_epoch + 3600
 
@@ -933,11 +935,11 @@ def test_regular_restart_replays_bound_meme_delay_from_receipt_after_state_save_
         return 3600
 
     monkeypatch.setattr(bot.random, "randint", bound_delays)
-    original_save_protected = bot.save_regular_post_protected_state
+    original_save_protected = MainPostAssembly.save_regular_protected_state
     monkeypatch.setattr(
-        bot,
-        "save_regular_post_protected_state",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+        MainPostAssembly,
+        "save_regular_protected_state",
+        lambda _assembly, *_args, **_kwargs: (_ for _ in ()).throw(
             OSError("injected protected-state save failure")
         ),
     )
@@ -954,8 +956,8 @@ def test_regular_restart_replays_bound_meme_delay_from_receipt_after_state_save_
     restarted_state = bot.load_runtime_state()
     assert restarted_state["next_meme_post_epoch"] == stale_due_epoch
     monkeypatch.setattr(
-        bot,
-        "save_regular_post_protected_state",
+        MainPostAssembly,
+        "save_regular_protected_state",
         original_save_protected,
     )
     monkeypatch.setattr(
@@ -1012,7 +1014,7 @@ def test_schema_v2_regular_replay_does_not_invent_unbound_meme_schedule(
         ),
     )
 
-    bot.apply_regular_post_receipt(receipt, set(), set(), state)
+    bot._main_post_assembly().recovery_operation().apply_regular(receipt, set(), set(), state)
 
     assert state["next_meme_post_epoch"] == 0
     assert state["next_meme_schedule_mode"] == ""
@@ -1036,7 +1038,7 @@ def test_regular_receipt_replay_restores_future_quote_schedule(
     }
     bot.atomic_write_json(receipt_file, receipt)
 
-    assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is True
+    assert bot._main_post_assembly().recovery_operation().reconcile_regular(lines_used, images_used, state) is True
     assert state["next_quote_post_epoch"] == 1_800_007_200
 
 
@@ -1213,9 +1215,8 @@ def test_startup_receipt_persists_future_schedule_before_receipt_removal(
         lambda **_kwargs: {"status": "completed"},
     )
     monkeypatch.setattr(bot.random, "randint", lambda _low, _high: 7_200)
-    monkeypatch.setattr(
-        bot,
-        "remove_regular_post_receipt",
+    patch_main_post_removal(
+        monkeypatch, "quote_image",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             RuntimeError("simulated removal crash")
         ),

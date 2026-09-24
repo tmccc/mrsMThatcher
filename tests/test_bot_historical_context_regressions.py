@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from mrs_bot_main_post_assembly import MainPostAssembly
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,
@@ -33,10 +34,10 @@ def test_regular_post_context_stage_runs_only_after_durable_main_post(
     lines_used, images_used, state, *_ = configure_simple_quote_post(tmp_path, monkeypatch)
     saved = {"done": False}
     context_calls = []
-    original_save = bot.save_regular_post_protected_state
+    original_save = MainPostAssembly.save_regular_protected_state
 
-    def tracked_save(*args, **kwargs):
-        proof = original_save(*args, **kwargs)
+    def tracked_save(assembly, *args, **kwargs):
+        proof = original_save(assembly, *args, **kwargs)
         saved["done"] = True
         return proof
 
@@ -52,7 +53,7 @@ def test_regular_post_context_stage_runs_only_after_durable_main_post(
         "historical_context_reply",
         {**bot.historical_context_reply, "enabled": True},
     )
-    monkeypatch.setattr(bot, "save_regular_post_protected_state", tracked_save)
+    monkeypatch.setattr(MainPostAssembly, "save_regular_protected_state", tracked_save)
     monkeypatch.setattr(bot, "maybe_post_historical_context_reply", context)
     bot.post_random_quote(lines_used, images_used, state)
     assert len(context_calls) == 1 and context_calls[0]["parent_post_id"] == "950001"

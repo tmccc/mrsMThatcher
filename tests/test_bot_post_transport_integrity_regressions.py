@@ -16,6 +16,7 @@ import pytest
 import mrs_bot_asset_metadata as asset_metadata
 
 from mrs_bot_main_post_receipt_storage import MainPostReceipts
+from mrs_bot_main_post_assembly import MainPostAssembly
 from tests.helpers.bot_runtime import (
     IMPORT_ENV,
     bot,
@@ -300,16 +301,16 @@ def test_main_post_hard_death_boundaries_never_recreate_remote_post(
         receipt_path = bot.REGULAR_POST_RECEIPT_FILE
         target = lambda: bot.post_random_quote(lines_used, images_used, state)
         original_write = bot.write_regular_post_receipt
-        original_remove = bot.remove_regular_post_receipt
+        original_remove = MainPostAssembly.remove_regular
         confirmed_post_id = "950001"
     else:
         state, receipt_path = configure_simple_meme_post(tmp_path, monkeypatch)
         target = lambda: bot.post_next_meme(state)
         original_write = bot.write_meme_post_receipt
-        original_remove = bot.remove_meme_post_receipt
+        original_remove = MainPostAssembly.remove_meme
         confirmed_post_id = "970001"
 
-    original_promote = bot.promote_main_post_attempt_to_confirmed_pending_schedule
+    original_promote = MainPostAssembly.promote_pending
     original_finalize = MainPostReceipts.finalize_pending
 
     remote_acceptance = tmp_path / f"{lane}-accepted-{boundary}"
@@ -355,19 +356,19 @@ def test_main_post_hard_death_boundaries_never_recreate_remote_post(
         expected_exit = 76
     elif boundary == "response_before_confirmed_promotion":
         monkeypatch.setattr(
-            bot,
-            "promote_main_post_attempt_to_confirmed_pending_schedule",
+            MainPostAssembly,
+            "promote_pending",
             lambda *_args, **_kwargs: os._exit(77),
         )
         expected_exit = 77
     elif boundary == "confirmed_promotion_before_state":
-        def promote_then_exit(*args: object, **kwargs: object) -> None:
-            original_promote(*args, **kwargs)
+        def promote_then_exit(owner: MainPostAssembly, *args: object, **kwargs: object) -> None:
+            original_promote(owner, *args, **kwargs)
             os._exit(78)
 
         monkeypatch.setattr(
-            bot,
-            "promote_main_post_attempt_to_confirmed_pending_schedule",
+            MainPostAssembly,
+            "promote_pending",
             promote_then_exit,
         )
         expected_exit = 78
@@ -395,8 +396,8 @@ def test_main_post_hard_death_boundaries_never_recreate_remote_post(
                 original_write,
             )
             monkeypatch.setattr(
-                bot,
-                "remove_regular_post_receipt",
+                MainPostAssembly,
+                "remove_regular",
                 lambda *_args, **_kwargs: os._exit(79),
             )
         else:
@@ -406,8 +407,8 @@ def test_main_post_hard_death_boundaries_never_recreate_remote_post(
                 original_write,
             )
             monkeypatch.setattr(
-                bot,
-                "remove_meme_post_receipt",
+                MainPostAssembly,
+                "remove_meme",
                 lambda *_args, **_kwargs: os._exit(79),
             )
         expected_exit = 79
@@ -452,9 +453,9 @@ def test_main_post_hard_death_boundaries_never_recreate_remote_post(
     if status == "sending":
         assert bot.ambiguous_remote_post_is_blocking() is True
         if lane == "quote_image":
-            assert bot.reconcile_regular_post_receipt(set(), set(), {}) is False
+            assert bot._main_post_assembly().recovery_operation().reconcile_regular(set(), set(), {}) is False
         else:
-            assert bot.reconcile_meme_post_receipt({}) is False
+            assert bot._main_post_assembly().recovery_operation().reconcile_meme({}) is False
     else:
         if lane == "quote_image":
             monkeypatch.setattr(
@@ -463,11 +464,11 @@ def test_main_post_hard_death_boundaries_never_recreate_remote_post(
                 original_write,
             )
             monkeypatch.setattr(
-                bot,
-                "remove_regular_post_receipt",
+                MainPostAssembly,
+                "remove_regular",
                 original_remove,
             )
-            assert bot.reconcile_regular_post_receipt(set(), set(), {}) is True
+            assert bot._main_post_assembly().recovery_operation().reconcile_regular(set(), set(), {}) is True
         else:
             monkeypatch.setattr(
                 bot,
@@ -475,11 +476,11 @@ def test_main_post_hard_death_boundaries_never_recreate_remote_post(
                 original_write,
             )
             monkeypatch.setattr(
-                bot,
-                "remove_meme_post_receipt",
+                MainPostAssembly,
+                "remove_meme",
                 original_remove,
             )
-            assert bot.reconcile_meme_post_receipt({}) is True
+            assert bot._main_post_assembly().recovery_operation().reconcile_meme({}) is True
         assert not receipt_path.exists()
     assert remote_recreates == 0
 
@@ -1225,7 +1226,7 @@ def test_regular_normal_success_atomically_promotes_sending_attempt(
     monkeypatch.setattr(bot, "create_post", actual_create_post)
     install_receipt_bound_x_request_stub(monkeypatch, confirmed_create)
     monkeypatch.setattr(
-        bot, "remove_regular_post_receipt", lambda *_args, **_kwargs: None
+        MainPostAssembly, "remove_regular", lambda *_args, **_kwargs: None
     )
     bot.post_random_quote(lines_used, images_used, state)
 
@@ -1265,8 +1266,8 @@ def test_regular_promotion_failure_records_context_before_attempt_retirement(
         lambda *_args, **_kwargs: {"data": {"id": "950001"}},
     )
     monkeypatch.setattr(
-        bot,
-        "promote_main_post_attempt_to_confirmed_pending_schedule",
+        MainPostAssembly,
+        "promote_pending",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             OSError("confirmed promotion failed")
         ),
@@ -1313,8 +1314,8 @@ def test_regular_promotion_and_required_context_enqueue_failure_retains_attempt(
         lambda *_args, **_kwargs: {"data": {"id": "950001"}},
     )
     monkeypatch.setattr(
-        bot,
-        "promote_main_post_attempt_to_confirmed_pending_schedule",
+        MainPostAssembly,
+        "promote_pending",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             OSError("confirmed promotion failed")
         ),

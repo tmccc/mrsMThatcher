@@ -18,6 +18,7 @@ from typing import Iterator
 import pytest
 
 import mrs_bot_asset_metadata as asset_metadata
+from mrs_bot_main_post_assembly import MainPostAssembly
 from tests.helpers.bot_runtime import bot
 from tests.helpers.quote_candidate_overrides import patch_completed_research_quotes
 from tests.helpers.protocol_activation import create_test_protocol_activation
@@ -208,6 +209,33 @@ def image_analysis_for_paths(paths: list[Path], analyses: dict[str, dict] | None
     return {"analysis_kind": "images", "schema_version": 3, "path_index": path_index, "items": items}
 
 
+def patch_main_post_handoff(monkeypatch: pytest.MonkeyPatch, callback) -> None:
+    """Inject a media-handoff result at the main-post assembly boundary."""
+    monkeypatch.setattr(
+        MainPostAssembly, "handoff_media",
+        lambda _assembly, attempt, authority: callback(attempt, authority),
+    )
+
+
+def patch_main_post_promotion(monkeypatch: pytest.MonkeyPatch, callback) -> None:
+    """Inject pending-schedule promotion at its assembly operation boundary."""
+    monkeypatch.setattr(
+        MainPostAssembly, "promote_pending",
+        lambda _assembly, *args, **kwargs: callback(*args, **kwargs),
+    )
+
+
+def patch_main_post_removal(
+    monkeypatch: pytest.MonkeyPatch, lane: str, callback,
+) -> None:
+    """Inject exact receipt retirement for one main-post lane."""
+    method = {"quote_image": "remove_regular", "daily_meme": "remove_meme"}[lane]
+    monkeypatch.setattr(
+        MainPostAssembly, method,
+        lambda _assembly, *args, **kwargs: callback(*args, **kwargs),
+    )
+
+
 def configure_simple_quote_post(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -231,11 +259,7 @@ def configure_simple_quote_post(
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
     monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -360,11 +384,7 @@ def configure_simple_meme_post(
     monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", receipt_file)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
     monkeypatch.setattr(bot, "upload_media", lambda _path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
     return {

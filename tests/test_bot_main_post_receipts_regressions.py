@@ -12,6 +12,8 @@ import mrs_bot_asset_metadata as asset_metadata
 
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
+    patch_main_post_promotion,
+    patch_main_post_removal,
     isolate_bot_runtime,
     quote_analysis_for_lines,
     configure_simple_quote_post,
@@ -42,13 +44,13 @@ def test_regular_receipt_v2_restores_authoritative_post_cycle_histories(
     monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
     monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
 
-    bot.apply_regular_post_receipt(receipt, lines_used, images_used, state)
+    bot._main_post_assembly().recovery_operation().apply_regular(receipt, lines_used, images_used, state)
 
     assert lines_used == {posted_quote}
     assert images_used == {posted_image}
 
     # Reconciliation is idempotent and cannot restore the pre-reset histories.
-    bot.apply_regular_post_receipt(receipt, lines_used, images_used, state)
+    bot._main_post_assembly().recovery_operation().apply_regular(receipt, lines_used, images_used, state)
     assert lines_used == {posted_quote}
     assert images_used == {posted_image}
 
@@ -101,7 +103,7 @@ def test_stale_regular_receipt_cannot_erase_newer_cycle_histories(
         ),
     )
 
-    bot.apply_regular_post_receipt(receipt, lines_used, images_used, state)
+    bot._main_post_assembly().recovery_operation().apply_regular(receipt, lines_used, images_used, state)
 
     assert lines_used == {stale_quote, newer_quote}
     assert images_used == {stale_image, newer_image}
@@ -142,9 +144,8 @@ def test_stale_meme_receipt_replay_preserves_newer_daily_guard_and_schedule(
         "retire_lane_transport_journal_if_present",
         lambda **_kwargs: False,
     )
-    monkeypatch.setattr(
-        bot,
-        "remove_meme_post_receipt",
+    patch_main_post_removal(
+        monkeypatch, "daily_meme",
         lambda _receipt, **_kwargs: receipt_path.unlink(),
     )
     monkeypatch.setattr(
@@ -174,7 +175,7 @@ def test_stale_meme_receipt_replay_preserves_newer_daily_guard_and_schedule(
     current_date = bot.epoch_date_str(newer_epoch)
     assert bot.meme_posted_on_date(state, current_date)
 
-    assert bot.reconcile_meme_post_receipt(state) is True
+    assert bot._main_post_assembly().recovery_operation().reconcile_meme(state) is True
 
     assert state["last_main_post_id"] == "970002"
     assert state["last_meme_post_epoch"] == newer_epoch
@@ -201,7 +202,7 @@ def test_regular_receipt_v1_remains_backward_compatible(
     monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
 
     assert bot.regular_post_receipt_is_semantically_valid(receipt)
-    bot.apply_regular_post_receipt(receipt, lines_used, images_used, state)
+    bot._main_post_assembly().recovery_operation().apply_regular(receipt, lines_used, images_used, state)
 
     assert lines_used == {"a" * 64, str(receipt["quote_hash"])}
     assert images_used == {"t02.jpg", str(receipt["image_basename"])}
@@ -254,14 +255,14 @@ def test_regular_receipt_reconciliation_preserves_legacy_counter_and_replays_onc
     state = bot.default_state()
     state["original_regular_posts_since_generated_image"] = initial_count
 
-    assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is True
+    assert bot._main_post_assembly().recovery_operation().reconcile_regular(lines_used, images_used, state) is True
     assert state["original_regular_posts_since_generated_image"] == initial_count
     assert image_basename in images_used
     assert not receipt_file.exists()
     assert "GENERATED_IMAGE_SPACING_STATE_UPDATED" not in caplog.text
 
     caplog.clear()
-    assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is False
+    assert bot._main_post_assembly().recovery_operation().reconcile_regular(lines_used, images_used, state) is False
     assert state["original_regular_posts_since_generated_image"] == initial_count
     assert "GENERATED_IMAGE_SPACING_STATE_UPDATED" not in caplog.text
 
@@ -282,7 +283,7 @@ def test_regular_receipt_reapply_preserves_original_legacy_counter(
     monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
     caplog.set_level(logging.INFO, logger=bot.log.name)
 
-    bot.apply_regular_post_receipt(receipt, lines_used, images_used, state)
+    bot._main_post_assembly().recovery_operation().apply_regular(receipt, lines_used, images_used, state)
 
     assert state["original_regular_posts_since_generated_image"] == 1
     assert "GENERATED_IMAGE_SPACING_STATE_UPDATED" not in caplog.text
@@ -302,7 +303,7 @@ def test_generated_regular_receipt_reapply_does_not_create_retired_counter(
     monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
     monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
 
-    bot.apply_regular_post_receipt(receipt, lines_used, images_used, state)
+    bot._main_post_assembly().recovery_operation().apply_regular(receipt, lines_used, images_used, state)
 
     assert "original_regular_posts_since_generated_image" not in state
     assert image_basename in images_used
@@ -324,7 +325,7 @@ def test_generated_regular_receipt_reapply_preserves_retired_counter(
     monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
     monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
 
-    bot.apply_regular_post_receipt(receipt, lines_used, images_used, state)
+    bot._main_post_assembly().recovery_operation().apply_regular(receipt, lines_used, images_used, state)
 
     assert state["original_regular_posts_since_generated_image"] == 2
     assert image_basename in images_used
@@ -360,9 +361,9 @@ def test_confirmed_generated_attempt_retains_ai_identity_and_recovers_idempotent
     lines, images = set(), set()
     state = {"original_regular_posts_since_generated_image": 2}
 
-    bot.apply_regular_post_receipt(receipt, lines, images, state)
+    bot._main_post_assembly().recovery_operation().apply_regular(receipt, lines, images, state)
     first_state = dict(state)
-    bot.apply_regular_post_receipt(receipt, lines, images, state)
+    bot._main_post_assembly().recovery_operation().apply_regular(receipt, lines, images, state)
 
     assert state == first_state
     assert state["original_regular_posts_since_generated_image"] == 2
@@ -458,7 +459,7 @@ def test_receipt_is_not_removed_when_protected_durable_save_fails(
     monkeypatch.setattr(bot, "save_image_used_basenames", lambda *args, **kwargs: (_ for _ in ()).throw(OSError("image save failed")))
 
     with pytest.raises(OSError):
-        bot.reconcile_regular_post_receipt(lines_used, images_used, state)
+        bot._main_post_assembly().recovery_operation().reconcile_regular(lines_used, images_used, state)
 
     assert receipt_file.exists()
 
@@ -489,13 +490,12 @@ def test_protected_durable_saves_complete_before_receipt_removal(
             return _original(*args, **kwargs)
 
         monkeypatch.setattr(bot, name, observed)
-    monkeypatch.setattr(
-        bot,
-        "remove_regular_post_receipt",
+    patch_main_post_removal(
+        monkeypatch, "quote_image",
         lambda *_args, **_kwargs: calls.append("remove"),
     )
 
-    assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is True
+    assert bot._main_post_assembly().recovery_operation().reconcile_regular(lines_used, images_used, state) is True
     assert calls == ["quote", "image", "state", "remove"]
 
 
@@ -670,8 +670,8 @@ def test_valid_receipt_reconciles_idempotently(
         lambda **_kwargs: pytest.fail("receipt recovery must not issue another X request"),
     )
 
-    assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is True
-    assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is False
+    assert bot._main_post_assembly().recovery_operation().reconcile_regular(lines_used, images_used, state) is True
+    assert bot._main_post_assembly().recovery_operation().reconcile_regular(lines_used, images_used, state) is False
     assert len(context_calls) == 1
     assert len(emissions) == 1
     assert emissions[0]["lane"] == "quote_image"
@@ -704,7 +704,7 @@ def test_old_receipt_does_not_move_main_post_state_behind_newer_meme(
         "next_meme_schedule_date": "2027-01-18",
     }
 
-    assert bot.reconcile_regular_post_receipt(set(), set(), state) is True
+    assert bot._main_post_assembly().recovery_operation().reconcile_regular(set(), set(), state) is True
     assert state["last_main_post_id"] == "960001"
     assert state["next_meme_post_epoch"] == 1_800_100_000
     assert state["next_meme_schedule_mode"] == "fallback_future"
@@ -876,9 +876,8 @@ def test_regular_receipt_removal_failure_keeps_future_quote_schedule(
         "randint",
         lambda low, high: 7200 if low == bot.POST_SLEEP_MIN else low,
     )
-    monkeypatch.setattr(
-        bot,
-        "remove_regular_post_receipt",
+    patch_main_post_removal(
+        monkeypatch, "quote_image",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("remove failed")),
     )
 
@@ -1045,4 +1044,4 @@ def test_meme_receipt_requires_future_next_epoch(
     )
 
     with pytest.raises(bot.InvalidMemePostReceipt):
-        bot.reconcile_meme_post_receipt({})
+        bot._main_post_assembly().recovery_operation().reconcile_meme({})

@@ -300,6 +300,7 @@ import mrs_bot_main_post_confirmation_persistence as _main_post_confirmation_per
 import mrs_bot_x_request as _x_request
 import mrs_bot_post_creation as _post_creation
 import mrs_bot_main_post_reconciliation as _main_post_reconciliation
+import mrs_bot_main_post_assembly as _main_post_assembly_module
 import mrs_bot_historical_context_delivery as _historical_context_delivery
 import mrs_bot_historical_context_queue as _historical_context_queue
 import mrs_bot_historical_context_runtime as _historical_context_runtime
@@ -4330,8 +4331,8 @@ def create_post(
     on_remote_transaction_started: Callable[[], None] | None = None,
 ) -> dict:
     """Create an X post with transactional ambiguity handling."""
-    receipt_values = _main_post_receipt_values_owner()
-    receipts = _main_post_receipts_owner(values=receipt_values)
+    receipt_values = _main_post_assembly().values()
+    receipts = _main_post_assembly().receipts(values=receipt_values)
     remote_write_barrier = (
         _reply_remote_write_barrier()
         if prepared_conversational_reply_receipt is not None
@@ -4857,35 +4858,128 @@ def bound_meme_schedule_state_is_valid(
     )
 
 
-def _main_post_receipt_values_owner() -> _main_post_receipts.MainPostReceiptValues:
-    """Bind one receipt operation; sibling calls resolve current policy afresh."""
-    return _main_post_receipts.MainPostReceiptValues(
-        schedule_timezone=MAIN_POST_SCHEDULE_TIMEZONE,
-        schedule_modes=MEME_SCHEDULE_MODES,
-        schedule_version=MEME_SCHEDULE_VERSION,
-        bound_meme_state_is_valid=bound_meme_schedule_state_is_valid,
-        safe_schedule_date=safe_bound_schedule_date_str,
-        valid_epoch=valid_receipt_epoch,
-        invalid_regular_receipt=InvalidRegularPostReceipt,
-        invalid_meme_receipt=InvalidMemePostReceipt,
-        bound_schedule_datetime=bound_schedule_datetime,
-        current=lambda: _main_post_receipt_values_owner(),
+def _main_post_assembly() -> _main_post_assembly_module.MainPostAssembly:
+    """Supply current settings and shared application authorities to main posts."""
+    a = _main_post_assembly_module
+    return a.MainPostAssembly(
+        policy=a.MainPostPolicy(
+            schedule_timezone=MAIN_POST_SCHEDULE_TIMEZONE,
+            schedule_modes=MEME_SCHEDULE_MODES,
+            schedule_version=MEME_SCHEDULE_VERSION,
+            meme_text=MEME_POST_TEXT,
+            user_id=MY_USER_ID,
+            regular_receipt_file=REGULAR_POST_RECEIPT_FILE,
+            meme_receipt_file=MEME_POST_RECEIPT_FILE,
+            confirmed_reply_receipt_file=CONFIRMED_REPLY_RECEIPT_FILE,
+            media_upload_receipt_file=MEDIA_UPLOAD_RECEIPT_FILE,
+            images_used_file=IMAGES_USED_FILE,
+            lines_used_file=LINES_USED_FILE,
+            transport_source_validator_id=TRANSPORT_SOURCE_VALIDATOR_ID,
+            state_file=STATE_FILE,
+            meme_dir=MEME_DIR,
+            reset_meme_cycle=RESET_MEME_CYCLE_WHEN_ALL_POSTED,
+            enable_daily_memes=ENABLE_DAILY_MEME_POSTS,
+            meme_trigger_after_hour=MEME_TRIGGER_AFTER_HOUR,
+            meme_fallback_hour=MEME_FALLBACK_HOUR,
+            meme_fallback_minute=MEME_FALLBACK_MINUTE,
+            meme_delay_minimum=MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS,
+            meme_delay_maximum=MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS,
+            quote_delay_minimum=POST_SLEEP_MIN,
+            quote_delay_maximum=POST_SLEEP_MAX,
+        ),
+        errors=a.MainPostErrors(
+            invalid_regular=InvalidRegularPostReceipt,
+            invalid_meme=InvalidMemePostReceipt,
+            unresolved_regular=UnresolvedRegularPostReceipt,
+            unresolved_meme=UnresolvedMemePostReceipt,
+            invalid_confirmed_reply=InvalidConfirmedReplyReceipt,
+            ambiguous_outcome=AmbiguousRemotePostOutcome,
+            confirmed_pending_uncertain=ConfirmedPendingScheduleDurabilityUncertain,
+            confirmed_local_failure=ConfirmedPostLocalPersistenceError,
+            unrecoverable_confirmed=UnrecoverableConfirmedPostPersistenceError,
+            state_backup_failure=StateBackupWriteError,
+            transport_journal_failure=TransportJournalError,
+            bound_source_transition_failure=BoundSourceReceiptTransitionError,
+            corrupt_used_history=CorruptUsedHistoryError,
+            no_viable_quote_pair=NoViableQuoteImagePair,
+            media_upload_receipt_error=MediaUploadReceiptError,
+        ),
+        receipt_io=a.MainPostReceiptIO(
+            durable_create=durable_create_receipt_json,
+            namespace_entry_exists=receipt_namespace_entry_exists,
+            retirement_is_blocking=remote_receipt_retirement_is_blocking,
+            replace_exact_document=replace_exact_source_receipt_document,
+            mutation_authority=transaction_mutation_authority,
+            load_no_follow=load_receipt_json_no_follow,
+            atomic_write_json=atomic_write_json,
+            retire_current_source=retire_current_source_receipt,
+            replace_bound_source=replace_bound_source_receipt,
+            fsync_parent_dir=fsync_parent_dir,
+            atomic_json_matches=atomic_json_file_exactly_matches,
+        ),
+        transport=a.MainPostTransport(
+            begin_transport_transaction=begin_transport_transaction,
+            bind_lane_transport_source=bind_lane_transport_source,
+            bind_media_handoff_to_transport=bind_media_handoff_to_transport,
+            confirmed_media_upload_type=ConfirmedMediaUpload,
+            inspect_media_upload_receipt=inspect_media_upload_receipt,
+            load_confirmed_media_upload=load_confirmed_media_upload,
+            retire_confirmed_media_upload=retire_confirmed_media_upload,
+            begin_sigint=begin_confirmed_post_sigint_deferral,
+            create_post=create_post,
+            proves_non_success=api_error_proves_remote_non_success,
+            end_sigint=end_confirmed_post_sigint_deferral,
+            incident_latched=remote_write_safety_incident_is_latched,
+            durable_barrier_exists=durable_remote_write_safety_barrier_exists,
+            retain_sigint=retain_sigint_deferral_without_durable_barrier,
+            inspect_confirmation=inspect_confirmed_transport_transaction,
+            journal_path=journal_path_for_receipt,
+            bind_confirmed_source=bind_confirmed_transport_source,
+            source_semantic_validator=transport_source_semantic_validator,
+            set_ambiguous_seen=_set_ambiguous_remote_post_seen,
+            upload_media=upload_media,
+            block_if_ambiguous=block_if_ambiguous_remote_post,
+            latch_confirmed_failure=latch_confirmed_post_persistence_failure,
+        ),
+        application=a.MainPostApplication(
+            log=log,
+            log_event=log_event,
+            emit_account_root_posted=emit_account_root_posted,
+            now_epoch=now_epoch,
+            safe_bound_schedule_date=safe_bound_schedule_date_str,
+            valid_receipt_epoch=valid_receipt_epoch,
+            bound_schedule_datetime=bound_schedule_datetime,
+            save_state=save_state,
+            save_image_used_basenames=save_image_used_basenames,
+            save_quote_used_hashes=save_quote_used_hashes,
+            json_file_matches=json_file_matches,
+            retire_transport_journal=retire_lane_transport_journal_if_present,
+            verify_transport_lineage=verify_lane_transport_source_lineage_if_present,
+            quote_schedule=_quote_schedule_owner,
+            require_context_outbox_writable=require_historical_context_outbox_writable,
+            enqueue_context=enqueue_historical_context_obligation,
+            process_due_context=safely_process_due_historical_context_obligations,
+            load_meme_analysis_index=load_meme_analysis_index,
+            selection=_image_selection_owner,
+            tweets=_tweet_lookup_cache_owner,
+        ),
+        current=_main_post_assembly,
     )
 
 
 def main_post_attempt_is_semantically_valid(data: object) -> bool:
     """Return whether a pre-send regular or meme attempt is self-consistent."""
-    return _main_post_receipt_values_owner().attempt_is_valid(data)
+    return _main_post_assembly().values().attempt_is_valid(data)
 
 
 def main_post_attempt_binds_payload(attempt: dict, payload: dict) -> bool:
     """Return whether an attempt authorises exactly one remote payload."""
-    return _main_post_receipt_values_owner().attempt_binds_payload(attempt, payload)
+    return _main_post_assembly().values().attempt_binds_payload(attempt, payload)
 
 
 def current_main_post_attempt_is_semantically_valid(data: object) -> bool:
     """Return whether an attempt belongs to the current writable generation."""
-    return _main_post_receipt_values_owner().current_attempt_is_valid(data)
+    return _main_post_assembly().values().current_attempt_is_valid(data)
 
 
 def build_main_post_attempt(
@@ -4899,8 +4993,7 @@ def build_main_post_attempt(
     attempt_epoch: int | None = None,
 ) -> dict:
     """Build a durable pre-send identity for one main-post transaction."""
-    receipt_values = _main_post_receipt_values_owner()
-    return _main_post_attempt_values.build_main_post_attempt(
+    return _main_post_assembly().build_attempt(
         lane=lane,
         text=text,
         media_ids=media_ids,
@@ -4908,61 +5001,27 @@ def build_main_post_attempt(
         selected_identity=selected_identity,
         recovery_plan=recovery_plan,
         attempt_epoch=attempt_epoch,
-        MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
-        current_main_post_attempt_is_semantically_valid=receipt_values.current_attempt_is_valid,
-        now_epoch=now_epoch,
-        os=os,
-    )
-
-
-def _main_post_receipts_owner(
-    *, values: _main_post_receipts.MainPostReceiptValues | None = None,
-) -> _main_post_receipt_storage.MainPostReceipts:
-    """Bind storage operations without reading receipts or granting retirement."""
-    value_factory = (
-        values.current
-        if values is not None
-        else lambda: _main_post_receipt_values_owner()
-    )
-    return _main_post_receipt_storage.MainPostReceipts(
-        MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
-        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
-        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
-        InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
-        UnresolvedRegularPostReceipt=UnresolvedRegularPostReceipt,
-        durable_create_receipt_json=durable_create_receipt_json,
-        log=log,
-        receipt_namespace_entry_exists=receipt_namespace_entry_exists,
-        remote_receipt_retirement_is_blocking=remote_receipt_retirement_is_blocking,
-        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
-        replace_exact_source_receipt_document=replace_exact_source_receipt_document,
-        transaction_mutation_authority=transaction_mutation_authority,
-        load_receipt_json_no_follow=load_receipt_json_no_follow,
-        UnresolvedMemePostReceipt=UnresolvedMemePostReceipt,
-        atomic_write_json=atomic_write_json,
-        values=value_factory,
-        current=lambda: _main_post_receipts_owner(),
     )
 
 
 def main_post_attempt_path(attempt: dict) -> Path:
     """Return the receipt path which owns one main-post attempt."""
-    return _main_post_receipts_owner().attempt_path(attempt)
+    return _main_post_assembly().receipts().attempt_path(attempt)
 
 
 def write_main_post_attempt(attempt: dict) -> None:
     """Durably record a main-post transaction before its X create request."""
-    return _main_post_receipts_owner().write_attempt(attempt)
+    return _main_post_assembly().receipts().write_attempt(attempt)
 
 
 def prepare_main_tweet_transport(
     attempt: dict,
 ) -> tuple[dict, SourceReceiptBinding, TransportAuthority]:
     """Publish a prepared tweet owner before retiring confirmed media state."""
-    receipt_values = _main_post_receipt_values_owner()
+    receipt_values = _main_post_assembly().values()
     return _transport_source_preparation.prepare_main_tweet_transport(
         attempt,
-        receipts=_main_post_receipts_owner(values=receipt_values),
+        receipts=_main_post_assembly().receipts(values=receipt_values),
         receipt_values=receipt_values,
         TransportJournalError=TransportJournalError,
         begin_transport_transaction=begin_transport_transaction,
@@ -4990,7 +5049,7 @@ def handoff_confirmed_media_upload_to_main_attempt(
     return _post_creation.handoff_confirmed_media_upload_to_main_attempt(
         attempt,
         transport_authority,
-        receipts=_main_post_receipts_owner(),
+        receipts=_main_post_assembly().receipts(),
         MEDIA_UPLOAD_RECEIPT_FILE=MEDIA_UPLOAD_RECEIPT_FILE,
         MediaUploadReceiptError=MediaUploadReceiptError,
         bind_media_handoff_to_transport=bind_media_handoff_to_transport,
@@ -5004,7 +5063,7 @@ def handoff_confirmed_media_upload_to_main_attempt(
 
 def mark_main_post_attempt_attempting(attempt: dict) -> dict:
     """Atomically consume one sending authorisation before remote transmission."""
-    return _main_post_receipts_owner().mark_attempting(attempt)
+    return _main_post_assembly().receipts().mark_attempting(attempt)
 
 
 def remove_main_post_attempt(
@@ -5014,24 +5073,14 @@ def remove_main_post_attempt(
     commit_proof=None,
 ) -> None:
     """Retire an exact sending attempt after one proved-safe disposition."""
-    if sending_disposition == "confirmed_state_fallback":
-        from mrs_bot_state_generation import require_commit_proof
-        require_commit_proof(commit_proof)
-        commit_proof.require_receipt(attempt)
-    return _main_post_receipts_owner().remove_attempt(
-        attempt,
-        sending_disposition=sending_disposition,
-        retire_current_source_receipt=functools.partial(
-            retire_current_source_receipt, commit_proof=commit_proof,
-            **({"disposition": "definite_non_success"}
-               if sending_disposition == "definite_non_success" else {}),
-        ),
+    return _main_post_assembly().remove_attempt(
+        attempt, sending_disposition=sending_disposition, commit_proof=commit_proof,
     )
 
 
 def confirmed_receipt_matches_main_attempt(receipt: dict, attempt: dict) -> bool:
     """Return whether a confirmed receipt atomically promotes one attempt."""
-    return _main_post_receipt_values_owner().confirmed_matches_attempt(
+    return _main_post_assembly().values().confirmed_matches_attempt(
         receipt, attempt,
     )
 
@@ -5042,7 +5091,7 @@ def confirmed_pending_schedule_receipt_is_semantically_valid(
     expected_lane: str | None = None,
 ) -> bool:
     """Validate a remote-confirmed receipt awaiting local schedule materialisation."""
-    return _main_post_receipt_values_owner().pending_is_valid(
+    return _main_post_assembly().values().pending_is_valid(
         data, expected_lane=expected_lane,
     )
 
@@ -5055,7 +5104,7 @@ def build_confirmed_pending_schedule_receipt(
     image_summary: str = "",
 ) -> dict:
     """Build a versioned confirmed receipt without deriving local schedules."""
-    return _main_post_receipt_values_owner().build_pending(
+    return _main_post_assembly().values().build_pending(
         attempt,
         post_id=post_id,
         confirmation_epoch=confirmation_epoch,
@@ -5080,31 +5129,11 @@ def promote_main_post_attempt_to_confirmed_pending_schedule(
     image_summary: str = "",
 ) -> dict:
     """Atomically bind a confirmed remote identity before fallible local work."""
-    receipt_values = _main_post_receipt_values_owner()
-    return _main_post_confirmation_persistence.promote_main_post_attempt_to_confirmed_pending_schedule(
+    return _main_post_assembly().promote_pending(
         attempt,
         post_id=post_id,
         confirmation_epoch=confirmation_epoch,
         image_summary=image_summary,
-        receipts=_main_post_receipts_owner(values=receipt_values),
-        receipt_values=receipt_values,
-        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
-        BoundSourceReceiptTransitionError=BoundSourceReceiptTransitionError,
-        ConfirmedPendingScheduleDurabilityUncertain=ConfirmedPendingScheduleDurabilityUncertain,
-        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
-        TRANSPORT_SOURCE_VALIDATOR_ID=TRANSPORT_SOURCE_VALIDATOR_ID,
-        TransportJournalError=TransportJournalError,
-        _set_ambiguous_remote_post_seen=_set_ambiguous_remote_post_seen,
-        atomic_json_file_exactly_matches=atomic_json_file_exactly_matches,
-        bind_confirmed_transport_source=bind_confirmed_transport_source,
-        fsync_parent_dir=fsync_parent_dir,
-        journal_path_for_receipt=journal_path_for_receipt,
-        latch_confirmed_post_persistence_failure=latch_confirmed_post_persistence_failure,
-        log=log,
-        remote_write_safety_incident_is_latched=remote_write_safety_incident_is_latched,
-        replace_bound_source_receipt=replace_bound_source_receipt,
-        transaction_mutation_authority=transaction_mutation_authority,
-        transport_source_semantic_validator=transport_source_semantic_validator,
     )
 
 
@@ -5114,7 +5143,7 @@ def materialize_bound_regular_schedule_receipt(
     _validate_result: bool = True,
 ) -> dict:
     """Build a full regular receipt solely from its durable bound plan."""
-    return _main_post_receipt_values_owner().materialize_regular(
+    return _main_post_assembly().values().materialize_regular(
         pending, _validate_result=_validate_result,
     )
 
@@ -5125,7 +5154,7 @@ def materialize_bound_meme_schedule_receipt(
     _validate_result: bool = True,
 ) -> dict:
     """Build a full meme receipt solely from its durable bound plan."""
-    return _main_post_receipt_values_owner().materialize_meme(
+    return _main_post_assembly().values().materialize_meme(
         pending, _validate_result=_validate_result,
     )
 
@@ -5134,150 +5163,50 @@ def finalize_confirmed_pending_schedule_receipt(
     pending: dict,
 ) -> dict:
     """Atomically replace one pending schedule with its complete local receipt."""
-    return _main_post_receipts_owner().finalize_pending(pending)
+    return _main_post_assembly().receipts().finalize_pending(pending)
 
 
 def write_regular_post_receipt(receipt: dict) -> None:
     """Write regular post receipt."""
-    return _main_post_receipts_owner().write_regular(receipt)
+    return _main_post_assembly().receipts().write_regular(receipt)
 
 
 def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
     """Return whether a regular-post receipt is internally consistent."""
-    return _main_post_receipt_values_owner().regular_is_valid(data)
+    return _main_post_assembly().values().regular_is_valid(data)
 
 
 def load_regular_post_receipt() -> tuple[str, dict | None]:
     """Load regular post receipt."""
-    return _main_post_receipts_owner().load_regular()
+    return _main_post_assembly().receipts().load_regular()
 
 
 def remove_regular_post_receipt(receipt: dict, *, commit_proof=None) -> None:
     """Retire one exact reconciled regular-post receipt."""
-    from mrs_bot_state_generation import require_commit_proof
-    require_commit_proof(commit_proof)
-    commit_proof.require_receipt(receipt)
-    return _main_post_receipts_owner().remove_regular(
-        receipt,
-        retire_current_source_receipt=functools.partial(retire_current_source_receipt, commit_proof=commit_proof),
-    )
+    return _main_post_assembly().remove_regular(receipt, commit_proof=commit_proof)
 
 
 def write_meme_post_receipt(receipt: dict) -> None:
     """Write meme post receipt."""
-    return _main_post_receipts_owner().write_meme(receipt)
+    return _main_post_assembly().receipts().write_meme(receipt)
 
 
 def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
     """Return whether a meme-post receipt is internally consistent."""
-    return _main_post_receipt_values_owner().meme_is_valid(data)
+    return _main_post_assembly().values().meme_is_valid(data)
 
 
 def load_meme_post_receipt() -> tuple[str, dict | None]:
     """Load meme post receipt."""
-    return _main_post_receipts_owner().load_meme()
+    return _main_post_assembly().receipts().load_meme()
 
 
 def remove_meme_post_receipt(receipt: dict, *, commit_proof=None) -> None:
     """Retire one exact reconciled meme-post receipt."""
-    from mrs_bot_state_generation import require_commit_proof
-    require_commit_proof(commit_proof)
-    commit_proof.require_receipt(receipt)
-    return _main_post_receipts_owner().remove_meme(
-        receipt,
-        retire_current_source_receipt=functools.partial(retire_current_source_receipt, commit_proof=commit_proof),
-    )
+    return _main_post_assembly().remove_meme(receipt, commit_proof=commit_proof)
 
 
-def _apply_meme_post_receipt_with_owner(
-    receipt: dict,
-    state: dict,
-    *,
-    tweets: _tweet_lookup_cache.TweetLookupCache,
-) -> None:
-    """Apply a meme receipt through one invocation's tweet owner."""
-    return _main_post_reconciliation.apply_meme_post_receipt(
-        receipt,
-        state,
-        MEME_POST_TEXT=MEME_POST_TEXT,
-        MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
-        MY_USER_ID=MY_USER_ID,
-        log=log,
-        meme_schedule=_meme_schedule_owner(),
-        tweets=tweets,
-    )
 
-
-def apply_meme_post_receipt(receipt: dict, state: dict) -> None:
-    """Apply meme post receipt."""
-    return _apply_meme_post_receipt_with_owner(
-        receipt, state, tweets=_tweet_lookup_cache_owner(),
-    )
-
-
-def _reconcile_meme_post_receipt_with_owners(
-    state: dict,
-    *,
-    receipts: _main_post_receipt_storage.MainPostReceipts,
-    tweets: _tweet_lookup_cache.TweetLookupCache,
-) -> bool:
-    """Reconcile a meme receipt through one invocation's typed owners."""
-    return _main_post_reconciliation.reconcile_meme_post_receipt(
-        state,
-        InvalidMemePostReceipt=InvalidMemePostReceipt,
-        MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
-        MEME_POST_TEXT=MEME_POST_TEXT,
-        apply_meme_post_receipt=functools.partial(
-            _apply_meme_post_receipt_with_owner, tweets=tweets,
-        ),
-        receipts=receipts,
-        emit_account_root_posted=emit_account_root_posted,
-        log=log,
-        remove_meme_post_receipt=remove_meme_post_receipt,
-        retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
-        save_state=save_state,
-        verify_lane_transport_source_lineage_if_present=verify_lane_transport_source_lineage_if_present,
-    )
-
-
-def reconcile_meme_post_receipt(state: dict) -> bool:
-    """Reconcile a durable meme receipt without duplicating a remote post."""
-    receipt_values = _main_post_receipt_values_owner()
-    return _reconcile_meme_post_receipt_with_owners(
-        state,
-        receipts=_main_post_receipts_owner(values=receipt_values),
-        tweets=_tweet_lookup_cache_owner(),
-    )
-
-
-def _apply_regular_post_receipt_with_owner(
-    receipt: dict,
-    lines_used: set,
-    images_used: set,
-    state: dict,
-    *,
-    tweets: _tweet_lookup_cache.TweetLookupCache,
-) -> None:
-    """Apply a regular receipt through one invocation's tweet owner."""
-    return _main_post_reconciliation.apply_regular_post_receipt(
-        receipt,
-        lines_used,
-        images_used,
-        state,
-        MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
-        MY_USER_ID=MY_USER_ID,
-        log=log,
-        meme_schedule=_meme_schedule_owner(),
-        tweets=tweets,
-    )
-
-
-def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set, state: dict) -> None:
-    """Apply regular post receipt."""
-    return _apply_regular_post_receipt_with_owner(
-        receipt, lines_used, images_used, state,
-        tweets=_tweet_lookup_cache_owner(),
-    )
 
 
 def save_regular_post_protected_state(lines_used: set, images_used: set, state: dict, *, durable: bool) -> StateCommitProof:
@@ -5338,51 +5267,6 @@ def emergency_persist_confirmed_regular_post(lines_used: set, images_used: set, 
     )
 
 
-def confirmed_regular_emergency_representation_is_complete(
-    *,
-    post_id: str,
-    post_epoch: int | None,
-    quote_hash: str,
-    image_basename: str,
-    lines_used: set,
-    images_used: set,
-    state: dict,
-    main_post_attempt: dict,
-) -> bool:
-    """Return whether fallback state exactly implements the pre-send plan."""
-    return _main_post_reconciliation.confirmed_regular_emergency_representation_is_complete(
-        post_id=post_id,
-        post_epoch=post_epoch,
-        quote_hash=quote_hash,
-        image_basename=image_basename,
-        lines_used=lines_used,
-        images_used=images_used,
-        state=state,
-        main_post_attempt=main_post_attempt,
-        receipt_values=_main_post_receipt_values_owner(),
-        valid_receipt_epoch=valid_receipt_epoch,
-    )
-
-
-def confirmed_meme_emergency_representation_is_complete(
-    *,
-    post_id: str,
-    post_epoch: int | None,
-    meme_basename: str,
-    state: dict,
-    main_post_attempt: dict,
-) -> bool:
-    """Return whether fallback state exactly implements the pre-send plan."""
-    return _main_post_reconciliation.confirmed_meme_emergency_representation_is_complete(
-        post_id=post_id,
-        post_epoch=post_epoch,
-        meme_basename=meme_basename,
-        state=state,
-        main_post_attempt=main_post_attempt,
-        receipt_values=_main_post_receipt_values_owner(),
-        safe_bound_schedule_date_str=safe_bound_schedule_date_str,
-        valid_receipt_epoch=valid_receipt_epoch,
-    )
 
 
 def maybe_post_historical_context_reply(
@@ -5630,157 +5514,32 @@ def ensure_reconciled_regular_receipt_schedule_is_future(
     )
 
 
-def _reconcile_regular_post_receipt_with_owners(
-    lines_used: set,
-    images_used: set,
-    state: dict,
-    *,
-    minimum_next_quote_epoch: int | None = None,
-    process_auxiliary_context: bool = True,
-    receipts: _main_post_receipt_storage.MainPostReceipts,
-    tweets: _tweet_lookup_cache.TweetLookupCache,
-) -> bool:
-    """Reconcile a regular receipt through one invocation's typed owners."""
-    return _main_post_reconciliation.reconcile_regular_post_receipt(
-        lines_used,
-        images_used,
-        state,
-        minimum_next_quote_epoch=minimum_next_quote_epoch,
-        process_auxiliary_context=process_auxiliary_context,
-        InvalidRegularPostReceipt=InvalidRegularPostReceipt,
-        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
-        apply_regular_post_receipt=functools.partial(
-            _apply_regular_post_receipt_with_owner, tweets=tweets,
-        ),
-        receipts=receipts,
-        emit_account_root_posted=emit_account_root_posted,
-        enqueue_historical_context_obligation=enqueue_historical_context_obligation,
-        ensure_reconciled_regular_receipt_schedule_is_future=ensure_reconciled_regular_receipt_schedule_is_future,
-        log=log,
-        remove_regular_post_receipt=remove_regular_post_receipt,
-        retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
-        safely_process_due_historical_context_obligations=safely_process_due_historical_context_obligations,
-        save_regular_post_protected_state=save_regular_post_protected_state,
-        verify_lane_transport_source_lineage_if_present=verify_lane_transport_source_lineage_if_present,
-    )
 
-
-def reconcile_regular_post_receipt(
-    lines_used: set,
-    images_used: set,
-    state: dict,
-    *,
-    minimum_next_quote_epoch: int | None = None,
-    process_auxiliary_context: bool = True,
-) -> bool:
-    """Reconcile a durable regular-post receipt without duplicating a remote post."""
-    receipt_values = _main_post_receipt_values_owner()
-    return _reconcile_regular_post_receipt_with_owners(
-        lines_used,
-        images_used,
-        state,
-        minimum_next_quote_epoch=minimum_next_quote_epoch,
-        process_auxiliary_context=process_auxiliary_context,
-        receipts=_main_post_receipts_owner(values=receipt_values),
-        tweets=_tweet_lookup_cache_owner(),
-    )
-
-
-def block_if_unresolved_regular_post_receipt() -> None:
-    """Refuse a new regular post while a prior receipt is unresolved."""
-    return _transaction_recovery.block_if_unresolved_regular_post_receipt(
-        InvalidRegularPostReceipt=InvalidRegularPostReceipt,
-        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
-        UnresolvedRegularPostReceipt=UnresolvedRegularPostReceipt,
-        load_regular_post_receipt=load_regular_post_receipt,
-    )
-
-
-def both_main_post_receipts_exist() -> bool:
-    """Return the both main post receipts exist."""
-    return receipt_namespace_entry_exists(
-        REGULAR_POST_RECEIPT_FILE
-    ) and receipt_namespace_entry_exists(MEME_POST_RECEIPT_FILE)
-
-
-def _reconcile_main_post_receipts_with_owners(
-    lines_used: set,
-    images_used: set,
-    state: dict,
-    *,
-    minimum_next_quote_epoch: int | None = None,
-    process_auxiliary_context: bool = True,
-    receipts: _main_post_receipt_storage.MainPostReceipts,
-    tweets: _tweet_lookup_cache.TweetLookupCache,
-) -> dict[str, bool]:
-    """Reconcile both lanes through one invocation's typed owners."""
-    return _main_post_reconciliation.reconcile_main_post_receipts(
-        lines_used,
-        images_used,
-        state,
-        minimum_next_quote_epoch=minimum_next_quote_epoch,
-        process_auxiliary_context=process_auxiliary_context,
-        InvalidRegularPostReceipt=InvalidRegularPostReceipt,
-        MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
-        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
-        both_main_post_receipts_exist=both_main_post_receipts_exist,
-        log=log,
-        reconcile_meme_post_receipt=functools.partial(
-            _reconcile_meme_post_receipt_with_owners,
-            receipts=receipts,
-            tweets=tweets,
-        ),
-        reconcile_regular_post_receipt=functools.partial(
-            _reconcile_regular_post_receipt_with_owners,
-            receipts=receipts,
-            tweets=tweets,
-        ),
-    )
 
 
 def reconcile_main_post_receipts(
-    lines_used: set,
-    images_used: set,
-    state: dict,
-    *,
-    minimum_next_quote_epoch: int | None = None,
+    lines_used: set, images_used: set, state: dict,
+    *, minimum_next_quote_epoch: int | None = None,
     process_auxiliary_context: bool = True,
 ) -> dict[str, bool]:
-    """Reconcile regular and meme receipts before any new main post."""
-    receipt_values = _main_post_receipt_values_owner()
-    return _reconcile_main_post_receipts_with_owners(
-        lines_used,
-        images_used,
-        state,
+    """Request local replay of both main-post lanes."""
+    return _main_post_assembly().recovery_operation().reconcile(
+        lines_used, images_used, state,
         minimum_next_quote_epoch=minimum_next_quote_epoch,
         process_auxiliary_context=process_auxiliary_context,
-        receipts=_main_post_receipts_owner(values=receipt_values),
-        tweets=_tweet_lookup_cache_owner(),
     )
 
 
 def reconcile_startup_main_post_receipts(
-    lines_used: set,
-    images_used: set,
-    state: dict,
-    current: int,
+    lines_used: set, images_used: set, state: dict, current: int,
 ) -> dict[str, bool]:
     """Reconcile main receipts unless a global maintenance pause is active."""
-    receipt_values = _main_post_receipt_values_owner()
-    receipts = _main_post_receipts_owner(values=receipt_values)
-    tweets = _tweet_lookup_cache_owner()
+    recovery = _main_post_assembly().recovery_operation()
     return _transaction_recovery.reconcile_startup_main_post_receipts(
-        lines_used,
-        images_used,
-        state,
-        current,
+        lines_used, images_used, state, current,
         global_remote_writes_paused=global_remote_writes_paused,
         log=log,
-        reconcile_main_post_receipts=functools.partial(
-            _reconcile_main_post_receipts_with_owners,
-            receipts=receipts,
-            tweets=tweets,
-        ),
+        reconcile_main_post_receipts=recovery.reconcile,
     )
 
 
@@ -5801,9 +5560,11 @@ def reconcile_confirmed_transactions_before_global_barrier(
     attempt.  It never runs auxiliary remote work and refuses to choose between
     multiple lane receipts.
     """
-    receipt_values = _main_post_receipt_values_owner()
-    receipts = _main_post_receipts_owner(values=receipt_values)
-    tweets = _tweet_lookup_cache_owner()
+    assembly = _main_post_assembly()
+    receipt_values = assembly.values()
+    receipts = assembly.receipts(values=receipt_values)
+    tweets = assembly.application.tweets()
+    recovery = assembly.recovery(receipts=receipts, values=receipt_values, tweets=tweets)
     return _transaction_recovery.reconcile_confirmed_transactions_before_global_barrier(
         lines_used,
         images_used,
@@ -5819,7 +5580,7 @@ def reconcile_confirmed_transactions_before_global_barrier(
         _promote_legacy_sending_reply_receipt_from_confirmed_transport=_promote_legacy_sending_reply_receipt_from_confirmed_transport,
         _reply_confirmation_epoch_after_remote_success=_reply_assembly().observed_confirmation_epoch,
         bind_confirmed_transport_source=bind_confirmed_transport_source,
-        confirmation_epoch_for_main_attempt=confirmation_epoch_for_main_attempt,
+        confirmation_epoch_for_main_attempt=assembly.confirmation_epoch,
         emit_historical_context_store_observation=emit_historical_context_store_observation,
         global_remote_writes_paused=global_remote_writes_paused,
         historical_context_outbox_remote_attempt_parent_for_local_reconciliation=historical_context_outbox_remote_attempt_parent_for_local_reconciliation,
@@ -5831,15 +5592,11 @@ def reconcile_confirmed_transactions_before_global_barrier(
         load_confirmed_reply_receipt=load_confirmed_reply_receipt,
         log_event=log_event,
         now_epoch=now_epoch,
-        promote_main_post_attempt_to_confirmed_pending_schedule=promote_main_post_attempt_to_confirmed_pending_schedule,
+        promote_main_post_attempt_to_confirmed_pending_schedule=lambda *args, **kwargs: assembly.current().promote_pending(*args, **kwargs),
         promote_sending_reply_receipt=promote_sending_reply_receipt,
         receipt_namespace_entry_exists=receipt_namespace_entry_exists,
         reconcile_confirmed_reply_receipt=reconcile_confirmed_reply_receipt,
-        reconcile_main_post_receipts=functools.partial(
-            _reconcile_main_post_receipts_with_owners,
-            receipts=receipts,
-            tweets=tweets,
-        ),
+        reconcile_main_post_receipts=recovery.reconcile,
         receipts=receipts,
         recover_interrupted_historical_context_attempt=recover_interrupted_historical_context_attempt,
         remote_write_safety_incident_is_latched=remote_write_safety_incident_is_latched,
@@ -6298,101 +6055,13 @@ def choose_regular_quote_image_pair(
     )
 
 
-def _main_post_publication_owner(
-    lane: str,
-    *,
-    receipts: _main_post_receipt_storage.MainPostReceipts | None = None,
-    receipt_values: _main_post_receipts.MainPostReceiptValues | None = None,
-) -> _main_post_publication.MainPostPublication:
-    """Bind one publication at cycle entry without beginning any runtime work."""
-    if receipt_values is None:
-        receipt_values = _main_post_receipt_values_owner()
-    if receipts is None:
-        receipts = _main_post_receipts_owner(values=receipt_values)
-    return _main_post_publication.MainPostPublication(
-        lane=lane,
-        receipt_path=REGULAR_POST_RECEIPT_FILE if lane == "quote_image" else MEME_POST_RECEIPT_FILE,
-        log=log,
-        receipts=receipts,
-        receipt_values=receipt_values,
-        prepare_transport=prepare_main_tweet_transport,
-        handoff_media=handoff_confirmed_media_upload_to_main_attempt,
-        begin_sigint=begin_confirmed_post_sigint_deferral,
-        create_post=create_post,
-        proves_non_success=api_error_proves_remote_non_success,
-        retire_attempt=remove_main_post_attempt,
-        end_sigint=end_confirmed_post_sigint_deferral,
-        ambiguous_outcome=AmbiguousRemotePostOutcome,
-        incident_latched=remote_write_safety_incident_is_latched,
-        durable_barrier_exists=durable_remote_write_safety_barrier_exists,
-        retain_sigint=retain_sigint_deferral_without_durable_barrier,
-        inspect_confirmation=inspect_confirmed_transport_transaction,
-        journal_path=journal_path_for_receipt,
-        promote_pending=promote_main_post_attempt_to_confirmed_pending_schedule,
-        run_stage=run_daily_meme_stage if lane == "daily_meme" else None,
-        validate_meme_post_id=require_valid_meme_post_id if lane == "daily_meme" else None,
-    )
-
-
 # ---------------------------------------------------------------------
 # Runtime assembly: ordinary quotation publication
 # ---------------------------------------------------------------------
 
 def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
-    """Post a quotation pair through the owner with current root dependencies."""
-    selection = _image_selection_owner()
-    receipt_values = _main_post_receipt_values_owner()
-    receipts = _main_post_receipts_owner(values=receipt_values)
-    tweets = _tweet_lookup_cache_owner()
-    return _quote_posting.post_random_quote(
-        lines_used, images_used, state,
-        publication=_main_post_publication_owner(
-            "quote_image", receipts=receipts, receipt_values=receipt_values,
-        ),
-        receipts=receipts,
-        receipt_values=receipt_values,
-        tweets=tweets,
-        log=log,
-        block_if_ambiguous_remote_post=block_if_ambiguous_remote_post,
-        now_epoch=now_epoch,
-        reconcile_main_post_receipts=functools.partial(
-            _reconcile_main_post_receipts_with_owners,
-            receipts=receipts,
-            tweets=tweets,
-        ),
-        require_historical_context_outbox_writable=require_historical_context_outbox_writable,
-        selection=selection,
-        CorruptUsedHistoryError=CorruptUsedHistoryError,
-        NoViableQuoteImagePair=NoViableQuoteImagePair,
-        POST_SLEEP_MIN=POST_SLEEP_MIN,
-        POST_SLEEP_MAX=POST_SLEEP_MAX,
-        MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS=MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS,
-        MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS=MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS,
-        ENABLE_DAILY_MEME_POSTS=ENABLE_DAILY_MEME_POSTS,
-        upload_media=upload_media,
-        build_main_post_attempt=build_main_post_attempt,
-        MEME_TRIGGER_AFTER_HOUR=MEME_TRIGGER_AFTER_HOUR,
-        MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
-        MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
-        bound_meme_schedule_state=bound_meme_schedule_state,
-        remove_main_post_attempt=remove_main_post_attempt,
-        durable_remote_write_safety_barrier_exists=durable_remote_write_safety_barrier_exists,
-        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
-        ConfirmedPendingScheduleDurabilityUncertain=ConfirmedPendingScheduleDurabilityUncertain,
-        ConfirmedPostLocalPersistenceError=ConfirmedPostLocalPersistenceError,
-        MY_USER_ID=MY_USER_ID,
-        emergency_persist_confirmed_regular_post=emergency_persist_confirmed_regular_post,
-        confirmed_regular_emergency_representation_is_complete=confirmed_regular_emergency_representation_is_complete,
-        latch_confirmed_post_persistence_failure=latch_confirmed_post_persistence_failure,
-        UnrecoverableConfirmedPostPersistenceError=UnrecoverableConfirmedPostPersistenceError,
-        enqueue_historical_context_obligation=enqueue_historical_context_obligation,
-        log_event=log_event,
-        retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
-        emit_account_root_posted=emit_account_root_posted,
-        save_regular_post_protected_state=save_regular_post_protected_state,
-        remove_regular_post_receipt=remove_regular_post_receipt,
-        safely_process_due_historical_context_obligations=safely_process_due_historical_context_obligations,
-    )
+    """Request one ordinary quotation post from the main-post subsystem."""
+    return _main_post_assembly().quote_runner().post(lines_used, images_used, state)
 
 
 # ---------------------------------------------------------------------
@@ -6407,29 +6076,19 @@ def load_meme_analysis_index() -> dict[str, dict]:
 original_meme_filename = _daily_meme.original_meme_filename
 
 
-def _meme_catalog_owner() -> _daily_meme.MemeCatalog:
-    """Bind current external boundaries without runtime work or caller state."""
-    return _daily_meme.MemeCatalog(
-        log=log,
-        directory=MEME_DIR,
-        reset_when_exhausted=RESET_MEME_CYCLE_WHEN_ALL_POSTED,
-        save_state=save_state,
-    )
-
-
 def build_meme_cache_summary(shortlist_path: Path, analysis_index: dict[str, dict]) -> str:
     """Build the meme cache summary through current root helpers."""
-    return _meme_catalog_owner().summary(shortlist_path, analysis_index)
+    return _main_post_assembly().meme_catalog().summary(shortlist_path, analysis_index)
 
 
 def list_meme_candidates() -> list[Path]:
     """List the current meme catalog through the owner."""
-    return _meme_catalog_owner().candidates()
+    return _main_post_assembly().meme_catalog().candidates()
 
 
 def choose_next_meme(state: dict) -> Path | None:
     """Select a meme, saving any cycle reset through root authority."""
-    return _meme_catalog_owner().choose(state)
+    return _main_post_assembly().meme_catalog().choose(state)
 
 
 def epoch_date_str(epoch: int | None = None) -> str:
@@ -6442,58 +6101,39 @@ def reply_cap_date_str(epoch: int | None = None) -> str:
     return _receipt_dates_owner().reply_cap_date(epoch)
 
 
-def _meme_schedule_owner() -> _daily_meme.MemeSchedule:
-    """Bind current calendar and persistence boundaries without runtime work."""
-    return _daily_meme.MemeSchedule(
-        bound_datetime=bound_schedule_datetime,
-        timezone=MAIN_POST_SCHEDULE_TIMEZONE,
-        now_epoch=now_epoch,
-        fallback_hour=MEME_FALLBACK_HOUR,
-        fallback_minute=MEME_FALLBACK_MINUTE,
-        version=MEME_SCHEDULE_VERSION,
-        modes=MEME_SCHEDULE_MODES,
-        enabled=ENABLE_DAILY_MEME_POSTS,
-        trigger_hour=MEME_TRIGGER_AFTER_HOUR,
-        minimum_delay=MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS,
-        maximum_delay=MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS,
-        save_state=save_state,
-        log=log,
-    )
-
-
 def meme_schedule_datetime(epoch: int) -> datetime:
     """Interpret a meme epoch through the current production-zone helper."""
-    return _meme_schedule_owner().datetime(epoch)
+    return _main_post_assembly().meme_schedule().datetime(epoch)
 
 
 def meme_schedule_date_str(epoch: int | None = None) -> str:
     """Return the meme calendar date through current root helpers."""
-    return _meme_schedule_owner().date_str(epoch)
+    return _main_post_assembly().meme_schedule().date_str(epoch)
 
 
 def meme_posted_on_date(state: dict, date_text: str) -> bool:
     """Check the daily meme guard through the current date helper."""
-    return _meme_schedule_owner().posted_on_date(state, date_text)
+    return _main_post_assembly().meme_schedule().posted_on_date(state, date_text)
 
 
 def next_meme_fallback_epoch(state: dict, from_epoch: int | None = None) -> int:
     """Calculate the next fallback through current calendar settings."""
-    return _meme_schedule_owner().next_fallback_epoch(state, from_epoch)
+    return _main_post_assembly().meme_schedule().next_fallback_epoch(state, from_epoch)
 
 
 def next_meme_schedule_fields(state: dict, from_epoch: int | None = None, mode: str = "fallback") -> dict:
     """Build fallback schedule fields through current root helpers."""
-    return _meme_schedule_owner().next_fields(state, from_epoch, mode)
+    return _main_post_assembly().meme_schedule().next_fields(state, from_epoch, mode)
 
 
 def meme_delay_schedule_fields(epoch: int, mode: str) -> dict:
     """Build delayed schedule fields through current modes and helpers."""
-    return _meme_schedule_owner().delay_fields(epoch, mode)
+    return _main_post_assembly().meme_schedule().delay_fields(epoch, mode)
 
 
 def set_meme_delay_schedule(state: dict, *, epoch: int, mode: str, save: bool = True) -> None:
     """Apply a meme delay and optionally save through root authority."""
-    return _meme_schedule_owner().set_delay(state, epoch=epoch, mode=mode, save=save)
+    return _main_post_assembly().meme_schedule().set_delay(state, epoch=epoch, mode=mode, save=save)
 
 
 apply_state_fields = _runtime_state_helpers.apply_state_fields
@@ -6501,22 +6141,22 @@ apply_state_fields = _runtime_state_helpers.apply_state_fields
 
 def schedule_next_meme_post(state: dict, from_epoch: int | None = None, mode: str = "fallback", *, save: bool = True) -> None:
     """Schedule the fallback and optionally save through root authority."""
-    return _meme_schedule_owner().schedule_next(state, from_epoch, mode, save=save)
+    return _main_post_assembly().meme_schedule().schedule_next(state, from_epoch, mode, save=save)
 
 
 def ensure_meme_schedule_initialized(state: dict) -> None:
     """Initialise or migrate the meme schedule through root authority."""
-    return _meme_schedule_owner().ensure_initialized(state)
+    return _main_post_assembly().meme_schedule().ensure_initialized(state)
 
 
 def meme_schedule_fields_after_quote_post(state: dict, quote_post_epoch: int | None = None, *, delay: int | None = None) -> dict:
     """Build quote-anchored meme fields through current root settings."""
-    return _meme_schedule_owner().fields_after_quote(state, quote_post_epoch, delay=delay)
+    return _main_post_assembly().meme_schedule().fields_after_quote(state, quote_post_epoch, delay=delay)
 
 
 def maybe_schedule_meme_after_quote_post(state: dict, quote_post_epoch: int | None = None, *, save: bool = True) -> None:
     """Apply quote-anchored meme scheduling and optionally save state."""
-    return _meme_schedule_owner().maybe_after_quote(state, quote_post_epoch, save=save)
+    return _main_post_assembly().meme_schedule().maybe_after_quote(state, quote_post_epoch, save=save)
 
 
 def run_daily_meme_stage(stage: str, operation):
@@ -6537,60 +6177,8 @@ def require_valid_meme_post_id(posted_id: object) -> None:
 
 
 def post_next_meme(state: dict) -> None:
-    """Select and post a daily meme through the owner with root authority."""
-    receipt_values = _main_post_receipt_values_owner()
-    receipts = _main_post_receipts_owner(values=receipt_values)
-    tweets = _tweet_lookup_cache_owner()
-    return _daily_meme.post_next_meme(
-        state,
-        publication=_main_post_publication_owner(
-            "daily_meme", receipts=receipts, receipt_values=receipt_values,
-        ),
-        receipts=receipts,
-        receipt_values=receipt_values,
-        tweets=tweets,
-        catalog=_meme_catalog_owner(),
-        schedule=_meme_schedule_owner(),
-        log=log,
-        run_daily_meme_stage=run_daily_meme_stage,
-        block_if_ambiguous_remote_post=block_if_ambiguous_remote_post,
-        both_main_post_receipts_exist=both_main_post_receipts_exist,
-        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
-        MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
-        InvalidMemePostReceipt=InvalidMemePostReceipt,
-        reconcile_meme_post_receipt=functools.partial(
-            _reconcile_meme_post_receipt_with_owners,
-            receipts=receipts,
-            tweets=tweets,
-        ),
-        now_epoch=now_epoch,
-        block_if_unresolved_regular_post_receipt=block_if_unresolved_regular_post_receipt,
-        load_meme_analysis_index=load_meme_analysis_index,
-        upload_media=upload_media,
-        build_main_post_attempt=build_main_post_attempt,
-        MEME_POST_TEXT=MEME_POST_TEXT,
-        MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
-        MEME_FALLBACK_HOUR=MEME_FALLBACK_HOUR,
-        MEME_FALLBACK_MINUTE=MEME_FALLBACK_MINUTE,
-        MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
-        remove_main_post_attempt=remove_main_post_attempt,
-        durable_remote_write_safety_barrier_exists=durable_remote_write_safety_barrier_exists,
-        log_event=log_event,
-        ConfirmedPendingScheduleDurabilityUncertain=ConfirmedPendingScheduleDurabilityUncertain,
-        ConfirmedPostLocalPersistenceError=ConfirmedPostLocalPersistenceError,
-        apply_state_fields=apply_state_fields,
-        MY_USER_ID=MY_USER_ID,
-        save_state=save_state,
-        confirmed_meme_emergency_representation_is_complete=confirmed_meme_emergency_representation_is_complete,
-        StateBackupWriteError=StateBackupWriteError,
-        json_file_matches=json_file_matches,
-        STATE_FILE=STATE_FILE,
-        latch_confirmed_post_persistence_failure=latch_confirmed_post_persistence_failure,
-        UnrecoverableConfirmedPostPersistenceError=UnrecoverableConfirmedPostPersistenceError,
-        retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
-        remove_meme_post_receipt=remove_meme_post_receipt,
-        emit_account_root_posted=emit_account_root_posted,
-    )
+    """Request one daily meme post from the main-post subsystem."""
+    return _main_post_assembly().meme_runner().post(state)
 
 
 # ---------------------------------------------------------------------
@@ -7249,7 +6837,7 @@ def _run_due_meme_post_for_tick(state: dict, current: int) -> None:
     cooldowns = _api_cooldown_owner()
     controls = _runtime_controls_owner()
     if ENABLE_DAILY_MEME_POSTS:
-        meme_schedule = _meme_schedule_owner()
+        meme_schedule = _main_post_assembly().meme_schedule()
         next_meme_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
 
         if current >= next_meme_epoch:
@@ -7409,7 +6997,7 @@ def main() -> None:
     log.info("Images found at startup=%d", len(images_at_start))
 
     if ENABLE_DAILY_MEME_POSTS:
-        meme_candidates_at_start = _meme_catalog_owner().candidates()
+        meme_candidates_at_start = _main_post_assembly().meme_catalog().candidates()
         log.info("Meme candidates found at startup=%d", len(meme_candidates_at_start))
 
     validate_original_editorial_shadow_startup()
@@ -7487,7 +7075,7 @@ def main() -> None:
         )
 
     if ENABLE_DAILY_MEME_POSTS:
-        _meme_schedule_owner().ensure_initialized(state)
+        _main_post_assembly().meme_schedule().ensure_initialized(state)
 
     log.info("Bot started successfully")
     report_bot_health_progress("main_loop")
@@ -7747,7 +7335,7 @@ def prepare_test_main_post_state(state: dict) -> None:
     return _runtime_state_helpers.prepare_test_main_post_state(
         state,
         ENABLE_DAILY_MEME_POSTS=ENABLE_DAILY_MEME_POSTS,
-        meme_schedule=_meme_schedule_owner(),
+        meme_schedule=_main_post_assembly().meme_schedule(),
     )
 
 

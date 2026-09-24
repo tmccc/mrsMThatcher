@@ -11,6 +11,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_main_post_receipts as receipts
+from mrs_bot_main_post_assembly import MainPostAssembly
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,  # noqa: F401
@@ -120,7 +121,7 @@ def test_adapters_resolve_current_owner_preserving_defaults_references_and_error
             operation = Mock(return_value={"original return": []})
             owner = SimpleNamespace(**{OPERATIONS[name]: operation})
             factory = Mock(return_value=owner)
-            patch.setattr(bot, "_main_post_receipt_values_owner", factory)
+            patch.setattr(MainPostAssembly, "values", lambda _assembly: factory())
             options = {key: object() for key in defaults} if explicit else {}
             assert adapter(value, **options) is operation.return_value
             factory.assert_called_once_with()
@@ -136,7 +137,7 @@ def test_adapters_resolve_current_owner_preserving_defaults_references_and_error
 
 
 def test_receipt_owner_binds_external_references_and_refreshes_without_eager_runtime_access(monkeypatch):
-    factory = bot._main_post_receipt_values_owner
+    factory = lambda: bot._main_post_assembly().values()
     assert set(inspect.signature(receipts.MainPostReceiptValues).parameters) == {*OWNER_FIELDS, "current"}
     prior = None
     for _ in range(2):
@@ -144,13 +145,16 @@ def test_receipt_owner_binds_external_references_and_refreshes_without_eager_run
         for field, root_name in OWNER_FIELDS.items():
             monkeypatch.setattr(bot, root_name, current[field])
         owner = factory()
-        assert all(getattr(owner, field) is value for field, value in current.items())
+        assert all(getattr(owner, field) is value for field, value in current.items()
+                   if field != "bound_meme_state_is_valid")
+        assert owner.bound_meme_state_is_valid.__self__.policy.schedule_timezone is current["schedule_timezone"]
         if prior is not None:
             assert owner is not prior
-            assert all(getattr(prior, field) is value for field, value in prior_values.items())
+            assert all(getattr(prior, field) is value for field, value in prior_values.items()
+                       if field != "bound_meme_state_is_valid")
         prior, prior_values = owner, current
     replacement = Mock(return_value=object())
-    monkeypatch.setattr(bot, "_main_post_receipt_values_owner", replacement)
+    monkeypatch.setattr(MainPostAssembly, "values", lambda _assembly: replacement())
     replacement.assert_not_called()
     assert owner.current() is replacement.return_value
     replacement.assert_called_once_with()
@@ -463,7 +467,9 @@ def test_active_receipt_policy_is_stable_while_next_owned_operation_binds_curren
     def inspect_next_operation(owner, source):
         observed.append(source)
         assert source is receipt["source_attempt"]
-        assert all(getattr(owner, field) is value for field, value in changed.items())
+        assert all(getattr(owner, field) is value for field, value in changed.items()
+                   if field != "bound_meme_state_is_valid")
+        assert owner.bound_meme_state_is_valid.__self__.policy.schedule_timezone is changed["schedule_timezone"]
         return False
 
     monkeypatch.setattr(bot, "MEME_SCHEDULE_MODES", original_modes)
@@ -535,7 +541,7 @@ def test_nested_owner_composition_failure_propagates_after_original_epoch_check(
 
     def valid_epoch(value):
         epoch_calls.append(value)
-        monkeypatch.setattr(bot, "_main_post_receipt_values_owner", next_owner)
+        monkeypatch.setattr(MainPostAssembly, "values", lambda _assembly: next_owner())
         return True
 
     monkeypatch.setattr(bot, "valid_receipt_epoch", valid_epoch)

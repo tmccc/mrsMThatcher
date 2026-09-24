@@ -490,14 +490,14 @@ def test_main_reconciliation_rejects_wrong_source_before_state_mutation(
 
     with pytest.raises(journal.TransportJournalError, match="source receipt"):
         if lane == "quote_image":
-            bot.reconcile_regular_post_receipt(
+            bot._main_post_assembly().recovery_operation().reconcile_regular(
                 lines_used,
                 images_used,
                 state,
                 process_auxiliary_context=False,
             )
         else:
-            bot.reconcile_meme_post_receipt(state)
+            bot._main_post_assembly().recovery_operation().reconcile_meme(state)
 
     assert state == state_before
     assert lines_used == set()

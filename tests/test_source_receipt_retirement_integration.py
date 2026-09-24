@@ -109,11 +109,11 @@ RESTART_DRIVER = textwrap.dedent(
             record_receipt_commit(state, receipt)
             if lane == "quote_image":
                 lines, images = set(), set()
-                bot.apply_regular_post_receipt(receipt, lines, images, state)
+                bot._main_post_assembly().recovery_operation().apply_regular(receipt, lines, images, state)
                 commit_proof = bot.save_regular_post_protected_state(lines, images, state, durable=True)
             else:
                 if lane == "daily_meme":
-                    bot.apply_meme_post_receipt(receipt, state)
+                    bot._main_post_assembly().recovery_operation().apply_meme(receipt, state)
                 else:
                     bot._reply_assembly()._confirmed_reply_state_applier()(state, receipt)
                 commit_proof = bot.save_state(state, durable=True)
@@ -381,11 +381,11 @@ def test_pause_snapshot_preserves_then_resumes_each_lane_exactly(
         record_receipt_commit(state, confirmed)
         if lane == "quote_image":
             lines, images = set(), set()
-            bot.apply_regular_post_receipt(confirmed, lines, images, state)
+            bot._main_post_assembly().recovery_operation().apply_regular(confirmed, lines, images, state)
             bot.save_regular_post_protected_state(lines, images, state, durable=True)
         else:
             if lane == "daily_meme":
-                bot.apply_meme_post_receipt(confirmed, state)
+                bot._main_post_assembly().recovery_operation().apply_meme(confirmed, state)
             else:
                 bot._reply_assembly()._confirmed_reply_state_applier()(state, confirmed)
             bot.save_state(state, durable=True)

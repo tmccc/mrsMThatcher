@@ -921,7 +921,7 @@ def test_regular_receipt_replay_clears_after_policy_skip_without_context_write(
     lines_used: set[str] = set()
     images_used: set[str] = set()
     state: dict[str, object] = {}
-    assert bot.reconcile_regular_post_receipt(
+    assert bot._main_post_assembly().recovery_operation().reconcile_regular(
         lines_used,
         images_used,
         state,

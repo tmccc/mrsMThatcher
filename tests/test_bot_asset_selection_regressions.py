@@ -17,6 +17,7 @@ import mrs_bot_used_history as used_history
 from tests.helpers.bot_runtime import bot
 from tests.helpers.quote_candidate_overrides import patch_completed_research_quotes
 from tests.helpers.bot_fixtures import (
+    patch_main_post_handoff,
     isolate_bot_runtime,
     quote_analysis_for_lines,
     image_analysis_for_paths,
@@ -779,11 +780,7 @@ def test_posting_duplicate_quote_marks_hash_and_blocks_identical_line_same_cycle
     patch_metadata(monkeypatch, "load_image", lambda: image_analysis_for_paths([image_path]))
     monkeypatch.setattr(bot.random, "uniform", lambda low, high: low)
     monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(
         bot,
         "create_post",

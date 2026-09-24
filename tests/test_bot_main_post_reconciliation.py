@@ -12,6 +12,7 @@ from unittest.mock import ANY, Mock, call
 import pytest
 
 import mrs_bot_main_post_reconciliation as owner
+from mrs_bot_main_post_assembly import MainPostAssembly
 from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from mrs_bot_main_post_receipts import MainPostReceiptValues
 from mrs_bot_tweet_lookup_cache import TweetLookupCache
@@ -23,58 +24,14 @@ from tests.helpers.bot_fixtures import (
 )
 
 
-DEPENDENCIES = {'apply_meme_post_receipt': ['MEME_POST_TEXT',
-                             'MEME_SCHEDULE_VERSION',
-                             'MY_USER_ID',
-                             'log',
-                             'meme_schedule',
-                             'tweets'],
- 'reconcile_meme_post_receipt': ['receipts', 'tweets'],
- 'apply_regular_post_receipt': ['MEME_SCHEDULE_VERSION',
-                                'MY_USER_ID',
-                                'log',
-                                'meme_schedule',
-                                'tweets'],
- 'confirmed_regular_emergency_representation_is_complete': ['receipt_values',
-                                                            'valid_receipt_epoch'],
- 'confirmed_meme_emergency_representation_is_complete': ['receipt_values',
-                                                         'safe_bound_schedule_date_str',
-                                                         'valid_receipt_epoch'],
- 'reconcile_regular_post_receipt': ['receipts', 'tweets'],
- 'reconcile_main_post_receipts': ['receipts', 'tweets']}
+DEPENDENCIES = {"reconcile_main_post_receipts": ("receipts", "tweets")}
 
-SIGNATURES = {'apply_meme_post_receipt': "(receipt: 'dict', state: 'dict') -> 'None'",
- 'reconcile_meme_post_receipt': "(state: 'dict') -> 'bool'",
- 'apply_regular_post_receipt': "(receipt: 'dict', lines_used: 'set', "
-                               "images_used: 'set', state: 'dict') -> 'None'",
- 'confirmed_regular_emergency_representation_is_complete': '(*, post_id: '
-                                                           "'str', post_epoch: "
-                                                           "'int | None', "
-                                                           "quote_hash: 'str', "
-                                                           'image_basename: '
-                                                           "'str', lines_used: "
-                                                           "'set', "
-                                                           'images_used: '
-                                                           "'set', state: "
-                                                           "'dict', "
-                                                           'main_post_attempt: '
-                                                           "'dict') -> 'bool'",
- 'confirmed_meme_emergency_representation_is_complete': "(*, post_id: 'str', "
-                                                        "post_epoch: 'int | "
-                                                        "None', meme_basename: "
-                                                        "'str', state: 'dict', "
-                                                        'main_post_attempt: '
-                                                        "'dict') -> 'bool'",
- 'reconcile_regular_post_receipt': "(lines_used: 'set', images_used: 'set', "
-                                   "state: 'dict', *, "
-                                   "minimum_next_quote_epoch: 'int | None' = "
-                                   "None, process_auxiliary_context: 'bool' = "
-                                   "True) -> 'bool'",
- 'reconcile_main_post_receipts': "(lines_used: 'set', images_used: 'set', "
-                                 "state: 'dict', *, minimum_next_quote_epoch: "
-                                 "'int | None' = None, "
-                                 "process_auxiliary_context: 'bool' = True) -> "
-                                 "'dict[str, bool]'"}
+SIGNATURES = {
+    "reconcile_main_post_receipts": "(lines_used: 'set', images_used: 'set', "
+    "state: 'dict', *, minimum_next_quote_epoch: 'int | None' = None, "
+    "process_auxiliary_context: 'bool' = True) -> 'dict[str, bool]'"
+}
+
 
 def test_import_needs_no_runtime_access():
     code = """
@@ -116,66 +73,32 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
     adapter = getattr(bot, name)
     signature = inspect.signature(adapter)
     assert str(signature) == SIGNATURES[name]
-    positional = [p.name for p in signature.parameters.values()
-                  if p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD]
-    keyword_only = [p.name for p in signature.parameters.values()
-                    if p.kind is inspect.Parameter.KEYWORD_ONLY]
-    for _ in range(2):
-        with monkeypatch.context() as patch:
-            current = {dep: object() for dep in DEPENDENCIES[name]}
-            for dep, value in current.items():
-                if dep == "meme_schedule":
-                    patch.setattr(bot, "_meme_schedule_owner", Mock(return_value=value))
-                elif dep == "tweets":
-                    patch.setattr(bot, "_tweet_lookup_cache_owner", Mock(return_value=value))
-                elif dep == "receipt_values":
-                    patch.setattr(bot, "_main_post_receipt_values_owner", Mock(return_value=value))
-                elif dep == "receipts":
-                    patch.setattr(bot, "_main_post_receipts_owner", Mock(return_value=value))
-                else:
-                    patch.setattr(bot, dep, value)
-            if "receipts" in current:
-                patch.setattr(
-                    bot, "_main_post_receipt_values_owner",
-                    Mock(return_value=object()),
-                )
-            result = {"original": []}
-            expected = {}
-
-            def capture(*args, **kwargs):
-                assert len(args) == len(positional)
-                assert all(value is expected[key] for key, value in zip(positional, args))
-                supplied = {key: expected[key] for key in keyword_only} | current
-                assert kwargs.keys() == supplied.keys()
-                assert all(kwargs[key] is value for key, value in supplied.items())
-                return result
-
-            private_name = {
-                "reconcile_meme_post_receipt": "_reconcile_meme_post_receipt_with_owners",
-                "reconcile_regular_post_receipt": "_reconcile_regular_post_receipt_with_owners",
-                "reconcile_main_post_receipts": "_reconcile_main_post_receipts_with_owners",
-            }.get(name)
-            if private_name is None:
-                patch.setattr(bot, "_main_post_reconciliation", SimpleNamespace(**{name: capture}))
-            else:
-                patch.setattr(bot, private_name, capture)
-            for include_defaults in (True, False):
-                provided = {key: object() for key, param in signature.parameters.items()
-                            if include_defaults or param.default is inspect.Parameter.empty}
-                bound = signature.bind(**provided)
-                bound.apply_defaults()
-                expected = bound.arguments
-                assert adapter(**provided) is result
-            with pytest.raises(TypeError, match="not_a_public_option"):
-                adapter(**provided, not_a_public_option={})
-            failure = TypeError("current owner failure")
-            if private_name is None:
-                patch.setattr(bot, "_main_post_reconciliation", SimpleNamespace(**{name: Mock(side_effect=failure)}))
-            else:
-                patch.setattr(bot, private_name, Mock(side_effect=failure))
-            with pytest.raises(TypeError) as caught:
-                adapter(**provided)
-            assert caught.value is failure
+    method = "reconcile"
+    result = {"original": []}
+    operation = Mock(return_value=result)
+    recovery = SimpleNamespace(**{method: operation})
+    monkeypatch.setattr(MainPostAssembly, "recovery_operation", lambda _assembly: recovery)
+    for include_defaults in (True, False):
+        provided = {key: object() for key, param in signature.parameters.items()
+                    if include_defaults or param.default is inspect.Parameter.empty}
+        bound = signature.bind(**provided)
+        bound.apply_defaults()
+        assert adapter(**provided) is result
+        assert operation.call_args.args == tuple(
+            bound.arguments[key] for key, param in signature.parameters.items()
+            if param.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+        )
+        assert operation.call_args.kwargs == {
+            key: value for key, value in bound.arguments.items()
+            if signature.parameters[key].kind is inspect.Parameter.KEYWORD_ONLY
+        }
+    with pytest.raises(TypeError, match="not_a_public_option"):
+        adapter(**provided, not_a_public_option={})
+    failure = TypeError("current owner failure")
+    operation.side_effect = failure
+    with pytest.raises(TypeError) as caught:
+        adapter(**provided)
+    assert caught.value is failure
 
 
 def _callbacks(monkeypatch, *names):
@@ -190,11 +113,18 @@ def _callbacks(monkeypatch, *names):
         "materialize_bound_regular_schedule_receipt": (MainPostReceiptValues, "materialize_regular"),
         "materialize_bound_meme_schedule_receipt": (MainPostReceiptValues, "materialize_meme"),
     }
-    private = {
-        "apply_meme_post_receipt": "_apply_meme_post_receipt_with_owner",
-        "apply_regular_post_receipt": "_apply_regular_post_receipt_with_owner",
-        "reconcile_meme_post_receipt": "_reconcile_meme_post_receipt_with_owners",
-        "reconcile_regular_post_receipt": "_reconcile_regular_post_receipt_with_owners",
+    recovery_methods = {
+        "apply_meme_post_receipt": "apply_meme",
+        "apply_regular_post_receipt": "apply_regular",
+        "reconcile_meme_post_receipt": "reconcile_meme",
+        "reconcile_regular_post_receipt": "reconcile_regular",
+    }
+    assembly_methods = {
+        "save_regular_post_protected_state": "save_regular_protected_state",
+        "remove_regular_post_receipt": "remove_regular",
+        "remove_meme_post_receipt": "remove_meme",
+        "ensure_reconciled_regular_receipt_schedule_is_future": "ensure_regular_schedule_future",
+        "both_main_post_receipts_exist": "both_receipts_exist",
     }
     for name in names:
         callback = getattr(events, name)
@@ -204,14 +134,16 @@ def _callbacks(monkeypatch, *names):
                 target, method,
                 lambda self, *args, _callback=callback, **kwargs: _callback(*args, **kwargs),
             )
-        elif name in private:
-            if name.startswith("apply_"):
-                monkeypatch.setattr(
-                    bot, private[name],
-                    lambda *args, _callback=callback, **_kwargs: _callback(*args),
-                )
-            else:
-                monkeypatch.setattr(bot, private[name], callback)
+        elif name in recovery_methods:
+            monkeypatch.setattr(
+                owner.MainPostRecovery, recovery_methods[name],
+                lambda self, *args, _callback=callback, **kwargs: _callback(*args, **kwargs),
+            )
+        elif name in assembly_methods:
+            monkeypatch.setattr(
+                MainPostAssembly, assembly_methods[name],
+                lambda self, *args, _callback=callback, **kwargs: _callback(*args, **kwargs),
+            )
         else:
             monkeypatch.setattr(bot, name, callback)
     return events
@@ -229,7 +161,7 @@ def test_regular_application_preserves_histories_empty_schedule_and_callback_ord
         monkeypatch,
         "maybe_schedule_meme_after_quote_post", "cache_tweet", "record_recent_own_post",
     )
-    assert bot.apply_regular_post_receipt(receipt, lines, images, state) is None
+    assert bot._main_post_assembly().recovery_operation().apply_regular(receipt, lines, images, state) is None
     assert lines == set(receipt["quote_history_after"])
     assert images == set(receipt["image_history_after"])
     assert [state[key] for key in (
@@ -248,7 +180,7 @@ def test_regular_application_preserves_histories_empty_schedule_and_callback_ord
     # A stale receipt still reaches the final experiment callback.
     events.reset_mock()
     state["last_quote_post_epoch"] += 1
-    bot.apply_regular_post_receipt(receipt, lines, images, state)
+    bot._main_post_assembly().recovery_operation().apply_regular(receipt, lines, images, state)
 
 
 @pytest.mark.parametrize("last_id", ["", "970001", "970002"])
@@ -266,7 +198,7 @@ def test_meme_tied_application_keeps_schedule_guard_and_current_cache_order(monk
     }
     events = _callbacks(monkeypatch, "meme_schedule_date_str", "cache_tweet", "record_recent_own_post")
     monkeypatch.setattr(bot, "MEME_POST_TEXT", "current default")
-    assert bot.apply_meme_post_receipt(receipt, state) is None
+    assert bot._main_post_assembly().recovery_operation().apply_meme(receipt, state) is None
     assert state["posted_meme_filenames"] == ["001_meme.png", "002_meme.png"]
     if last_id == "970002":
         assert state["last_main_post_id"] == last_id
@@ -291,10 +223,10 @@ def test_application_native_errors_keep_original_partial_mutation(monkeypatch):
     receipt = valid_regular_receipt_v2(quote_history_after=None)
     lines, images, state = {"old quote"}, {"old image"}, {}
     with pytest.raises(TypeError):
-        bot.apply_regular_post_receipt(receipt, lines, images, state)
+        bot._main_post_assembly().recovery_operation().apply_regular(receipt, lines, images, state)
     assert lines == set() and images == {"old image"} and state == {}
     with pytest.raises(KeyError, match="meme_basename"):
-        bot.apply_meme_post_receipt({"post_id": "970001"}, state)
+        bot._main_post_assembly().recovery_operation().apply_meme({"post_id": "970001"}, state)
     assert state == {}
 
 
@@ -316,7 +248,7 @@ def test_legacy_receipt_application_uses_meme_schedule_without_root_relays(monke
     monkeypatch.setattr(bot, "cache_tweet", Mock(side_effect=AssertionError("used root cache relay")))
     monkeypatch.setattr(bot, "record_recent_own_post", Mock(side_effect=AssertionError("used root recent relay")))
     state = {}
-    bot.apply_regular_post_receipt(receipt, set(), set(), state)
+    bot._main_post_assembly().recovery_operation().apply_regular(receipt, set(), set(), state)
     expected = bot.bound_schedule_datetime(
         next_meme_epoch,
         bot.MAIN_POST_SCHEDULE_TIMEZONE,
@@ -338,11 +270,11 @@ def _emergency_case(lane):
     if lane == "quote_image":
         receipt = bot.materialize_bound_regular_schedule_receipt(pending)
         lines, images = set(), set()
-        bot.apply_regular_post_receipt(receipt, lines, images, state)
+        bot._main_post_assembly().recovery_operation().apply_regular(receipt, lines, images, state)
         kwargs.update(quote_hash=receipt["quote_hash"], image_basename=receipt["image_basename"], lines_used=lines, images_used=images)
     else:
         receipt = bot.materialize_bound_meme_schedule_receipt(pending)
-        bot.apply_meme_post_receipt(receipt, state)
+        bot._main_post_assembly().recovery_operation().apply_meme(receipt, state)
         kwargs["meme_basename"] = receipt["meme_basename"]
     return kwargs, pending, receipt
 
@@ -350,7 +282,7 @@ def _emergency_case(lane):
 @pytest.mark.parametrize("lane,kind", [("quote_image", "regular"), ("daily_meme", "meme")])
 def test_emergency_predicates_keep_eager_work_outside_narrow_exception_boundary(monkeypatch, lane, kind):
     kwargs, pending, receipt = _emergency_case(lane)
-    predicate = getattr(bot, f"confirmed_{kind}_emergency_representation_is_complete")
+    predicate = getattr(bot._main_post_assembly().recovery_operation(), f"{kind}_emergency_complete")
     materializer_name = f"materialize_bound_{kind}_schedule_receipt"
     events = _callbacks(monkeypatch, "build_confirmed_pending_schedule_receipt", materializer_name)
     builder = events.build_confirmed_pending_schedule_receipt
@@ -385,7 +317,7 @@ def test_meme_emergency_eager_summary_and_late_cache_errors_are_native(monkeypat
     builder = Mock(return_value=pending)
     monkeypatch.setattr(MainPostReceiptValues, "build_pending", lambda self, *args, **kwargs: builder(*args, **kwargs))
     monkeypatch.setattr(MainPostReceiptValues, "materialize_meme", lambda self, value: receipt)
-    predicate = bot.confirmed_meme_emergency_representation_is_complete
+    predicate = bot._main_post_assembly().recovery_operation().meme_emergency_complete
     with pytest.raises(TypeError):
         predicate(**{**kwargs, "state": {**kwargs["state"], "posted_meme_filenames": None}})
     with pytest.raises(AttributeError):
@@ -414,7 +346,7 @@ def test_regular_pending_recovery_orders_retirement_and_auxiliary(monkeypatch, p
     )
     events.load_regular_post_receipt.return_value = ("pending_schedule", pending)
     events.finalize_confirmed_pending_schedule_receipt.return_value = receipt
-    assert bot.reconcile_regular_post_receipt(
+    assert bot._main_post_assembly().recovery_operation().reconcile_regular(
         lines, images, state, minimum_next_quote_epoch=0,
         process_auxiliary_context=process_auxiliary,
     ) is True
@@ -467,7 +399,7 @@ def test_meme_pending_recovery_preserves_references_and_save_failure_boundary(mo
     )
     events.load_meme_post_receipt.return_value = ("pending_schedule", pending)
     events.finalize_confirmed_pending_schedule_receipt.return_value = receipt
-    assert bot.reconcile_meme_post_receipt(state) is True
+    assert bot._main_post_assembly().recovery_operation().reconcile_meme(state) is True
     expected_order = [
         "load_meme_post_receipt", "verify_lane_transport_source_lineage_if_present",
         "log.warning", "finalize_confirmed_pending_schedule_receipt", "log.warning",
@@ -492,7 +424,7 @@ def test_meme_pending_recovery_preserves_references_and_save_failure_boundary(mo
     failure = OSError("durable save failed")
     events.save_state.side_effect = failure
     with pytest.raises(OSError) as caught:
-        bot.reconcile_meme_post_receipt(state)
+        bot._main_post_assembly().recovery_operation().reconcile_meme(state)
     assert caught.value is failure
     assert [entry[0] for entry in events.mock_calls] == expected_order[:7]
 
@@ -514,14 +446,14 @@ def test_bound_meme_replay_preserves_caption_in_cache_and_observation(monkeypatc
     monkeypatch.setattr(bot, "emit_account_root_posted", observed)
     state = bot.default_state()
 
-    assert bot.reconcile_meme_post_receipt(state) is True
+    assert bot._main_post_assembly().recovery_operation().reconcile_meme(state) is True
 
     assert state["tweet_cache"]["970001"]["text"] == caption
     observed.assert_called_once_with(
         lane="daily_meme", post_id="970001", public_text=caption,
         image_summary=receipt.get("image_summary"),
     )
-    assert bot.confirmed_meme_emergency_representation_is_complete(
+    assert bot._main_post_assembly().recovery_operation().meme_emergency_complete(
         post_id="970001", post_epoch=epoch, meme_basename="001_meme.png",
         state=state, main_post_attempt=attempt,
     )
@@ -537,9 +469,9 @@ def test_legacy_meme_text_fallback_requires_an_absent_field(monkeypatch):
     monkeypatch.setattr(MainPostReceipts, "load_meme", lambda self: ("valid", receipt))
     observed = Mock()
     monkeypatch.setattr(bot, "emit_account_root_posted", observed)
-    monkeypatch.setattr(bot, "remove_meme_post_receipt", Mock())
+    monkeypatch.setattr(MainPostAssembly, "remove_meme", lambda self, *args, **kwargs: None)
     state = bot.default_state()
-    assert bot.reconcile_meme_post_receipt(state) is True
+    assert bot._main_post_assembly().recovery_operation().reconcile_meme(state) is True
     assert state["tweet_cache"]["970001"]["text"] == "legacy default"
     assert observed.call_args.kwargs["public_text"] == "legacy default"
 
@@ -563,11 +495,9 @@ def test_main_recovery_gate_precedes_current_regular_then_meme_callbacks(monkeyp
         call.both_main_post_receipts_exist(),
         call.reconcile_regular_post_receipt(
             lines, images, state, minimum_next_quote_epoch=0,
-            process_auxiliary_context=False, receipts=ANY, tweets=ANY,
+            process_auxiliary_context=False,
         ),
-        call.reconcile_meme_post_receipt(
-            state, receipts=ANY, tweets=ANY,
-        ),
+        call.reconcile_meme_post_receipt(state),
     ]
     assert events.reconcile_meme_post_receipt.call_args.args[0] is state
     events.reset_mock()

@@ -18,6 +18,9 @@ from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from tests.helpers.bot_runtime import bot
 from tests.helpers.reply_fixtures import patch_tweet_lookup_method
 from tests.helpers.bot_fixtures import (
+    patch_main_post_promotion,
+    patch_main_post_removal,
+    patch_main_post_handoff,
     isolate_bot_runtime,
     quote_analysis_for_lines,
     image_analysis_for_paths,
@@ -53,11 +56,7 @@ def test_post_random_quote_requires_created_post_id_before_marking_histories(
     monkeypatch.setattr(bot, "IMAGES_USED_FILE", images_used_file)
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
     monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -152,7 +151,7 @@ def test_confirmed_regular_post_receipt_recovers_local_persistence_failures(
     reconciled_lines: set[str] = set()
     reconciled_images: set[str] = set()
     reconciled_state: dict = {}
-    assert bot.reconcile_regular_post_receipt(reconciled_lines, reconciled_images, reconciled_state) is True
+    assert bot._main_post_assembly().recovery_operation().reconcile_regular(reconciled_lines, reconciled_images, reconciled_state) is True
     assert bot.ambiguous_remote_post_is_blocking() is False
     assert not receipt_file.exists()
     assert json.loads(lines_used_file.read_text(encoding="utf-8")) == [quote_hash]
@@ -216,9 +215,8 @@ def test_regular_no_receipt_emergency_representation_reloads_completely(
         )
         raise OSError("receipt failed")
 
-    monkeypatch.setattr(
-        bot,
-        "promote_main_post_attempt_to_confirmed_pending_schedule",
+    patch_main_post_promotion(
+        monkeypatch,
         fail_receipt,
     )
 
@@ -235,7 +233,7 @@ def test_regular_no_receipt_emergency_representation_reloads_completely(
     reloaded_images = bot.load_image_used_basenames(image_paths)
     quote_hash = bot.quote_text_hash("Good quote.")
 
-    assert bot.confirmed_regular_emergency_representation_is_complete(
+    assert bot._main_post_assembly().recovery_operation().regular_emergency_complete(
         post_id="950001",
         post_epoch=1_800_000_000,
         quote_hash=quote_hash,
@@ -253,9 +251,8 @@ def test_regular_emergency_canonical_state_survives_backup_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     lines_used, images_used, state, *_paths = configure_simple_quote_post(tmp_path, monkeypatch)
-    monkeypatch.setattr(
-        bot,
-        "promote_main_post_attempt_to_confirmed_pending_schedule",
+    patch_main_post_promotion(
+        monkeypatch,
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("receipt failed")),
     )
     monkeypatch.setattr(
@@ -277,9 +274,8 @@ def test_regular_emergency_parent_fsync_failure_still_latches(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     lines_used, images_used, state, *_paths = configure_simple_quote_post(tmp_path, monkeypatch)
-    monkeypatch.setattr(
-        bot,
-        "promote_main_post_attempt_to_confirmed_pending_schedule",
+    patch_main_post_promotion(
+        monkeypatch,
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("receipt failed")),
     )
     original_fsync_parent_dir = bot.fsync_parent_dir
@@ -320,9 +316,8 @@ def test_receipt_write_failure_emergency_persistence_attempts_all_components(
 ) -> None:
     lines_used, images_used, state, _lines_used_file, _images_used_file, _receipt_file, _lines_file = configure_simple_quote_post(tmp_path, monkeypatch)
     attempts: list[str] = []
-    monkeypatch.setattr(
-        bot,
-        "promote_main_post_attempt_to_confirmed_pending_schedule",
+    patch_main_post_promotion(
+        monkeypatch,
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("receipt failed")),
     )
 
@@ -368,9 +363,8 @@ def test_regular_total_persistence_loss_latches_when_marker_write_also_fails(
         )
 
     monkeypatch.setattr(bot, "create_post", confirmed_create)
-    monkeypatch.setattr(
-        bot,
-        "promote_main_post_attempt_to_confirmed_pending_schedule",
+    patch_main_post_promotion(
+        monkeypatch,
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("receipt failed")),
     )
     monkeypatch.setattr(
@@ -437,9 +431,8 @@ def test_confirmed_regular_post_fallback_helper_failure_latches(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     lines_used, images_used, state, *_paths = configure_simple_quote_post(tmp_path, monkeypatch)
-    monkeypatch.setattr(
-        bot,
-        "promote_main_post_attempt_to_confirmed_pending_schedule",
+    patch_main_post_promotion(
+        monkeypatch,
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("receipt failed")),
     )
     monkeypatch.setattr(
@@ -548,11 +541,7 @@ def test_pre_confirmation_failures_restore_histories_after_quote_cycle_reset(
             monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: (_ for _ in ()).throw(OSError("upload failed")))
         else:
             monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
-            monkeypatch.setattr(
-                bot,
-                "handoff_confirmed_media_upload_to_main_attempt",
-                lambda _attempt, _authority: None,
-            )
+            patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
             if failure == "create":
                 monkeypatch.setattr(bot, "create_post", lambda **kwargs: (_ for _ in ()).throw(OSError("create failed")))
             elif failure == "invalid_post_id":

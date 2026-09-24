@@ -12,6 +12,9 @@ from zoneinfo import ZoneInfo
 import pytest
 
 import mrs_bot_daily_meme as meme
+import mrs_bot_main_post_assembly as main_post_assembly
+from mrs_bot_main_post_assembly import MainPostAssembly
+from mrs_bot_main_post_reconciliation import MainPostRecovery
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     configure_simple_meme_post,
@@ -56,7 +59,7 @@ assert 'mrsMThatcher2' not in sys.modules
 
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
     names = (
-        "run_daily_meme_stage", "require_valid_meme_post_id", "post_next_meme",
+        "run_daily_meme_stage", "require_valid_meme_post_id",
     )
     for name in names:
         adapter = getattr(bot, name)
@@ -70,55 +73,47 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
             patch.setattr(meme, name, owner)
             for _ in range(2):
                 current = {key: object() for key in dependencies}
-                factories = {}
-                for key, factory_name, factory_args in (
-                    ("catalog", "_meme_catalog_owner", ()),
-                    ("schedule", "_meme_schedule_owner", ()),
-                    ("receipt_values", "_main_post_receipt_values_owner", ()),
-                    ("receipts", "_main_post_receipts_owner", ()),
-                    ("tweets", "_tweet_lookup_cache_owner", ()),
-                ):
-                    if key in current:
-                        factories[key] = Mock(return_value=current[key])
-                        patch.setattr(bot, factory_name, factories[key])
-                if "publication" in current:
-                    factories["publication"] = Mock(return_value=current["publication"])
-                    patch.setattr(bot, "_main_post_publication_owner", factories["publication"])
-                reconcile = Mock()
-                if "reconcile_meme_post_receipt" in current:
-                    patch.setattr(bot, "_reconcile_meme_post_receipt_with_owners", reconcile)
                 for key, value in current.items():
-                    if key not in factories and key != "reconcile_meme_post_receipt":
-                        patch.setattr(bot, key, value)
+                    patch.setattr(bot, key, value)
                 assert adapter(*args, **options) is result, name
-                for key, factory in factories.items():
-                    if key == "publication":
-                        factory.assert_called_once_with(
-                            "daily_meme", receipts=current["receipts"],
-                            receipt_values=current["receipt_values"],
-                        )
-                    elif key == "receipts":
-                        factory.assert_called_once_with(values=current["receipt_values"])
-                    else:
-                        factory.assert_called_once_with()
                 actual_args, actual_kwargs = owner.call_args
                 assert len(actual_args) == len(args)
                 assert all(actual is expected for actual, expected in zip(actual_args, args)), name
                 expected = {**options, **current}
                 assert actual_kwargs.keys() == expected.keys(), name
                 for key, value in expected.items():
-                    if key == "reconcile_meme_post_receipt":
-                        assert actual_kwargs[key].func is reconcile
-                        assert actual_kwargs[key].keywords == {
-                            "receipts": current["receipts"], "tweets": current["tweets"],
-                        }
-                    else:
-                        assert actual_kwargs[key] is value, name
+                    assert actual_kwargs[key] is value, name
             failure = KeyboardInterrupt(name)
             owner.side_effect = failure
             with pytest.raises(KeyboardInterrupt) as caught:
                 adapter(*args, **options)
             assert caught.value is failure
+
+
+def test_root_requests_fresh_meme_runner_with_shared_transaction_owners(monkeypatch):
+    state, result, seen = {}, object(), []
+
+    def post(runner, current_state):
+        assert current_state is state
+        seen.append(runner)
+        return result
+
+    monkeypatch.setattr(meme.DailyMemeRunner, "post", post)
+    for _ in range(2):
+        assert bot.post_next_meme(state) is result
+    for runner in seen:
+        assert runner.publication.receipts is runner.receipts is runner.recovery.receipts
+        assert runner.publication.receipt_values is runner.receipt_values is runner.recovery.values
+        assert runner.tweets is runner.recovery.tweets
+    assert seen[0].catalog is not seen[1].catalog
+    assert seen[0].schedule is not seen[1].schedule
+    assert seen[0].receipts is not seen[1].receipts
+
+    failure = KeyboardInterrupt("meme runner failed")
+    monkeypatch.setattr(meme.DailyMemeRunner, "post", Mock(side_effect=failure))
+    with pytest.raises(KeyboardInterrupt) as caught:
+        bot.post_next_meme(state)
+    assert caught.value is failure
 
 
 SCHEDULE_METHODS = {'meme_schedule_datetime': 'datetime',
@@ -159,7 +154,7 @@ def test_schedule_owner_binds_current_inputs_without_runtime_access(monkeypatch)
         current = {name: Mock(side_effect=AssertionError("construction performed runtime work")) for name in SCHEDULE_INPUTS}
         for name, value in current.items():
             monkeypatch.setattr(bot, SCHEDULE_INPUTS[name], value)
-        owner = bot._meme_schedule_owner()
+        owner = bot._main_post_assembly().meme_schedule()
         assert owner is not previous
         assert vars(owner).keys() == current.keys()
         assert all(getattr(owner, name) is value for name, value in current.items())
@@ -245,7 +240,7 @@ def test_catalog_owner_binds_current_inputs_without_reading(monkeypatch):
         current = {name: Mock(side_effect=AssertionError("construction read runtime inputs")) for name in CATALOG_INPUTS}
         for name, value in current.items():
             monkeypatch.setattr(bot, CATALOG_INPUTS[name], value)
-        owner = bot._meme_catalog_owner()
+        owner = bot._main_post_assembly().meme_catalog()
         assert owner is not previous and vars(owner).keys() == current.keys()
         assert all(getattr(owner, name) is value for name, value in current.items())
         assert all(not value.called for value in current.values())
@@ -471,10 +466,10 @@ def test_posting_closures_keep_assets_prepared_transport_and_named_stage_order(t
     item = {"grok_description": "Meme summary."}
     index = {path.name: item}
     stages, prepared, operations = [], {}, []
-    original_stage = bot.run_daily_meme_stage
-    original_prepare = bot.prepare_main_tweet_transport
+    original_stage = meme.run_daily_meme_stage
+    original_prepare = MainPostAssembly.prepare_transport
 
-    def stage(name, operation):
+    def stage(name, operation, **kwargs):
         stages.append(name)
         operations.append(operation)
         closure = inspect.getclosurevars(operation).nonlocals
@@ -489,10 +484,10 @@ def test_posting_closures_keep_assets_prepared_transport_and_named_stage_order(t
             assert publication.attempt is prepared["attempt"]
             assert publication.transport_authority is prepared["authority"]
             assert publication.transport_source is prepared["source"]
-        return original_stage(name, operation)
+        return original_stage(name, operation, **kwargs)
 
-    def prepare(attempt):
-        result = original_prepare(attempt)
+    def prepare(owner, attempt):
+        result = original_prepare(owner, attempt)
         prepared.update(zip(("attempt", "source", "authority"), result))
         return result
 
@@ -501,7 +496,7 @@ def test_posting_closures_keep_assets_prepared_transport_and_named_stage_order(t
         assert stages[-2:] == ["x_request_preparation", "media_upload"]
         return "media-1"
 
-    def handoff(attempt, authority):
+    def handoff(_owner, attempt, authority):
         assert attempt is prepared["attempt"] and authority is prepared["authority"]
 
     def create(**kwargs):
@@ -514,7 +509,8 @@ def test_posting_closures_keep_assets_prepared_transport_and_named_stage_order(t
         assert kwargs["prepared_main_post_attempt"]["recovery_plan"]["image_summary"] == "Meme summary."
         return mock_confirmed_main_post(kwargs, {"data": {"id": "970001"}})
 
-    monkeypatch.setattr(bot, "run_daily_meme_stage", stage)
+    monkeypatch.setattr(meme, "run_daily_meme_stage", stage)
+    monkeypatch.setattr(main_post_assembly, "run_daily_meme_stage", stage)
     patch_catalog(
         monkeypatch,
         "choose",
@@ -539,9 +535,9 @@ def test_posting_closures_keep_assets_prepared_transport_and_named_stage_order(t
             Mock(side_effect=AssertionError(f"meme schedule bounced through {name}")),
         )
     monkeypatch.setattr(bot, "load_meme_analysis_index", lambda: index)
-    monkeypatch.setattr(bot, "prepare_main_tweet_transport", prepare)
+    monkeypatch.setattr(MainPostAssembly, "prepare_transport", prepare)
     monkeypatch.setattr(bot, "upload_media", upload)
-    monkeypatch.setattr(bot, "handoff_confirmed_media_upload_to_main_attempt", handoff)
+    monkeypatch.setattr(MainPostAssembly, "handoff_media", handoff)
     monkeypatch.setattr(bot, "create_post", create)
     bot.post_next_meme(state)
     assert stages == [
@@ -551,6 +547,6 @@ def test_posting_closures_keep_assets_prepared_transport_and_named_stage_order(t
         "main_post_attempt_persistence", "tweet_transport_preparation",
         "media_upload_handoff", "x_post_request", "x_post_response_validation",
     ]
-    assert operations[3] is bot.block_if_unresolved_regular_post_receipt
+    assert operations[3].__func__ is MainPostRecovery.block_unresolved_regular
     assert operations[5] is bot.load_meme_analysis_index
     assert state["posted_meme_filenames"] == [path.name] and not receipt_path.exists()

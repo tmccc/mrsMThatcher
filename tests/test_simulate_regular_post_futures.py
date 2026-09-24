@@ -390,7 +390,7 @@ def test_simulated_success_matches_production_receipt_selection_state(
     production_state = copy.deepcopy(initial)
     production_lines: set[str] = set()
     production_images: set[str] = set()
-    bot.apply_regular_post_receipt(
+    bot._main_post_assembly().recovery_operation().apply_regular(
         {
             "post_id": "sim-run_0000-000001",
             "quote_hash": "b" * 64,

@@ -411,7 +411,7 @@ def test_final_retirement_directory_fsync_failure_latches_current_daemon(
     receipt = bot.materialize_bound_regular_schedule_receipt(pending)
     state = bot.default_state()
     lines_used, images_used = set(), set()
-    bot.apply_regular_post_receipt(receipt, lines_used, images_used, state)
+    bot._main_post_assembly().recovery_operation().apply_regular(receipt, lines_used, images_used, state)
     record_receipt_commit(state, receipt)
     proof = bot.save_regular_post_protected_state(lines_used, images_used, state, durable=True)
     proof.require_receipt(receipt)
@@ -857,13 +857,13 @@ def test_restart_reconciles_pending_receipt_locally_without_x_create(
         lines_used: set[str] = set()
         images_used: set[str] = set()
         state: dict = {}
-        assert bot.reconcile_regular_post_receipt(
+        assert bot._main_post_assembly().recovery_operation().reconcile_regular(
             lines_used,
             images_used,
             state,
             minimum_next_quote_epoch=CONFIRMATION_EPOCH,
         )
-        assert bot.reconcile_regular_post_receipt(
+        assert bot._main_post_assembly().recovery_operation().reconcile_regular(
             lines_used,
             images_used,
             state,
@@ -874,8 +874,8 @@ def test_restart_reconciles_pending_receipt_locally_without_x_create(
         assert "t01.jpg" in images_used
     else:
         state = {}
-        assert bot.reconcile_meme_post_receipt(state)
-        assert bot.reconcile_meme_post_receipt(state) is False
+        assert bot._main_post_assembly().recovery_operation().reconcile_meme(state)
+        assert bot._main_post_assembly().recovery_operation().reconcile_meme(state) is False
         assert state["last_main_post_id"] == pending["post_id"]
         assert state["posted_meme_filenames"] == ["001_meme.png"]
 

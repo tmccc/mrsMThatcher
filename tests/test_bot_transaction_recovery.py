@@ -14,14 +14,13 @@ import pytest
 import mrsMThatcher2 as bot
 import mrs_bot_reply_assembly as assembly
 import mrs_bot_transaction_recovery as recovery
+from mrs_bot_main_post_assembly import MainPostAssembly
+from mrs_bot_main_post_reconciliation import MainPostRecovery
+from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
 DEPENDENCIES = {'ensure_reconciled_regular_receipt_schedule_is_future': ['log', 'quote_schedule'],
- 'block_if_unresolved_regular_post_receipt': ['InvalidRegularPostReceipt',
-                                              'REGULAR_POST_RECEIPT_FILE',
-                                              'UnresolvedRegularPostReceipt',
-                                              'load_regular_post_receipt'],
  'reconcile_startup_main_post_receipts': ['global_remote_writes_paused',
                                           'log',
                                           'reconcile_main_post_receipts'],
@@ -61,7 +60,6 @@ DEPENDENCIES = {'ensure_reconciled_regular_receipt_schedule_is_future': ['log', 
 
 SIGNATURES = {'ensure_reconciled_regular_receipt_schedule_is_future': "(receipt: 'dict', state: 'dict', "
                                                          "current: 'int') -> 'bool'",
- 'block_if_unresolved_regular_post_receipt': "() -> 'None'",
  'reconcile_startup_main_post_receipts': "(lines_used: 'set', images_used: 'set', state: 'dict', "
                                          "current: 'int') -> 'dict[str, bool]'",
  'reconcile_confirmed_transactions_before_global_barrier': "(lines_used: 'set', images_used: "
@@ -122,19 +120,17 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
                 "reconcile_confirmed_transactions_before_global_barrier",
             }:
                 current["reconcile_main_post_receipts"] = Mock()
+            if name == "reconcile_confirmed_transactions_before_global_barrier":
+                current["promote_main_post_attempt_to_confirmed_pending_schedule"] = Mock()
+                current["confirmation_epoch_for_main_attempt"] = Mock()
             for dep, value in current.items():
                 if dep == "quote_schedule":
                     patch.setattr(bot, "_quote_schedule_owner", Mock(return_value=value))
-                elif (
-                    name in {
-                        "reconcile_startup_main_post_receipts",
-                        "reconcile_confirmed_transactions_before_global_barrier",
-                    }
-                    and dep == "reconcile_main_post_receipts"
-                ):
-                    patch.setattr(bot, "_reconcile_main_post_receipts_with_owners", value)
-                elif dep == "receipts":
+                elif dep in {"reconcile_main_post_receipts", "receipts",
+                             "promote_main_post_attempt_to_confirmed_pending_schedule"}:
                     continue
+                elif dep == "confirmation_epoch_for_main_attempt":
+                    patch.setattr(MainPostAssembly, "confirmation_epoch", lambda _owner, *args, _value=value: _value(*args))
                 elif dep == "_reply_confirmation_epoch_after_remote_success":
                     patch.setattr(assembly.ReplyAssembly, "observed_confirmation_epoch", value)
                 else:
@@ -146,9 +142,12 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
                 receipt_values = object()
                 receipts = current.get("receipts", object())
                 tweets = object()
-                patch.setattr(bot, "_main_post_receipt_values_owner", Mock(return_value=receipt_values))
-                patch.setattr(bot, "_main_post_receipts_owner", Mock(return_value=receipts))
-                patch.setattr(bot, "_tweet_lookup_cache_owner", Mock(return_value=tweets))
+                patch.setattr(MainPostAssembly, "values", lambda _owner: receipt_values)
+                patch.setattr(MainPostAssembly, "receipts", lambda _owner, **_kwargs: receipts)
+                patch.setattr(MainPostAssembly, "recovery", lambda _owner, **_kwargs: SimpleNamespace(reconcile=current["reconcile_main_post_receipts"]))
+                patch.setattr(MainPostAssembly, "recovery_operation", lambda _owner: SimpleNamespace(reconcile=current["reconcile_main_post_receipts"]))
+                if "promote_main_post_attempt_to_confirmed_pending_schedule" in current:
+                    patch.setattr(MainPostAssembly, "promote_pending", lambda _owner, *args, **kwargs: current["promote_main_post_attempt_to_confirmed_pending_schedule"](*args, **kwargs))
             result = {"original": []}
             expected = {}
 
@@ -165,9 +164,17 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
                         }
                         and key == "reconcile_main_post_receipts"
                     ):
-                        assert isinstance(kwargs[key], functools.partial)
-                        assert kwargs[key].func is value
-                        assert kwargs[key].keywords == {"receipts": receipts, "tweets": tweets}
+                        assert kwargs[key] is value
+                    elif key == "promote_main_post_attempt_to_confirmed_pending_schedule":
+                        assert callable(kwargs[key])
+                        token = object()
+                        kwargs[key](token, post_id="123", confirmation_epoch=4)
+                        value.assert_called_with(token, post_id="123", confirmation_epoch=4)
+                    elif key == "confirmation_epoch_for_main_attempt":
+                        assert callable(kwargs[key])
+                        token = object()
+                        kwargs[key](token, 4)
+                        value.assert_called_with(token, 4)
                     else:
                         assert kwargs[key] is value
                 return result
@@ -263,19 +270,19 @@ def test_regular_receipt_gate_keeps_exact_status_errors_and_current_path(monkeyp
             return "current-receipt-path"
 
     monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", ReceiptPath())
-    monkeypatch.setattr(bot, "load_regular_post_receipt", trace.load)
+    monkeypatch.setattr(MainPostReceipts, "load_regular", lambda _owner: trace.load())
     trace.load.return_value = (status, object())
     if status == "loader_error":
         trace.load.side_effect = failure
         with pytest.raises(OSError) as caught:
-            bot.block_if_unresolved_regular_post_receipt()
+            bot._main_post_assembly().recovery_operation().block_unresolved_regular()
         assert caught.value is failure
     elif status == "absent":
-        assert bot.block_if_unresolved_regular_post_receipt() is None
+        assert bot._main_post_assembly().recovery_operation().block_unresolved_regular() is None
     else:
         kind = bot.InvalidRegularPostReceipt if status == "invalid" else bot.UnresolvedRegularPostReceipt
         with pytest.raises(kind) as caught:
-            bot.block_if_unresolved_regular_post_receipt()
+            bot._main_post_assembly().recovery_operation().block_unresolved_regular()
         assert str(caught.value) == (
             "Invalid regular-post receipt blocks main posting: current-receipt-path"
             if status == "invalid" else
@@ -296,10 +303,7 @@ def test_startup_pause_order_result_identity_and_native_errors(monkeypatch, paus
         (trace.warning if paused else trace.reconcile).side_effect = failure
     monkeypatch.setattr(bot, "global_remote_writes_paused", trace.pause)
     monkeypatch.setattr(bot, "log", SimpleNamespace(warning=trace.warning))
-    def reconcile(*args, receipts, tweets, **kwargs):
-        return trace.reconcile(*args, **kwargs)
-
-    monkeypatch.setattr(bot, "_reconcile_main_post_receipts_with_owners", reconcile)
+    monkeypatch.setattr(MainPostAssembly, "recovery_operation", lambda _owner: SimpleNamespace(reconcile=trace.reconcile))
     monkeypatch.setattr(
         bot, "reconcile_main_post_receipts",
         Mock(side_effect=AssertionError("startup used public reconciliation relay")),
@@ -337,13 +341,23 @@ def _prebarrier(monkeypatch, present=(), classification="clear"):
         elif name == "_reply_confirmation_epoch_after_remote_success":
             monkeypatch.setattr(assembly.ReplyAssembly, "observed_confirmation_epoch", callback)
         elif name == "reconcile_main_post_receipts":
-            def reconcile(*args, receipts, tweets, _callback=callback, **kwargs):
-                return _callback(*args, **kwargs)
-
-            monkeypatch.setattr(bot, "_reconcile_main_post_receipts_with_owners", reconcile)
+            monkeypatch.setattr(
+                MainPostAssembly, "recovery",
+                lambda _owner, _callback=callback, **_kwargs: SimpleNamespace(reconcile=_callback),
+            )
             monkeypatch.setattr(
                 bot, name,
                 Mock(side_effect=AssertionError("prebarrier recovery used public reconciliation relay")),
+            )
+        elif name == "promote_main_post_attempt_to_confirmed_pending_schedule":
+            monkeypatch.setattr(
+                MainPostAssembly, "promote_pending",
+                lambda _owner, *args, _callback=callback, **kwargs: _callback(*args, **kwargs),
+            )
+        elif name == "confirmation_epoch_for_main_attempt":
+            monkeypatch.setattr(
+                MainPostAssembly, "confirmation_epoch",
+                lambda _owner, *args, _callback=callback: _callback(*args),
             )
         elif name == "receipts":
             continue
@@ -353,9 +367,10 @@ def _prebarrier(monkeypatch, present=(), classification="clear"):
         load_regular=trace.load_regular_post_receipt,
         load_meme=trace.load_meme_post_receipt,
     )
+    monkeypatch.setattr(MainPostAssembly, "values", lambda _owner: object())
     monkeypatch.setattr(
-        bot, "_main_post_receipts_owner",
-        Mock(return_value=SimpleNamespace(current=lambda: receipt_operations)),
+        MainPostAssembly, "receipts",
+        lambda _owner, **_kwargs: SimpleNamespace(current=lambda: receipt_operations),
     )
     for name, value in [
         ("global_remote_writes_paused", False),

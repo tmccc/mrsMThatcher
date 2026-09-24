@@ -4,6 +4,7 @@ import hashlib
 import json
 import sqlite3
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -266,10 +267,23 @@ def test_production_history_uses_quote_hashes_not_shifted_line_indices(
         assert 81 not in lines and "81" not in lines
         persisted()
 
-    monkeypatch.setattr(posting, "complete_regular_post_persistence", capture_persistence)
     confirmed_receipt = {"quote_hash": quote_hash}
     log_event, emit_root = Mock(), Mock()
-    posting._complete_quote_post(
+    runner = posting.QuotePostRunner(
+        publication=Mock(), receipts=Mock(), receipt_values=Mock(),
+        tweets=Mock(), selection=Mock(),
+        recovery=SimpleNamespace(complete_regular=capture_persistence),
+        policy=SimpleNamespace(user_id="bot-user"),
+        errors=SimpleNamespace(confirmed_local_failure=RuntimeError),
+        transport=Mock(),
+        application=SimpleNamespace(
+            log=Mock(), log_event=log_event,
+            emit_account_root_posted=emit_root,
+            process_due_context=Mock(),
+        ),
+        build_attempt=Mock(), bound_meme_state=Mock(), remove_attempt=Mock(),
+    )
+    runner._complete_post(
         lines_used, images_used, state,
         preparation=preparation,
         posted_id="950001",
@@ -278,18 +292,6 @@ def test_production_history_uses_quote_hashes_not_shifted_line_indices(
         meme_schedule_fields={},
         receipt=confirmed_receipt,
         image_choice={"image_hash": "image-hash"},
-        log=Mock(),
-        tweets=Mock(),
-        MY_USER_ID="bot-user",
-        save_regular_post_protected_state=Mock(),
-        log_event=log_event,
-        enqueue_historical_context_obligation=Mock(),
-        retire_lane_transport_journal_if_present=Mock(),
-        REGULAR_POST_RECEIPT_FILE=tmp_path / "receipt.json",
-        remove_regular_post_receipt=Mock(),
-        ConfirmedPostLocalPersistenceError=RuntimeError,
-        emit_account_root_posted=emit_root,
-        safely_process_due_historical_context_obligations=Mock(),
     )
 
     persisted.assert_called_once_with()

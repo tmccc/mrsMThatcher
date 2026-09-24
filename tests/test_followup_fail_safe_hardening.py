@@ -13,6 +13,8 @@ import pytest
 import exact_receipt_retirement as retirement
 import historical_context_outbox as outbox_module
 import mrsMThatcher2 as bot
+from mrs_bot_main_post_assembly import MainPostAssembly
+from mrs_bot_main_post_reconciliation import MainPostRecovery
 import mrs_log_digest as digest
 import remote_write_safety_protocol as protocol
 from remote_write_safety_protocol import (
@@ -1166,10 +1168,10 @@ def test_existing_ambiguity_marker_blocks_each_lane_before_preparation(
         pytest.fail(f"{name} preparation must not run after an ambiguous post")
 
     if lane == "regular_quote":
-        monkeypatch.setattr(bot, "reconcile_main_post_receipts", lambda *_args: prepared("receipt reconciliation"))
+        monkeypatch.setattr(MainPostRecovery, "reconcile", lambda _recovery, *_args, **_kwargs: prepared("receipt reconciliation"))
         invoke = lambda: bot.post_random_quote(set(), set(), bot.default_state())
     elif lane == "meme":
-        monkeypatch.setattr(bot, "both_main_post_receipts_exist", lambda: prepared("meme receipt check"))
+        monkeypatch.setattr(MainPostAssembly, "both_receipts_exist", lambda _assembly: prepared("meme receipt check"))
         invoke = lambda: bot.post_next_meme(bot.default_state())
     elif lane == "mention":
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)

@@ -12,6 +12,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_post_creation as owner
+from mrs_bot_main_post_assembly import MainPostAssembly
 from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from mrs_bot_main_post_receipts import MainPostReceiptValues
 from tests.helpers.bot_runtime import bot
@@ -149,10 +150,10 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
             for dep, value in current.items():
                 if dep == "receipts":
                     factories[dep] = Mock(return_value=value)
-                    patch.setattr(bot, "_main_post_receipts_owner", factories[dep])
+                    patch.setattr(MainPostAssembly, "receipts", lambda _assembly, _factory=factories[dep], **_options: _factory(**_options))
                 elif dep == "receipt_values":
                     factories[dep] = Mock(return_value=value)
-                    patch.setattr(bot, "_main_post_receipt_values_owner", factories[dep])
+                    patch.setattr(MainPostAssembly, "values", lambda _assembly, _factory=factories[dep]: _factory())
                 else:
                     patch.setattr(bot, dep, value)
             result = {"original": []}

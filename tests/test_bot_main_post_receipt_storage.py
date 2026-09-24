@@ -13,6 +13,7 @@ import pytest
 
 import mrs_bot_main_post_receipt_storage as storage
 import mrs_bot_main_post_receipts as receipt_values
+from mrs_bot_main_post_assembly import MainPostAssembly
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,  # noqa: F401
@@ -30,6 +31,11 @@ VALUE_OPERATIONS = {
     "main_post_attempt_is_semantically_valid": "attempt_is_valid",
     "meme_post_receipt_is_semantically_valid": "meme_is_valid",
 }
+
+
+def patch_current_values(monkeypatch, factory):
+    """Replace the next assembly values binding at its operation boundary."""
+    monkeypatch.setattr(MainPostAssembly, "values", lambda _assembly: factory())
 
 
 def test_import_needs_no_runtime_access():
@@ -104,7 +110,10 @@ def test_adapters_keep_signatures_references_errors_and_retirement_authority(
         with monkeypatch.context() as patch:
             owner = Mock(return_value={"original return": []})
             factory = Mock(return_value=SimpleNamespace(**{method: owner}))
-            patch.setattr(bot, "_main_post_receipts_owner", factory)
+            patch.setattr(
+                MainPostAssembly, "receipts",
+                lambda _assembly, **kwargs: factory(**({} if kwargs.get("values") is None else kwargs)),
+            )
             retirement_callback = Mock()
             patch.setattr(bot, "retire_current_source_receipt", retirement_callback)
             assert adapter(*args, **options) is owner.return_value
@@ -144,9 +153,9 @@ def test_factory_binds_current_external_dependencies_without_io(monkeypatch):
         for name, value in current.items():
             monkeypatch.setattr(bot, name, value)
         value_factory = Mock(return_value=object())
-        monkeypatch.setattr(bot, "_main_post_receipt_values_owner", value_factory)
+        patch_current_values(monkeypatch, value_factory)
         value_factories.append(value_factory)
-        owner = bot._main_post_receipts_owner()
+        owner = bot._main_post_assembly().receipts()
         assert all(getattr(owner, name) is value for name, value in current.items())
         assert all(not value.mock_calls for value in current.values())
         owners.append(owner)
@@ -158,7 +167,7 @@ def test_factory_binds_current_external_dependencies_without_io(monkeypatch):
     value_factories[0].assert_not_called()
     value_factories[1].assert_called_once_with()
     failure = TypeError("current values composition failure")
-    monkeypatch.setattr(bot, "_main_post_receipt_values_owner", Mock(side_effect=failure))
+    patch_current_values(monkeypatch, Mock(side_effect=failure))
     with pytest.raises(TypeError) as caught:
         owners[0].values()
     assert caught.value is failure
@@ -649,7 +658,7 @@ def test_attempt_retirement_keeps_disposition_secure_reader_and_missing_scope(mo
     )
 
     def remove(attempt, *, sending_disposition):
-        return bot._main_post_receipts_owner().remove_attempt(
+        return bot._main_post_assembly().receipts().remove_attempt(
             attempt, sending_disposition=sending_disposition,
             retire_current_source_receipt=bot.retire_current_source_receipt,
         )
@@ -697,7 +706,7 @@ def test_reconciled_retirement_uses_original_canonical_bytes_before_logging(monk
     path = getattr(bot, f"{prefix.upper()}_POST_RECEIPT_FILE")
     trace = _callbacks(monkeypatch, canonical_atomic_json_bytes=b"canonical", retire_current_source_receipt=None)
     def remove(receipt):
-        return getattr(bot._main_post_receipts_owner(), f"remove_{prefix}")(
+        return getattr(bot._main_post_assembly().receipts(), f"remove_{prefix}")(
             receipt, retire_current_source_receipt=bot.retire_current_source_receipt,
         )
     assert remove(receipt) is None
@@ -721,7 +730,7 @@ def test_root_reconciled_retirement_rejects_unbound_receipt_before_owner(monkeyp
     record_receipt_commit(state, {"original": []})
     proof = bot.save_state(state, durable=True)
     owner = Mock(side_effect=AssertionError("unbound receipt reached retirement owner"))
-    monkeypatch.setattr(bot, "_main_post_receipts_owner", owner)
+    monkeypatch.setattr(MainPostAssembly, "receipts", lambda _assembly, **_options: owner())
     with pytest.raises(RuntimeError, match="does not bind this exact receipt"):
         getattr(bot, f"remove_{prefix}_post_receipt")({"replacement": []}, commit_proof=proof)
     owner.assert_not_called()
@@ -828,7 +837,7 @@ def test_reader_resolves_fresh_value_policy_after_io_and_each_validation(monkeyp
     }
     path = getattr(bot, f"{prefix.upper()}_POST_RECEIPT_FILE")
     events = []
-    original_factory = bot._main_post_receipt_values_owner
+    original_factory = MainPostAssembly.values
     policies = [
         (f"timezone-{generation}", generation, object(), object())
         for generation in range(1, 4)
@@ -842,7 +851,7 @@ def test_reader_resolves_fresh_value_policy_after_io_and_each_validation(monkeyp
         monkeypatch.setattr(bot, "valid_receipt_epoch", epoch)
 
     def current_values():
-        owner = original_factory()
+        owner = original_factory(bot._main_post_assembly())
         events.append(("values", owner.schedule_version))
         return owner
 
@@ -850,7 +859,7 @@ def test_reader_resolves_fresh_value_policy_after_io_and_each_validation(monkeyp
         assert actual_path is path
         events.append(("read",))
         bind_policy(0)
-        monkeypatch.setattr(bot, "_main_post_receipt_values_owner", current_values)
+        patch_current_values(monkeypatch, current_values)
         return True, data
 
     def validate(index, label, owner, value, **kwargs):
@@ -866,7 +875,7 @@ def test_reader_resolves_fresh_value_policy_after_io_and_each_validation(monkeyp
                     owner.safe_schedule_date, owner.valid_epoch) == policies[index]
         return index == 2
 
-    monkeypatch.setattr(bot, "_main_post_receipt_values_owner", Mock(
+    patch_current_values(monkeypatch, Mock(
         side_effect=AssertionError("reader resolved values before its I/O"),
     ))
     monkeypatch.setattr(bot, "load_receipt_json_no_follow", read)
@@ -906,7 +915,7 @@ def test_writer_resolves_each_value_operation_lazily_and_keeps_active_io(monkeyp
     def validate_completed(value):
         assert value is receipt
         events.append("completed")
-        monkeypatch.setattr(bot, "_main_post_receipt_values_owner", materialize_factory)
+        patch_current_values(monkeypatch, materialize_factory)
         return True
 
     completed_owner = SimpleNamespace(**{f"{prefix}_is_valid": validate_completed})
@@ -915,18 +924,18 @@ def test_writer_resolves_each_value_operation_lazily_and_keeps_active_io(monkeyp
     def validate_pending(value, *, expected_lane):
         assert value is receipt and expected_lane == lane
         events.append("pending")
-        monkeypatch.setattr(bot, "_main_post_receipt_values_owner", completed_factory)
+        patch_current_values(monkeypatch, completed_factory)
         return False
 
     pending_factory = Mock(return_value=SimpleNamespace(pending_is_valid=validate_pending))
 
     def barrier():
         events.append("barrier")
-        monkeypatch.setattr(bot, "_main_post_receipt_values_owner", pending_factory)
+        patch_current_values(monkeypatch, pending_factory)
         monkeypatch.setattr(bot, "atomic_write_json", unexpected_write)
         return False
 
-    monkeypatch.setattr(bot, "_main_post_receipt_values_owner", original_factory)
+    patch_current_values(monkeypatch, original_factory)
     monkeypatch.setattr(bot, "remote_receipt_retirement_is_blocking", barrier)
     namespace = Mock(side_effect=[False, True])
     monkeypatch.setattr(bot, "receipt_namespace_entry_exists", namespace)
@@ -949,7 +958,7 @@ def test_values_composition_failure_stays_outside_reader_io_catch(monkeypatch):
     provider = Mock(side_effect=failure)
     read = Mock(return_value=(True, {}))
     logger = Mock()
-    monkeypatch.setattr(bot, "_main_post_receipt_values_owner", provider)
+    patch_current_values(monkeypatch, provider)
     monkeypatch.setattr(bot, "load_receipt_json_no_follow", read)
     monkeypatch.setattr(bot, "log", logger)
     with pytest.raises(TypeError) as caught:

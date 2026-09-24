@@ -5,6 +5,8 @@ from __future__ import annotations
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 from mrs_bot_reply_drafts import ReplyDrafts
 from mrs_bot_reply_receipt_values import ReplyReceiptValues
+from mrs_bot_main_post_assembly import MainPostAssembly
+from mrs_bot_main_post_reconciliation import MainPostRecovery
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
 
 import copy
@@ -1378,16 +1380,16 @@ def test_sending_reply_receipt_blocks_each_remote_lane_before_preparation(
 
     if lane == "regular_quote":
         monkeypatch.setattr(
-            bot,
-            "reconcile_main_post_receipts",
-            lambda *_args: prepared("receipt reconciliation"),
+            MainPostRecovery,
+            "reconcile",
+            lambda _recovery, *_args, **_kwargs: prepared("receipt reconciliation"),
         )
         invoke = lambda: bot.post_random_quote(set(), set(), bot.default_state())
     elif lane == "meme":
         monkeypatch.setattr(
-            bot,
-            "both_main_post_receipts_exist",
-            lambda: prepared("meme receipt check"),
+            MainPostAssembly,
+            "both_receipts_exist",
+            lambda _assembly: prepared("meme receipt check"),
         )
         invoke = lambda: bot.post_next_meme(bot.default_state())
     elif lane == "mention":

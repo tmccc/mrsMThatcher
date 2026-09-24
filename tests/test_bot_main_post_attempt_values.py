@@ -12,6 +12,8 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_main_post_attempt_values as values
+import mrs_bot_main_post_assembly as main_post_assembly
+from mrs_bot_main_post_assembly import MainPostAssembly
 from mrs_bot_main_post_receipts import MainPostReceiptValues
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
@@ -87,13 +89,15 @@ def test_adapters_forward_current_dependencies_signatures_references_and_errors(
         with monkeypatch.context() as patch:
             current = {key: object() for key in dependencies}
             owner = Mock(return_value={"original": []})
-            patch.setattr(bot, "_main_post_attempt_values", SimpleNamespace(**{name: owner}))
+            if name == "build_main_post_attempt":
+                patch.setattr(main_post_assembly, "build_main_post_attempt", owner)
+            else:
+                patch.setattr(bot, "_main_post_attempt_values", SimpleNamespace(**{name: owner}))
             for key, dependency in current.items():
                 if name == "build_main_post_attempt" and key == "current_main_post_attempt_is_semantically_valid":
-                    patch.setattr(
-                        bot, "_main_post_receipt_values_owner",
-                        Mock(return_value=SimpleNamespace(current_attempt_is_valid=dependency)),
-                    )
+                    patch.setattr(MainPostAssembly, "values", lambda _assembly, _value=dependency: SimpleNamespace(current_attempt_is_valid=_value))
+                elif name == "build_main_post_attempt" and key == "os":
+                    patch.setattr(main_post_assembly, "os", dependency)
                 else:
                     patch.setattr(bot, key, dependency)
             assert adapter(*args, **options) is owner.return_value
@@ -134,7 +138,7 @@ def test_value_adapters_use_current_typed_owner_preserving_references_and_errors
     }
     operation = Mock(return_value={"original": []})
     factory = Mock(return_value=SimpleNamespace(**{method: operation}))
-    monkeypatch.setattr(bot, "_main_post_receipt_values_owner", factory)
+    monkeypatch.setattr(MainPostAssembly, "values", lambda _assembly: factory())
     assert adapter(*args, **options) is operation.return_value
     factory.assert_called_once_with()
     operation.assert_called_once_with(*args, **options)
@@ -347,7 +351,7 @@ def test_attempt_construction_order_copies_truthiness_and_final_validator(monkey
         events.append(("validate",))
         validated.append(attempt)
         return True
-    monkeypatch.setattr(bot, "os", SimpleNamespace(urandom=entropy))
+    monkeypatch.setattr(main_post_assembly, "os", SimpleNamespace(urandom=entropy))
     monkeypatch.setattr(values, "hashlib", SimpleNamespace(sha256=sha256))
     monkeypatch.setattr(bot, "now_epoch", lambda: (events.append(("clock",)), 88)[1])
     monkeypatch.setattr(values, "canonical_remote_post_payload_sha256", payload_hash)

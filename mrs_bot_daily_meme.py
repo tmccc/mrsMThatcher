@@ -1,20 +1,10 @@
-"""Daily meme selection, calendar scheduling and transactional posting.
+"""Own daily meme selection, scheduling and transactional posting.
 
-The coordinator supplies current owners, callbacks, configuration, logger and
-exception authority on every call. MainPostPublication owns shared publication
-and partial transaction progress with authorities bound at cycle entry. The
-posting lane calls its MemeCatalog and MemeSchedule directly. Named stages,
-preparation exception boundaries, schedule projections and meme-specific recovery
-remain explicit here; metadata, receipt storage and persistence retain their
-owners. Receipt materialization/loading and tweet-cache updates call the cycle's
-typed owners directly. Explicit runtime calls
-may scan the supplied meme directory and mutate/save the caller's state or publish
-through supplied callbacks. Imports perform no runtime work or configuration
-access. MemeCatalog owns asset discovery, history-reset selection and summaries.
-MemeSchedule binds current calendar/persistence policy for each root call and
-invokes its owned operations directly without retaining caller state.
-Standard-library regex, calendar and random
-imports preserve the existing behavior and shared random stream.
+The assembly binds a fresh catalog, schedule, publication and recovery owner to
+each runner. ``post`` keeps meme preparation, named diagnostics and emergency
+branches together while caller state and transaction progress remain local.
+``MemeCatalog`` and ``MemeSchedule`` retain their specialised behaviour. Imports
+perform no runtime work or configuration access.
 """
 
 from __future__ import annotations
@@ -33,6 +23,8 @@ from mrs_bot_runtime_state_helpers import apply_state_fields
 
 if TYPE_CHECKING:
     from mrs_bot_main_post_publication import MainPostPublication
+    from mrs_bot_main_post_reconciliation import MainPostRecovery
+    from mrs_bot_main_post_assembly import (MainPostPolicy, MainPostErrors, MainPostTransport, MainPostApplication)
     from mrs_bot_main_post_receipt_storage import MainPostReceipts
     from mrs_bot_main_post_receipts import MainPostReceiptValues
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
@@ -454,238 +446,249 @@ def require_valid_meme_post_id(
         )
 
 
-def post_next_meme(
-    state: dict,
-    *,
-    publication: MainPostPublication,
-    receipts: MainPostReceipts,
-    receipt_values: MainPostReceiptValues,
-    tweets: TweetLookupCache,
-    catalog: MemeCatalog,
-    schedule: MemeSchedule,
-    log: Logger,
-    run_daily_meme_stage: Callable,
-    block_if_ambiguous_remote_post: Callable,
-    both_main_post_receipts_exist: Callable,
-    REGULAR_POST_RECEIPT_FILE: Path,
-    MEME_POST_RECEIPT_FILE: Path,
-    InvalidMemePostReceipt: type[Exception],
-    reconcile_meme_post_receipt: Callable,
-    now_epoch: Callable,
-    block_if_unresolved_regular_post_receipt: Callable,
-    load_meme_analysis_index: Callable,
-    upload_media: Callable,
-    build_main_post_attempt: Callable,
-    MEME_POST_TEXT: str,
-    MEME_SCHEDULE_VERSION: int,
-    MEME_FALLBACK_HOUR: int,
-    MEME_FALLBACK_MINUTE: int,
-    MAIN_POST_SCHEDULE_TIMEZONE: str,
-    remove_main_post_attempt: Callable,
-    durable_remote_write_safety_barrier_exists: Callable,
-    log_event: Callable,
-    ConfirmedPendingScheduleDurabilityUncertain: type[Exception],
-    ConfirmedPostLocalPersistenceError: type[Exception],
-    apply_state_fields: Callable,
-    MY_USER_ID: str,
-    save_state: Callable,
-    confirmed_meme_emergency_representation_is_complete: Callable,
-    StateBackupWriteError: type[Exception],
-    json_file_matches: Callable,
-    STATE_FILE: Path,
-    latch_confirmed_post_persistence_failure: Callable,
-    UnrecoverableConfirmedPostPersistenceError: type[Exception],
-    retire_lane_transport_journal_if_present: Callable,
-    remove_meme_post_receipt: Callable,
-    emit_account_root_posted: Callable,
-) -> None:
-    """Select and post the next daily meme transactionally."""
-    log.info("Starting daily meme post cycle")
-    run_daily_meme_stage(
-        "remote_write_barrier",
-        lambda: block_if_ambiguous_remote_post(
-            allow_confirmed_pending_schedule_reconciliation=True
-        ),
-    )
+@dataclass(frozen=True)
+class DailyMemeRunner:
+    """Own one daily meme workflow with transaction-bound collaborators."""
 
-    def validate_receipt_barriers() -> None:
-        if both_main_post_receipts_exist():
-            log.critical(
-                "Both regular and meme confirmed-post receipts exist; refusing meme posting until manually inspected: %s %s",
-                REGULAR_POST_RECEIPT_FILE,
-                MEME_POST_RECEIPT_FILE,
-            )
-            raise InvalidMemePostReceipt("Both main-post receipts exist; manual recovery required")
+    publication: MainPostPublication
+    receipts: MainPostReceipts
+    receipt_values: MainPostReceiptValues
+    tweets: TweetLookupCache
+    catalog: MemeCatalog
+    schedule: MemeSchedule
+    recovery: MainPostRecovery
+    policy: MainPostPolicy
+    errors: MainPostErrors
+    transport: MainPostTransport
+    application: MainPostApplication
+    build_attempt: Callable
+    remove_attempt: Callable
 
-    run_daily_meme_stage("receipt_barrier", validate_receipt_barriers)
-    if run_daily_meme_stage(
-        "meme_receipt_reconciliation",
-        lambda: reconcile_meme_post_receipt(state),
-    ):
-        log.warning("Reconciled meme post receipt; not creating a second meme post in the same call")
-        return
-    current_meme_epoch = now_epoch()
-    if schedule.posted_on_date(state, schedule.date_str(current_meme_epoch)):
-        log.warning(
-            "Daily meme already confirmed on the current local date; "
-            "scheduling the next fallback without another X request"
+    def _stage(self, stage: str, operation: Callable):
+        """Keep the meme's diagnostic stage and exception boundary."""
+        return run_daily_meme_stage(
+            stage, operation,
+            log=self.application.log,
+            log_event=self.application.log_event,
         )
+
+    def post(self, state: dict) -> None:
+        """Select and post the next daily meme transactionally."""
+        publication = self.publication
+        receipts = self.receipts
+        receipt_values = self.receipt_values
+        tweets = self.tweets
+        catalog = self.catalog
+        schedule = self.schedule
+        log = self.application.log
+        run_daily_meme_stage = self._stage
+        block_if_ambiguous_remote_post = self.transport.block_if_ambiguous
+        both_main_post_receipts_exist = self.recovery.both_receipts_exist
+        REGULAR_POST_RECEIPT_FILE = self.policy.regular_receipt_file
+        MEME_POST_RECEIPT_FILE = self.policy.meme_receipt_file
+        InvalidMemePostReceipt = self.errors.invalid_meme
+        reconcile_meme_post_receipt = self.recovery.reconcile_meme
+        now_epoch = self.application.now_epoch
+        block_if_unresolved_regular_post_receipt = self.recovery.block_unresolved_regular
+        load_meme_analysis_index = self.application.load_meme_analysis_index
+        upload_media = self.transport.upload_media
+        build_main_post_attempt = self.build_attempt
+        MEME_POST_TEXT = self.policy.meme_text
+        MEME_SCHEDULE_VERSION = self.policy.schedule_version
+        MEME_FALLBACK_HOUR = self.policy.meme_fallback_hour
+        MEME_FALLBACK_MINUTE = self.policy.meme_fallback_minute
+        MAIN_POST_SCHEDULE_TIMEZONE = self.policy.schedule_timezone
+        remove_main_post_attempt = self.remove_attempt
+        durable_remote_write_safety_barrier_exists = self.transport.durable_barrier_exists
+        log_event = self.application.log_event
+        ConfirmedPendingScheduleDurabilityUncertain = self.errors.confirmed_pending_uncertain
+        ConfirmedPostLocalPersistenceError = self.errors.confirmed_local_failure
+        MY_USER_ID = self.policy.user_id
+        save_state = self.application.save_state
+        confirmed_meme_emergency_representation_is_complete = self.recovery.meme_emergency_complete
+        StateBackupWriteError = self.errors.state_backup_failure
+        json_file_matches = self.application.json_file_matches
+        STATE_FILE = self.policy.state_file
+        latch_confirmed_post_persistence_failure = self.transport.latch_confirmed_failure
+        UnrecoverableConfirmedPostPersistenceError = self.errors.unrecoverable_confirmed
+        retire_lane_transport_journal_if_present = self.application.retire_transport_journal
+        remove_meme_post_receipt = self.recovery.persistence.remove_meme_receipt
+        emit_account_root_posted = self.application.emit_account_root_posted
+        log.info("Starting daily meme post cycle")
         run_daily_meme_stage(
-            "same_day_duplicate_barrier",
-            lambda: schedule.schedule_next(
-                state,
-                current_meme_epoch,
-                mode="fallback",
+            "remote_write_barrier",
+            lambda: block_if_ambiguous_remote_post(
+                allow_confirmed_pending_schedule_reconciliation=True
             ),
         )
-        return
-    run_daily_meme_stage(
-        "main_receipt_barrier",
-        block_if_unresolved_regular_post_receipt,
-    )
 
-    meme_path = run_daily_meme_stage(
-        "meme_eligibility_and_asset_selection",
-        lambda: catalog.choose(state),
-    )
+        def validate_receipt_barriers() -> None:
+            if both_main_post_receipts_exist():
+                log.critical(
+                    "Both regular and meme confirmed-post receipts exist; refusing meme posting until manually inspected: %s %s",
+                    REGULAR_POST_RECEIPT_FILE,
+                    MEME_POST_RECEIPT_FILE,
+                )
+                raise InvalidMemePostReceipt("Both main-post receipts exist; manual recovery required")
 
-    if not meme_path:
-        log.info("No meme available to post")
-        run_daily_meme_stage(
-            "schedule_update",
-            lambda: schedule.schedule_next(state),
-        )
-        return
-
-    analysis_index = run_daily_meme_stage(
-        "x_request_preparation",
-        load_meme_analysis_index,
-    )
-    image_summary = run_daily_meme_stage(
-        "x_request_preparation",
-        lambda: catalog.summary(meme_path, analysis_index),
-    )
-
-    log.info("Posting meme image: %s", meme_path)
-    log.debug("Meme image summary for cache: %r", image_summary)
-
-    media_id = run_daily_meme_stage(
-        "media_upload",
-        lambda: upload_media(str(meme_path), lane="daily_meme"),
-    )
-
-    main_post_attempt = build_main_post_attempt(
-        lane="daily_meme",
-        text=MEME_POST_TEXT,
-        media_ids=[media_id],
-        made_with_ai=False,
-        selected_identity={"meme_basename": meme_path.name},
-        recovery_plan={
-            "next_schedule_mode": "fallback",
-            "meme_schedule_version": MEME_SCHEDULE_VERSION,
-            "fallback_hour": MEME_FALLBACK_HOUR,
-            "fallback_minute": MEME_FALLBACK_MINUTE,
-            "image_summary": image_summary,
-            "schedule_timezone": MAIN_POST_SCHEDULE_TIMEZONE,
-        },
-        attempt_epoch=current_meme_epoch,
-    )
-    publication.prepare(main_post_attempt)
-    publication.begin_guard()
-    try:
-        posted_id = publication.send(
-            text=MEME_POST_TEXT, media_id=media_id, made_with_ai=False,
-        )
-    except BaseException as remote_exc:
-        publication.handle_remote_failure(remote_exc)
-        raise
-
-    meme_post_epoch = _RECOVERY_VALUE_UNAVAILABLE
-    meme_schedule_fields = _RECOVERY_VALUE_UNAVAILABLE
-    try:
-        meme_post_epoch = publication.read_confirmation_epoch(posted_id)
-        receipt = publication.confirm_pending_schedule(
-            posted_id, meme_post_epoch, image_summary=image_summary,
-        )
-        meme_schedule_fields = _confirmed_meme_schedule_fields(receipt)
-    except BaseException as receipt_exc:
-        log.critical(
-            "Confirmed meme post_id=%s but stage=meme_receipt_creation failed; attempting direct durable state save",
-            posted_id,
-            exc_info=True,
-        )
-        log_event(
-            "daily_meme_failure",
-            status="failed",
-            stage="meme_receipt_creation",
-            post_id=str(posted_id),
-            error_type=type(receipt_exc).__name__,
-            reason=str(receipt_exc)[:500],
-        )
-        if isinstance(
-            receipt_exc,
-            ConfirmedPendingScheduleDurabilityUncertain,
+        run_daily_meme_stage("receipt_barrier", validate_receipt_barriers)
+        if run_daily_meme_stage(
+            "meme_receipt_reconciliation",
+            lambda: reconcile_meme_post_receipt(state),
         ):
-            if receipt_exc.durable_barrier:
-                publication.release_guard()
-            else:
-                publication.retain_guard()
-            raise
-        if publication.pending_promoted:
-            # Confirmation is already durable.  Leave the pending receipt for
-            # local-only reconciliation; no scheduler path may create another
-            # meme while it remains.
-            publication.release_guard()
-            if not isinstance(receipt_exc, Exception):
-                raise
-            raise ConfirmedPostLocalPersistenceError(
-                f"Confirmed meme post {posted_id}; its durable pending-schedule "
-                "receipt remains for local-only reconciliation"
-            ) from receipt_exc
-        emergency_state_write_succeeded = False
-        emergency_state_complete = False
-        try:
-            if publication.pending_available:
-                fallback_receipt = receipt_values.current().materialize_meme(
-                    publication.pending_receipt
-                )
-                meme_schedule_fields = _confirmed_meme_schedule_fields(fallback_receipt)
-            state["last_main_post_id"] = str(posted_id)
-            if meme_post_epoch is not _RECOVERY_VALUE_UNAVAILABLE:
-                state["last_meme_post_epoch"] = meme_post_epoch
-            posted = set(str(x) for x in state.get("posted_meme_filenames", []))
-            posted.add(meme_path.name)
-            state["posted_meme_filenames"] = sorted(posted)
-            if meme_schedule_fields is not _RECOVERY_VALUE_UNAVAILABLE:
-                apply_state_fields(state, meme_schedule_fields)
-            try:
-                tweets.store(
-                    state,
-                    tweet_id=str(posted_id),
-                    text=MEME_POST_TEXT,
-                    author_id=str(MY_USER_ID),
-                    conversation_id=str(posted_id),
-                    referenced_tweets=[],
-                    image_summary=image_summary,
-                    post_type="daily_meme",
-                )
-                tweets.record_recent_own_post(state, str(posted_id))
-            except Exception:
-                log.critical("Emergency in-memory cache/recent update failed after confirmed meme post", exc_info=True)
-            from mrs_bot_state_generation import record_receipt_commit
-            record_receipt_commit(state, publication.attempt)
-            commit_proof = save_state(state, durable=True)
-            emergency_state_write_succeeded = True
-            emergency_state_complete = confirmed_meme_emergency_representation_is_complete(
-                post_id=str(posted_id),
-                post_epoch=meme_post_epoch if meme_post_epoch is not _RECOVERY_VALUE_UNAVAILABLE else None,
-                meme_basename=meme_path.name,
-                state=state,
-                main_post_attempt=publication.attempt,
+            log.warning("Reconciled meme post receipt; not creating a second meme post in the same call")
+            return
+        current_meme_epoch = now_epoch()
+        if schedule.posted_on_date(state, schedule.date_str(current_meme_epoch)):
+            log.warning(
+                "Daily meme already confirmed on the current local date; "
+                "scheduling the next fallback without another X request"
             )
-        except Exception as emergency_exc:
-            if isinstance(emergency_exc, StateBackupWriteError) and json_file_matches(STATE_FILE, state, commit_proof=getattr(emergency_exc, "commit_proof", None)):
-                commit_proof = emergency_exc.commit_proof
+            run_daily_meme_stage(
+                "same_day_duplicate_barrier",
+                lambda: schedule.schedule_next(
+                    state,
+                    current_meme_epoch,
+                    mode="fallback",
+                ),
+            )
+            return
+        run_daily_meme_stage(
+            "main_receipt_barrier",
+            block_if_unresolved_regular_post_receipt,
+        )
+
+        meme_path = run_daily_meme_stage(
+            "meme_eligibility_and_asset_selection",
+            lambda: catalog.choose(state),
+        )
+
+        if not meme_path:
+            log.info("No meme available to post")
+            run_daily_meme_stage(
+                "schedule_update",
+                lambda: schedule.schedule_next(state),
+            )
+            return
+
+        analysis_index = run_daily_meme_stage(
+            "x_request_preparation",
+            load_meme_analysis_index,
+        )
+        image_summary = run_daily_meme_stage(
+            "x_request_preparation",
+            lambda: catalog.summary(meme_path, analysis_index),
+        )
+
+        log.info("Posting meme image: %s", meme_path)
+        log.debug("Meme image summary for cache: %r", image_summary)
+
+        media_id = run_daily_meme_stage(
+            "media_upload",
+            lambda: upload_media(str(meme_path), lane="daily_meme"),
+        )
+
+        main_post_attempt = build_main_post_attempt(
+            lane="daily_meme",
+            text=MEME_POST_TEXT,
+            media_ids=[media_id],
+            made_with_ai=False,
+            selected_identity={"meme_basename": meme_path.name},
+            recovery_plan={
+                "next_schedule_mode": "fallback",
+                "meme_schedule_version": MEME_SCHEDULE_VERSION,
+                "fallback_hour": MEME_FALLBACK_HOUR,
+                "fallback_minute": MEME_FALLBACK_MINUTE,
+                "image_summary": image_summary,
+                "schedule_timezone": MAIN_POST_SCHEDULE_TIMEZONE,
+            },
+            attempt_epoch=current_meme_epoch,
+        )
+        publication.prepare(main_post_attempt)
+        publication.begin_guard()
+        try:
+            posted_id = publication.send(
+                text=MEME_POST_TEXT, media_id=media_id, made_with_ai=False,
+            )
+        except BaseException as remote_exc:
+            publication.handle_remote_failure(remote_exc)
+            raise
+
+        meme_post_epoch = _RECOVERY_VALUE_UNAVAILABLE
+        meme_schedule_fields = _RECOVERY_VALUE_UNAVAILABLE
+        try:
+            meme_post_epoch = publication.read_confirmation_epoch(posted_id)
+            receipt = publication.confirm_pending_schedule(
+                posted_id, meme_post_epoch, image_summary=image_summary,
+            )
+            meme_schedule_fields = _confirmed_meme_schedule_fields(receipt)
+        except BaseException as receipt_exc:
+            log.critical(
+                "Confirmed meme post_id=%s but stage=meme_receipt_creation failed; attempting direct durable state save",
+                posted_id,
+                exc_info=True,
+            )
+            log_event(
+                "daily_meme_failure",
+                status="failed",
+                stage="meme_receipt_creation",
+                post_id=str(posted_id),
+                error_type=type(receipt_exc).__name__,
+                reason=str(receipt_exc)[:500],
+            )
+            if isinstance(
+                receipt_exc,
+                ConfirmedPendingScheduleDurabilityUncertain,
+            ):
+                if receipt_exc.durable_barrier:
+                    publication.release_guard()
+                else:
+                    publication.retain_guard()
+                raise
+            if publication.pending_promoted:
+                # Confirmation is already durable.  Leave the pending receipt for
+                # local-only reconciliation; no scheduler path may create another
+                # meme while it remains.
+                publication.release_guard()
+                if not isinstance(receipt_exc, Exception):
+                    raise
+                raise ConfirmedPostLocalPersistenceError(
+                    f"Confirmed meme post {posted_id}; its durable pending-schedule "
+                    "receipt remains for local-only reconciliation"
+                ) from receipt_exc
+            emergency_state_write_succeeded = False
+            emergency_state_complete = False
+            try:
+                if publication.pending_available:
+                    fallback_receipt = receipt_values.current().materialize_meme(
+                        publication.pending_receipt
+                    )
+                    meme_schedule_fields = _confirmed_meme_schedule_fields(fallback_receipt)
+                state["last_main_post_id"] = str(posted_id)
+                if meme_post_epoch is not _RECOVERY_VALUE_UNAVAILABLE:
+                    state["last_meme_post_epoch"] = meme_post_epoch
+                posted = set(str(x) for x in state.get("posted_meme_filenames", []))
+                posted.add(meme_path.name)
+                state["posted_meme_filenames"] = sorted(posted)
+                if meme_schedule_fields is not _RECOVERY_VALUE_UNAVAILABLE:
+                    apply_state_fields(state, meme_schedule_fields)
+                try:
+                    tweets.store(
+                        state,
+                        tweet_id=str(posted_id),
+                        text=MEME_POST_TEXT,
+                        author_id=str(MY_USER_ID),
+                        conversation_id=str(posted_id),
+                        referenced_tweets=[],
+                        image_summary=image_summary,
+                        post_type="daily_meme",
+                    )
+                    tweets.record_recent_own_post(state, str(posted_id))
+                except Exception:
+                    log.critical("Emergency in-memory cache/recent update failed after confirmed meme post", exc_info=True)
+                from mrs_bot_state_generation import record_receipt_commit
+                record_receipt_commit(state, publication.attempt)
+                commit_proof = save_state(state, durable=True)
                 emergency_state_write_succeeded = True
                 emergency_state_complete = confirmed_meme_emergency_representation_is_complete(
                     post_id=str(posted_id),
@@ -694,128 +697,139 @@ def post_next_meme(
                     state=state,
                     main_post_attempt=publication.attempt,
                 )
-                log.warning(
-                    "Emergency canonical state was committed after confirmed meme post, "
-                    "but a later backup/finalisation step failed; using the canonical "
-                    "durable state as the recovery representation",
-                    exc_info=True,
+            except Exception as emergency_exc:
+                if isinstance(emergency_exc, StateBackupWriteError) and json_file_matches(STATE_FILE, state, commit_proof=getattr(emergency_exc, "commit_proof", None)):
+                    commit_proof = emergency_exc.commit_proof
+                    emergency_state_write_succeeded = True
+                    emergency_state_complete = confirmed_meme_emergency_representation_is_complete(
+                        post_id=str(posted_id),
+                        post_epoch=meme_post_epoch if meme_post_epoch is not _RECOVERY_VALUE_UNAVAILABLE else None,
+                        meme_basename=meme_path.name,
+                        state=state,
+                        main_post_attempt=publication.attempt,
+                    )
+                    log.warning(
+                        "Emergency canonical state was committed after confirmed meme post, "
+                        "but a later backup/finalisation step failed; using the canonical "
+                        "durable state as the recovery representation",
+                        exc_info=True,
+                    )
+                else:
+                    log.critical("Emergency state persistence failed after confirmed meme post", exc_info=True)
+            if not emergency_state_complete:
+                incomplete_component = (
+                    "incomplete_meme_post_state"
+                    if emergency_state_write_succeeded
+                    else "state"
                 )
-            else:
-                log.critical("Emergency state persistence failed after confirmed meme post", exc_info=True)
-        if not emergency_state_complete:
-            incomplete_component = (
-                "incomplete_meme_post_state"
-                if emergency_state_write_succeeded
-                else "state"
+                durable_barrier = latch_confirmed_post_persistence_failure(
+                    lane="daily_meme",
+                    post_id=str(posted_id),
+                    failure_components=["meme_post_receipt", incomplete_component],
+                )
+                if durable_barrier or durable_remote_write_safety_barrier_exists():
+                    publication.release_guard()
+                else:
+                    publication.retain_guard()
+                raise UnrecoverableConfirmedPostPersistenceError(
+                    f"Confirmed meme post {posted_id} has no complete durable recovery representation"
+                ) from receipt_exc
+            status_after_fallback, _current_after_fallback = (
+                receipts.current().load_meme()
             )
-            durable_barrier = latch_confirmed_post_persistence_failure(
-                lane="daily_meme",
-                post_id=str(posted_id),
-                failure_components=["meme_post_receipt", incomplete_component],
-            )
-            if durable_barrier or durable_remote_write_safety_barrier_exists():
-                publication.release_guard()
-            else:
-                publication.retain_guard()
-            raise UnrecoverableConfirmedPostPersistenceError(
-                f"Confirmed meme post {posted_id} has no complete durable recovery representation"
+            if status_after_fallback == "sending":
+                retire_lane_transport_journal_if_present(
+                    commit_proof=commit_proof,
+                    receipt_path=MEME_POST_RECEIPT_FILE,
+                    receipt=publication.attempt,
+                    lane="daily_meme",
+                    post_id=str(posted_id),
+                )
+                remove_main_post_attempt(
+                    publication.attempt,
+                    sending_disposition="confirmed_state_fallback",
+                    commit_proof=commit_proof,
+                )
+            elif status_after_fallback != "valid":
+                raise UnrecoverableConfirmedPostPersistenceError(
+                    f"Confirmed meme post {posted_id} has no stable receipt state "
+                    "after fallback persistence"
+                ) from receipt_exc
+            publication.release_guard()
+            if not isinstance(receipt_exc, Exception):
+                raise
+            raise ConfirmedPostLocalPersistenceError(
+                f"Confirmed meme post {posted_id} but failed writing recovery receipt"
             ) from receipt_exc
-        status_after_fallback, _current_after_fallback = (
-            receipts.current().load_meme()
-        )
-        if status_after_fallback == "sending":
+
+        publication.release_guard()
+
+        try:
+            state["last_main_post_id"] = str(posted_id)
+            state["last_meme_post_epoch"] = meme_post_epoch
+            posted = set(str(x) for x in state.get("posted_meme_filenames", []))
+            posted.add(meme_path.name)
+            state["posted_meme_filenames"] = sorted(posted)
+            apply_state_fields(state, meme_schedule_fields)
+            tweets.store(
+                state,
+                tweet_id=str(posted_id),
+                text=MEME_POST_TEXT,
+                author_id=str(MY_USER_ID),
+                conversation_id=str(posted_id),
+                referenced_tweets=[],
+                image_summary=image_summary,
+                post_type="daily_meme",
+            )
+            tweets.record_recent_own_post(state, str(posted_id))
+            from mrs_bot_state_generation import record_receipt_commit
+            record_receipt_commit(state, receipt)
+            commit_proof = save_state(state, durable=True)
+        except Exception as exc:
+            log.critical(
+                "Confirmed meme post_id=%s but stage=durable_state_and_schedule_update failed; receipt remains for reconciliation",
+                posted_id,
+                exc_info=True,
+            )
+            log_event(
+                "daily_meme_failure",
+                status="failed",
+                stage="durable_state_and_schedule_update",
+                post_id=str(posted_id),
+                error_type=type(exc).__name__,
+                reason=str(exc)[:500],
+            )
+            raise ConfirmedPostLocalPersistenceError(f"Confirmed meme post {posted_id} but durable state save failed")
+        try:
             retire_lane_transport_journal_if_present(
                 commit_proof=commit_proof,
                 receipt_path=MEME_POST_RECEIPT_FILE,
-                receipt=publication.attempt,
+                receipt=receipt,
                 lane="daily_meme",
                 post_id=str(posted_id),
             )
-            remove_main_post_attempt(
-                publication.attempt,
-                sending_disposition="confirmed_state_fallback",
-                commit_proof=commit_proof,
+            remove_meme_post_receipt(receipt, commit_proof=commit_proof)
+        except Exception as exc:
+            log.critical(
+                "Confirmed meme post_id=%s but stage=meme_receipt_confirmation failed after durable state save",
+                posted_id,
+                exc_info=True,
             )
-        elif status_after_fallback != "valid":
-            raise UnrecoverableConfirmedPostPersistenceError(
-                f"Confirmed meme post {posted_id} has no stable receipt state "
-                "after fallback persistence"
-            ) from receipt_exc
-        publication.release_guard()
-        if not isinstance(receipt_exc, Exception):
-            raise
-        raise ConfirmedPostLocalPersistenceError(
-            f"Confirmed meme post {posted_id} but failed writing recovery receipt"
-        ) from receipt_exc
+            log_event(
+                "daily_meme_failure",
+                status="failed",
+                stage="meme_receipt_confirmation",
+                post_id=str(posted_id),
+                error_type=type(exc).__name__,
+                reason=str(exc)[:500],
+            )
+            raise ConfirmedPostLocalPersistenceError(f"Confirmed meme post {posted_id} but receipt removal failed") from exc
 
-    publication.release_guard()
-
-    try:
-        state["last_main_post_id"] = str(posted_id)
-        state["last_meme_post_epoch"] = meme_post_epoch
-        posted = set(str(x) for x in state.get("posted_meme_filenames", []))
-        posted.add(meme_path.name)
-        state["posted_meme_filenames"] = sorted(posted)
-        apply_state_fields(state, meme_schedule_fields)
-        tweets.store(
-            state,
-            tweet_id=str(posted_id),
-            text=MEME_POST_TEXT,
-            author_id=str(MY_USER_ID),
-            conversation_id=str(posted_id),
-            referenced_tweets=[],
-            image_summary=image_summary,
-            post_type="daily_meme",
-        )
-        tweets.record_recent_own_post(state, str(posted_id))
-        from mrs_bot_state_generation import record_receipt_commit
-        record_receipt_commit(state, receipt)
-        commit_proof = save_state(state, durable=True)
-    except Exception as exc:
-        log.critical(
-            "Confirmed meme post_id=%s but stage=durable_state_and_schedule_update failed; receipt remains for reconciliation",
-            posted_id,
-            exc_info=True,
-        )
-        log_event(
-            "daily_meme_failure",
-            status="failed",
-            stage="durable_state_and_schedule_update",
-            post_id=str(posted_id),
-            error_type=type(exc).__name__,
-            reason=str(exc)[:500],
-        )
-        raise ConfirmedPostLocalPersistenceError(f"Confirmed meme post {posted_id} but durable state save failed")
-    try:
-        retire_lane_transport_journal_if_present(
-            commit_proof=commit_proof,
-            receipt_path=MEME_POST_RECEIPT_FILE,
-            receipt=receipt,
+        log_event("main_post_posted", lane="daily_meme", post_id=posted_id, filename=meme_path.name)
+        emit_account_root_posted(
             lane="daily_meme",
-            post_id=str(posted_id),
+            post_id=posted_id,
+            public_text=MEME_POST_TEXT,
+            image_summary=image_summary,
         )
-        remove_meme_post_receipt(receipt, commit_proof=commit_proof)
-    except Exception as exc:
-        log.critical(
-            "Confirmed meme post_id=%s but stage=meme_receipt_confirmation failed after durable state save",
-            posted_id,
-            exc_info=True,
-        )
-        log_event(
-            "daily_meme_failure",
-            status="failed",
-            stage="meme_receipt_confirmation",
-            post_id=str(posted_id),
-            error_type=type(exc).__name__,
-            reason=str(exc)[:500],
-        )
-        raise ConfirmedPostLocalPersistenceError(f"Confirmed meme post {posted_id} but receipt removal failed") from exc
-
-    log_event("main_post_posted", lane="daily_meme", post_id=posted_id, filename=meme_path.name)
-    emit_account_root_posted(
-        lane="daily_meme",
-        post_id=posted_id,
-        public_text=MEME_POST_TEXT,
-        image_summary=image_summary,
-    )
-    log.info("Daily meme posted successfully. posted_id=%s file=%s", posted_id, meme_path.name)
+        log.info("Daily meme posted successfully. posted_id=%s file=%s", posted_id, meme_path.name)

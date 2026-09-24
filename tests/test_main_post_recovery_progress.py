@@ -9,6 +9,8 @@ import pytest
 
 import mrs_bot_main_post_publication as publication
 import mrs_bot_quote_posting as posting
+from mrs_bot_main_post_assembly import MainPostAssembly
+from mrs_bot_main_post_reconciliation import MainPostRecovery
 
 from mrs_bot_main_post_confirmation_persistence import RegularPostPersistenceResult
 from mrs_bot_main_post_receipts import MainPostReceiptValues
@@ -28,7 +30,6 @@ def prepare_post(tmp_path, monkeypatch, lane):
         run = lambda: bot.post_random_quote(lines, images, state)
         epoch_key = "last_quote_post_epoch"
         materialiser = "materialize_regular"
-        complete_name = "confirmed_regular_emergency_representation_is_complete"
     else:
         state, _ = configure_simple_meme_post(tmp_path, monkeypatch)
         monkeypatch.setattr(
@@ -38,7 +39,6 @@ def prepare_post(tmp_path, monkeypatch, lane):
         run = lambda: bot.post_next_meme(state)
         epoch_key = "last_meme_post_epoch"
         materialiser = "materialize_meme"
-        complete_name = "confirmed_meme_emergency_representation_is_complete"
     state[epoch_key] = 1_700_000_000
     guard = object()
     release = Mock()
@@ -49,8 +49,11 @@ def prepare_post(tmp_path, monkeypatch, lane):
     monkeypatch.setattr(bot, "begin_confirmed_post_sigint_deferral", lambda: guard)
     monkeypatch.setattr(bot, "end_confirmed_post_sigint_deferral", release)
     monkeypatch.setattr(bot, "save_state", save)
-    monkeypatch.setattr(bot, "emergency_persist_confirmed_regular_post", emergency_save)
-    monkeypatch.setattr(bot, complete_name, complete)
+    monkeypatch.setattr(MainPostAssembly, "emergency_regular", lambda _assembly, *args, **kwargs: emergency_save(*args, **kwargs))
+    recovery_method = (
+        "regular_emergency_complete" if lane == "quote_image" else "meme_emergency_complete"
+    )
+    monkeypatch.setattr(MainPostRecovery, recovery_method, lambda _recovery, **kwargs: complete(**kwargs))
     monkeypatch.setattr(bot, "latch_confirmed_post_persistence_failure", latch)
     return SimpleNamespace(
         run=run, state=state, epoch_key=epoch_key, materialiser=materialiser,
@@ -96,7 +99,7 @@ def test_assigned_none_pending_receipt_is_still_offered_to_fallback(
     materialise = Mock(side_effect=ValueError("invalid pending receipt"))
     monkeypatch.setattr(MainPostReceiptValues, "build_pending", Mock(return_value=None))
     monkeypatch.setattr(
-        bot, "promote_main_post_attempt_to_confirmed_pending_schedule",
+        MainPostAssembly, "promote_pending",
         Mock(side_effect=OSError("promotion failed")),
     )
     monkeypatch.setattr(MainPostReceiptValues, scenario.materialiser, materialise)
@@ -118,7 +121,7 @@ def test_quote_recovery_keeps_receipt_and_quote_schedule_when_meme_projection_fa
     fallback = {"next_quote_post_epoch": "1800007200", "next_meme_post_epoch": "invalid"}
     apply_fields = Mock(wraps=bot.apply_state_fields)
     monkeypatch.setattr(
-        bot, "promote_main_post_attempt_to_confirmed_pending_schedule",
+        MainPostAssembly, "promote_pending",
         Mock(side_effect=OSError("promotion failed")),
     )
     monkeypatch.setattr(MainPostReceiptValues, scenario.materialiser, Mock(return_value=fallback))
@@ -151,7 +154,7 @@ def test_emergency_materialisation_interrupt_preserves_signal_and_save_boundary(
     if failure_stage == "materialisation":
         materialise.side_effect = failure
     monkeypatch.setattr(
-        bot, "promote_main_post_attempt_to_confirmed_pending_schedule",
+        MainPostAssembly, "promote_pending",
         Mock(side_effect=OSError("promotion failed")),
     )
     monkeypatch.setattr(MainPostReceiptValues, scenario.materialiser, materialise)

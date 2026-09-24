@@ -19,6 +19,7 @@ from tests.helpers.quote_candidate_overrides import patch_completed_research_quo
 
 import historical_context_outbox as outbox_module
 import mrsMThatcher2 as bot
+from mrs_bot_main_post_assembly import MainPostAssembly
 import remote_media_upload_receipt as media_receipt_module
 import remote_write_transport_journal as journal_module
 import x_api_error_semantics as error_semantics
@@ -3958,7 +3959,7 @@ def test_regular_handler_retires_transaction_when_pause_follows_media_handoff(
 
     actual_create_post = bot.create_post
     actual_upload_media = bot.upload_media
-    actual_handoff = bot.handoff_confirmed_media_upload_to_main_attempt
+    actual_handoff = MainPostAssembly.handoff_media
     lines_used, images_used, state, *_paths = configure_simple_quote_post(
         tmp_path,
         monkeypatch,
@@ -3972,11 +3973,12 @@ def test_regular_handler_retires_transaction_when_pause_follows_media_handoff(
     transport_calls: list[str] = []
 
     def handoff_then_pause(
+        assembly: MainPostAssembly,
         attempt: dict,
         authority: bot.TransportAuthority,
     ) -> None:
         nonlocal handoffs, paused
-        actual_handoff(attempt, authority)
+        actual_handoff(assembly, attempt, authority)
         handoffs += 1
         paused = True
 
@@ -3991,8 +3993,8 @@ def test_regular_handler_retires_transaction_when_pause_follows_media_handoff(
         return _x_response(201, {"data": {"id": "780001"}})
 
     monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
+        MainPostAssembly,
+        "handoff_media",
         handoff_then_pause,
     )
     monkeypatch.setattr(
@@ -4022,7 +4024,7 @@ def test_meme_handler_retires_transaction_when_pause_follows_media_handoff(
 
     actual_create_post = bot.create_post
     actual_upload_media = bot.upload_media
-    actual_handoff = bot.handoff_confirmed_media_upload_to_main_attempt
+    actual_handoff = MainPostAssembly.handoff_media
     state, _receipt_path = configure_simple_meme_post(tmp_path, monkeypatch)
     monkeypatch.setattr(bot, "create_post", actual_create_post)
     monkeypatch.setattr(bot, "upload_media", actual_upload_media)
@@ -4031,11 +4033,12 @@ def test_meme_handler_retires_transaction_when_pause_follows_media_handoff(
     transport_calls: list[str] = []
 
     def handoff_then_pause(
+        assembly: MainPostAssembly,
         attempt: dict,
         authority: bot.TransportAuthority,
     ) -> None:
         nonlocal handoffs, paused
-        actual_handoff(attempt, authority)
+        actual_handoff(assembly, attempt, authority)
         handoffs += 1
         paused = True
 
@@ -4050,8 +4053,8 @@ def test_meme_handler_retires_transaction_when_pause_follows_media_handoff(
         return _x_response(201, {"data": {"id": "780001"}})
 
     monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
+        MainPostAssembly,
+        "handoff_media",
         handoff_then_pause,
     )
     monkeypatch.setattr(

@@ -54,13 +54,46 @@ def _completion_case(lane, *, fail_at=None, failure=None):
     if lane == "live":
         common["log_event"] = callbacks["event"]
         tweets = SimpleNamespace(store=Mock(), record_recent_own_post=Mock())
+        policy = recovery.MainPostRecoveryPolicy(
+            meme_text="", meme_schedule_version=0, user_id="123",
+            regular_receipt_file=common["REGULAR_POST_RECEIPT_FILE"],
+            meme_receipt_file=Path("meme_post_receipt.json"),
+            invalid_regular_receipt=ValueError,
+            invalid_meme_receipt=ValueError,
+            unresolved_regular_receipt=ValueError,
+        )
+        completion = recovery.MainPostRecovery(
+            receipts=Mock(), values=Mock(), tweets=tweets,
+            meme_schedule=Mock(), policy=policy,
+            persistence=recovery.MainPostRecoveryPersistence(
+                save_state=Mock(), save_regular_protected_state=callbacks["save"],
+                emergency_regular=Mock(), remove_regular_receipt=callbacks["remove"],
+                remove_meme_receipt=Mock(), retire_transport_journal=callbacks["retire"],
+                verify_transport_lineage=Mock(), ensure_regular_schedule_future=Mock(),
+            ),
+            context=recovery.MainPostContextObligations(
+                enqueue=callbacks["enqueue"], process_due=context,
+            ),
+            log=log, emit_account_root_posted=root, both_receipts_exist=Mock(),
+            valid_receipt_epoch=Mock(), safe_bound_schedule_date=Mock(),
+        )
+        runner = posting.QuotePostRunner(
+            publication=Mock(), receipts=Mock(), receipt_values=Mock(),
+            tweets=tweets, selection=Mock(), recovery=completion,
+            policy=SimpleNamespace(user_id="123"),
+            errors=SimpleNamespace(confirmed_local_failure=LocalPersistenceError),
+            transport=Mock(),
+            application=SimpleNamespace(
+                log=log, log_event=callbacks["event"],
+                emit_account_root_posted=root, process_due_context=context,
+            ),
+            build_attempt=Mock(), bound_meme_state=Mock(), remove_attempt=Mock(),
+        )
         def invoke():
-            return posting._complete_quote_post(
+            return runner._complete_post(
                 lines, images, state, preparation=preparation,
                 posted_id="950001", quote_post_epoch=100, quote_schedule_fields={},
                 meme_schedule_fields={}, receipt=receipt, image_choice=image_choice,
-                tweets=tweets, MY_USER_ID="123",
-                ConfirmedPostLocalPersistenceError=LocalPersistenceError, **common,
             )
     else:
         receipt_operations = SimpleNamespace(

@@ -12,6 +12,7 @@ import pytest
 import mrsMThatcher2 as bot
 import mrs_bot_api_cooldowns as api_cooldowns
 import mrs_bot_runtime_state_helpers as owner
+from mrs_bot_main_post_assembly import MainPostAssembly
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 DEPENDENCIES = {'default_state': ['STATE_MINIMUM_READER_VERSION'],
@@ -99,7 +100,7 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
                 if dep == "cooldowns":
                     patch.setattr(bot, "_api_cooldown_owner", Mock(return_value=value))
                 elif dep == "meme_schedule":
-                    patch.setattr(bot, "_meme_schedule_owner", Mock(return_value=value))
+                    patch.setattr(MainPostAssembly, "meme_schedule", lambda _assembly, _value=value: _value)
                 else:
                     patch.setattr(bot, dep, value)
             result = {"original": []}
@@ -749,7 +750,7 @@ def test_test_preparation_keeps_current_truth_callback_same_state_and_implicit_n
     monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", Enabled())
     schedule = Mock()
     schedule.ensure_initialized.side_effect = prepare
-    monkeypatch.setattr(bot, "_meme_schedule_owner", Mock(return_value=schedule))
+    monkeypatch.setattr(MainPostAssembly, "meme_schedule", lambda _assembly: schedule)
     monkeypatch.setattr(
         bot,
         "ensure_meme_schedule_initialized",

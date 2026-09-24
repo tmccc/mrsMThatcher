@@ -5,6 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from mrs_bot_main_post_assembly import MainPostAssembly
 from tests.helpers.bot_runtime import bot
 
 
@@ -41,7 +42,7 @@ def tick(monkeypatch):
     monkeypatch.setattr(bot, "_quote_schedule_owner", Mock(return_value=context.quote_schedule))
     context.meme_schedule = Mock()
     context.set_meme_delay_schedule = context.meme_schedule.set_delay
-    monkeypatch.setattr(bot, "_meme_schedule_owner", Mock(return_value=context.meme_schedule))
+    monkeypatch.setattr(MainPostAssembly, "meme_schedule", lambda _assembly: context.meme_schedule)
     for name in (
         "lane_paused", "in_api_cooldown", "record_api_error",
         "schedule_next_quote_post", "set_meme_delay_schedule",
@@ -96,8 +97,8 @@ def test_due_ticks_use_real_schedule_owners_without_root_relays(monkeypatch):
     assert saves[-1]["next_quote_post_epoch"] == current + 600
 
     monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", True)
-    meme_schedule = bot._meme_schedule_owner()
-    monkeypatch.setattr(bot, "_meme_schedule_owner", lambda: meme_schedule)
+    meme_schedule = bot._main_post_assembly().meme_schedule()
+    monkeypatch.setattr(MainPostAssembly, "meme_schedule", lambda _assembly: meme_schedule)
     controls.lane_paused.return_value = True
     meme_state = {
         "next_meme_post_epoch": current,

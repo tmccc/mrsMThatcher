@@ -117,7 +117,9 @@ need. A recovered draft can bypass model evaluation.
 | Quote delay selection and schedule persistence | `QuoteSchedule` in [mrs_bot_runtime_state_helpers.py](../mrs_bot_runtime_state_helpers.py) |
 | Ambient and conversational daily-cap dates | `ReceiptDates` in [mrs_bot_receipt_primitives.py](../mrs_bot_receipt_primitives.py); receipt-bound timezone conversion keeps its separate policy boundary |
 | Meme catalog discovery, cycle selection and image summaries | `MemeCatalog` in [mrs_bot_daily_meme.py](../mrs_bot_daily_meme.py) |
+| Ordinary quote and daily meme execution | `QuotePostRunner` in [mrs_bot_quote_posting.py](../mrs_bot_quote_posting.py) and `DailyMemeRunner` in [mrs_bot_daily_meme.py](../mrs_bot_daily_meme.py); [mrs_bot_main_post_assembly.py](../mrs_bot_main_post_assembly.py) binds each operation |
 | Shared quote/meme attempt publication, guarded send and durable confirmation | `MainPostPublication` in [mrs_bot_main_post_publication.py](../mrs_bot_main_post_publication.py); lane owners retain rollback, schedule projections and emergency recovery |
+| Main-post receipt application, completion and restart replay | `MainPostRecovery` in [mrs_bot_main_post_reconciliation.py](../mrs_bot_main_post_reconciliation.py) |
 | Historical-context queue selection, recovery, claims and durable outcomes | [mrs_bot_historical_context_queue.py](../mrs_bot_historical_context_queue.py); its coordinator keeps gates and loop decisions, with local helpers for sending a claim and applying exception/returned outcomes |
 | Candidate discovery and durable mention/quote queues (`MentionQueue` owns mention access and retirement) | [mrs_bot_mention_discovery.py](../mrs_bot_mention_discovery.py), [mrs_bot_hot_post_discovery.py](../mrs_bot_hot_post_discovery.py), [mrs_bot_quote_discovery.py](../mrs_bot_quote_discovery.py) |
 | Watched and recent original selection | `QuoteWatchPosts` in [mrs_bot_quote_discovery.py](../mrs_bot_quote_discovery.py) |

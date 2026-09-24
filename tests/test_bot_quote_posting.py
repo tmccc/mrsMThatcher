@@ -10,6 +10,8 @@ from unittest.mock import Mock
 import pytest
 
 import mrs_bot_quote_posting as posting
+from mrs_bot_main_post_assembly import MainPostAssembly
+from mrs_bot_main_post_reconciliation import MainPostRecovery
 from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
@@ -50,60 +52,28 @@ assert 'mrsMThatcher2' not in sys.modules
     assert posting.random is bot.random is random
 
 
-def test_adapter_passes_current_dependencies_and_references_on_every_call(monkeypatch):
-    names = [name for name, parameter in inspect.signature(posting.post_random_quote).parameters.items()
-             if parameter.kind == inspect.Parameter.KEYWORD_ONLY]
-    assert len(names) == 40
-    assert not set(names) & {
-        "apply_state_fields", "valid_post_id",
-        "main_post_attempt", "pending_schedule_receipt", "quote_post_epoch",
-        "fallback_receipt", "quote_schedule_fields", "meme_schedule_fields",
-    }
+def test_root_requests_fresh_quote_runner_with_shared_transaction_owners(monkeypatch):
     lines_used, images_used, state, result = set(), set(), {}, object()
-    owner = Mock(return_value=result)
-    monkeypatch.setattr(posting, "post_random_quote", owner)
+    seen = []
+
+    def post(runner, lines, images, current_state):
+        assert (lines, images, current_state) == (lines_used, images_used, state)
+        seen.append(runner)
+        return result
+
+    monkeypatch.setattr(posting.QuotePostRunner, "post", post)
     for _ in range(2):
-        current = {name: object() for name in names}
-        publication_factory = Mock(return_value=current["publication"])
-        selection_factory = Mock(return_value=current["selection"])
-        values_factory = Mock(return_value=current["receipt_values"])
-        receipts_factory = Mock(return_value=current["receipts"])
-        tweets_factory = Mock(return_value=current["tweets"])
-        reconcile = Mock(return_value=current["reconcile_main_post_receipts"])
-        monkeypatch.setattr(bot, "_main_post_publication_owner", publication_factory)
-        monkeypatch.setattr(bot, "_image_selection_owner", selection_factory)
-        monkeypatch.setattr(bot, "_main_post_receipt_values_owner", values_factory)
-        monkeypatch.setattr(bot, "_main_post_receipts_owner", receipts_factory)
-        monkeypatch.setattr(bot, "_tweet_lookup_cache_owner", tweets_factory)
-        monkeypatch.setattr(bot, "_reconcile_main_post_receipts_with_owners", reconcile)
-        for name, value in current.items():
-            if name not in {
-                "publication", "selection", "receipts", "receipt_values", "tweets",
-                "reconcile_main_post_receipts",
-            }:
-                monkeypatch.setattr(bot, name, value)
         assert bot.post_random_quote(lines_used, images_used, state) is result
-        publication_factory.assert_called_once_with(
-            "quote_image", receipts=current["receipts"],
-            receipt_values=current["receipt_values"],
-        )
-        selection_factory.assert_called_once_with()
-        values_factory.assert_called_once_with()
-        receipts_factory.assert_called_once_with(values=current["receipt_values"])
-        tweets_factory.assert_called_once_with()
-        args, kwargs = owner.call_args
-        assert all(actual is expected for actual, expected in zip(args, (lines_used, images_used, state)))
-        assert kwargs.keys() == current.keys()
-        for name, value in current.items():
-            if name == "reconcile_main_post_receipts":
-                assert kwargs[name].func is reconcile
-                assert kwargs[name].keywords == {
-                    "receipts": current["receipts"], "tweets": current["tweets"],
-                }
-            else:
-                assert kwargs[name] is value
+    assert seen[0] is not seen[1]
+    for runner in seen:
+        assert runner.publication.receipts is runner.receipts is runner.recovery.receipts
+        assert runner.publication.receipt_values is runner.receipt_values is runner.recovery.values
+        assert runner.tweets is runner.recovery.tweets
+    assert seen[0].selection is not seen[1].selection
+    assert seen[0].receipts is not seen[1].receipts
+
     failure = KeyboardInterrupt("owner failure")
-    owner.side_effect = failure
+    monkeypatch.setattr(posting.QuotePostRunner, "post", Mock(side_effect=failure))
     with pytest.raises(KeyboardInterrupt) as caught:
         bot.post_random_quote(lines_used, images_used, state)
     assert caught.value is failure
@@ -123,11 +93,11 @@ def test_preflight_order_and_snapshot_preserve_reconciler_set_references(monkeyp
         events.append("clock")
         return 1_800_000_000
 
-    def reconcile(lines, images, current_state, **kwargs):
+    def reconcile(owner, lines, images, current_state, **kwargs):
         assert lines is lines_used and images is images_used and current_state is state
         assert kwargs["minimum_next_quote_epoch"] == 1_800_000_000
-        assert isinstance(kwargs["receipts"], MainPostReceipts)
-        assert kwargs["tweets"].__class__.__name__ == "TweetLookupCache"
+        assert isinstance(owner.receipts, MainPostReceipts)
+        assert owner.tweets.__class__.__name__ == "TweetLookupCache"
         lines.add("reconciled quote")
         images.add("reconciled image")
         events.append("reconcile")
@@ -142,7 +112,7 @@ def test_preflight_order_and_snapshot_preserve_reconciler_set_references(monkeyp
     monkeypatch.setattr(bot, "log", log)
     monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", barrier)
     monkeypatch.setattr(bot, "now_epoch", clock)
-    monkeypatch.setattr(bot, "_reconcile_main_post_receipts_with_owners", reconcile)
+    monkeypatch.setattr(MainPostRecovery, "reconcile", reconcile)
     monkeypatch.setattr(
         bot, "reconcile_main_post_receipts",
         Mock(side_effect=AssertionError("quote posting used the public reconciliation relay")),
@@ -200,6 +170,15 @@ def test_posting_keeps_upload_shape_and_publication_order(
 
         monkeypatch.setattr(bot, name, invoke)
 
+    def track_assembly(name, label):
+        original = getattr(MainPostAssembly, name)
+
+        def invoke(owner, *args, **kwargs):
+            events.append(label)
+            return original(owner, *args, **kwargs)
+
+        monkeypatch.setattr(MainPostAssembly, name, invoke)
+
     original_write = MainPostReceipts.write_attempt
 
     def write(owner, attempt):
@@ -212,13 +191,18 @@ def test_posting_keeps_upload_shape_and_publication_order(
         Mock(side_effect=AssertionError("quote publication used the root write relay")),
     )
     for name in (
-        "prepare_main_tweet_transport",
-        "handoff_confirmed_media_upload_to_main_attempt", "begin_confirmed_post_sigint_deferral",
-        "save_regular_post_protected_state", "enqueue_historical_context_obligation",
-        "retire_lane_transport_journal_if_present", "remove_regular_post_receipt",
+        "begin_confirmed_post_sigint_deferral", "enqueue_historical_context_obligation",
+        "retire_lane_transport_journal_if_present",
         "emit_account_root_posted",
     ):
         track(name)
+    for name, label in (
+        ("prepare_transport", "prepare_main_tweet_transport"),
+        ("handoff_media", "handoff_confirmed_media_upload_to_main_attempt"),
+        ("save_regular_protected_state", "save_regular_post_protected_state"),
+        ("remove_regular", "remove_regular_post_receipt"),
+    ):
+        track_assembly(name, label)
     monkeypatch.setattr(bot._image_selection.ImageSelection, "choose_pair", select)
     monkeypatch.setattr(bot, "upload_media", upload)
     monkeypatch.setattr(bot.random, "randint", randint)
@@ -298,11 +282,11 @@ def test_prepublication_interrupt_preserves_draws_rollback_and_attempt_ownership
     monkeypatch.setattr(bot, "api_error_proves_remote_non_success", proof)
     monkeypatch.setattr(bot, "remove_main_post_attempt", remove)
     monkeypatch.setattr(bot, "end_confirmed_post_sigint_deferral", release)
-    monkeypatch.setattr(bot, "prepare_main_tweet_transport", transport)
+    monkeypatch.setattr(MainPostAssembly, "prepare_transport", lambda _owner, *args: transport(*args))
     if failure_point == "quote_log":
         log.debug.side_effect = interrupt
     elif failure_point == "attempt_build":
-        monkeypatch.setattr(bot, "build_main_post_attempt", interrupt)
+        monkeypatch.setattr(MainPostAssembly, "build_attempt", lambda _owner, **kwargs: interrupt(**kwargs))
     elif failure_point == "attempt_write":
         monkeypatch.setattr(MainPostReceipts, "write_attempt", write_then_interrupt)
         monkeypatch.setattr(
@@ -360,7 +344,7 @@ def test_completion_keeps_signal_release_exception_scope_and_receipt_disposition
     monkeypatch.setattr(bot, "emit_account_root_posted", root_event)
     monkeypatch.setattr(bot, "safely_process_due_historical_context_obligations", context)
     if failure_point == "protected_interrupt":
-        monkeypatch.setattr(bot, "save_regular_post_protected_state", fail)
+        monkeypatch.setattr(MainPostAssembly, "save_regular_protected_state", lambda _owner, *args, **kwargs: fail(*args, **kwargs))
     else:
         monkeypatch.setattr(bot, "log_event", event)
 

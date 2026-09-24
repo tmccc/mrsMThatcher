@@ -11,6 +11,7 @@ import pytest
 
 import mrsMThatcher2 as bot
 import mrs_bot_transport_source_preparation as preparation
+from mrs_bot_main_post_assembly import MainPostAssembly
 from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from mrs_bot_main_post_receipts import MainPostReceiptValues
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
@@ -129,9 +130,9 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
             current = {dep: object() for dep in DEPENDENCIES[name]}
             for dep, value in current.items():
                 if dep == "receipt_values":
-                    patch.setattr(bot, "_main_post_receipt_values_owner", Mock(return_value=value))
+                    patch.setattr(MainPostAssembly, "values", lambda _assembly, _value=value: _value)
                 elif dep == "receipts":
-                    patch.setattr(bot, "_main_post_receipts_owner", Mock(return_value=value))
+                    patch.setattr(MainPostAssembly, "receipts", lambda _assembly, _value=value, **_options: _value)
                 else:
                     patch.setattr(bot, dep, value)
             result = {"original": []}

@@ -11,6 +11,8 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_main_post_confirmation_persistence as owner
+import mrs_bot_main_post_assembly as main_post_assembly
+from mrs_bot_main_post_assembly import MainPostAssembly
 from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from mrs_bot_main_post_receipts import MainPostReceiptValues
 from tests.helpers.bot_runtime import bot
@@ -132,15 +134,18 @@ def test_public_signatures_and_current_adapter_references(monkeypatch, name):
         for dep, value in dependencies.items():
             if dep == "receipt_values":
                 factories[dep] = Mock(return_value=value)
-                monkeypatch.setattr(bot, "_main_post_receipt_values_owner", factories[dep])
+                monkeypatch.setattr(MainPostAssembly, "values", lambda _assembly, _factory=factories[dep]: _factory())
             elif dep == "receipts":
                 factories[dep] = Mock(return_value=value)
-                monkeypatch.setattr(bot, "_main_post_receipts_owner", factories[dep])
+                monkeypatch.setattr(MainPostAssembly, "receipts", lambda _assembly, _factory=factories[dep], **options: _factory(**options))
             else:
                 monkeypatch.setattr(bot, dep, value)
         result = object()
         callback = Mock(return_value=result)
-        monkeypatch.setattr(owner, name, callback)
+        monkeypatch.setattr(
+            main_post_assembly if name.startswith("promote_") else owner,
+            name, callback,
+        )
         assert public(*args, **kwargs) is result
         assert callback.call_args.args == args
         assert all(a is b for a, b in zip(callback.call_args.args, args))

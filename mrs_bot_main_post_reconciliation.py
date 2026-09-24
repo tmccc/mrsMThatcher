@@ -1,13 +1,16 @@
-"""Main-post receipt application, emergency completeness and local reconciliation.
+"""Main-post receipt application, emergency completeness and local recovery.
 
-The root supplies current owners and external boundaries explicitly on each
-call. Receipt application calls invocation-scoped `MemeSchedule` and
-`TweetLookupCache` owners directly; reconciliation loads and finalizes through
-`MainPostReceipts`. Proof-authorized removal remains a root boundary. This
-module performs no runtime work at import and retains no runtime authority.
+``MainPostRecovery`` binds one operation's receipt, cache, schedule and
+persistence collaborators. It applies and replays both lanes without routing
+through root callbacks. Proof-authorised retirement remains an external
+application boundary. This module performs no runtime work at import.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
+from logging import Logger
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from mrs_bot_regular_post_completion import complete_regular_post_persistence
@@ -579,3 +582,200 @@ def reconcile_main_post_receipts(
         ),
         "meme": reconcile_meme_post_receipt(state),
     }
+
+
+@dataclass(frozen=True)
+class MainPostRecoveryPolicy:
+    """Values and canonical errors used when replaying main-post receipts."""
+
+    meme_text: str
+    meme_schedule_version: int
+    user_id: str
+    regular_receipt_file: Path
+    meme_receipt_file: Path
+    invalid_regular_receipt: type[Exception]
+    invalid_meme_receipt: type[Exception]
+    unresolved_regular_receipt: type[Exception]
+
+
+@dataclass(frozen=True)
+class MainPostRecoveryPersistence:
+    """Proof-gated state and receipt operations shared by both replay lanes."""
+
+    save_state: Callable
+    save_regular_protected_state: Callable
+    emergency_regular: Callable
+    remove_regular_receipt: Callable
+    remove_meme_receipt: Callable
+    retire_transport_journal: Callable
+    verify_transport_lineage: Callable
+    ensure_regular_schedule_future: Callable
+
+
+@dataclass(frozen=True)
+class MainPostContextObligations:
+    """Independent historical-context persistence and optional processing."""
+
+    enqueue: Callable
+    process_due: Callable
+
+
+@dataclass(frozen=True)
+class MainPostRecovery:
+    """Apply and reconcile both main-post lanes with one operation's owners."""
+
+    receipts: MainPostReceipts
+    values: MainPostReceiptValues
+    tweets: TweetLookupCache
+    meme_schedule: Callable[[], MemeSchedule]
+    policy: MainPostRecoveryPolicy
+    persistence: MainPostRecoveryPersistence
+    context: MainPostContextObligations
+    log: Logger
+    emit_account_root_posted: Callable
+    both_receipts_exist: Callable[[], bool]
+    valid_receipt_epoch: Callable
+    safe_bound_schedule_date: Callable
+
+    def block_unresolved_regular(self) -> None:
+        """Refuse a meme while an earlier regular transaction is unresolved."""
+        status, _receipt = self.receipts.current().load_regular()
+        if status == "absent":
+            return
+        if status == "invalid":
+            raise self.policy.invalid_regular_receipt(
+                f"Invalid regular-post receipt blocks main posting: {self.policy.regular_receipt_file}"
+            )
+        raise self.policy.unresolved_regular_receipt(
+            "Unresolved regular-post receipt must be reconciled before another main post: "
+            f"{self.policy.regular_receipt_file}"
+        )
+
+    def regular_emergency_complete(self, **kwargs) -> bool:
+        """Check a fallback against the exact bound regular-post plan."""
+        return confirmed_regular_emergency_representation_is_complete(
+            **kwargs,
+            receipt_values=self.values.current(),
+            valid_receipt_epoch=self.valid_receipt_epoch,
+        )
+
+    def emergency_regular(self, lines_used: set, images_used: set, state: dict):
+        """Persist emergency histories and state through the bound authority."""
+        return self.persistence.emergency_regular(lines_used, images_used, state)
+
+    def meme_emergency_complete(self, **kwargs) -> bool:
+        """Check a fallback against the exact bound meme-post plan."""
+        return confirmed_meme_emergency_representation_is_complete(
+            **kwargs,
+            receipt_values=self.values.current(),
+            safe_bound_schedule_date_str=self.safe_bound_schedule_date,
+            valid_receipt_epoch=self.valid_receipt_epoch,
+        )
+
+    def complete_regular(
+        self, lines_used: set, images_used: set, state: dict,
+        receipt: dict, *, posted_id: str,
+    ) -> None:
+        """Save live regular state and outbox before retiring exact authority."""
+        def retire(commit_proof: StateCommitProof) -> None:
+            self.persistence.retire_transport_journal(
+                commit_proof=commit_proof,
+                receipt_path=self.policy.regular_receipt_file,
+                receipt=receipt,
+                lane="quote_image",
+                post_id=str(posted_id),
+            )
+
+        complete_regular_post_persistence(
+            lines_used, images_used, state, receipt,
+            save_regular_post_protected_state=self.persistence.save_regular_protected_state,
+            enqueue_historical_context_obligation=self.context.enqueue,
+            retire_transport_journal=retire,
+            remove_regular_post_receipt=self.persistence.remove_regular_receipt,
+        )
+
+    def apply_meme(self, receipt: dict, state: dict) -> None:
+        """Apply one confirmed meme receipt to in-memory state."""
+        apply_meme_post_receipt(
+            receipt, state,
+            MEME_POST_TEXT=self.policy.meme_text,
+            MEME_SCHEDULE_VERSION=self.policy.meme_schedule_version,
+            MY_USER_ID=self.policy.user_id,
+            log=self.log,
+            meme_schedule=self.meme_schedule(),
+            tweets=self.tweets,
+        )
+
+    def apply_regular(
+        self, receipt: dict, lines_used: set, images_used: set, state: dict,
+    ) -> None:
+        """Apply one confirmed quotation receipt to histories and state."""
+        apply_regular_post_receipt(
+            receipt, lines_used, images_used, state,
+            MEME_SCHEDULE_VERSION=self.policy.meme_schedule_version,
+            MY_USER_ID=self.policy.user_id,
+            log=self.log,
+            meme_schedule=self.meme_schedule(),
+            tweets=self.tweets,
+        )
+
+    def reconcile_meme(self, state: dict) -> bool:
+        """Replay a meme receipt without performing another remote create."""
+        return reconcile_meme_post_receipt(
+            state,
+            InvalidMemePostReceipt=self.policy.invalid_meme_receipt,
+            MEME_POST_RECEIPT_FILE=self.policy.meme_receipt_file,
+            MEME_POST_TEXT=self.policy.meme_text,
+            apply_meme_post_receipt=self.apply_meme,
+            receipts=self.receipts,
+            emit_account_root_posted=self.emit_account_root_posted,
+            log=self.log,
+            remove_meme_post_receipt=self.persistence.remove_meme_receipt,
+            retire_lane_transport_journal_if_present=self.persistence.retire_transport_journal,
+            save_state=self.persistence.save_state,
+            verify_lane_transport_source_lineage_if_present=self.persistence.verify_transport_lineage,
+        )
+
+    def reconcile_regular(
+        self, lines_used: set, images_used: set, state: dict,
+        *, minimum_next_quote_epoch: int | None = None,
+        process_auxiliary_context: bool = True,
+    ) -> bool:
+        """Replay a quotation receipt and persist its independent outbox."""
+        return reconcile_regular_post_receipt(
+            lines_used, images_used, state,
+            minimum_next_quote_epoch=minimum_next_quote_epoch,
+            process_auxiliary_context=process_auxiliary_context,
+            InvalidRegularPostReceipt=self.policy.invalid_regular_receipt,
+            REGULAR_POST_RECEIPT_FILE=self.policy.regular_receipt_file,
+            apply_regular_post_receipt=self.apply_regular,
+            receipts=self.receipts,
+            emit_account_root_posted=self.emit_account_root_posted,
+            enqueue_historical_context_obligation=self.context.enqueue,
+            ensure_reconciled_regular_receipt_schedule_is_future=self.persistence.ensure_regular_schedule_future,
+            log=self.log,
+            remove_regular_post_receipt=self.persistence.remove_regular_receipt,
+            retire_lane_transport_journal_if_present=self.persistence.retire_transport_journal,
+            safely_process_due_historical_context_obligations=self.context.process_due,
+            save_regular_post_protected_state=self.persistence.save_regular_protected_state,
+            verify_lane_transport_source_lineage_if_present=self.persistence.verify_transport_lineage,
+        )
+
+    def reconcile(
+        self, lines_used: set, images_used: set, state: dict,
+        *, minimum_next_quote_epoch: int | None = None,
+        process_auxiliary_context: bool = True,
+    ) -> dict[str, bool]:
+        """Enforce the shared receipt barrier before replaying either lane."""
+        return reconcile_main_post_receipts(
+            lines_used, images_used, state,
+            minimum_next_quote_epoch=minimum_next_quote_epoch,
+            process_auxiliary_context=process_auxiliary_context,
+            InvalidRegularPostReceipt=self.policy.invalid_regular_receipt,
+            MEME_POST_RECEIPT_FILE=self.policy.meme_receipt_file,
+            REGULAR_POST_RECEIPT_FILE=self.policy.regular_receipt_file,
+            both_main_post_receipts_exist=self.both_receipts_exist,
+            log=self.log,
+            reconcile_meme_post_receipt=self.reconcile_meme,
+            reconcile_regular_post_receipt=self.reconcile_regular,
+        )

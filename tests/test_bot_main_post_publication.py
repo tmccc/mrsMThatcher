@@ -363,15 +363,12 @@ def test_ambiguous_failure_retains_only_without_durable_barrier(publication, inc
 
 
 @pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
-def test_root_factory_binds_current_callbacks_and_independent_progress(monkeypatch, lane):
+def test_assembly_binds_current_transport_and_independent_publication_progress(monkeypatch, lane):
     bindings = {
         "log": "log",
-        "prepare_transport": "prepare_main_tweet_transport",
-        "handoff_media": "handoff_confirmed_media_upload_to_main_attempt",
         "begin_sigint": "begin_confirmed_post_sigint_deferral",
         "create_post": "create_post",
         "proves_non_success": "api_error_proves_remote_non_success",
-        "retire_attempt": "remove_main_post_attempt",
         "end_sigint": "end_confirmed_post_sigint_deferral",
         "ambiguous_outcome": "AmbiguousRemotePostOutcome",
         "incident_latched": "remote_write_safety_incident_is_latched",
@@ -379,11 +376,7 @@ def test_root_factory_binds_current_callbacks_and_independent_progress(monkeypat
         "retain_sigint": "retain_sigint_deferral_without_durable_barrier",
         "inspect_confirmation": "inspect_confirmed_transport_transaction",
         "journal_path": "journal_path_for_receipt",
-        "promote_pending": "promote_main_post_attempt_to_confirmed_pending_schedule",
     }
-    stage, validator = Mock(), Mock()
-    monkeypatch.setattr(bot, "run_daily_meme_stage", stage)
-    monkeypatch.setattr(bot, "require_valid_meme_post_id", validator)
     owners = []
     for _ in range(2):
         current = {field: Mock() for field in bindings}
@@ -394,10 +387,6 @@ def test_root_factory_binds_current_callbacks_and_independent_progress(monkeypat
         monkeypatch.setattr(bot, path_name, path)
         receipt_values = SimpleNamespace(current=Mock())
         receipts = SimpleNamespace(current=Mock(), write_attempt=Mock())
-        values_factory = Mock(return_value=receipt_values)
-        receipts_factory = Mock(return_value=receipts)
-        monkeypatch.setattr(bot, "_main_post_receipt_values_owner", values_factory)
-        monkeypatch.setattr(bot, "_main_post_receipts_owner", receipts_factory)
         for obsolete in (
             "write_main_post_attempt",
             "confirmation_epoch_for_main_attempt",
@@ -408,16 +397,17 @@ def test_root_factory_binds_current_callbacks_and_independent_progress(monkeypat
                 bot, obsolete,
                 Mock(side_effect=AssertionError(f"publication bounced through {obsolete}")),
             )
-        owner = bot._main_post_publication_owner(lane)
+        assembly = bot._main_post_assembly()
+        owner = assembly.publication(lane, receipts=receipts, values=receipt_values)
         owners.append(owner)
         assert owner.lane is lane and owner.receipt_path is path
         assert all(getattr(owner, field) is value for field, value in current.items())
         assert owner.receipts is receipts
         assert owner.receipt_values is receipt_values
-        values_factory.assert_called_once_with()
-        receipts_factory.assert_called_once_with(values=receipt_values)
-        assert owner.run_stage is (stage if lane == "daily_meme" else None)
-        assert owner.validate_meme_post_id is (validator if lane == "daily_meme" else None)
+        assert callable(owner.prepare_transport) and callable(owner.handoff_media)
+        assert callable(owner.retire_attempt) and callable(owner.promote_pending)
+        assert callable(owner.run_stage) is (lane == "daily_meme")
+        assert callable(owner.validate_meme_post_id) is (lane == "daily_meme")
         assert owner.guard is None and not owner.pending_available
         assert owner.pending_promoted is False
         assert all(not value.mock_calls for value in current.values())
@@ -425,8 +415,6 @@ def test_root_factory_binds_current_callbacks_and_independent_progress(monkeypat
     assert owners[0] is not owners[1]
     assert owners[0].create_post is not owners[1].create_post
     assert owners[0].guard is not owners[1].guard
-    stage.assert_not_called()
-    validator.assert_not_called()
 
 
 def test_quote_publication_keeps_create_callback_bound_before_upload(tmp_path, monkeypatch):

@@ -28,7 +28,7 @@ def prepared_regular_receipt():
     _source, receipt, _source_bytes, receipt_bytes, _post_id = production_lane_documents('quote_image')
     state = bot.default_state()
     lines, images = set(), set()
-    bot.apply_regular_post_receipt(receipt, lines, images, state)
+    bot._main_post_assembly().recovery_operation().apply_regular(receipt, lines, images, state)
     record_receipt_commit(state, receipt)
     result = bot.emergency_persist_confirmed_regular_post(lines, images, state)
     assert result.failures == ()

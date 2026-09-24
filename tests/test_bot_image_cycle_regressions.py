@@ -17,6 +17,7 @@ from tests.helpers.quote_candidate_overrides import patch_completed_research_quo
 
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
+    patch_main_post_handoff,
     isolate_bot_runtime,
     quote_analysis_for_lines,
     image_analysis_for_paths,
@@ -51,11 +52,7 @@ def test_post_random_quote_retries_alternate_quote_when_first_has_no_image_match
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
     monkeypatch.setattr(bot.random, "uniform", lambda low, high: low)
     monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -170,11 +167,7 @@ def configure_image_cycle_post(
     monkeypatch.setattr(bot.random, "uniform", lambda low, high: low)
     monkeypatch.setattr(bot.random, "randint", lambda low, high: low)
     monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
+    patch_main_post_handoff(monkeypatch, lambda _attempt, _authority: None)
     monkeypatch.setattr(
         bot,
         "create_post",
