@@ -769,7 +769,16 @@ def test_resume_fallback_warning_precedes_filter_failures(failure):
     assert calls == expected[:expected.index(failure) + 1]
 
 
-def test_explicit_since_is_exact_and_boundary_is_inclusive(tmp_path):
+def test_explicit_since_is_exact_and_boundary_is_inclusive(tmp_path, monkeypatch):
+    observed_at = datetime(2026, 7, 26, 12, 0, 0)
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return observed_at if tz is None else observed_at.astimezone(tz)
+
+    # Byte equality includes current snapshots as well as the fixed log window.
+    monkeypatch.setattr(digest, "datetime", FixedDateTime)
     requested = "2026-07-26 10:54:03"
     log = tmp_path / "mrsMThatcher.log"
     log.write_text(
@@ -794,6 +803,7 @@ def test_explicit_since_is_exact_and_boundary_is_inclusive(tmp_path):
         in rendered
     )
     assert "Records parsed: `2`" in rendered
+    assert "Current filesystem/configuration snapshot at `2026-07-26 12:00:00`" in rendered
     assert first.read_bytes() == second.read_bytes()
 
 
