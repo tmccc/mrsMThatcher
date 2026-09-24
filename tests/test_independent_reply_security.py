@@ -27,7 +27,7 @@ def test_recovered_429_is_durable_before_decision_telemetry(monkeypatch):
     monkeypatch.setattr(generation.ReplyGeneration, 'record_result', lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError('telemetry unavailable')))
     state = bot.default_state()
     with pytest.raises(OSError, match="telemetry unavailable"):
-        bot.evaluate_single_call_reply(context(), state=state)
+        bot._reply_assembly()._reply_generation_owner().evaluate(context(), state=state)
     assert state['openai_api_cooldown_until_epoch'] > bot.now_epoch()
     assert saves[-1]['openai_api_cooldown_until_epoch'] > bot.now_epoch()
     assert len(calls) == 2

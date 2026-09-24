@@ -8,6 +8,8 @@ import subprocess
 import sys
 from unittest.mock import Mock, call
 
+import mrs_bot_reply_assembly as assembly
+
 import pytest
 
 import mrs_bot_hot_post_discovery as discovery
@@ -64,62 +66,7 @@ assert 'requests' not in sys.modules
     assert discovery.normalise_tweet_text is bot.normalise_tweet_text
 
 
-def test_adapters_forward_current_dependencies_arguments_defaults_results_and_errors(monkeypatch):
-    counts = {
-        "get_hot_post_reply_candidates": 24,
-        "mark_hot_post_reply_skipped": 2,
-        "maybe_mark_hot_post_reply_skipped": 1,
-        "dedupe_reply_candidates": 1,
-    }
-    for name, count in counts.items():
-        adapter = getattr(bot, name)
-        public = inspect.signature(adapter).parameters
-        dependencies = inspect.signature(getattr(discovery, name)).parameters.keys() - public.keys()
-        assert len(dependencies) == count
-        args = tuple(object() for p in public.values() if p.kind == p.POSITIONAL_OR_KEYWORD)
-        kwargs = {p.name: object() for p in public.values() if p.kind == p.KEYWORD_ONLY}
-        result = object()
-        owner = Mock(return_value=result)
-        with monkeypatch.context() as patch:
-            patch.setattr(discovery, name, owner)
-            for _ in range(2):
-                current = {key: object() for key in dependencies}
-                factories = {}
-                owner_factories = {
-                    "cooldowns": "_api_cooldown_owner",
-                    "controls": "_runtime_controls_owner",
-                    "retire_ineligible_draft": "_reply_draft_owner",
-                    "reply_evaluations": "_reply_evaluation_owner",
-                    "tweets": "_tweet_lookup_cache_owner",
-                    "watch_posts": "_quote_watch_posts_owner",
-                }
-                for key, value in current.items():
-                    if key == "retire_ineligible_draft":
-                        factories[key] = Mock(return_value=Mock(retire_ineligible=value))
-                        patch.setattr(bot, "_reply_draft_owner", factories[key])
-                    elif key in owner_factories:
-                        factories[key] = Mock(return_value=value)
-                        patch.setattr(bot, owner_factories[key], factories[key])
-                    else:
-                        patch.setattr(bot, key, value)
-                assert adapter(*args, **kwargs) is result
-                for key, factory in factories.items():
-                    if key == "watch_posts":
-                        factory.assert_called_once_with(tweets=current["tweets"])
-                    else:
-                        factory.assert_called_once_with()
-                actual_args, actual_kwargs = owner.call_args
-                assert len(actual_args) == len(args)
-                assert all(actual is expected for actual, expected in zip(actual_args, args))
-                expected_kwargs = {**kwargs, **current}
-                assert actual_kwargs.keys() == expected_kwargs.keys()
-                assert all(actual_kwargs[key] is value for key, value in expected_kwargs.items())
-            failure = TypeError(name)
-            owner.side_effect = failure
-            with pytest.raises(TypeError) as caught:
-                adapter(*args, **kwargs)
-            assert caught.value is failure
-
+def test_hot_post_markers_preserve_default_arguments(monkeypatch):
     owner = Mock()
     monkeypatch.setattr(discovery, "mark_hot_post_reply_skipped", owner)
     state = {}
@@ -134,16 +81,17 @@ def test_adapters_forward_current_dependencies_arguments_defaults_results_and_er
     assert owner.call_args.args == (state, candidate, "unspecified")
 
 
+
 def test_hot_post_compatibility_entry_point_assembles_each_call(monkeypatch):
     """The compatibility entry point keeps fresh, late-bound assembly per call."""
     state = {}
     first = Mock(return_value=[{"id": "201"}])
     second = Mock(return_value=[{"id": "202"}])
     assemble = Mock(side_effect=[first, second])
-    monkeypatch.setattr(bot, "_hot_post_discovery_callback", assemble)
+    monkeypatch.setattr(assembly.ReplyAssembly, "_hot_post_discovery_callback", assemble)
 
-    assert bot.get_hot_post_reply_candidates(state) == [{"id": "201"}]
-    assert bot.get_hot_post_reply_candidates(state) == [{"id": "202"}]
+    assert bot._reply_assembly()._hot_post_discovery_callback()(state) == [{"id": "201"}]
+    assert bot._reply_assembly()._hot_post_discovery_callback()(state) == [{"id": "202"}]
 
     assert assemble.call_args_list == [call(), call()]
     first.assert_called_once_with(state)
@@ -178,17 +126,17 @@ def test_early_flags_and_watch_failures_precede_tracking_changes(monkeypatch):
     monkeypatch.setattr(bot, "x_paginated_get", Mock(side_effect=AssertionError("must not fetch")))
     monkeypatch.setattr(bot, "save_state", Mock(side_effect=AssertionError("must not save")))
     monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
-    assert bot.get_hot_post_reply_candidates(state) == []
+    assert bot._reply_assembly()._hot_post_discovery_callback()(state) == []
     assert trace.mock_calls == []
     monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", True)
-    assert bot.get_hot_post_reply_candidates(state) == []
+    assert bot._reply_assembly()._hot_post_discovery_callback()(state) == []
     trace.pause.return_value = False
-    assert bot.get_hot_post_reply_candidates(state) == []
+    assert bot._reply_assembly()._hot_post_discovery_callback()(state) == []
     trace.cooldown.return_value = False
     trace.watch.side_effect = OSError("watch unavailable")
-    assert bot.get_hot_post_reply_candidates(state) == []
+    assert bot._reply_assembly()._hot_post_discovery_callback()(state) == []
     trace.watch.side_effect = None
-    assert bot.get_hot_post_reply_candidates(state) == []
+    assert bot._reply_assembly()._hot_post_discovery_callback()(state) == []
     pause = call.pause("disable_replies", "disable_hot_post_replies")
     cooldown = call.cooldown(state, scope="quote")
     assert trace.mock_calls == [pause, pause, cooldown, pause, cooldown, call.watch(), pause, cooldown, call.watch()]
@@ -215,7 +163,7 @@ def test_discovery_keeps_draft_terminal_media_cache_and_save_order_and_reference
     state["hot_post_reply_since_ids"] = old_since
     context = unit_reply_context(target_id="101", thread_id="700", lane="hot_post_reply")
     draft = unit_approved_reply(context)
-    assert bot.store_pending_ai_reply(state, "101", "hot_post_reply", draft, context=context)
+    assert bot._reply_assembly()._reply_draft_owner().store(state, "101", "hot_post_reply", draft, context=context)
     pending = state["pending_ai_reply_drafts"]
     rows = [
         {
@@ -237,8 +185,8 @@ def test_discovery_keeps_draft_terminal_media_cache_and_save_order_and_reference
         ("cache", "cache_tweet"), ("save", "save_state"),
     ):
         original = (
-            bot._reply_draft_owner().clear if label == "clear"
-            else bot._reply_evaluation_owner().record if label == "terminal"
+            bot._reply_assembly()._reply_draft_owner().clear if label == "clear"
+            else bot._reply_assembly()._reply_evaluation_owner().record if label == "terminal"
             else bot._tweet_lookup_cache_owner().store if label == "cache"
             else getattr(bot, name)
         )
@@ -279,12 +227,11 @@ def test_discovery_keeps_draft_terminal_media_cache_and_save_order_and_reference
         for name in (
             "cache_tweet",
             "load_extra_quote_watch_post_ids",
-            "record_terminal_reply_evaluation",
         )
     }
     for name, relay in relays.items():
         monkeypatch.setattr(bot, name, relay)
-    result = bot.get_hot_post_reply_candidates(state)
+    result = bot._reply_assembly()._hot_post_discovery_callback()(state)
     assert len(result) == 1 and result[0] is rows[0]
     assert trace == [
         "media", "sort", "eligible", "single_call_reply_posting_outcome", "clear", "terminal",
@@ -349,7 +296,7 @@ def test_invalid_cursor_cleanup_and_request_errors_keep_partial_state_boundaries
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
     monkeypatch.setattr(bot, "log", log)
     with pytest.raises(type(failure)) as caught:
-        bot.get_hot_post_reply_candidates(state)
+        bot._reply_assembly()._hot_post_discovery_callback()(state)
     assert caught.value is failure
     assert len(requests) == (1 if boundary == "save" else 2)
     assert requests[0]["pagination_token"] == "expired-token"
@@ -465,7 +412,7 @@ def test_discovery_skips_legacy_quote_only_target_before_eligibility(tmp_path, m
     }], "includes": {}, "_pagination": {}}))
     eligible = Mock(side_effect=AssertionError("confirmed target reached eligibility"))
     monkeypatch.setattr(bot, "reply_target_is_directly_eligible", eligible)
-    assert bot.get_hot_post_reply_candidates(state) == []
+    assert bot._reply_assembly()._hot_post_discovery_callback()(state) == []
     eligible.assert_not_called()
     assert state["replied_to_ids"] == []
     assert state["daily_reply_count"] == state["daily_quote_reply_count"] == 0

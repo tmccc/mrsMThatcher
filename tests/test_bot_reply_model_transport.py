@@ -14,6 +14,8 @@ from types import SimpleNamespace
 from typing import get_type_hints
 from unittest.mock import Mock, call
 
+import mrs_bot_reply_assembly as assembly
+
 import pytest
 
 import mrs_bot_reply_model_transport as model_transport
@@ -88,7 +90,7 @@ def test_owner_composition_binds_current_dependencies_without_calls_or_secret_re
         current = {field: Mock() for field in OWNER_INPUTS}
         for field, name in OWNER_INPUTS.items():
             monkeypatch.setattr(bot, name, current[field])
-        owner = bot._reply_model_transport_owner()
+        owner = bot._reply_assembly()._reply_model_transport_owner()
         assert isinstance(owner, model_transport.ReplyModelTransport)
         for field, value in current.items():
             assert getattr(owner, field) is value
@@ -103,42 +105,6 @@ def test_owner_composition_binds_current_dependencies_without_calls_or_secret_re
     assert "fixture-transport-secret" not in redacted and "api_key=" not in redacted
 
 
-def test_public_root_adapter_preserves_signature_defaults_references_and_errors(monkeypatch):
-    for root_name, method_name in (("openai_responses_reply_call", "call"),):
-        adapter = getattr(bot, root_name)
-        public = inspect.signature(adapter)
-        owned = inspect.signature(getattr(model_transport.ReplyModelTransport, method_name))
-        assert [(p.name, p.kind, p.default) for p in public.parameters.values()] == [
-            (p.name, p.kind, p.default) for p in list(owned.parameters.values())[1:]
-        ]
-        args = tuple(object() for p in public.parameters.values() if p.kind == p.POSITIONAL_OR_KEYWORD)
-        options = {key: object() for key, p in public.parameters.items() if p.kind == p.KEYWORD_ONLY}
-        with monkeypatch.context() as patch:
-            for include_defaults in (False, True):
-                owner = Mock(spec=model_transport.ReplyModelTransport)
-                factory = Mock(return_value=owner)
-                patch.setattr(bot, "_reply_model_transport_owner", factory)
-                implementation = getattr(owner, method_name)
-                result = object()
-                implementation.return_value = result
-                supplied = {key: value for key, value in options.items()
-                            if include_defaults or public.parameters[key].default is inspect.Parameter.empty}
-                bound = public.bind(*args, **supplied)
-                bound.apply_defaults()
-                expected = {key: value for key, value in bound.arguments.items()
-                            if public.parameters[key].kind == inspect.Parameter.KEYWORD_ONLY}
-                assert adapter(*args, **supplied) is result
-                factory.assert_called_once_with()
-                actual_args, actual_kwargs = implementation.call_args
-                assert len(actual_args) == len(args)
-                assert all(actual is original for actual, original in zip(actual_args, args))
-                assert actual_kwargs.keys() == expected.keys()
-                assert all(actual_kwargs[key] is value for key, value in expected.items())
-            failure = TypeError("current transport failure")
-            implementation.side_effect = failure
-            with pytest.raises(TypeError) as caught:
-                adapter(*args, **supplied)
-            assert caught.value is failure
 
 
 def test_owner_annotations_describe_injected_transport_without_root_names():

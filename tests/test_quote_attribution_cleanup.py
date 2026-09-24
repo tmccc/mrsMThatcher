@@ -4,10 +4,12 @@ import hashlib
 import json
 import sqlite3
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
 import quote_attribution_cleanup as cleanup
+import mrs_bot_quote_posting as posting
 
 
 def _runtime_source_records(source: bytes) -> list[dict]:
@@ -237,11 +239,64 @@ def test_complete_all_veto_coverage_is_reported_as_global_no_safe_image() -> Non
     assert result["quote_pair_coverage"][quote_id]["global_no_safe_image"] is True
 
 
-def test_production_history_uses_quote_hashes_not_shifted_line_indices() -> None:
-    posting_source = (cleanup.ROOT / "mrs_bot_quote_posting.py").read_text(encoding="utf-8")
-    history_source = (cleanup.ROOT / "mrs_bot_used_history.py").read_text(encoding="utf-8")
-    assert "lines_used.add(quote_hash)" in posting_source
-    assert "def normalise_quote_used_hashes" in history_source
+def test_production_history_uses_quote_hashes_not_shifted_line_indices(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    quote_text = "A quotation whose source line may shift."
+    quote_hash = cleanup.quote_id(quote_text)
+    preparation = posting._QuotePostPreparation(
+        line_no=81,
+        quote_hash=quote_hash,
+        canonical_quote_text=quote_text,
+        tweet=quote_text,
+        image_no=4,
+        image=str(tmp_path / "image.jpg"),
+        image_basename="image.jpg",
+        image_made_with_ai=False,
+        quote_delay=600,
+        meme_delay=None,
+    )
+    lines_used, images_used, state = set(), set(), {}
+    persisted = Mock()
+
+    def capture_persistence(lines, images, current_state, receipt, **_kwargs):
+        assert lines is lines_used and images is images_used
+        assert current_state is state and receipt is confirmed_receipt
+        assert lines == {quote_hash}
+        assert 81 not in lines and "81" not in lines
+        persisted()
+
+    monkeypatch.setattr(posting, "complete_regular_post_persistence", capture_persistence)
+    confirmed_receipt = {"quote_hash": quote_hash}
+    log_event, emit_root = Mock(), Mock()
+    posting._complete_quote_post(
+        lines_used, images_used, state,
+        preparation=preparation,
+        posted_id="950001",
+        quote_post_epoch=1_800_000_000,
+        quote_schedule_fields={},
+        meme_schedule_fields={},
+        receipt=confirmed_receipt,
+        image_choice={"image_hash": "image-hash"},
+        log=Mock(),
+        tweets=Mock(),
+        MY_USER_ID="bot-user",
+        save_regular_post_protected_state=Mock(),
+        log_event=log_event,
+        enqueue_historical_context_obligation=Mock(),
+        retire_lane_transport_journal_if_present=Mock(),
+        REGULAR_POST_RECEIPT_FILE=tmp_path / "receipt.json",
+        remove_regular_post_receipt=Mock(),
+        ConfirmedPostLocalPersistenceError=RuntimeError,
+        emit_account_root_posted=emit_root,
+        safely_process_due_historical_context_obligations=Mock(),
+    )
+
+    persisted.assert_called_once_with()
+    assert lines_used == {quote_hash}
+    assert images_used == {"image.jpg"}
+    assert log_event.call_args.kwargs["quote_hash"] == quote_hash
+    assert emit_root.call_args.kwargs["quote_id"] == quote_hash
 
 
 def test_production_regular_selector_has_completed_research_gate() -> None:

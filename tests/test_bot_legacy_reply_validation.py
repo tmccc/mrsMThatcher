@@ -141,7 +141,7 @@ def test_visible_conversation_uses_current_callback_and_preserves_native_empty_r
     bound.return_value = []
     with pytest.raises(IndexError, match="list index out of range"):
         bot._legacy_ai_reply_receipt_draft_is_valid(data, text)
-    assert bot._legacy_sending_reply_receipt_is_semantically_valid(data) is False
+    assert bot._reply_assembly()._reply_receipt_values_owner().legacy_sending_is_valid(data) is False
 
 
 def test_single_sol_reads_current_size_limits_on_each_call(monkeypatch):
@@ -168,7 +168,7 @@ def test_native_unhashable_field_error_reaches_existing_outer_receipt_boundary(c
     draft["reply_kind" if case_id.startswith("single_sol") else "mode"] = []
     with pytest.raises(TypeError, match="unhashable type: 'list'"):
         bot._legacy_ai_reply_receipt_draft_is_valid(data, text)
-    assert bot._legacy_sending_reply_receipt_is_semantically_valid(data) is False
+    assert bot._reply_assembly()._reply_receipt_values_owner().legacy_sending_is_valid(data) is False
 
 
 def test_json_hashing_and_contribution_hashing_keep_distinct_utf8_error_boundaries():
@@ -182,4 +182,4 @@ def test_json_hashing_and_contribution_hashing_keep_distinct_utf8_error_boundari
     assert bot._legacy_reply_value_sha256(context) is None
     with pytest.raises(UnicodeEncodeError):
         bot._legacy_ai_reply_receipt_draft_is_valid(data, text)
-    assert bot._legacy_sending_reply_receipt_is_semantically_valid(data) is False
+    assert bot._reply_assembly()._reply_receipt_values_owner().legacy_sending_is_valid(data) is False

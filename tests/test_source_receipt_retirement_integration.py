@@ -115,7 +115,7 @@ RESTART_DRIVER = textwrap.dedent(
                 if lane == "daily_meme":
                     bot.apply_meme_post_receipt(receipt, state)
                 else:
-                    bot.apply_confirmed_reply_receipt(state, receipt)
+                    bot._reply_assembly()._confirmed_reply_state_applier()(state, receipt)
                 commit_proof = bot.save_state(state, durable=True)
         else:
             commit_proof = bot.recover_state_receipt_commit_proof(receipt_path)
@@ -387,7 +387,7 @@ def test_pause_snapshot_preserves_then_resumes_each_lane_exactly(
             if lane == "daily_meme":
                 bot.apply_meme_post_receipt(confirmed, state)
             else:
-                bot.apply_confirmed_reply_receipt(state, confirmed)
+                bot._reply_assembly()._confirmed_reply_state_applier()(state, confirmed)
             bot.save_state(state, durable=True)
     write_exact(source, data)
     _prepare_exact_receipt_retirement(source, data)

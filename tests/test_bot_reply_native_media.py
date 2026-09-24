@@ -9,6 +9,8 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
+import mrs_bot_reply_assembly as assembly
+
 import pytest
 
 import mrs_bot_reply_native_media as native_media
@@ -82,7 +84,7 @@ def test_owner_composition_captures_current_dependencies_without_calling_them(mo
         current = {field: Mock() for field in OWNER_INPUTS}
         for field, name in OWNER_INPUTS.items():
             monkeypatch.setattr(bot, name, current[field])
-        owner = bot._reply_media_owner()
+        owner = bot._reply_assembly()._reply_media_owner()
         assert isinstance(owner, native_media.ReplyMedia)
         for field, value in current.items():
             assert getattr(owner, field) is value
@@ -95,50 +97,11 @@ def test_owner_composition_captures_current_dependencies_without_calling_them(mo
         first.maximum_context_photos = 1
 
 
-def test_aliases_and_adapters_keep_defaults_references_and_errors(monkeypatch):
+def test_native_media_aliases_share_one_implementation():
     assert bot.attach_media_to_tweets is native_media.attach_media_to_tweets
     assert bot._REPLY_IMAGE_MIME_TYPES is generation._REPLY_IMAGE_MIME_TYPES is native_media._REPLY_IMAGE_MIME_TYPES
     assert type(native_media._REPLY_IMAGE_MIME_TYPES) is set
     assert native_media._REPLY_IMAGE_MIME_TYPES == {"image/jpeg", "image/png", "image/webp", "image/gif"}
-    for name, method_name in (
-        ("candidate_native_photo_media", "candidate_photos"),
-        ("reply_media_context_for_candidate", "context"),
-        ("collect_reply_images", "collect"),
-    ):
-        adapter = getattr(bot, name)
-        public = inspect.signature(adapter)
-        owned = inspect.signature(getattr(native_media.ReplyMedia, method_name))
-        assert [(p.name, p.kind, p.default) for p in public.parameters.values()] == [
-            (p.name, p.kind, p.default) for p in list(owned.parameters.values())[1:]
-        ]
-        args = tuple(object() for p in public.parameters.values() if p.kind == p.POSITIONAL_OR_KEYWORD)
-        options = {key: object() for key, p in public.parameters.items() if p.kind == p.KEYWORD_ONLY}
-        with monkeypatch.context() as patch:
-            for include_defaults in (False, True):
-                owner = Mock(spec=native_media.ReplyMedia)
-                factory = Mock(return_value=owner)
-                patch.setattr(bot, "_reply_media_owner", factory)
-                implementation = getattr(owner, method_name)
-                result = object()
-                implementation.return_value = result
-                supplied = {key: value for key, value in options.items()
-                            if include_defaults or public.parameters[key].default is inspect.Parameter.empty}
-                bound = public.bind(*args, **supplied)
-                bound.apply_defaults()
-                expected = {key: value for key, value in bound.arguments.items()
-                            if public.parameters[key].kind == inspect.Parameter.KEYWORD_ONLY}
-                assert adapter(*args, **supplied) is result
-                factory.assert_called_once_with()
-                actual_args, actual_kwargs = implementation.call_args
-                assert len(actual_args) == len(args)
-                assert all(actual is original for actual, original in zip(actual_args, args))
-                assert actual_kwargs.keys() == expected.keys()
-                assert all(actual_kwargs[key] is value for key, value in expected.items())
-            failure = TypeError("current owner failure")
-            implementation.side_effect = failure
-            with pytest.raises(TypeError) as caught:
-                adapter(*args, **supplied)
-            assert caught.value is failure
 
 
 def test_attachment_keeps_expansion_identity_duplicates_no_clear_and_fresh_photo_records(make_owner, image_case):

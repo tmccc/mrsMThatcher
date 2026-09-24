@@ -601,8 +601,8 @@ def test_receipt_validators_reject_boolean_schema_versions_and_fractional_epochs
         "candidate_source": "mention",
         "reply_text": "A reply.",
     }
-    assert bot.confirmed_reply_receipt_is_semantically_valid({**reply, "schema_version": True}) is False
-    assert bot.confirmed_reply_receipt_is_semantically_valid({**reply, "reply_epoch": 1_800_000_000.5}) is False
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid({**reply, "schema_version": True}) is False
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid({**reply, "reply_epoch": 1_800_000_000.5}) is False
 
 
 @pytest.mark.parametrize(

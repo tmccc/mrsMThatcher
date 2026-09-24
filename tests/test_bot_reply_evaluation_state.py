@@ -7,6 +7,8 @@ import subprocess
 import sys
 from unittest.mock import Mock, call
 
+import mrs_bot_reply_assembly as assembly
+
 import pytest
 
 import mrs_bot_reply_evaluation_state as evaluation_state
@@ -75,7 +77,7 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
         current = {field: Mock() for field in OWNER_INPUTS}
         for field, name in OWNER_INPUTS.items():
             monkeypatch.setattr(bot, name, current[field])
-        owner = bot._reply_evaluation_owner()
+        owner = bot._reply_assembly()._reply_evaluation_owner()
         assert isinstance(owner, evaluation_state.ReplyEvaluations)
         for field, value in current.items():
             assert getattr(owner, field) is value
@@ -88,47 +90,6 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
         first.maximum_records = 1
 
 
-def test_adapters_preserve_defaults_argument_result_identity_and_native_errors(monkeypatch):
-    methods = {
-        "prune_completed_mention_quarantine_evaluations": "prune_completed_mentions",
-        "prune_reply_evaluation_records": "prune",
-        "record_terminal_reply_evaluation": "record",
-    }
-    for name, method_name in methods.items():
-        adapter = getattr(bot, name)
-        public = inspect.signature(adapter).parameters
-        args = tuple(object() for param in public.values() if param.kind == param.POSITIONAL_OR_KEYWORD)
-        for use_defaults in (True, False):
-            owner = Mock(spec=evaluation_state.ReplyEvaluations)
-            factory = Mock(return_value=owner)
-            monkeypatch.setattr(bot, "_reply_evaluation_owner", factory)
-            implementation = getattr(owner, method_name)
-            result = object()
-            implementation.return_value = result
-            options = {
-                key: object() for key, param in public.items()
-                if param.kind == param.KEYWORD_ONLY
-                and (not use_defaults or param.default is param.empty)
-            }
-            expected = {
-                key: param.default for key, param in public.items()
-                if param.kind == param.KEYWORD_ONLY and param.default is not param.empty
-            } | options
-            assert adapter(*args, **options) is result
-            factory.assert_called_once_with()
-            actual_args, actual_kwargs = implementation.call_args
-            assert len(actual_args) == len(args)
-            assert all(actual is original for actual, original in zip(actual_args, args))
-            assert actual_kwargs.keys() == expected.keys()
-            assert all(actual_kwargs[key] is value for key, value in expected.items())
-            failure = TypeError(name)
-            implementation.side_effect = failure
-            with pytest.raises(TypeError) as caught:
-                adapter(*args, **options)
-            assert caught.value is failure
-    for name in ("completed_mention_watermark_covers_target",
-                 "clear_author_evaluation_quarantine_history", "terminal_reply_evaluation"):
-        assert getattr(bot, name) is getattr(evaluation_state, name)
 
 
 def test_completed_watermark_keeps_original_digit_and_pending_contract():
@@ -289,14 +250,14 @@ def test_quarantine_skip_batch_is_durable_across_real_state_reload(monkeypatch):
     for epoch in (1_999_999_997, 1_999_999_998, 1_999_999_999):
         bot.record_qualifying_author_no_reply(state, "200", current_epoch=epoch)
     save = Mock(wraps=bot.save_state)
-    owner = bot._reply_evaluation_owner()
+    owner = bot._reply_assembly()._reply_evaluation_owner()
     record = Mock(wraps=owner.record)
     prune = Mock(wraps=owner.prune)
     monkeypatch.setattr(bot, "save_state", save)
     patch_reply_owner_method(monkeypatch, evaluation_state.ReplyEvaluations, "record", record)
     patch_reply_owner_method(monkeypatch, evaluation_state.ReplyEvaluations, "prune", prune)
 
-    assert bot.maybe_reply_to_mentions(
+    assert bot._reply_assembly().normal_runner().run(
         state, _fresh_mention_ai_evaluations=bot.MAX_MENTIONS_PER_CHECK,
     ) == bot.NORMAL_CHECK_STATUS_CHECKED
 

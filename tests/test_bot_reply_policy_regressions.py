@@ -13,6 +13,8 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import mrs_bot_reply_assembly as assembly
+
 import pytest
 
 import mrs_bot_hot_post_discovery as hot_post_discovery
@@ -161,7 +163,7 @@ def test_operational_pipeline_failure_does_not_consume_mention_target(
         lambda *_args: PreparedReplyContext(unit_reply_context(contribution=mention["text"]), {}),
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", lambda *_args, **_kwargs: {})
     patch_reply_owner_method(
         monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(fail_operationally),
@@ -276,7 +278,7 @@ def test_truncated_pagination_no_reply_is_not_evaluated_twice(
         monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda *_args: PreparedReplyContext(context, {}),
     )
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", lambda *_args, **_kwargs: {})
     patch_reply_owner_method(
         monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(no_reply),
@@ -354,7 +356,7 @@ def test_local_validation_failure_is_terminal_and_does_not_block_later_mention(
             {},
         ),
     )
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", lambda *_args, **_kwargs: {})
     patch_reply_owner_method(
         monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(decide),
@@ -474,10 +476,10 @@ def test_quote_tweet_model_no_reply_is_durable_beyond_bounded_scan_lists(
     monkeypatch.setattr(bot, "reconcile_confirmed_reply_receipt", lambda _state: False)
     monkeypatch.setattr(bot._quote_discovery.QuoteWatchPosts, "lookup", lambda _owner, _state: ["900"])
     patch_tweet_lookup_method(monkeypatch, "get_cached", lambda *_args, **_kwargs: dict(own_post))
-    monkeypatch.setattr(bot, "get_quote_tweets_for_posts", lambda *_args, **_kwargs: {"900": [dict(quote_post)]})
+    monkeypatch.setattr(assembly.ReplyAssembly, "get_quote_tweets_for_posts", lambda *_args, **_kwargs: {"900": [dict(quote_post)]})
     monkeypatch.setattr(bot._quote_reply_cycle, "quote_tweet_is_old_enough", lambda _tweet, **_kwargs: True)
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", lambda *_args, **_kwargs: {})
     patch_reply_owner_method(
         monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(no_reply),
@@ -543,10 +545,10 @@ def test_quote_tweet_generic_403_remains_ambiguous_and_durable(
     monkeypatch.setattr(bot, "reconcile_confirmed_reply_receipt", lambda _state: False)
     monkeypatch.setattr(bot._quote_discovery.QuoteWatchPosts, "lookup", lambda _owner, _state: ["900"])
     patch_tweet_lookup_method(monkeypatch, "get_cached", lambda *_args, **_kwargs: dict(own_post))
-    monkeypatch.setattr(bot, "get_quote_tweets_for_posts", lambda *_args, **_kwargs: {"900": [dict(quote_post)]})
+    monkeypatch.setattr(assembly.ReplyAssembly, "get_quote_tweets_for_posts", lambda *_args, **_kwargs: {"900": [dict(quote_post)]})
     monkeypatch.setattr(bot._quote_reply_cycle, "quote_tweet_is_old_enough", lambda _tweet, **_kwargs: True)
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", lambda *_args, **_kwargs: {})
     patch_reply_owner_method(
         monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(reply),
@@ -703,7 +705,7 @@ def test_author_cap_context_is_terminal_but_available_to_next_eligible_reply(
             if str(tweet_id) == "201"
             else pytest.fail("parent context must use tweet_cache")
         ))
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", lambda *_args, **_kwargs: {})
 
     def answer(context: dict[str, object], *_args: object, **_kwargs: object) -> ValidatedReply:
         ai_contexts.append(context)
@@ -811,8 +813,8 @@ def test_clarification_ledger_survives_state_restart_and_blocks_replay(
         "original_question_id": "100",
         "trigger": "explicit_correction",
     }
-    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is True
-    bot.apply_confirmed_reply_receipt(state, receipt)
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(receipt) is True
+    bot._reply_assembly()._confirmed_reply_state_applier()(state, receipt)
     bot.save_state(state, durable=True)
 
     recovered = bot.load_state()
@@ -876,7 +878,7 @@ def test_completed_clarification_thread_stays_terminal_after_restart_and_cap_res
         "original_question_id": "100",
         "trigger": "explicit_correction",
     }
-    bot.apply_confirmed_reply_receipt(state, receipt)
+    bot._reply_assembly()._confirmed_reply_state_applier()(state, receipt)
     bot.save_state(state, durable=True)
     recovered = bot.load_state()
 
@@ -904,7 +906,7 @@ def test_completed_clarification_thread_stays_terminal_after_restart_and_cap_res
                 thread_id=str(candidate["conversation_id"]),
                 contribution=str(candidate["text"]),
             ),
-            bot.reply_media_context_for_candidate(
+            bot._reply_assembly()._reply_media_owner().context(
                 candidate, lane="mention", target_id=str(candidate["id"]),
             ),
         )
@@ -935,7 +937,7 @@ def test_completed_clarification_thread_stays_terminal_after_restart_and_cap_res
     monkeypatch.setattr(bot._hot_post_discovery, "get_hot_post_reply_candidates", lambda _state, **_kwargs: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     patch_reply_owner_method(monkeypatch, bot._reply_context.ReplyContext, "build", build_context)
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", prepare_media)
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", prepare_media)
     patch_reply_owner_method(
         monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(answer),
@@ -990,7 +992,7 @@ def test_completed_clarification_threads_are_not_evicted_from_terminal_ledger() 
         "trigger": "explicit_correction",
     }
 
-    bot.apply_confirmed_reply_receipt(state, receipt)
+    bot._reply_assembly()._confirmed_reply_state_applier()(state, receipt)
 
     assert "1" in state["clarification_reply_records"]
     assert "3001" in state["clarification_reply_records"]
@@ -1020,7 +1022,7 @@ def test_quote_tweet_completed_ledger_is_not_a_bounded_seen_cache() -> None:
     state = bot.default_state()
     state["replied_to_quote_post_ids"] = ["oldest", *(str(index) for index in range(2500))]
 
-    bot.mark_quote_tweet_replied(state, "newest")
+    bot._reply_state.mark_quote_tweet_replied(state, "newest")
 
     assert "oldest" in state["replied_to_quote_post_ids"]
     assert state["replied_to_quote_post_ids"][-1] == "newest"
@@ -1044,7 +1046,7 @@ def test_recent_reply_evaluations_survive_nominal_cap(
         for target_id, epoch in (("a", 950), ("b", 960), ("c", 970))
     }
 
-    bot.prune_reply_evaluation_records(state, current_epoch=1000)
+    bot._reply_assembly()._reply_evaluation_owner().prune(state, current_epoch=1000)
 
     assert list(state["reply_evaluation_records"]) == ["a", "b", "c"]
     assert any("retaining all protected records" in warning for warning in warnings)
@@ -1062,7 +1064,7 @@ def test_old_reply_evaluation_overflow_prunes_oldest_first(
         }
     }
 
-    bot.prune_reply_evaluation_records(state, current_epoch=1000)
+    bot._reply_assembly()._reply_evaluation_owner().prune(state, current_epoch=1000)
 
     assert list(state["reply_evaluation_records"]) == ["c", "d", "e"]
 
@@ -1085,8 +1087,8 @@ def test_reply_evaluation_ties_are_deterministic(
         }
     }
 
-    bot.prune_reply_evaluation_records(first, current_epoch=1000)
-    bot.prune_reply_evaluation_records(second, current_epoch=1000)
+    bot._reply_assembly()._reply_evaluation_owner().prune(first, current_epoch=1000)
+    bot._reply_assembly()._reply_evaluation_owner().prune(second, current_epoch=1000)
 
     assert list(first["reply_evaluation_records"]) == ["b", "c"]
     assert first["reply_evaluation_records"] == second["reply_evaluation_records"]
@@ -1104,7 +1106,7 @@ def test_recorded_terminal_reply_evaluation_remains_replay_protection(
             for target_id, epoch in (("oldest", 1), ("older", 2))
         }
     }
-    bot.record_terminal_reply_evaluation(
+    bot._reply_assembly()._reply_evaluation_owner().record(
         state,
         target_id="newest",
         lane="mention",
@@ -1300,7 +1302,7 @@ def test_hot_post_search_skips_ineligible_targets_before_candidate_cap(
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
 
-    candidates = bot.get_hot_post_reply_candidates(state)
+    candidates = bot._reply_assembly()._hot_post_discovery_callback()(state)
 
     assert [candidate["id"] for candidate in candidates] == ["102"]
     assert state["reply_evaluation_records"]["101"]["outcome"] == "reply_not_permitted"
@@ -1339,7 +1341,7 @@ def test_deterministic_spam_skip_precedes_context_media_retrieval_and_xai(
         monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda *_args: pytest.fail("context must not be built"),
     )
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: pytest.fail("media must not be prepared"))
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", lambda *_args, **_kwargs: pytest.fail("media must not be prepared"))
     patch_reply_owner_method(
         monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail("retrieval/xAI must not be called")),
@@ -1384,7 +1386,7 @@ def test_strategy_persistence_failure_blocks_mention_x_write(
         monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda *_args: PreparedReplyContext(context, {}),
     )
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", lambda *_args, **_kwargs: {})
     patch_reply_owner_method(
         monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda actual_context, *_args, **_kwargs: unit_approved_reply(
@@ -1442,7 +1444,7 @@ def test_deleted_target_after_generation_is_retired_before_any_x_write(
         monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda *_args: PreparedReplyContext(context, {}),
     )
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", lambda *_args, **_kwargs: {})
     patch_reply_owner_method(
         monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda actual_context, *_args, **_kwargs: unit_approved_reply(
@@ -1456,8 +1458,8 @@ def test_deleted_target_after_generation_is_retired_before_any_x_write(
     )
     patch_tweet_lookup_method(monkeypatch, "fetch", lambda _target_id: (_ for _ in ()).throw(unavailable))
     monkeypatch.setattr(
-        bot,
-        "post_conversational_reply_with_durable_identity",
+        assembly.ReplyAssembly,
+        "post_with_current_owners",
         lambda **_kwargs: pytest.fail("X write must not be prepared or attempted"),
     )
     monkeypatch.setattr(
@@ -1526,7 +1528,7 @@ def test_ineligible_truncated_mention_is_terminal_before_context_media_or_xai(
     events: list[tuple[str, dict]] = []
     context = unit_reply_context(target_id=mention["id"], contribution=mention["text"])
     reply = unit_approved_reply(context, text="A persisted approved reply.")
-    assert bot.store_pending_ai_reply(
+    assert bot._reply_assembly()._reply_draft_owner().store(
         state, mention["id"], "mention", reply, context=context,
     )
 
@@ -1545,7 +1547,7 @@ def test_ineligible_truncated_mention_is_terminal_before_context_media_or_xai(
         monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda *_args: pytest.fail("context must not be built"),
     )
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: pytest.fail("media must not be prepared"))
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", lambda *_args, **_kwargs: pytest.fail("media must not be prepared"))
     patch_reply_owner_method(
         monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail("xAI must not be called")),
@@ -1609,7 +1611,7 @@ def test_posting_generic_reply_403_is_retry_blocking_not_terminal(
         monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda *_args: PreparedReplyContext(context, {}),
     )
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", lambda *_args, **_kwargs: {})
     patch_reply_owner_method(
         monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda actual_context, *_args, **_kwargs: unit_approved_reply(actual_context)),

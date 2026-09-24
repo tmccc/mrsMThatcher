@@ -11,6 +11,8 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
+import mrs_bot_reply_assembly as assembly
+
 import pytest
 
 import mrs_bot_reply_drafts as reply_drafts
@@ -33,8 +35,8 @@ def make_owner():
     def build(**overrides):
         comparison_replies = overrides.pop("comparison_replies", None)
         record_result = overrides.pop("record_result", None)
-        history = bot._reply_history_owner()
-        generation = bot._reply_generation_owner(history=history)
+        history = bot._reply_assembly()._reply_history_owner()
+        generation = bot._reply_assembly()._reply_generation_owner(history=history)
         if comparison_replies is not None:
             history = SimpleNamespace(recovery_replies=comparison_replies)
         if record_result is not None:
@@ -112,10 +114,10 @@ def test_root_owner_binds_current_dependencies_without_accessing_evidence(monkey
             monkeypatch.setattr(bot, root_name, current[field])
         history = Mock()
         generation = Mock()
-        monkeypatch.setattr(bot, "_reply_history_owner", Mock(return_value=history))
+        monkeypatch.setattr(assembly.ReplyAssembly, "_reply_history_owner", Mock(return_value=history))
         generation_factory = Mock(return_value=generation)
-        monkeypatch.setattr(bot, "_reply_generation_owner", generation_factory)
-        owner = bot._reply_draft_owner()
+        monkeypatch.setattr(assembly.ReplyAssembly, "_reply_generation_owner", generation_factory)
+        owner = bot._reply_assembly()._reply_draft_owner()
         assert isinstance(owner, reply_drafts.ReplyDrafts)
         assert all(getattr(owner, field) is value for field, value in current.items())
         assert owner.history is history and owner.generation is generation
@@ -131,40 +133,6 @@ def test_root_owner_binds_current_dependencies_without_accessing_evidence(monkey
         first.model = "changed"
 
 
-def test_root_adapters_preserve_arguments_result_identity_and_errors(monkeypatch):
-    methods = {
-        "validate_current_ai_reply_draft": "validate",
-        "store_pending_ai_reply": "store",
-        "recover_pending_ai_reply": "recover",
-        "clear_pending_ai_reply": "clear",
-        "ai_reply_receipt_draft_is_valid": "receipt_draft_is_valid",
-    }
-    for root_name, method_name in methods.items():
-        adapter = getattr(bot, root_name)
-        public = inspect.signature(adapter).parameters
-        args = tuple(object() for parameter in public.values()
-                     if parameter.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD)
-        options = {name: object() for name, parameter in public.items()
-                   if parameter.kind == inspect.Parameter.KEYWORD_ONLY}
-        for _ in range(2):
-            owner = Mock(spec=reply_drafts.ReplyDrafts)
-            factory = Mock(return_value=owner)
-            monkeypatch.setattr(bot, "_reply_draft_owner", factory)
-            method = getattr(owner, method_name)
-            result = object()
-            method.return_value = result
-            assert adapter(*args, **options) is result
-            factory.assert_called_once_with()
-            actual_args, actual_options = method.call_args
-            assert len(actual_args) == len(args)
-            assert all(actual is expected for actual, expected in zip(actual_args, args))
-            assert actual_options.keys() == options.keys()
-            assert all(actual_options[name] is value for name, value in options.items())
-            failure = TypeError(root_name)
-            method.side_effect = failure
-            with pytest.raises(TypeError) as caught:
-                adapter(*args, **options)
-            assert caught.value is failure
 
 
 def test_validation_fetches_fresh_evidence_and_preserves_context_and_recent_references(make_owner):
@@ -462,27 +430,6 @@ def test_recovered_duplicate_draft_emits_rule_and_retires_without_provider_call(
     assert decision["rejected_reply_text_character_count"] == len(reply)
 
 
-@pytest.mark.parametrize("status", [None, "reply", "draft_discarded", "operational_failure"])
-def test_pending_prose_compatibility_preserves_reply_and_outcome_references(monkeypatch, status):
-    reply = unit_approved_reply(unit_reply_context()) if status == "reply" else None
-    result = None if status is None else PipelineResult(
-        status=status, reason="recovery-reason", reply=reply,
-        error_category="local_validation", model_call_count=0,
-    )
-    recover = Mock(return_value=result)
-    monkeypatch.setattr(bot, "recover_pending_ai_reply", recover)
-    state, context, recent, outcome = {}, {}, [], {"retained": True}
-    assert bot.pending_ai_reply(
-        state, "100", "mention", context=context, recent_replies=recent,
-        evaluation_outcome=outcome,
-    ) is reply
-    assert recover.call_args.args[0] is state
-    assert recover.call_args.kwargs["context"] is context
-    assert recover.call_args.kwargs["recent_replies"] is recent
-    assert outcome == ({
-        "retained": True, "status": status, "reason": "recovery-reason",
-        "error_category": "local_validation", "model_call_count": 0,
-    } if status == "operational_failure" else {"retained": True})
 
 
 def test_receipt_validation_keeps_short_circuit_direct_equality_and_exception_boundary(make_owner):

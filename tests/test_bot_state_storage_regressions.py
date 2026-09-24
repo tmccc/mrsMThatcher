@@ -366,7 +366,7 @@ def test_cache_tweet_rejects_malformed_referenced_tweets(referenced_tweets: obje
 
 
 def test_reply_context_parent_id_accepts_absent_or_valid_references() -> None:
-    owner = bot._reply_context_owner()
+    owner = bot._reply_assembly()._reply_context_owner()
     assert owner.parent_id({}) is None
     assert owner.parent_id({"referenced_tweets": None}) is None
     assert owner.parent_id({
@@ -384,7 +384,7 @@ def test_reply_context_parent_id_rejects_malformed_api_references(
     referenced_tweets: object,
 ) -> None:
     with pytest.raises(bot.ApiError, match="malformed referenced_tweets"):
-        bot._reply_context_owner().parent_id({"referenced_tweets": referenced_tweets})
+        bot._reply_assembly()._reply_context_owner().parent_id({"referenced_tweets": referenced_tweets})
 
 
 def test_load_state_rejects_malformed_last_seen_mention_id_and_recovers_backup(

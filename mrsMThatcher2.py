@@ -268,6 +268,7 @@ import mrs_bot_reply_delivery as _reply_delivery
 import mrs_bot_reply_cycle_interfaces as _reply_cycle_interfaces
 import mrs_bot_normal_reply_cycle as _normal_reply_cycle
 import mrs_bot_quote_reply_cycle as _quote_reply_cycle
+import mrs_bot_reply_assembly as _reply_assembly_module
 import mrs_bot_quote_discovery as _quote_discovery
 import mrs_bot_hot_post_discovery as _hot_post_discovery
 import mrs_bot_mention_discovery as _mention_discovery
@@ -2320,49 +2321,9 @@ def normalise_quote_repeated_cursor_suppressions(
 completed_mention_watermark_covers_target = _reply_evaluation_state.completed_mention_watermark_covers_target
 
 
-def _reply_evaluation_owner() -> _reply_evaluation_state.ReplyEvaluations:
-    """Bind current terminal evaluation limits without reading state or the clock."""
-    return _reply_evaluation_state.ReplyEvaluations(
-        now_epoch=now_epoch,
-        log=log,
-        quarantine_evidence_policy=AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
-        maximum_state_epoch=MAX_REASONABLE_STATE_EPOCH,
-        maximum_records=REPLY_EVALUATION_MAX_RECORDS,
-        minimum_retention_seconds=REPLY_EVALUATION_MIN_RETENTION_SECONDS,
-    )
-
-
-def prune_completed_mention_quarantine_evaluations(state: dict) -> int:
-    """Drop unsafe legacy or watermark-covered local quarantine skips."""
-    return _reply_evaluation_owner().prune_completed_mentions(state)
-
-
-def prune_reply_evaluation_records(
-    state: dict,
-    *,
-    current_epoch: int | None = None,
-) -> None:
-    """Prune old terminal evaluations while preserving recent replay protection."""
-    return _reply_evaluation_owner().prune(state, current_epoch=current_epoch)
-
-
-def _author_quarantine_owner() -> _author_quarantines.AuthorQuarantines:
-    """Bind current author quarantine policy without reading state or the clock."""
-    return _author_quarantines.AuthorQuarantines(
-        now_epoch=now_epoch,
-        log=log,
-        log_event=log_event,
-        maximum_state_epoch=MAX_REASONABLE_STATE_EPOCH,
-        threshold=AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD,
-        window_seconds=AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS,
-        quarantine_seconds=AUTHOR_NO_REPLY_QUARANTINE_SECONDS,
-        evidence_policy=AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
-    )
-
-
 def author_no_reply_epoch_limit() -> int:
     """Return retention sized from the effective runtime quarantine threshold."""
-    return _author_quarantine_owner().epoch_limit()
+    return _reply_assembly()._author_quarantine_owner().epoch_limit()
 
 
 def prune_author_evaluation_quarantines(
@@ -2371,7 +2332,7 @@ def prune_author_evaluation_quarantines(
     current_epoch: int | None = None,
 ) -> bool:
     """Expire quarantines and discard author strikes outside the live window."""
-    return _author_quarantine_owner().prune(state, current_epoch=current_epoch)
+    return _reply_assembly()._author_quarantine_owner().prune(state, current_epoch=current_epoch)
 
 
 def active_author_evaluation_quarantine(
@@ -2381,7 +2342,7 @@ def active_author_evaluation_quarantine(
     current_epoch: int | None = None,
 ) -> dict | None:
     """Return an active mention-lane author quarantine, expiring old state first."""
-    return _author_quarantine_owner().active(state, author_id, current_epoch=current_epoch)
+    return _reply_assembly()._author_quarantine_owner().active(state, author_id, current_epoch=current_epoch)
 
 
 def record_qualifying_author_no_reply(
@@ -2392,7 +2353,7 @@ def record_qualifying_author_no_reply(
     explicit_spam_or_abuse: bool = True,
 ) -> bool:
     """Add one mechanically valid editorial no-reply strike for an author."""
-    return _author_quarantine_owner().record_no_reply(
+    return _reply_assembly()._author_quarantine_owner().record_no_reply(
         state,
         author_id,
         current_epoch=current_epoch,
@@ -2438,20 +2399,9 @@ def normalise_tweet_cache(value: object, *, path: Path) -> dict[str, dict] | Non
     return _tweet_lookup_cache_owner().normalise(value, path=path)
 
 
-def _mention_authority_owner() -> _mention_authority.MentionAuthority:
-    """Bind current mention authority policy without inspecting or saving state."""
-    return _mention_authority.MentionAuthority(
-        state_file=STATE_FILE,
-        maximum_epoch=MAX_REASONABLE_STATE_EPOCH,
-        token_limit=MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT,
-        log=log,
-        log_event=log_event,
-    )
-
-
 def normalise_mention_pagination(value: object, *, path: Path) -> dict[str, str] | None:
     """Delegate to mention authority with current root dependencies."""
-    return _mention_authority_owner().normalise_pagination(value, path=path)
+    return _reply_assembly()._mention_authority_owner().normalise_pagination(value, path=path)
 
 
 def normalise_mention_backlog_reset_guard(
@@ -2460,7 +2410,7 @@ def normalise_mention_backlog_reset_guard(
     path: Path,
 ) -> dict[str, object] | None:
     """Delegate to mention authority with current root dependencies."""
-    return _mention_authority_owner().normalise_reset_guard(value, path=path)
+    return _reply_assembly()._mention_authority_owner().normalise_reset_guard(value, path=path)
 
 
 active_mention_backlog_reset_guard = _mention_authority.active_mention_backlog_reset_guard
@@ -2473,7 +2423,7 @@ def normalise_mention_backlog(
     reset_token_overflow: bool = False,
 ) -> dict | None:
     """Delegate to mention authority with current root dependencies."""
-    return _mention_authority_owner().normalise_backlog(value, path=path, reset_token_overflow=reset_token_overflow)
+    return _reply_assembly()._mention_authority_owner().normalise_backlog(value, path=path, reset_token_overflow=reset_token_overflow)
 
 
 def canonical_mention_pending_candidates(
@@ -2482,7 +2432,7 @@ def canonical_mention_pending_candidates(
     path: Path,
 ) -> dict[str, dict] | None:
     """Delegate to mention authority with current root dependencies."""
-    return _mention_authority_owner().canonical_candidates(value, path=path)
+    return _reply_assembly()._mention_authority_owner().canonical_candidates(value, path=path)
 
 
 def _emit_mention_authority_recovery(
@@ -2492,7 +2442,7 @@ def _emit_mention_authority_recovery(
     recovery_events: list[dict[str, object]] | None,
 ) -> None:
     """Delegate to mention authority with current root dependencies."""
-    return _mention_authority_owner().emit_recovery(recovery, path=path, recovery_events=recovery_events)
+    return _reply_assembly()._mention_authority_owner().emit_recovery(recovery, path=path, recovery_events=recovery_events)
 
 
 _reset_mention_candidate_authority = _mention_authority._reset_mention_candidate_authority
@@ -2506,7 +2456,7 @@ def validate_pending_mention_candidate_authority(
     recovery_events: list[dict[str, object]] | None = None,
 ) -> tuple[bool, bool]:
     """Delegate to mention authority with current root dependencies."""
-    return _mention_authority_owner().validate_pending(
+    return _reply_assembly()._mention_authority_owner().validate_pending(
         state,
         path=path,
         recover_pending_identity=recover_pending_identity,
@@ -2521,12 +2471,12 @@ def mention_pagination_has_canonical_page_ownership(
     target_id: str,
 ) -> bool:
     """Delegate to mention authority with current root dependencies."""
-    return _mention_authority_owner().owns_page(state, pagination, target_id=target_id)
+    return _reply_assembly()._mention_authority_owner().owns_page(state, pagination, target_id=target_id)
 
 
 def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dict | None:
     """Validate compact per-author no-reply strike and quarantine records."""
-    return _author_quarantine_owner().normalise(value, path=path)
+    return _reply_assembly()._author_quarantine_owner().normalise(value, path=path)
 
 
 def validate_meme_schedule_state(state: dict, *, path: Path) -> bool:
@@ -2610,12 +2560,12 @@ def _state_candidate_normalizer() -> functools.partial:
         STATE_MINIMUM_READER_VERSION=STATE_MINIMUM_READER_VERSION,
         default_state=default_state,
         log=log,
-        author_quarantines=_author_quarantine_owner(),
+        author_quarantines=_reply_assembly()._author_quarantine_owner(),
         normalise_quote_repeated_cursor_suppressions=normalise_quote_repeated_cursor_suppressions,
         tweets=_tweet_lookup_cache_owner(state_values=state_values),
         state_values=state_values,
-        mention_authority=_mention_authority_owner(),
-        reply_evaluations=_reply_evaluation_owner(),
+        mention_authority=_reply_assembly()._mention_authority_owner(),
+        reply_evaluations=_reply_assembly()._reply_evaluation_owner(),
         require_compatible_state_reader=require_compatible_state_reader,
         validate_meme_schedule_version_for_candidate=validate_meme_schedule_version_for_candidate,
     )
@@ -2728,26 +2678,14 @@ def save_state(state: dict, *, durable: bool = False) -> StateCommitProof:
     )
 
 
-def _daily_reply_accounting_owner(
-    *, dates: _receipt_primitives.ReceiptDates | None = None,
-) -> _daily_reply_accounting.DailyReplyAccounting:
-    """Bind current daily accounting boundaries without reading dates or state."""
-    if dates is None:
-        dates = _receipt_dates_owner()
-    return _daily_reply_accounting.DailyReplyAccounting(
-        log=log,
-        dates=dates,
-    )
-
-
 def reset_daily_reply_count_if_needed(state: dict) -> None:
     """Reset daily reply count if needed."""
-    return _daily_reply_accounting_owner().reset(state)
+    return _reply_assembly()._daily_reply_accounting_owner().reset(state)
 
 
 def reset_daily_quote_reply_count_if_needed(state: dict) -> None:
     """Reset daily quote reply count if needed."""
-    return _daily_reply_accounting_owner().reset_quotes(state)
+    return _reply_assembly()._daily_reply_accounting_owner().reset_quotes(state)
 
 
 daily_author_reply_counts = _daily_reply_accounting.daily_author_reply_counts
@@ -2755,24 +2693,12 @@ daily_author_reply_counts = _daily_reply_accounting.daily_author_reply_counts
 
 def daily_author_reply_count(state: dict, author_id: str) -> int:
     """Return the daily author reply count."""
-    return _daily_reply_accounting_owner().author_count(state, author_id)
+    return _reply_assembly()._daily_reply_accounting_owner().author_count(state, author_id)
 
 
 def mark_daily_author_replied(state: dict, author_id: str) -> None:
     """Mark daily author replied."""
-    return _daily_reply_accounting_owner().mark_author(state, author_id)
-
-
-def _clarification_reply_owner() -> _reply_clarifications.ClarificationReplies:
-    """Bind current clarification capabilities and policy without reading state."""
-    return _reply_clarifications.ClarificationReplies(
-        pipeline_enabled=conversational_reply_pipeline_enabled,
-        contexts=_reply_context_owner(),
-        api_error=ApiError,
-        invalid_receipt=InvalidConfirmedReplyReceipt,
-        window_seconds=CLARIFICATION_REPLY_WINDOW_SECONDS,
-        log_event=log_event,
-    )
+    return _reply_assembly()._daily_reply_accounting_owner().mark_author(state, author_id)
 
 
 CLARIFICATION_CUE_RE = _reply_clarifications.CLARIFICATION_CUE_RE
@@ -2785,12 +2711,12 @@ clarification_thread_id = _reply_clarifications.clarification_thread_id
 
 def clarification_thread_is_terminal(state: dict, candidate: dict) -> bool:
     """Delegate clarification behavior to its owner with current dependencies."""
-    return _clarification_reply_owner().thread_is_terminal(state, candidate)
+    return _reply_assembly()._clarification_reply_owner().thread_is_terminal(state, candidate)
 
 
 def author_used_clarification_recently(state: dict, author_id: str, *, current: int) -> bool:
     """Delegate clarification behavior to its owner with current dependencies."""
-    return _clarification_reply_owner().author_used_recently(state, author_id, current=current)
+    return _reply_assembly()._clarification_reply_owner().author_used_recently(state, author_id, current=current)
 
 
 _clarification_tokens = _reply_clarifications._clarification_tokens
@@ -2798,7 +2724,7 @@ _clarification_tokens = _reply_clarifications._clarification_tokens
 
 def clarification_reply_context(state: dict, candidate: dict, *, current: int) -> dict | None:
     """Delegate clarification behavior to its owner with current dependencies."""
-    return _clarification_reply_owner().context(state, candidate, current=current)
+    return _reply_assembly()._clarification_reply_owner().context(state, candidate, current=current)
 
 
 # ---------------------------------------------------------------------
@@ -3272,31 +3198,6 @@ def cache_tweet(
 _DEFAULT_REPLY_CONTEXT_POST_MAXIMUM_CHARS = MAX_VISIBLE_TEXT_CHARACTERS
 
 
-def _reply_context_owner() -> _reply_context.ReplyContext:
-    """Bind current context boundaries without fetching posts or retaining state."""
-    return _reply_context.ReplyContext(
-        api_error=ApiError,
-        parse_tweet_id=parse_tweet_id,
-        maximum_parent_depth=THREAD_CONTEXT_MAX_DEPTH,
-        maximum_parent_network_fetches=THREAD_CONTEXT_MAX_NETWORK_FETCHES,
-        is_permanent_target_failure=api_error_is_permanent_target_failure,
-        tweets=_tweet_lookup_cache_owner(),
-        log=log,
-        log_json_debug=log_json_debug,
-        user_id=MY_USER_ID,
-        parse_x_datetime_to_epoch=parse_x_datetime_to_epoch,
-        always_fetch_parent=ALWAYS_FETCH_PARENT_FOR_CONTEXT,
-        context_validation_error=ContextValidationError,
-        incoming_maximum_chars=REPLY_INCOMING_MAX_CHARS,
-        maximum_visible_chars=MAX_VISIBLE_TEXT_CHARACTERS,
-        skip_own_auto_replies=SKIP_REPLIES_TO_OWN_AUTO_REPLIES,
-        bound_visible_conversation=bound_visible_conversation,
-        current_utc_datetime=current_utc_datetime,
-        media=_reply_media_owner(),
-        default_post_maximum_chars=_DEFAULT_REPLY_CONTEXT_POST_MAXIMUM_CHARS,
-    )
-
-
 def _verified_tweet_lookup_row(
     tweet: object,
     *,
@@ -3336,45 +3237,6 @@ clean_text_for_reply_context = _reply_context.clean_text_for_reply_context
 attach_media_to_tweets = _reply_native_media.attach_media_to_tweets
 
 
-def _reply_media_owner() -> _reply_native_media.ReplyMedia:
-    """Bind current media policy and capabilities without performing work."""
-    return _reply_native_media.ReplyMedia(
-        maximum_context_photos=MAX_REPLY_CONTEXT_PHOTOS,
-        maximum_supplied_images=MAX_SUPPLIED_IMAGES,
-        maximum_image_bytes=SINGLE_CALL_MAX_IMAGE_BYTES,
-        image_mime_types=_REPLY_IMAGE_MIME_TYPES,
-        log=log,
-        media_unavailable=ReplyMediaUnavailable,
-        media_transient_unavailable=ReplyMediaTransientUnavailable,
-        test_mode=TEST_MODE,
-        require_remote_operation_unpaused=require_remote_operation_unpaused,
-        requests=requests,
-        request_timeout=request_timeout,
-        validate_supplied_images=validate_supplied_images,
-    )
-
-
-def candidate_native_photo_media(candidate: dict) -> tuple[list[dict], int]:
-    """Select candidate photos through the media owner."""
-    return _reply_media_owner().candidate_photos(candidate)
-
-
-def reply_media_context_for_candidate(
-    candidate: dict,
-    *,
-    lane: str,
-    target_id: str,
-    quoted_candidate: dict | None = None,
-) -> dict:
-    """Build media context through the media owner."""
-    return _reply_media_owner().context(
-        candidate,
-        lane=lane,
-        target_id=target_id,
-        quoted_candidate=quoted_candidate,
-    )
-
-
 tweet_context_text = _reply_context.tweet_context_text
 
 
@@ -3412,125 +3274,7 @@ def reply_target_is_directly_eligible(tweet: dict) -> bool:
     )
 
 
-def _mention_queue_owner(
-    *, authority: _mention_authority.MentionAuthority | None = None,
-) -> _mention_discovery.MentionQueue:
-    """Bind current mention queue boundaries without reading state or files."""
-    if authority is None:
-        authority = _mention_authority_owner()
-    return _mention_discovery.MentionQueue(
-        state_file=STATE_FILE,
-        authority=authority,
-        save=save_state,
-        sort_candidates=valid_tweets_sorted_by_id,
-        log=log,
-    )
-
-
-def pending_mention_candidates(state: dict) -> list[dict]:
-    """Delegate to the mention queue with current root dependencies."""
-    return _mention_queue_owner().pending(state)
-
-
 remove_pending_mention_candidate = _mention_discovery.remove_pending_mention_candidate
-
-
-def _mention_discovery_callback(
-    *,
-    tweets: _tweet_lookup_cache.TweetLookupCache | None = None,
-    mention_queue: _mention_discovery.MentionQueue | None = None,
-    reply_evaluations: _reply_evaluation_state.ReplyEvaluations | None = None,
-) -> _reply_cycle_interfaces.ReplyCandidateDiscovery:
-    """Bind one mention-discovery callback, reusing supplied cycle owners."""
-    if tweets is None:
-        tweets = _tweet_lookup_cache_owner()
-    if mention_queue is None:
-        mention_queue = _mention_queue_owner()
-    if reply_evaluations is None:
-        reply_evaluations = _reply_evaluation_owner()
-    return functools.partial(
-        _mention_discovery.get_mentions,
-        ApiError=ApiError,
-        MAX_MENTIONS_PER_CHECK=MAX_MENTIONS_PER_CHECK,
-        MENTIONS_MAX_PAGES_PER_CHECK=MENTIONS_MAX_PAGES_PER_CHECK,
-        MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT=MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT,
-        MY_USER_ID=MY_USER_ID,
-        _MentionBacklogContinuationLimit=_MentionBacklogContinuationLimit,
-        api_error_is_invalid_pagination_cursor=api_error_is_invalid_pagination_cursor,
-        tweets=tweets,
-        log=log,
-        log_event=log_event,
-        log_json_debug=log_json_debug,
-        now_epoch=now_epoch,
-        mention_queue=mention_queue,
-        reply_evaluations=reply_evaluations,
-        save_state=save_state,
-        valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
-        x_paginated_get=x_paginated_get,
-        x_request=x_request,
-        api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
-    )
-
-
-def get_mentions(state: dict) -> list[dict]:
-    """Run mention discovery with freshly assembled current dependencies."""
-    return _mention_discovery_callback()(state)
-
-
-def _hot_post_discovery_callback(
-    *,
-    tweets: _tweet_lookup_cache.TweetLookupCache | None = None,
-    drafts: _reply_drafts.ReplyDrafts | None = None,
-    cooldowns: _api_cooldowns.ApiCooldowns | None = None,
-    controls: _runtime_control.RuntimeControls | None = None,
-    watch_posts: _quote_discovery.QuoteWatchPosts | None = None,
-    reply_evaluations: _reply_evaluation_state.ReplyEvaluations | None = None,
-) -> _reply_cycle_interfaces.ReplyCandidateDiscovery:
-    """Bind one hot-post discovery callback, reusing supplied cycle owners."""
-    if tweets is None:
-        tweets = _tweet_lookup_cache_owner()
-    if drafts is None:
-        drafts = _reply_draft_owner()
-    if cooldowns is None:
-        cooldowns = _api_cooldown_owner()
-    if controls is None:
-        controls = _runtime_controls_owner()
-    if watch_posts is None:
-        watch_posts = _quote_watch_posts_owner(tweets=tweets)
-    if reply_evaluations is None:
-        reply_evaluations = _reply_evaluation_owner()
-    return functools.partial(
-        _hot_post_discovery.get_hot_post_reply_candidates,
-        ApiError=ApiError,
-        ENABLE_HOT_POST_REPLY_CHECKS=ENABLE_HOT_POST_REPLY_CHECKS,
-        EXTRA_QUOTE_WATCH_FILE=EXTRA_QUOTE_WATCH_FILE,
-        HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS=HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS,
-        HOT_POST_REPLY_SEARCH_API_MAX_RESULTS=HOT_POST_REPLY_SEARCH_API_MAX_RESULTS,
-        HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK=HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK,
-        HOT_POST_REPLY_USE_SINCE_ID=HOT_POST_REPLY_USE_SINCE_ID,
-        MAX_HOT_POST_REPLIES_PER_CHECK=MAX_HOT_POST_REPLIES_PER_CHECK,
-        MY_USER_ID=MY_USER_ID,
-        tweets=tweets,
-        retire_ineligible_draft=drafts.retire_ineligible,
-        cooldowns=cooldowns,
-        controls=controls,
-        watch_posts=watch_posts,
-        log=log,
-        log_event=log_event,
-        log_json_debug=log_json_debug,
-        mark_hot_post_reply_skipped=mark_hot_post_reply_skipped,
-        reply_evaluations=reply_evaluations,
-        reply_target_is_directly_eligible=reply_target_is_directly_eligible,
-        save_state=save_state,
-        valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
-        x_paginated_get=x_paginated_get,
-        x_quote_lookup_request=x_quote_lookup_request,
-    )
-
-
-def get_hot_post_reply_candidates(state: dict) -> list[dict]:
-    """Run hot-post discovery with freshly assembled current dependencies."""
-    return _hot_post_discovery_callback()(state)
 
 
 def mark_hot_post_reply_skipped(
@@ -4229,7 +3973,7 @@ def _reply_remote_write_barrier(
 ) -> functools.partial:
     """Compose the global write barrier with a direct reply-receipt owner."""
     if receipts is None:
-        receipts = _reply_receipts_owner()
+        receipts = _reply_assembly()._reply_receipts_owner()
     return functools.partial(
         _remote_write_barriers.block_if_ambiguous_remote_post,
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
@@ -6073,7 +5817,7 @@ def reconcile_confirmed_transactions_before_global_barrier(
         TransportJournalError=TransportJournalError,
         _legacy_conversational_transport_source_semantic_validator=_legacy_conversational_transport_source_semantic_validator,
         _promote_legacy_sending_reply_receipt_from_confirmed_transport=_promote_legacy_sending_reply_receipt_from_confirmed_transport,
-        _reply_confirmation_epoch_after_remote_success=_reply_confirmation_epoch_after_remote_success,
+        _reply_confirmation_epoch_after_remote_success=_reply_assembly().observed_confirmation_epoch,
         bind_confirmed_transport_source=bind_confirmed_transport_source,
         confirmation_epoch_for_main_attempt=confirmation_epoch_for_main_attempt,
         emit_historical_context_store_observation=emit_historical_context_store_observation,
@@ -6850,12 +6594,11 @@ def post_next_meme(state: dict) -> None:
 
 
 # ---------------------------------------------------------------------
-# Runtime assembly and compatibility API: conversational replies
+# External settings and transaction boundaries for conversational replies
 # ---------------------------------------------------------------------
 
-# The normal and quote cycles receive the owners composed below and call their
-# methods directly.  Public draft, history, media and generation adapters remain
-# for callers which use the root API; they are not relays in the live cycles.
+# The reply assembly constructs the lane owners and captures these current
+# application settings when each operation begins.
 
 SPAMMY_PATTERNS = [
     r"\bcrypto\b",
@@ -6898,106 +6641,164 @@ def is_probably_spam_or_not_worth_replying(text: str) -> bool:
     )
 
 
-def _reply_draft_owner(
-    *,
-    history: _reply_history.ReplyHistory | None = None,
-    generation: _reply_generation.ReplyGeneration | None = None,
-) -> _reply_drafts.ReplyDrafts:
-    """Compose current draft owners without acquiring evidence or caller state."""
-    if history is None:
-        history = _reply_history_owner()
-    if generation is None:
-        generation = _reply_generation_owner(history=history)
-    return _reply_drafts.ReplyDrafts(
-        validate_persisted_draft=validate_single_call_persisted_draft,
-        evidence_repository=reply_evidence_repository,
-        history=history,
-        generation=generation,
-        log_event=log_event,
+def _reply_external_bindings() -> _reply_assembly_module.ReplyExternalBindings:
+    """Capture current external reply settings and service boundaries without I/O."""
+    return _reply_assembly_module.ReplyExternalBindings(
+        QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS=QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS,
+        normalise_quote_repeated_cursor_suppressions=normalise_quote_repeated_cursor_suppressions,
+        quote_repeated_cursor_suppression_record=quote_repeated_cursor_suppression_record,
+        ALWAYS_FETCH_PARENT_FOR_CONTEXT=ALWAYS_FETCH_PARENT_FOR_CONTEXT,
+        AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY=AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
+        AUTHOR_NO_REPLY_QUARANTINE_SECONDS=AUTHOR_NO_REPLY_QUARANTINE_SECONDS,
+        AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD=AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD,
+        AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS=AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS,
+        CLARIFICATION_REPLY_WINDOW_SECONDS=CLARIFICATION_REPLY_WINDOW_SECONDS,
+        ENABLE_HOT_POST_REPLY_CHECKS=ENABLE_HOT_POST_REPLY_CHECKS,
+        EXTRA_QUOTE_WATCH_FILE=EXTRA_QUOTE_WATCH_FILE,
+        HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS=HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS,
+        HOT_POST_REPLY_SEARCH_API_MAX_RESULTS=HOT_POST_REPLY_SEARCH_API_MAX_RESULTS,
+        HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK=HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK,
+        HOT_POST_REPLY_USE_SINCE_ID=HOT_POST_REPLY_USE_SINCE_ID,
+        MAX_EXTRA_QUOTE_WATCH_POSTS=MAX_EXTRA_QUOTE_WATCH_POSTS,
+        MAX_HOT_POST_REPLIES_PER_CHECK=MAX_HOT_POST_REPLIES_PER_CHECK,
+        MAX_REPLY_CONTEXT_PHOTOS=MAX_REPLY_CONTEXT_PHOTOS,
+        MAX_SUPPLIED_IMAGES=MAX_SUPPLIED_IMAGES,
+        MAX_VISIBLE_TEXT_CHARACTERS=MAX_VISIBLE_TEXT_CHARACTERS,
+        MENTIONS_MAX_PAGES_PER_CHECK=MENTIONS_MAX_PAGES_PER_CHECK,
+        MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT=MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT,
+        QUOTE_LOOKUP_API_MAX_RESULTS=QUOTE_LOOKUP_API_MAX_RESULTS,
+        QUOTE_LOOKUP_MAX_PAGES_PER_POST=QUOTE_LOOKUP_MAX_PAGES_PER_POST,
+        QUOTE_POST_LOOKBACK_MAIN_POSTS=QUOTE_POST_LOOKBACK_MAIN_POSTS,
+        REPLY_EVALUATION_MAX_RECORDS=REPLY_EVALUATION_MAX_RECORDS,
+        REPLY_EVALUATION_MIN_RETENTION_SECONDS=REPLY_EVALUATION_MIN_RETENTION_SECONDS,
+        ReplyMediaTransientUnavailable=ReplyMediaTransientUnavailable,
+        ReplyMediaUnavailable=ReplyMediaUnavailable,
+        SINGLE_CALL_MAX_IMAGE_BYTES=SINGLE_CALL_MAX_IMAGE_BYTES,
+        SKIP_REPLIES_TO_OWN_AUTO_REPLIES=SKIP_REPLIES_TO_OWN_AUTO_REPLIES,
+        TEST_MODE=TEST_MODE,
+        THREAD_CONTEXT_MAX_DEPTH=THREAD_CONTEXT_MAX_DEPTH,
+        THREAD_CONTEXT_MAX_NETWORK_FETCHES=THREAD_CONTEXT_MAX_NETWORK_FETCHES,
+        _DEFAULT_REPLY_CONTEXT_POST_MAXIMUM_CHARS=_DEFAULT_REPLY_CONTEXT_POST_MAXIMUM_CHARS,
+        _MentionBacklogContinuationLimit=_MentionBacklogContinuationLimit,
+        _REPLY_IMAGE_MIME_TYPES=_REPLY_IMAGE_MIME_TYPES,
+        api_error_is_invalid_pagination_cursor=api_error_is_invalid_pagination_cursor,
+        bound_visible_conversation=bound_visible_conversation,
+        current_utc_datetime=current_utc_datetime,
+        log_json_debug=log_json_debug,
+        mark_hot_post_reply_skipped=mark_hot_post_reply_skipped,
+        parse_tweet_id=parse_tweet_id,
+        request_timeout=request_timeout,
+        validate_supplied_images=validate_supplied_images,
+        x_paginated_get=x_paginated_get,
+        x_quote_lookup_request=x_quote_lookup_request,
+        x_request=x_request,
+        datetime=datetime,
+        requests=requests,
+        AI_REPLY_HISTORY_MAX_AGE_SECONDS=AI_REPLY_HISTORY_MAX_AGE_SECONDS,
+        AI_REPLY_HISTORY_MAX_RECORDS=AI_REPLY_HISTORY_MAX_RECORDS,
+        AI_REQUEST_RECORD_DIR=AI_REQUEST_RECORD_DIR,
+        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
+        ApiError=ApiError,
+        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
+        ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
+        ContextValidationError=ContextValidationError,
+        ENABLE_AUTO_REPLIES=ENABLE_AUTO_REPLIES,
+        ENABLE_QUOTE_TWEET_CHECKS=ENABLE_QUOTE_TWEET_CHECKS,
+        InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
+        MARK_AI_REPLIES_AS_AI=MARK_AI_REPLIES_AS_AI,
+        MAX_AUTO_REPLIES_PER_DAY=MAX_AUTO_REPLIES_PER_DAY,
+        MAX_MENTIONS_PER_CHECK=MAX_MENTIONS_PER_CHECK,
+        MAX_QUOTE_POSTS_PER_CHECK=MAX_QUOTE_POSTS_PER_CHECK,
+        MAX_QUOTE_REPLIES_PER_DAY=MAX_QUOTE_REPLIES_PER_DAY,
+        MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
+        MAX_RECENT_ACCOUNT_REPLIES=MAX_RECENT_ACCOUNT_REPLIES,
+        MAX_REPLIES_PER_AUTHOR_PER_DAY=MAX_REPLIES_PER_AUTHOR_PER_DAY,
+        MAX_SAME_AUTHOR_INTERACTIONS=MAX_SAME_AUTHOR_INTERACTIONS,
+        MIN_SECONDS_BETWEEN_REPLIES=MIN_SECONDS_BETWEEN_REPLIES,
+        MY_USER_ID=MY_USER_ID,
+        OPENAI_API_KEY=OPENAI_API_KEY,
+        OPENAI_BASE=OPENAI_BASE,
+        PipelineResult=PipelineResult,
+        ProvedRemotePostNonSuccess=ProvedRemotePostNonSuccess,
+        QUOTE_REPLY_DELAY_SECONDS=QUOTE_REPLY_DELAY_SECONDS,
+        REPLY_INCOMING_MAX_CHARS=REPLY_INCOMING_MAX_CHARS,
+        RemoteOperationsPaused=RemoteOperationsPaused,
+        ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
+        ReplyValidationError=ReplyValidationError,
+        SINGLE_CALL_MODEL=SINGLE_CALL_MODEL,
+        SINGLE_CALL_REASONING_EFFORT=SINGLE_CALL_REASONING_EFFORT,
+        SINGLE_CALL_STRATEGY_VERSION=SINGLE_CALL_STRATEGY_VERSION,
+        STATE_FILE=STATE_FILE,
+        StateBackupWriteError=StateBackupWriteError,
+        TRANSPORT_SOURCE_VALIDATOR_ID=TRANSPORT_SOURCE_VALIDATOR_ID,
+        TransportJournalError=TransportJournalError,
+        UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
+        UnresolvedSendingReplyReceipt=UnresolvedSendingReplyReceipt,
+        ValidatedReply=ValidatedReply,
+        _DEFAULT_RECENT_ACCOUNT_REPLY_LIMIT=_DEFAULT_RECENT_ACCOUNT_REPLY_LIMIT,
+        _api_cooldown_owner=_api_cooldown_owner,
+        _legacy_ai_reply_receipt_draft_is_valid=_legacy_ai_reply_receipt_draft_is_valid,
+        _legacy_conversational_transport_source_semantic_validator=_legacy_conversational_transport_source_semantic_validator,
+        _log_validated_single_call_reply=_log_validated_single_call_reply,
+        _receipt_dates_owner=_receipt_dates_owner,
+        _reply_remote_write_barrier=_reply_remote_write_barrier,
+        _runtime_controls_owner=_runtime_controls_owner,
+        _tweet_lookup_cache_owner=_tweet_lookup_cache_owner,
+        api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
+        api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
+        begin_confirmed_post_sigint_deferral=begin_confirmed_post_sigint_deferral,
+        bind_confirmed_transport_source=bind_confirmed_transport_source,
+        conversational_reply_pipeline_enabled=conversational_reply_pipeline_enabled,
+        create_post=create_post,
+        dedupe_reply_candidates=dedupe_reply_candidates,
+        durable_create_receipt_json=durable_create_receipt_json,
+        end_confirmed_post_sigint_deferral=end_confirmed_post_sigint_deferral,
+        inspect_confirmed_transport_transaction=inspect_confirmed_transport_transaction,
+        is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying,
+        journal_path_for_receipt=journal_path_for_receipt,
+        json_file_matches=json_file_matches,
+        latch_confirmed_post_persistence_failure=latch_confirmed_post_persistence_failure,
+        load_receipt_json_no_follow=load_receipt_json_no_follow,
         log=log,
-        strategy_version=SINGLE_CALL_STRATEGY_VERSION,
-        model=SINGLE_CALL_MODEL,
-        result_type=PipelineResult,
-        reply_type=ValidatedReply,
-        evidence_unavailable=ReplyEvidenceUnavailable,
-        validation_error=ReplyValidationError,
+        log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
+        log_event=log_event,
+        maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
+        monotonic=monotonic,
+        now_epoch=now_epoch,
+        parse_x_datetime_to_epoch=parse_x_datetime_to_epoch,
+        quoted_post_reference_id=quoted_post_reference_id,
+        receipt_int=receipt_int,
+        receipt_namespace_entry_exists=receipt_namespace_entry_exists,
+        remote_receipt_retirement_is_blocking=remote_receipt_retirement_is_blocking,
+        remove_confirmed_reply_receipt=remove_confirmed_reply_receipt,
+        replace_bound_source_receipt=replace_bound_source_receipt,
+        reply_evidence_repository=reply_evidence_repository,
+        reply_target_is_directly_eligible=reply_target_is_directly_eligible,
+        report_bot_health_progress=report_bot_health_progress,
+        require_remote_operation_unpaused=require_remote_operation_unpaused,
+        retain_sigint_deferral_without_durable_barrier=retain_sigint_deferral_without_durable_barrier,
+        retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
+        retire_proved_rejected_conversational_reply_receipt=retire_proved_rejected_conversational_reply_receipt,
+        run_single_call_reply_pipeline=run_single_call_reply_pipeline,
+        save_state=save_state,
+        single_call_decision_telemetry=single_call_decision_telemetry,
+        single_call_reply=single_call_reply,
+        sleep=sleep,
+        transaction_mutation_authority=transaction_mutation_authority,
+        transport_source_semantic_validator=transport_source_semantic_validator,
+        valid_receipt_epoch=valid_receipt_epoch,
+        valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
+        validate_single_call_persisted_draft=validate_single_call_persisted_draft,
+        verify_lane_transport_source_lineage_if_present=verify_lane_transport_source_lineage_if_present,
     )
+
+
+def _reply_assembly() -> _reply_assembly_module.ReplyAssembly:
+    """Bind the reply subsystem to current external settings and services."""
+    return _reply_assembly_module.ReplyAssembly(_reply_external_bindings)
 
 
 pending_ai_reply_draft_key = _reply_drafts.pending_ai_reply_draft_key
-
-
-def validate_current_ai_reply_draft(
-    draft: object,
-    *,
-    context: dict[str, object],
-    recent_replies: list[object] | None = None,
-) -> dict:
-    """Validate a current draft through its owner."""
-    return _reply_draft_owner().validate(
-        draft, context=context, recent_replies=recent_replies,
-    )
-
-
-def store_pending_ai_reply(
-    state: dict,
-    target_id: str,
-    candidate_source: str,
-    reply: str,
-    *,
-    context: dict[str, object],
-) -> bool:
-    """Store a validated pending draft through its owner."""
-    return _reply_draft_owner().store(
-        state, target_id, candidate_source, reply, context=context,
-    )
-
-
-def pending_ai_reply(
-    state: dict,
-    target_id: str,
-    candidate_source: str,
-    *,
-    context: dict[str, object],
-    recent_replies: list[object] | None = None,
-    evaluation_outcome: dict[str, object] | None = None,
-) -> str | None:
-    """Return legacy prose while recovery delegates to a freshly built owner.
-
-    The live cycles call their invocation-scoped ``ReplyDrafts.recover`` method
-    directly; this root adapter remains for compatibility callers.
-    """
-    result = recover_pending_ai_reply(
-        state, target_id, candidate_source, context=context, recent_replies=recent_replies,
-    )
-    if result is None:
-        return None
-    if evaluation_outcome is not None and result.status == "operational_failure":
-        evaluation_outcome.update(
-            status=result.status, reason=result.reason,
-            error_category=result.error_category, model_call_count=result.model_call_count,
-        )
-    return result.reply
-
-
-def recover_pending_ai_reply(
-    state: dict,
-    target_id: str,
-    candidate_source: str,
-    *,
-    context: dict[str, object],
-    recent_replies: list[object] | None = None,
-) -> PipelineResult | None:
-    """Compatibility entry point for owner-based recovery without a provider call."""
-    return _reply_draft_owner().recover(
-        state, target_id, candidate_source,
-        context=context, recent_replies=recent_replies,
-    )
-
-
-def clear_pending_ai_reply(state: dict, target_id: str, candidate_source: str) -> None:
-    """Clear a pending draft through its owner."""
-    return _reply_draft_owner().clear(state, target_id, candidate_source)
 
 
 def log_ai_reply_posting_outcome(
@@ -7025,67 +6826,7 @@ CONVERSATIONAL_REPLY_HISTORY_LANES = _reply_history.CONVERSATIONAL_REPLY_HISTORY
 _DEFAULT_RECENT_ACCOUNT_REPLY_LIMIT = MAX_RECENT_ACCOUNT_REPLIES
 
 
-def _reply_history_owner() -> _reply_history.ReplyHistory:
-    """Bind current history dependencies without reading state or the clock."""
-    return _reply_history.ReplyHistory(
-        now_epoch=now_epoch,
-        quoted_post_reference_id=quoted_post_reference_id,
-        maximum_state_epoch=MAX_REASONABLE_STATE_EPOCH,
-        maximum_recent_replies=MAX_RECENT_ACCOUNT_REPLIES,
-        default_recent_reply_limit=_DEFAULT_RECENT_ACCOUNT_REPLY_LIMIT,
-        maximum_same_author_interactions=MAX_SAME_AUTHOR_INTERACTIONS,
-        maximum_age_seconds=AI_REPLY_HISTORY_MAX_AGE_SECONDS,
-        maximum_records=AI_REPLY_HISTORY_MAX_RECORDS,
-    )
-
-
 _confirmed_history_sort_key = _reply_history._confirmed_history_sort_key
-
-
-def recent_confirmed_account_replies(
-    state: dict,
-    limit: int = MAX_RECENT_ACCOUNT_REPLIES,
-    *,
-    before_epoch: int | None = None,
-    excluded_post_ids: set[str] | None = None,
-    excluded_reply_post_ids: set[str] | None = None,
-) -> list[dict[str, str]]:
-    """Select recent confirmed prose through the history owner."""
-    return _reply_history_owner().recent_replies(
-        state, limit,
-        before_epoch=before_epoch,
-        excluded_post_ids=excluded_post_ids,
-        excluded_reply_post_ids=excluded_reply_post_ids,
-    )
-
-
-def recovery_comparison_account_replies(
-    state: dict,
-    *,
-    context: dict[str, object],
-) -> list[dict[str, str]]:
-    """Select current draft comparisons through the history owner."""
-    return _reply_history_owner().recovery_replies(state, context=context)
-
-
-def recent_same_author_account_interactions(
-    state: dict,
-    *,
-    author_id: object,
-    conversation_id: object,
-    target_id: object,
-    before_epoch: int | None = None,
-    visible_post_ids: set[str] | None = None,
-) -> list[dict[str, str]]:
-    """Select prior contributor/reply pairs through the history owner."""
-    return _reply_history_owner().recent_same_author_interactions(
-        state,
-        author_id=author_id,
-        conversation_id=conversation_id,
-        target_id=target_id,
-        before_epoch=before_epoch,
-        visible_post_ids=visible_post_ids,
-    )
 
 
 _reply_target_epoch = _reply_history._reply_target_epoch
@@ -7102,61 +6843,8 @@ class ReplyMediaTransientUnavailable(ReplyMediaUnavailable):
     """A material candidate image could not be collected on this cycle."""
 
 
-def collect_reply_images(media_context: dict | None) -> list[dict[str, object]]:
-    """Collect up to two already-identified native X images with hard bounds."""
-    return _reply_media_owner().collect(media_context)
-
-
-def _reply_model_transport_owner() -> _reply_model_transport.ReplyModelTransport:
-    return _reply_model_transport.ReplyModelTransport(
-        log=log,
-        model=SINGLE_CALL_MODEL,
-        reasoning_effort=SINGLE_CALL_REASONING_EFFORT,
-        monotonic=monotonic,
-        require_remote_operation_unpaused=require_remote_operation_unpaused,
-        report_bot_health_progress=report_bot_health_progress,
-        requests=requests,
-        base_url=OPENAI_BASE,
-        api_key=OPENAI_API_KEY,
-        sleep=sleep,
-        now_epoch=now_epoch,
-        error_type=ApiError,
-        request_record_directory=AI_REQUEST_RECORD_DIR,
-        log_event=log_event,
-    )
-
-
 _OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES = _reply_generation._OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES
 _TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES = _reply_generation._TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES
-
-
-def _reply_generation_owner(
-    *,
-    cooldowns: _api_cooldowns.ApiCooldowns | None = None,
-    history: _reply_history.ReplyHistory | None = None,
-) -> _reply_generation.ReplyGeneration:
-    """Compose current generation owners without collecting evidence or media."""
-    if cooldowns is None:
-        cooldowns = _api_cooldown_owner()
-    if history is None:
-        history = _reply_history_owner()
-    return _reply_generation.ReplyGeneration(
-        media=_reply_media_owner(),
-        remote_operations_paused=RemoteOperationsPaused,
-        result_type=PipelineResult,
-        log=log,
-        history=history,
-        require_remote_operation_unpaused=require_remote_operation_unpaused,
-        run_pipeline=run_single_call_reply_pipeline,
-        config=single_call_reply,
-        evidence_repository=reply_evidence_repository,
-        model_transport=_reply_model_transport_owner(),
-        cooldowns=cooldowns,
-        reply_type=ValidatedReply,
-        decision_telemetry=single_call_decision_telemetry,
-        log_event=log_event,
-        strategy_version=SINGLE_CALL_STRATEGY_VERSION,
-    )
 
 
 _is_openai_provider_health_failure = _reply_generation._is_openai_provider_health_failure
@@ -7165,95 +6853,7 @@ _is_openai_provider_health_failure = _reply_generation._is_openai_provider_healt
 _is_terminal_candidate_local_failure = _reply_generation._is_terminal_candidate_local_failure
 
 
-def openai_responses_reply_call(
-    *,
-    request: dict[str, object],
-    timeout_seconds: int,
-    lane: str,
-    target_id: str,
-) -> dict[str, object]:
-    """Send one executable Responses request, retrying only proved non-execution."""
-    return _reply_model_transport_owner().call(
-        request=request,
-        timeout_seconds=timeout_seconds,
-        lane=lane,
-        target_id=target_id,
-    )
-
-
-def _record_single_call_result(
-    result: PipelineResult,
-    *,
-    lane: str,
-    target_id: str,
-) -> None:
-    """Delegate reply generation with current root dependencies."""
-    return _reply_generation_owner().record_result(
-        result, lane=lane, target_id=target_id,
-    )
-
-
-def generate_single_call_reply(
-    context: dict[str, object],
-    media_context: dict | None = None,
-    *,
-    state: dict,
-    evaluation_outcome: dict | None = None,
-) -> str | None:
-    """Return legacy prose while evaluation delegates to a freshly built owner.
-
-    The live cycles call their invocation-scoped ``ReplyGeneration.evaluate``
-    method directly; this root adapter remains for compatibility callers.
-    """
-    result = evaluate_single_call_reply(context, media_context, state=state)
-    if evaluation_outcome is not None:
-        evaluation_outcome.update(
-            status=result.status, reason=result.reason,
-            error_category=result.error_category, model_call_count=result.model_call_count,
-        )
-        if result.reason != "material_image_unavailable":
-            evaluation_outcome.update(reason_code=result.reason_code, reply_kind=result.reply_kind)
-    return result.reply
-
-
-def evaluate_single_call_reply(
-    context: dict[str, object],
-    media_context: dict | None = None,
-    *,
-    state: dict,
-) -> PipelineResult:
-    """Compatibility entry point returning an owner decision and its accounting."""
-    return _reply_generation_owner().evaluate(context, media_context, state=state)
-
-
 terminal_reply_evaluation = _reply_evaluation_state.terminal_reply_evaluation
-
-
-def record_terminal_reply_evaluation(
-    state: dict,
-    *,
-    target_id: str,
-    lane: str,
-    reason: str,
-    outcome: str = "no_reply",
-    prune_records: bool = True,
-    evidence_policy: str | None = None,
-) -> None:
-    """Record terminal reply evaluation."""
-    return _reply_evaluation_owner().record(
-        state,
-        target_id=target_id,
-        lane=lane,
-        reason=reason,
-        outcome=outcome,
-        prune_records=prune_records,
-        evidence_policy=evidence_policy,
-    )
-
-
-def ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
-    """Validate the current draft carried by a receipt through its owner."""
-    return _reply_draft_owner().receipt_draft_is_valid(data, text)
 
 
 _LEGACY_TESTED_REPLY_STRATEGY_VERSION = _legacy_reply_validation._LEGACY_TESTED_REPLY_STRATEGY_VERSION
@@ -7364,42 +6964,7 @@ def _legacy_ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
     )
 
 
-def _reply_receipt_values_owner(
-    *,
-    dates: _receipt_primitives.ReceiptDates | None = None,
-    drafts: _reply_drafts.ReplyDrafts | None = None,
-) -> _reply_receipt_values.ReplyReceiptValues:
-    """Bind current receipt value boundaries without reading the clock or state."""
-    if dates is None:
-        dates = _receipt_dates_owner()
-    if drafts is None:
-        drafts = _reply_draft_owner()
-    return _reply_receipt_values.ReplyReceiptValues(
-        valid_receipt_epoch=valid_receipt_epoch,
-        dates=dates,
-        legacy_draft_is_valid=_legacy_ai_reply_receipt_draft_is_valid,
-        drafts=drafts,
-        now_epoch=now_epoch,
-        log=log,
-        invalid_receipt=InvalidConfirmedReplyReceipt,
-    )
-
-
 mention_pagination_provenance_is_valid = _mention_authority.mention_pagination_provenance_is_valid
-
-
-def _conversational_reply_receipt_is_semantically_valid(
-    data: dict,
-    *,
-    lifecycle_state: str,
-    legacy_recovery: bool = False,
-) -> bool:
-    """Validate one current receipt or a frozen lifecycle-recovery receipt."""
-    return _reply_receipt_values_owner().validate(
-        data,
-        lifecycle_state=lifecycle_state,
-        legacy_recovery=legacy_recovery,
-    )
 
 
 def conversational_sending_receipt_from_confirmed(
@@ -7411,100 +6976,22 @@ def conversational_sending_receipt_from_confirmed(
     remain readable for local reconciliation, but cannot use this function to
     retire a current transport journal.
     """
-    return _reply_receipt_values_owner().sending_from_confirmed(confirmed_receipt)
-
-
-def confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
-    """Return whether a confirmed-reply receipt is internally consistent."""
-    return _reply_receipt_values_owner().confirmed_is_valid(data)
+    return _reply_assembly()._reply_receipt_values_owner().sending_from_confirmed(confirmed_receipt)
 
 
 def sending_reply_receipt_is_semantically_valid(data: dict) -> bool:
     """Return whether a pre-send conversational-reply receipt is complete."""
-    return _reply_receipt_values_owner().sending_is_valid(data)
-
-
-def _legacy_confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
-    """Accept a frozen draft only for local recovery after remote confirmation."""
-    return _reply_receipt_values_owner().legacy_confirmed_is_valid(data)
+    return _reply_assembly()._reply_receipt_values_owner().sending_is_valid(data)
 
 
 def _legacy_sending_reply_receipt_is_semantically_valid(data: dict) -> bool:
     """Recognise a frozen sending receipt as a barrier, never send authority."""
-    return _reply_receipt_values_owner().legacy_sending_is_valid(data)
-
-
-def _reply_receipts_owner(
-    *, values: _reply_receipt_values.ReplyReceiptValues | None = None,
-) -> _reply_delivery.ReplyReceipts:
-    """Bind runtime receipt authorities for one load, publication or promotion."""
-    if values is None:
-        values = _reply_receipt_values_owner()
-    return _reply_delivery.ReplyReceipts(
-        path=CONFIRMED_REPLY_RECEIPT_FILE,
-        read_json=load_receipt_json_no_follow,
-        log=log,
-        values=values,
-        retirement_is_blocking=remote_receipt_retirement_is_blocking,
-        invalid_receipt=InvalidConfirmedReplyReceipt,
-        namespace_entry_exists=receipt_namespace_entry_exists,
-        create_json=durable_create_receipt_json,
-        unresolved_sending=UnresolvedSendingReplyReceipt,
-        bind_confirmed_source=bind_confirmed_transport_source,
-        journal_path=journal_path_for_receipt,
-        validator_id=TRANSPORT_SOURCE_VALIDATOR_ID,
-        transport_validator=transport_source_semantic_validator,
-        legacy_transport_validator=_legacy_conversational_transport_source_semantic_validator,
-        transport_journal_error=TransportJournalError,
-        replace_bound_source=replace_bound_source_receipt,
-        mutation_authority=transaction_mutation_authority,
-        current_receipts=lambda: _reply_receipts_owner(),
-    )
+    return _reply_assembly()._reply_receipt_values_owner().legacy_sending_is_valid(data)
 
 
 def load_confirmed_reply_receipt() -> tuple[str, dict | None]:
     """Load confirmed reply receipt."""
-    return _reply_receipts_owner().load()
-
-
-def write_confirmed_reply_receipt(receipt: dict) -> None:
-    """Write confirmed reply receipt."""
-    return _reply_receipts_owner().write(receipt, confirmed=True)
-
-
-def write_sending_reply_receipt(receipt: dict) -> None:
-    """Durably record a reply transaction before its remote create request."""
-    return _reply_receipts_owner().write(receipt, confirmed=False)
-
-
-def bind_conversational_reply_attempt_time(receipt_template: dict) -> dict:
-    """Bind a schema-v4 reply template to its immediately pre-send time."""
-    return _reply_receipt_values_owner().bind_attempt(receipt_template)
-
-
-def _confirmed_reply_receipt_from_sending(
-    sending_receipt: dict,
-    *,
-    reply_post_id: str,
-    confirmation_epoch: int,
-) -> dict:
-    """Build the confirmed form without mutating its durable sending input."""
-    return _reply_receipt_values_owner().confirmed_from_sending(
-        sending_receipt,
-        reply_post_id=reply_post_id,
-        confirmation_epoch=confirmation_epoch,
-    )
-
-
-def _reply_confirmation_epoch_after_remote_success(
-    sending_receipt: dict,
-    observed_epoch: int | None = None,
-) -> int:
-    """Return a conservative monotonic wall time after remote confirmation."""
-    return _reply_receipt_values_owner().observed_confirmation_epoch(
-        sending_receipt,
-        observed_epoch,
-    )
+    return _reply_assembly()._reply_receipts_owner().load()
 
 
 def promote_sending_reply_receipt(
@@ -7514,7 +7001,7 @@ def promote_sending_reply_receipt(
     confirmation_epoch: int,
 ) -> dict:
     """Atomically promote the exact prepared transaction to confirmed."""
-    return _reply_receipts_owner().promote(
+    return _reply_assembly()._reply_receipts_owner().promote(
         sending_receipt,
         reply_post_id=reply_post_id,
         confirmation_epoch=confirmation_epoch,
@@ -7528,7 +7015,7 @@ def _promote_legacy_sending_reply_receipt_from_confirmed_transport(
     confirmation_epoch: int,
 ) -> dict:
     """Promote a frozen source only when its exact journal proves success."""
-    return _reply_receipts_owner().promote(
+    return _reply_assembly()._reply_receipts_owner().promote(
         sending_receipt,
         reply_post_id=reply_post_id,
         confirmation_epoch=confirmation_epoch,
@@ -7563,14 +7050,9 @@ def remove_confirmed_reply_receipt(
     )
 
 
-def conversational_reply_confirmation_epoch(receipt: dict) -> int:
-    """Return the best available confirmed time for a reply receipt."""
-    return _reply_receipt_values_owner().confirmation_epoch(receipt)
-
-
 def _valid_iso_date(value: object) -> bool:
     """Return whether a value is a canonical calendar date."""
-    return _daily_reply_accounting_owner().valid_date(value)
+    return _reply_assembly()._daily_reply_accounting_owner().valid_date(value)
 
 
 def _advance_reply_counters_to_confirmation_date(
@@ -7580,129 +7062,16 @@ def _advance_reply_counters_to_confirmation_date(
     include_quote_lane: bool,
 ) -> None:
     """Advance stale daily reply buckets without rolling newer state backward."""
-    return _daily_reply_accounting_owner().advance(
+    return _reply_assembly()._daily_reply_accounting_owner().advance(
         state,
         confirmation_date,
         include_quote_lane=include_quote_lane,
     )
 
 
-def _confirmed_reply_state_applier(
-    *,
-    dates: _receipt_primitives.ReceiptDates | None = None,
-    drafts: _reply_drafts.ReplyDrafts | None = None,
-    receipt_values: _reply_receipt_values.ReplyReceiptValues | None = None,
-    mention_authority: _mention_authority.MentionAuthority | None = None,
-    mention_queue: _mention_discovery.MentionQueue | None = None,
-    tweets: _tweet_lookup_cache.TweetLookupCache | None = None,
-    history: _reply_history.ReplyHistory | None = None,
-) -> functools.partial:
-    """Compose current typed owners for one confirmed-state application."""
-    if dates is None:
-        dates = _receipt_dates_owner()
-    if drafts is None:
-        drafts = receipt_values.drafts if receipt_values is not None else _reply_draft_owner()
-    if receipt_values is None:
-        receipt_values = _reply_receipt_values_owner(dates=dates, drafts=drafts)
-    if mention_authority is None:
-        mention_authority = _mention_authority_owner()
-    if mention_queue is None:
-        mention_queue = _mention_queue_owner(authority=mention_authority)
-    if tweets is None:
-        tweets = _tweet_lookup_cache_owner()
-    if history is None:
-        history = _reply_history_owner()
-    return functools.partial(
-        _reply_reconciliation.apply_confirmed_reply_receipt,
-        receipt_values=receipt_values,
-        mention_authority=mention_authority,
-        mention_queue=mention_queue,
-        STATE_FILE=STATE_FILE,
-        InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
-        dates=dates,
-        accounting=_daily_reply_accounting_owner(dates=dates),
-        log=log,
-        drafts=drafts,
-        tweets=tweets,
-        MY_USER_ID=MY_USER_ID,
-        datetime=datetime,
-        history=history,
-        clarifications=_clarification_reply_owner(),
-        log_event=log_event,
-    )
-
-
-def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
-    """Apply a confirmed reply through freshly composed typed owners."""
-    return _confirmed_reply_state_applier()(state, receipt)
-
-
-def update_last_seen_mention_id(state: dict, mention_id: str) -> None:
-    """Delegate to the mention queue with current root dependencies."""
-    return _mention_queue_owner().advance_watermark(state, mention_id)
-
-
-def mark_mention_seen_if_applicable(state: dict, candidate: dict) -> None:
-    """Delegate to the mention queue with current root dependencies."""
-    return _mention_queue_owner().mark_seen(state, candidate)
-
-
-def _reply_completion_owner(
-    *,
-    dates: _receipt_primitives.ReceiptDates | None = None,
-    drafts: _reply_drafts.ReplyDrafts | None = None,
-    receipt_values: _reply_receipt_values.ReplyReceiptValues | None = None,
-    receipts: _reply_delivery.ReplyReceipts | None = None,
-    tweets: _tweet_lookup_cache.TweetLookupCache | None = None,
-    history: _reply_history.ReplyHistory | None = None,
-) -> _reply_reconciliation.ReplyCompletion:
-    """Bind current completion authorities without reading state or receipt files."""
-    if dates is None:
-        dates = _receipt_dates_owner()
-    if drafts is None:
-        drafts = receipt_values.drafts if receipt_values is not None else _reply_draft_owner()
-    if receipt_values is None:
-        receipt_values = receipts.values if receipts is not None else _reply_receipt_values_owner(
-            dates=dates, drafts=drafts,
-        )
-    if receipts is None:
-        receipts = _reply_receipts_owner(values=receipt_values)
-    return _reply_reconciliation.ReplyCompletion(
-        receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
-        persistence_error=ConfirmedReplyLocalPersistenceError,
-        apply_state=_confirmed_reply_state_applier(
-            dates=dates, drafts=drafts, receipt_values=receipt_values,
-            tweets=tweets, history=history,
-        ),
-        save_state=save_state,
-        retire_journal=retire_lane_transport_journal_if_present,
-        remove_receipt=remove_confirmed_reply_receipt,
-        log=log,
-        receipts=receipts,
-        unresolved_sending_receipt=UnresolvedSendingReplyReceipt,
-        invalid_receipt=InvalidConfirmedReplyReceipt,
-        verify_lineage=verify_lane_transport_source_lineage_if_present,
-    )
-
-
 def reconcile_confirmed_reply_receipt(state: dict) -> bool:
     """Reconcile a confirmed reply without duplicating the remote post."""
-    return _reply_completion_owner().reconcile(state)
-
-
-def confirmed_reply_emergency_representation_is_complete(
-    receipt: dict,
-    state: dict,
-) -> bool:
-    """Return whether state alone durably suppresses a confirmed reply replay."""
-    drafts = _reply_draft_owner()
-    return _reply_reconciliation.confirmed_reply_emergency_representation_is_complete(
-        receipt, state,
-        receipt_values=_reply_receipt_values_owner(drafts=drafts),
-        InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
-        receipt_int=receipt_int,
-        has_target_draft=drafts.has_target,
-    )
+    return _reply_assembly()._reply_completion_owner().reconcile(state)
 
 
 def retire_proved_rejected_conversational_reply_receipt(
@@ -7724,397 +7093,32 @@ def retire_proved_rejected_conversational_reply_receipt(
     )
 
 
-def post_conversational_reply_with_durable_identity(
-    *,
-    state: dict,
-    receipt_template: dict,
-    reply_text: str,
-    reply_to_id: str,
-    made_with_ai: bool,
-    lane: str,
-) -> tuple[dict, dict]:
-    """Create a conversational reply and durably bind its remote identity.
-
-    A controlled SIGINT is deferred from the first remote-create instruction
-    until either the confirmed-reply receipt, a complete canonical state
-    fallback, or the global manual-reconciliation barrier is durable.
-    """
-    return _post_conversational_reply_with_current_owners(
-        state=state,
-        receipt_template=receipt_template,
-        reply_text=reply_text,
-        reply_to_id=reply_to_id,
-        made_with_ai=made_with_ai,
-        lane=lane,
-    )
-
-
-def _post_conversational_reply_with_current_owners(
-    *,
-    state: dict,
-    receipt_template: dict,
-    reply_text: str,
-    reply_to_id: str,
-    made_with_ai: bool,
-    lane: str,
-) -> tuple[dict, dict]:
-    """Compose send-time owners and execute the durable reply publication."""
-    drafts = _reply_draft_owner()
-    receipt_values = _reply_receipt_values_owner(drafts=drafts)
-    receipts = _reply_receipts_owner(values=receipt_values)
-    completion = _reply_completion_owner(
-        drafts=drafts, receipt_values=receipt_values, receipts=receipts,
-    )
-    return _reply_delivery.post_conversational_reply_with_durable_identity(
-        state=state,
-        receipt_template=receipt_template,
-        reply_text=reply_text,
-        reply_to_id=reply_to_id,
-        made_with_ai=made_with_ai,
-        lane=lane,
-        receipt_values=receipt_values,
-        receipt_namespace_entry_exists=receipt_namespace_entry_exists,
-        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
-        InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
-        block_if_ambiguous_remote_post=_reply_remote_write_barrier(receipts=receipts),
-        receipts=lambda: _reply_receipts_owner(),
-        begin_confirmed_post_sigint_deferral=begin_confirmed_post_sigint_deferral,
-        create_post=create_post,
-        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
-        end_confirmed_post_sigint_deferral=end_confirmed_post_sigint_deferral,
-        cooldowns=_api_cooldown_owner(),
-        save_state=save_state,
-        log=log,
-        RemoteOperationsPaused=RemoteOperationsPaused,
-        remove_confirmed_reply_receipt=remove_confirmed_reply_receipt,
-        ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
-        ProvedRemotePostNonSuccess=ProvedRemotePostNonSuccess,
-        ApiError=ApiError,
-        inspect_confirmed_transport_transaction=inspect_confirmed_transport_transaction,
-        journal_path_for_receipt=journal_path_for_receipt,
-        StateBackupWriteError=StateBackupWriteError,
-        json_file_matches=json_file_matches,
-        STATE_FILE=STATE_FILE,
-        confirmed_reply_emergency_representation_is_complete=functools.partial(
-            _reply_reconciliation.confirmed_reply_emergency_representation_is_complete,
-            receipt_values=receipt_values,
-            InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
-            receipt_int=receipt_int,
-            has_target_draft=drafts.has_target,
-        ),
-        latch_confirmed_post_persistence_failure=latch_confirmed_post_persistence_failure,
-        retain_sigint_deferral_without_durable_barrier=retain_sigint_deferral_without_durable_barrier,
-        UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
-        completion=completion,
-    )
-
-
-def finalise_confirmed_reply(
-    state: dict, receipt: dict, *, target_id: str, quote_reply: bool,
-) -> str:
-    """Commit a reply confirmation before either cycle reports successful posting."""
-    return _reply_completion_owner().finalise(
-        state, receipt, target_id=target_id, quote_reply=quote_reply,
-    )
-
-
-def _reply_cycle_persistence(
-    *,
-    drafts: _reply_drafts.ReplyDrafts | None = None,
-) -> _reply_cycle_interfaces.ReplyCyclePersistence:
-    """Bind one draft owner and the current durable save for a cycle invocation."""
-    if drafts is None:
-        drafts = _reply_draft_owner()
-    return _reply_cycle_interfaces.ReplyCyclePersistence(
-        save=save_state, recover=drafts.recover,
-        store=drafts.store, clear=drafts.clear,
-        retire_ineligible=drafts.retire_ineligible,
-    )
-
-
-def _reply_cycle_delivery(
-    *,
-    cooldowns: _api_cooldowns.ApiCooldowns | None = None,
-    drafts: _reply_drafts.ReplyDrafts | None = None,
-    tweets: _tweet_lookup_cache.TweetLookupCache | None = None,
-) -> _reply_cycle_interfaces.ReplyCycleDelivery:
-    """Compose current receipt and delivery owners without retaining caller state."""
-    if cooldowns is None:
-        cooldowns = _api_cooldown_owner()
-    if drafts is None:
-        drafts = _reply_draft_owner()
-    if tweets is None:
-        tweets = _tweet_lookup_cache_owner()
-    receipt_values = _reply_receipt_values_owner(drafts=drafts)
-    receipts = _reply_receipts_owner(values=receipt_values)
-    completion = _reply_completion_owner(
-        drafts=drafts, receipt_values=receipt_values, receipts=receipts,
-        tweets=tweets, history=drafts.history,
-    )
-    return _reply_cycle_interfaces.ReplyCycleDelivery(
-        receipts=receipts,
-        completion=completion,
-        block_ambiguous=_reply_remote_write_barrier(receipts=receipts),
-        receipt_values=receipt_values,
-        tweets=tweets,
-        post=_post_conversational_reply_with_current_owners,
-        retire_rejected=retire_proved_rejected_conversational_reply_receipt,
-        ambiguous_outcome=AmbiguousRemotePostOutcome,
-        remote_operations_paused=RemoteOperationsPaused,
-        api_error=ApiError,
-        confirmed_local_failure=ConfirmedReplyLocalPersistenceError,
-        proved_non_success=ProvedRemotePostNonSuccess,
-        unrecoverable_confirmed=UnrecoverableConfirmedReplyPersistenceError,
-        reply_not_allowed=api_error_is_reply_not_allowed,
-        save_state=save_state,
-        log=log,
-        posting_outcome=log_ai_reply_posting_outcome,
-        cooldowns=cooldowns,
-    )
-
-
 # ---------------------------------------------------------------------
-# Runtime assembly: normal mention and hot-post reply cycle
+# Scheduler boundary: normal mention and hot-post reply cycle
 # ---------------------------------------------------------------------
 
-def maybe_reply_to_mentions(
-    state: dict,
-    *,
-    _fresh_mention_ai_evaluations: int = 0,
-    _skip_hot_post_fetch: bool = False,
-) -> str:
+def maybe_reply_to_mentions(state: dict) -> str:
     """Process eligible mention and hot-post candidates under all reply limits."""
-    tweets = _tweet_lookup_cache_owner()
-    reply_evaluations = _reply_evaluation_owner()
-    mention_queue = _mention_queue_owner()
-    cooldowns = _api_cooldown_owner()
-    history = _reply_history_owner()
-    generation = _reply_generation_owner(cooldowns=cooldowns, history=history)
-    drafts = _reply_draft_owner(history=history, generation=generation)
-    controls = _runtime_controls_owner()
-    return _normal_reply_cycle.maybe_reply_to_mentions(
-        state,
-        config=_reply_cycle_interfaces.NormalReplyConfig(
-            enabled=ENABLE_AUTO_REPLIES,
-            mark_as_ai=MARK_AI_REPLIES_AS_AI,
-            maximum_daily_replies=MAX_AUTO_REPLIES_PER_DAY,
-            maximum_daily_author_replies=MAX_REPLIES_PER_AUTHOR_PER_DAY,
-            minimum_reply_spacing=MIN_SECONDS_BETWEEN_REPLIES,
-            user_id=MY_USER_ID,
-            maximum_fresh_evaluations=MAX_MENTIONS_PER_CHECK,
-            incoming_max_chars=REPLY_INCOMING_MAX_CHARS,
-        ),
-        persistence=_reply_cycle_persistence(drafts=drafts),
-        delivery=_reply_cycle_delivery(
-            cooldowns=cooldowns, drafts=drafts, tweets=tweets,
-        ),
-        _fresh_mention_ai_evaluations=_fresh_mention_ai_evaluations,
-        _skip_hot_post_fetch=_skip_hot_post_fetch,
-        author_quarantines=_author_quarantine_owner(),
-        ApiError=ApiError,
-        PipelineResult=PipelineResult,
-        RemoteOperationsPaused=RemoteOperationsPaused,
-        ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
-        SINGLE_CALL_STRATEGY_VERSION=SINGLE_CALL_STRATEGY_VERSION,
-        ValidatedReply=ValidatedReply,
-        _log_validated_single_call_reply=_log_validated_single_call_reply,
-        clarifications=_clarification_reply_owner(),
-        conversational_reply_pipeline_enabled=conversational_reply_pipeline_enabled,
-        accounting=_daily_reply_accounting_owner(),
-        reply_contexts=_reply_context_owner(),
-        tweets=tweets,
-        generation=generation,
-        history=history,
-        dedupe_reply_candidates=dedupe_reply_candidates,
-        get_hot_post_reply_candidates=_hot_post_discovery_callback(
-            tweets=tweets,
-            drafts=drafts,
-            cooldowns=cooldowns,
-            controls=controls,
-            reply_evaluations=reply_evaluations,
-        ),
-        get_mentions=_mention_discovery_callback(
-            tweets=tweets,
-            mention_queue=mention_queue,
-            reply_evaluations=reply_evaluations,
-        ),
-        cooldowns=cooldowns,
-        is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying,
-        controls=controls,
-        log=log,
-        log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
-        log_event=log_event,
-        mention_queue=mention_queue,
-        maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
-        maybe_reply_to_mentions=maybe_reply_to_mentions,
-        now_epoch=now_epoch,
-        reply_evaluations=reply_evaluations,
-        reply_evidence_repository=reply_evidence_repository,
-        reply_target_is_directly_eligible=reply_target_is_directly_eligible,
-        valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
-    )
+    return _reply_assembly().run_normal(state)
 
 
 # ---------------------------------------------------------------------
-# Runtime assembly and compatibility API: quote discovery and reply policy
+# Self-test boundary: watched quote post IDs
 # ---------------------------------------------------------------------
-
-def _quote_watch_posts_owner(
-    *,
-    tweets: _tweet_lookup_cache.TweetLookupCache | None = None,
-) -> _quote_discovery.QuoteWatchPosts:
-    """Bind current watch selection settings without reading the watch file."""
-    if tweets is None:
-        tweets = _tweet_lookup_cache_owner()
-    return _quote_discovery.QuoteWatchPosts(
-        watch_file=EXTRA_QUOTE_WATCH_FILE,
-        maximum_extra_posts=MAX_EXTRA_QUOTE_WATCH_POSTS,
-        maximum_posts=MAX_QUOTE_POSTS_PER_CHECK,
-        lookback_posts=QUOTE_POST_LOOKBACK_MAIN_POSTS,
-        tweets=tweets,
-        log=log,
-    )
 
 
 def load_extra_quote_watch_post_ids() -> list[str]:
     """Delegate to watched-post selection with current root dependencies."""
-    return _quote_watch_posts_owner().load_extra()
-
-
-def build_quote_lookup_post_ids(state: dict) -> list[str]:
-    """Delegate to watched-post selection with current root dependencies."""
-    return _quote_watch_posts_owner().lookup(state)
-
-
-def get_recent_own_post_ids_for_quote_lookup(state: dict) -> list[str]:
-    """Delegate to watched-post selection with current root dependencies."""
-    return _quote_watch_posts_owner().recent(state)
-
-
-def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[dict]:
-    """Delegate to quote discovery with current root dependencies."""
-    return _quote_discovery.get_quote_tweets_for_post(
-        post_id,
-        state,
-        QUOTE_LOOKUP_API_MAX_RESULTS=QUOTE_LOOKUP_API_MAX_RESULTS,
-        QUOTE_LOOKUP_MAX_PAGES_PER_POST=QUOTE_LOOKUP_MAX_PAGES_PER_POST,
-        QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS=QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS,
-        log=log,
-        log_event=log_event,
-        log_json_debug=log_json_debug,
-        normalise_quote_repeated_cursor_suppressions=normalise_quote_repeated_cursor_suppressions,
-        now_epoch=now_epoch,
-        quote_repeated_cursor_suppression_record=quote_repeated_cursor_suppression_record,
-        save_state=save_state,
-        x_paginated_get=x_paginated_get,
-        x_quote_lookup_request=x_quote_lookup_request,
-    )
-
-
-def get_quote_tweets_for_posts(post_ids: list[str], state: dict | None = None) -> dict[str, list[dict]]:
-    """Search watched originals together using current root dependencies."""
-    return _quote_discovery.get_quote_tweets_for_posts(
-        post_ids,
-        state,
-        QUOTE_LOOKUP_API_MAX_RESULTS=QUOTE_LOOKUP_API_MAX_RESULTS,
-        QUOTE_LOOKUP_MAX_PAGES_PER_POST=QUOTE_LOOKUP_MAX_PAGES_PER_POST,
-        log=log,
-        save_state=save_state,
-        x_paginated_get=x_paginated_get,
-        x_quote_lookup_request=x_quote_lookup_request,
-    )
-
-
-def quote_tweet_directly_quotes_original(quote_tweet: dict, original_post_id: str) -> bool:
-    """
-    The /quote_tweets endpoint can surface reposts/retweets of someone else's
-    quote-tweet. Those are not good reply targets. Only treat the item as
-    replyable if X's structured referenced_tweets says it directly quoted the
-    original post we are checking.
-    """
-    return _quote_reply_cycle.quote_tweet_directly_quotes_original(
-        quote_tweet,
-        original_post_id,
-    )
-
-
-quote_author_profile_text = _quote_reply_cycle.quote_author_profile_text
-
-
-def mark_quote_tweet_skipped(state: dict, quote_id: str) -> None:
-    """Mark quote tweet skipped."""
-    return _quote_reply_cycle.mark_quote_tweet_skipped(
-        state,
-        quote_id,
-    )
-
-
-def mark_quote_tweet_replied(state: dict, quote_id: str) -> None:
-    """Mark quote tweet replied."""
-    return _quote_reply_cycle.mark_quote_tweet_replied(
-        state,
-        quote_id,
-    )
+    return _reply_assembly()._quote_watch_posts_owner().load_extra()
 
 
 # ---------------------------------------------------------------------
-# Runtime assembly: quote-tweet reply cycle
+# Scheduler boundary: quote-tweet reply cycle
 # ---------------------------------------------------------------------
 
 def maybe_reply_to_quote_tweets(state: dict) -> str:
     """Process eligible quote-tweet candidates under all reply limits."""
-    tweets = _tweet_lookup_cache_owner()
-    cooldowns = _api_cooldown_owner()
-    history = _reply_history_owner()
-    generation = _reply_generation_owner(cooldowns=cooldowns, history=history)
-    drafts = _reply_draft_owner(history=history, generation=generation)
-    return _quote_reply_cycle.maybe_reply_to_quote_tweets(
-        state,
-        config=_reply_cycle_interfaces.QuoteReplyConfig(
-            enabled=ENABLE_AUTO_REPLIES,
-            mark_as_ai=MARK_AI_REPLIES_AS_AI,
-            maximum_daily_replies=MAX_AUTO_REPLIES_PER_DAY,
-            maximum_daily_author_replies=MAX_REPLIES_PER_AUTHOR_PER_DAY,
-            minimum_reply_spacing=MIN_SECONDS_BETWEEN_REPLIES,
-            user_id=MY_USER_ID,
-            quote_checks_enabled=ENABLE_QUOTE_TWEET_CHECKS,
-            minimum_quote_age_seconds=QUOTE_REPLY_DELAY_SECONDS,
-            maximum_candidates=MAX_QUOTE_POSTS_PER_CHECK,
-            maximum_daily_quote_replies=MAX_QUOTE_REPLIES_PER_DAY,
-        ),
-        persistence=_reply_cycle_persistence(drafts=drafts),
-        delivery=_reply_cycle_delivery(
-            cooldowns=cooldowns, drafts=drafts, tweets=tweets,
-        ),
-        ApiError=ApiError,
-        ContextValidationError=ContextValidationError,
-        PipelineResult=PipelineResult,
-        RemoteOperationsPaused=RemoteOperationsPaused,
-        ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
-        SINGLE_CALL_STRATEGY_VERSION=SINGLE_CALL_STRATEGY_VERSION,
-        ValidatedReply=ValidatedReply,
-        _log_validated_single_call_reply=_log_validated_single_call_reply,
-        api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
-        watch_posts=_quote_watch_posts_owner(tweets=tweets),
-        conversational_reply_pipeline_enabled=conversational_reply_pipeline_enabled,
-        accounting=_daily_reply_accounting_owner(),
-        reply_contexts=_reply_context_owner(),
-        tweets=tweets,
-        generation=generation,
-        history=history,
-        get_quote_tweets_for_posts=get_quote_tweets_for_posts,
-        cooldowns=cooldowns,
-        is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying,
-        controls=_runtime_controls_owner(),
-        log=log,
-        log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
-        log_event=log_event,
-        now_epoch=now_epoch,
-        parse_x_datetime_to_epoch=parse_x_datetime_to_epoch,
-        reply_evaluations=_reply_evaluation_owner(),
-        reply_evidence_repository=reply_evidence_repository,
-        valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
-    )
+    return _reply_assembly().run_quote(state)
 
 
 # ---------------------------------------------------------------------

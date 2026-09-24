@@ -154,7 +154,7 @@ def test_single_call_context_and_reply_logs_expose_only_counts_and_hashes(
     monkeypatch.setattr(bot, "log_json_debug", record_json_label)
     caplog.set_level(logging.DEBUG, logger=bot.log.name)
 
-    prepared_context = bot._reply_context_owner().build(
+    prepared_context = bot._reply_assembly()._reply_context_owner().build(
         {
             "id": "920",
             "author_id": "200",
@@ -166,7 +166,7 @@ def test_single_call_context_and_reply_logs_expose_only_counts_and_hashes(
     )
     assert prepared_context is not None
     context = prepared_context.context
-    bot._reply_context_owner().build_quote(
+    bot._reply_assembly()._reply_context_owner().build_quote(
         {
             "id": "900",
             "author_id": "12345",

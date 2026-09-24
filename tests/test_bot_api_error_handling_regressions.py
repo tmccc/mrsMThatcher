@@ -40,15 +40,14 @@ def test_three_image_input_failures_leave_openai_breaker_untouched(
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
 
     for _ in range(3):
-        outcome: dict[str, object] = {}
-        assert bot.generate_single_call_reply(
+        result = bot._reply_assembly()._reply_generation_owner().evaluate(
             context,
             {"status": "unavailable"},
             state=state,
-            evaluation_outcome=outcome,
-        ) is None
-        assert outcome["error_category"] == "image_input"
-        assert outcome["model_call_count"] == 0
+        )
+        assert result.reply is None
+        assert result.error_category == "image_input"
+        assert result.model_call_count == 0
 
     assert state["openai_error_epochs"] == []
     assert state["openai_api_cooldown_until_epoch"] == 0
@@ -89,14 +88,13 @@ def test_candidate_local_pipeline_failures_leave_openai_breaker_untouched(
     )
 
     for _ in range(3):
-        outcome: dict[str, object] = {}
-        assert bot.generate_single_call_reply(
+        result = bot._reply_assembly()._reply_generation_owner().evaluate(
             context,
             None,
             state=state,
-            evaluation_outcome=outcome,
-        ) is None
-        assert outcome["error_category"] == error_category
+        )
+        assert result.reply is None
+        assert result.error_category == error_category
 
     assert state["openai_error_epochs"] == []
     assert state["openai_api_cooldown_until_epoch"] == 0
@@ -130,7 +128,9 @@ def test_three_provider_failures_activate_openai_breaker(
     )
 
     for _ in range(3):
-        assert bot.generate_single_call_reply(context, None, state=state) is None
+        assert bot._reply_assembly()._reply_generation_owner().evaluate(
+            context, None, state=state,
+        ).reply is None
 
     assert state["openai_error_epochs"] == [current, current, current]
     assert state["openai_api_cooldown_until_epoch"] > current
@@ -324,7 +324,7 @@ def test_openai_5xx_is_not_retried_after_an_ambiguous_provider_response(
     monkeypatch.setattr(bot, "report_bot_health_progress", lambda *_args: None)
 
     with pytest.raises(bot.ApiError) as caught:
-        bot.openai_responses_reply_call(
+        bot._reply_assembly()._reply_model_transport_owner().call(
             request={"model": "gpt-5.6-sol"},
             timeout_seconds=180,
             lane="mention",
@@ -375,7 +375,7 @@ def test_parent_and_quoted_lookup_only_suppress_target_specific_failures(
         lambda *_args, **_kwargs: (_ for _ in ()).throw(unavailable),
     )
 
-    owner = bot._reply_context_owner()
+    owner = bot._reply_assembly()._reply_context_owner()
     assert owner.parent_chain(mention, {}) == []
     quoted = {
         **mention,

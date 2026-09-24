@@ -116,7 +116,7 @@ def production_lane_documents(
             "reply_epoch": 1_800_000_000,
             "daily_reply_date": bot.epoch_date_str(1_800_000_000),
         }
-        confirmed = bot._confirmed_reply_receipt_from_sending(
+        confirmed = bot._reply_assembly()._reply_receipt_values_owner().confirmed_from_sending(
             source,
             reply_post_id=post_id,
             confirmation_epoch=1_800_000_010,

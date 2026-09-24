@@ -7,6 +7,8 @@ import json
 from datetime import datetime, timezone
 from unittest.mock import Mock
 
+import mrs_bot_reply_assembly as assembly
+
 import pytest
 
 from tests.helpers.bot_runtime import bot
@@ -28,11 +30,11 @@ QUERY = "(quotes_of_tweet_id:900) -is:retweet"
 def _install_quote_pages(monkeypatch, *, first_ids=("913", "912"), young_id=None,
                          missing_timestamp=False):
     """Run real discovery against synthetic pages and a controllable clock."""
-    discovery = bot.get_quote_tweets_for_posts
+    discovery = bot._reply_assembly().get_quote_tweets_for_posts
     original, templates = configure_quote_cycle(monkeypatch)
     lookup = Mock(return_value=original)
     patch_tweet_lookup_method(monkeypatch, "get_cached", lookup)
-    monkeypatch.setattr(bot, "get_quote_tweets_for_posts", discovery)
+    monkeypatch.setattr(assembly.ReplyAssembly, "get_quote_tweets_for_posts", discovery)
     monkeypatch.setattr(bot, "QUOTE_LOOKUP_MAX_PAGES_PER_POST", 1)
     monkeypatch.setattr(bot, "MAX_QUOTE_POSTS_PER_CHECK", 1)
     monkeypatch.setattr(bot, "QUOTE_REPLY_DELAY_SECONDS", 60)
@@ -135,7 +137,7 @@ def test_model_failure_replays_pending_quotes_before_fetching_older_page(monkeyp
 def test_missing_creation_time_gets_bounded_refresh_without_stalling_queue(monkeypatch, refresh):
     search, _clock, lookup = _install_quote_pages(monkeypatch, missing_timestamp=True)
     state = bot.default_state()
-    bot.get_quote_tweets_for_posts(["900"], state)
+    bot._reply_assembly().get_quote_tweets_for_posts(["900"], state)
     state = bot.load_state()
     original = lookup.return_value
     fresh = dict(state["quote_pending_candidates"]["912"], created_at="2030-01-01T00:00:00Z")
@@ -176,7 +178,7 @@ def test_missing_creation_time_gets_bounded_refresh_without_stalling_queue(monke
 def test_unavailable_original_retires_its_queue_and_allows_later_discovery(monkeypatch):
     search, _clock, lookup = _install_quote_pages(monkeypatch)
     state = bot.default_state()
-    bot.get_quote_tweets_for_posts(["900"], state)
+    bot._reply_assembly().get_quote_tweets_for_posts(["900"], state)
     lookup.return_value = None
     evaluate = Mock()
     patch_reply_owner_method(
@@ -410,10 +412,7 @@ def test_quote_owner_handoffs_keep_current_recovery_and_chronological_model_hist
         "openai_responses_reply_call",
         "reply_media_context_for_candidate",
         "load_confirmed_reply_receipt", "reconcile_confirmed_reply_receipt",
-        "bind_conversational_reply_attempt_time",
         "reply_target_is_available_immediately_before_send",
-        "post_conversational_reply_with_durable_identity",
-        "apply_confirmed_reply_receipt",
     ):
         relays[name] = Mock(side_effect=AssertionError(f"root relay used: {name}"))
         monkeypatch.setattr(bot, name, relays[name], raising=False)

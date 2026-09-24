@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
 
-import inspect
 import json
 from pathlib import Path
 import subprocess
 import sys
 from unittest.mock import Mock, call
+
+import mrs_bot_reply_assembly as assembly
 
 import pytest
 
@@ -70,124 +71,32 @@ assert 'single_call_reply' not in sys.modules
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
-    names = {
-        "quote_tweet_directly_quotes_original": 0,
-        "mark_quote_tweet_skipped": 0,
-        "mark_quote_tweet_replied": 0,
-        "maybe_reply_to_quote_tweets": None,
-    }
-    owner_factories = {
-        "reply_evaluations": "_reply_evaluation_owner",
-        "accounting": "_daily_reply_accounting_owner",
-        "reply_contexts": "_reply_context_owner",
-        "tweets": "_tweet_lookup_cache_owner",
-        "generation": "_reply_generation_owner",
-        "history": "_reply_history_owner",
-        "watch_posts": "_quote_watch_posts_owner",
-        "cooldowns": "_api_cooldown_owner",
-        "controls": "_runtime_controls_owner",
-    }
-    for name, count in names.items():
-        adapter = getattr(bot, name)
-        public = inspect.signature(adapter).parameters
-        parameters = inspect.signature(getattr(cycle, name)).parameters
-        dependencies = parameters.keys() - public.keys()
-        if count is None:
-            assert tuple(public) == ("state",)
-            assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
-            assert {"quote_tweet_is_old_enough", "mark_quote_spam_author"}.isdisjoint(parameters)
-            assert {"now_epoch", "parse_x_datetime_to_epoch"} <= parameters.keys()
-            for helper in (cycle._candidate_is_eligible, cycle._author_allows_evaluation):
-                assert {"quote_tweet_is_old_enough", "mark_quote_spam_author"}.isdisjoint(
-                    inspect.signature(helper).parameters
-                )
-            removed = {
-                key for key in vars(interfaces) if key.startswith("QUOTE_CHECK_STATUS_")
-            } | {
-                "AmbiguousRemotePostOutcome", "ConfirmedReplyLocalPersistenceError",
-                "ProvedRemotePostNonSuccess", "UnrecoverableConfirmedReplyPersistenceError",
-                "api_error_is_reply_not_allowed",
-                "_is_terminal_candidate_local_failure",
-                "mark_quote_tweet_skipped",
-                "terminal_reply_evaluation", "quote_author_profile_text",
-                "clean_text_for_reply_context",
-                "quote_tweet_directly_quotes_original", "daily_author_reply_count",
-                "daily_author_reply_counts", "record_terminal_reply_evaluation",
-                "reset_daily_quote_reply_count_if_needed", "reset_daily_reply_count_if_needed",
-                "build_quote_tweet_reply_context", "get_tweet_by_id_cached", "cache_tweet",
-                "build_quote_lookup_post_ids",
-                "evaluate_single_call_reply", "_record_single_call_result",
-                "recovery_comparison_account_replies",
-            }
-            for helper_name, function in inspect.getmembers(cycle, inspect.isfunction):
-                if function.__module__ == cycle.__name__:
-                    assert removed.isdisjoint(inspect.signature(function).parameters), helper_name
-            assert {"config", "persistence", "delivery", *owner_factories} <= dependencies
-        else:
-            assert len(dependencies) == count
-        args = tuple(object() for _ in public)
-        result = object()
-        owner = Mock(return_value=result)
-        with monkeypatch.context() as patch:
-            patch.setattr(cycle, name, owner)
-            for _ in range(2):
-                current = {key: object() for key in dependencies}
-                factories = {}
-                for key, value in current.items():
-                    if key == "config":
-                        patch.setattr(bot._reply_cycle_interfaces, "QuoteReplyConfig", Mock(return_value=value))
-                    elif key in {"persistence", "delivery"}:
-                        factories[key] = Mock(return_value=value)
-                        patch.setattr(bot, f"_reply_cycle_{key}", factories[key])
-                    elif key in owner_factories:
-                        factories[key] = Mock(return_value=value)
-                        patch.setattr(bot, owner_factories[key], factories[key])
-                    else:
-                        patch.setattr(bot, key, value)
-                draft_owner = Mock(return_value=Mock())
-                patch.setattr(bot, "_reply_draft_owner", draft_owner)
-                assert adapter(*args) is result, name
-                for key, factory in factories.items():
-                    if key == "generation" and name == "maybe_reply_to_quote_tweets":
-                        factory.assert_called_once_with(
-                            cooldowns=current["cooldowns"], history=current["history"],
-                        )
-                    elif key == "delivery" and name == "maybe_reply_to_quote_tweets":
-                        factory.assert_called_once_with(
-                            cooldowns=current["cooldowns"], drafts=draft_owner.return_value,
-                            tweets=current["tweets"],
-                        )
-                    elif key == "watch_posts" and name == "maybe_reply_to_quote_tweets":
-                        factory.assert_called_once_with(tweets=current["tweets"])
-                    elif key == "persistence" and name == "maybe_reply_to_quote_tweets":
-                        factory.assert_called_once_with(drafts=draft_owner.return_value)
-                    else:
-                        factory.assert_called_once_with()
-                if name == "maybe_reply_to_quote_tweets":
-                    draft_owner.assert_called_once_with(
-                        history=current["history"], generation=current["generation"],
-                    )
-                    assert bot._reply_cycle_interfaces.QuoteReplyConfig.call_args.kwargs[
-                        "minimum_quote_age_seconds"
-                    ] == bot.QUOTE_REPLY_DELAY_SECONDS
-                actual_args, actual_kwargs = owner.call_args
-                assert len(actual_args) == len(args)
-                assert all(actual is expected for actual, expected in zip(actual_args, args))
-                assert actual_kwargs.keys() == current.keys()
-                assert all(actual_kwargs[key] is value for key, value in current.items())
-            failure = TypeError(name)
-            owner.side_effect = failure
-            with pytest.raises(TypeError) as caught:
-                adapter(*args)
-            assert caught.value is failure
+def test_scheduler_entry_uses_fresh_quote_runner_and_shares_owners(monkeypatch):
+    _configure_cycle(monkeypatch)
+    state = bot.default_state()
+    seen = []
+    original = assembly.ReplyAssembly.quote_runner
+
+    def build(self):
+        runner = original(self)
+        seen.append(runner)
+        return runner
+
+    monkeypatch.setattr(assembly.ReplyAssembly, "quote_runner", build)
+    assert bot.maybe_reply_to_quote_tweets(state) == interfaces.QUOTE_CHECK_STATUS_CHECKED
+    assert bot.maybe_reply_to_quote_tweets(state) == interfaces.QUOTE_CHECK_STATUS_CHECKED
+    assert len(seen) == 2 and seen[0] is not seen[1]
+    assert seen[0].generation.history is seen[0].history
+    assert seen[0].delivery.cooldowns is seen[0].cooldowns
+    assert seen[0].delivery.tweets is seen[0].tweets
+
 
 
 def test_cycle_hands_cooldown_and_control_work_to_typed_owners(monkeypatch):
     _configure_cycle(monkeypatch)
     state = bot.default_state()
     failure = bot.ApiError("quote discovery failed", service="x", status_code=503)
-    bot.get_quote_tweets_for_posts.side_effect = failure
+    bot._reply_assembly().get_quote_tweets_for_posts.side_effect = failure
     active = Mock(return_value=False)
     paused = Mock(return_value=False)
     record = Mock()
@@ -297,8 +206,8 @@ def test_direct_quote_uses_only_structured_references_and_retweet_veto(monkeypat
     quoted = {"type": "quoted", "id": 900}
     retweeted = {"type": "retweeted", "id": "800"}
     for refs in ([quoted, retweeted], [retweeted, quoted]):
-        assert not bot.quote_tweet_directly_quotes_original({"referenced_tweets": refs}, "900")
-    assert bot.quote_tweet_directly_quotes_original(
+        assert not cycle.quote_tweet_directly_quotes_original({"referenced_tweets": refs}, "900")
+    assert cycle.quote_tweet_directly_quotes_original(
         {"referenced_tweets": [quoted], "text": "RT @someone: legacy text"}, "900",
     )
     for quote in (
@@ -310,22 +219,22 @@ def test_direct_quote_uses_only_structured_references_and_retweet_veto(monkeypat
         {"referenced_tweets": [{"type": "quoted", "id": "901"}]},
         {"referenced_tweets": [{"type": "replied_to", "id": "900"}]},
     ):
-        assert not bot.quote_tweet_directly_quotes_original(quote, 900)
+        assert not cycle.quote_tweet_directly_quotes_original(quote, 900)
     cleaner.assert_not_called()
     with pytest.raises(AttributeError):
-        bot.quote_tweet_directly_quotes_original({"referenced_tweets": [None, quoted]}, "900")
+        cycle.quote_tweet_directly_quotes_original({"referenced_tweets": [None, quoted]}, "900")
 
 
 def test_profile_alias_preserves_coercion_whitespace_metrics_and_native_shape_errors():
-    assert bot.quote_author_profile_text is cycle.quote_author_profile_text
-    assert bot.quote_author_profile_text({"_author_user": None}) == ""
-    assert bot.quote_author_profile_text({"_author_user": {
+    assert cycle.quote_author_profile_text is cycle.quote_author_profile_text
+    assert cycle.quote_author_profile_text({"_author_user": None}) == ""
+    assert cycle.quote_author_profile_text({"_author_user": {
         "name": "  Reader  ", "username": None, "description": " \t",
         "public_metrics": {"followers_count": 0, "following_count": None},
     }}) == "  Reader  \nNone\nfollowers=0 following=None tweets="
     for user in ([1], {"public_metrics": [1]}):
         with pytest.raises(AttributeError):
-            bot.quote_author_profile_text({"_author_user": user})
+            cycle.quote_author_profile_text({"_author_user": user})
 
 
 def test_markers_preserve_bounded_and_durable_lists_and_mutation_before_failure(monkeypatch):
@@ -340,18 +249,18 @@ def test_markers_preserve_bounded_and_durable_lists_and_mutation_before_failure(
     monkeypatch.setattr(reply_state, "append_unique_durable", durable)
     seen = state["seen_quote_post_ids"]
     skipped = state["skipped_quote_post_ids"]
-    bot.mark_quote_tweet_skipped(state, 3000)
+    bot._reply_state.mark_quote_tweet_skipped(state, 3000)
     assert capped.call_args_list == [call(seen, "3000", 2000), call(skipped, "3000", 2000)]
     assert capped.call_args_list[0].args[0] is seen
     assert capped.call_args_list[1].args[0] is skipped
-    bot.mark_quote_tweet_replied(state, 3001)
+    bot._reply_state.mark_quote_tweet_replied(state, 3001)
     assert len(state["seen_quote_post_ids"]) == len(state["skipped_quote_post_ids"]) == 2000
     assert len(state["replied_to_quote_post_ids"]) == 2501
     assert state["replied_to_quote_post_ids"][0] == "0"
     failure = ValueError("durable helper failed")
     durable.side_effect = failure
     with pytest.raises(ValueError) as caught:
-        bot.mark_quote_tweet_replied(state, 3002)
+        bot._reply_state.mark_quote_tweet_replied(state, 3002)
     assert caught.value is failure
     assert state["seen_quote_post_ids"][-1] == "3002"
     assert "3002" not in state["replied_to_quote_post_ids"]
@@ -365,13 +274,13 @@ def test_markers_preserve_bounded_and_durable_lists_and_mutation_before_failure(
 def test_both_daily_resets_and_confirmed_reconciliation_precede_barrier_when_disabled(monkeypatch):
     _configure_cycle(monkeypatch)
     receipt = unit_confirmed_v4_reply_receipt(lane="quote_tweet", confirmation_epoch=bot.now_epoch())
-    bot.write_confirmed_reply_receipt(receipt)
+    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
     state = bot.default_state()
     state.update(daily_reply_date="2000-01-01", daily_reply_count=48,
                  daily_quote_reply_date="2000-01-01", daily_quote_reply_count=12)
     monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", False)
     trace = Mock()
-    accounting = bot._daily_reply_accounting_owner()
+    accounting = bot._reply_assembly()._daily_reply_accounting_owner()
     resets = {
         "reset_daily_reply_count_if_needed": "reset",
         "reset_daily_quote_reply_count_if_needed": "reset_quotes",
@@ -379,7 +288,7 @@ def test_both_daily_resets_and_confirmed_reconciliation_precede_barrier_when_dis
     for name in (*resets, "reconcile_confirmed_reply_receipt"):
         callback = Mock(wraps=(
             getattr(accounting, resets[name])
-            if name in resets else bot._reply_completion_owner().reconcile
+            if name in resets else bot._reply_assembly()._reply_completion_owner().reconcile
         ))
         trace.attach_mock(callback, name)
         if name in resets:
@@ -443,9 +352,9 @@ def test_zero_call_failures_consume_quote_candidate_limit_in_numeric_order(monke
     patch_reply_owner_method(monkeypatch, generation_owner.ReplyGeneration, "evaluate", legacy_reply_evaluator(generate))
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
     assert [c["target_id"] for c in contexts] == ["9", "20"]
-    assert all(item is bot.reply_media_context_for_candidate.return_value for item in media)
-    assert bot.reply_media_context_for_candidate.call_count == 2
-    assert all(c.kwargs["quoted_candidate"] is original for c in bot.reply_media_context_for_candidate.call_args_list)
+    assert all(item is bot._reply_native_media.ReplyMedia._fixture_media_context.return_value for item in media)
+    assert bot._reply_native_media.ReplyMedia._fixture_media_context.call_count == 2
+    assert all(c.kwargs["quoted_candidate"] is original for c in bot._reply_native_media.ReplyMedia._fixture_media_context.call_args_list)
     assert lookup.call_args_list == [
         call("900", state), call("900", state, include_media=True), call("900", state, include_media=True),
     ]
@@ -469,7 +378,7 @@ def test_image_only_original_reaches_quote_multimodal_evaluation(monkeypatch):
     })
 
     def prepare_media(candidate, **kwargs):
-        return native_media_context(bot._reply_media_owner(), candidate, **kwargs)
+        return native_media_context(bot._reply_assembly()._reply_media_owner(), candidate, **kwargs)
 
     patch_reply_owner_method(
         monkeypatch,
@@ -581,11 +490,11 @@ def test_quote_scan_keeps_fixed_ledgers_but_shares_newly_classified_spam_authors
 def test_reused_draft_keeps_context_references_durability_and_pre_send_availability(monkeypatch):
     original, quotes = _configure_cycle(monkeypatch)
     state = bot.default_state()
-    prepared_context = bot._reply_context_owner().build_quote(original, quotes[0])
+    prepared_context = bot._reply_assembly()._reply_context_owner().build_quote(original, quotes[0])
     assert prepared_context is not None
     context = prepared_context.context
     reply = unit_approved_reply(context)
-    assert bot.store_pending_ai_reply(state, "910", "quote_tweet", reply, context=context)
+    assert bot._reply_assembly()._reply_draft_owner().store(state, "910", "quote_tweet", reply, context=context)
     bot.save_state(state, durable=True)
     media_context = Mock(return_value={})
     patch_reply_owner_method(
@@ -595,15 +504,15 @@ def test_reused_draft_keeps_context_references_durability_and_pre_send_availabil
     draft_methods = {"recover_pending_ai_reply": "recover", "store_pending_ai_reply": "store"}
     owned_operations = {
         "cache_tweet": bot._tweet_lookup_cache_owner().store,
-        "build_quote_context": bot._reply_context_owner().build_quote,
-        "recovery_comparison_account_replies": bot._reply_history_owner().recovery_replies,
-        "bind_conversational_reply_attempt_time": bot._reply_receipt_values_owner().bind_attempt,
+        "build_quote_context": bot._reply_assembly()._reply_context_owner().build_quote,
+        "recovery_comparison_account_replies": bot._reply_assembly()._reply_history_owner().recovery_replies,
+        "bind_conversational_reply_attempt_time": bot._reply_assembly()._reply_receipt_values_owner().bind_attempt,
     }
     for name in ("cache_tweet", "save_state", "build_quote_context",
                  "reply_evidence_repository", "recovery_comparison_account_replies",
                  "recover_pending_ai_reply", "store_pending_ai_reply", "bind_conversational_reply_attempt_time"):
         original_operation = (
-            getattr(bot._reply_draft_owner(), draft_methods[name])
+            getattr(bot._reply_assembly()._reply_draft_owner(), draft_methods[name])
             if name in draft_methods else owned_operations[name]
             if name in owned_operations else getattr(bot, name)
         )
@@ -621,9 +530,6 @@ def test_reused_draft_keeps_context_references_durability_and_pre_send_availabil
             patch_reply_owner_method(
                 monkeypatch, bot._reply_receipt_values.ReplyReceiptValues,
                 "bind_attempt", callback,
-            )
-            monkeypatch.setattr(
-                bot, name, Mock(side_effect=AssertionError("obsolete receipt-value relay used")),
             )
         else:
             monkeypatch.setattr(bot, name, callback)
@@ -682,7 +588,7 @@ def test_lookup_failure_continues_only_when_fetching_the_original(monkeypatch, b
         monkeypatch, quote_discovery.QuoteWatchPosts, "lookup",
         Mock(return_value=["900", "901"]),
     )
-    bot.get_quote_tweets_for_posts.return_value = {
+    bot._reply_assembly().get_quote_tweets_for_posts.return_value = {
         parent: [{"id": target, "referenced_tweets": [{"type": "quoted", "id": parent}]}]
         for parent, target in [("900", "910"), ("901", "911")]
     }
@@ -690,7 +596,7 @@ def test_lookup_failure_continues_only_when_fetching_the_original(monkeypatch, b
     if boundary == "original":
         lookup.side_effect = [failure, original]
     else:
-        bot.get_quote_tweets_for_posts.side_effect = failure
+        bot._reply_assembly().get_quote_tweets_for_posts.side_effect = failure
     save, health, generate = Mock(), Mock(), Mock()
     monkeypatch.setattr(bot, "save_state", save)
     patch_reply_owner_method(
@@ -701,7 +607,7 @@ def test_lookup_failure_continues_only_when_fetching_the_original(monkeypatch, b
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
     expected_originals = ["900", "901"] if boundary == "original" else []
     assert lookup.call_args_list == [call(target, state) for target in expected_originals]
-    bot.get_quote_tweets_for_posts.assert_called_once_with(["900", "901"], state)
+    bot._reply_assembly().get_quote_tweets_for_posts.assert_called_once_with(["900", "901"], state)
     assert save.called
     assert health.call_args_list == ([call(state, failure, "x", scope="quote")] if api_failure else [])
     generate.assert_not_called()
@@ -725,7 +631,7 @@ def test_original_http_errors_skip_targets_or_stop_at_shared_cooldown(
     )
     restore_tweet_lookup_fetch(monkeypatch)
     discoveries = Mock(return_value={target: [{"id": "910"}] for target in ["900", "901", "902", "903"]})
-    monkeypatch.setattr(bot, "get_quote_tweets_for_posts", discoveries)
+    monkeypatch.setattr(assembly.ReplyAssembly, "get_quote_tweets_for_posts", discoveries)
     health = Mock(wraps=bot._api_cooldown_owner().record_error)
     patch_reply_owner_method(
         monkeypatch, api_cooldowns.ApiCooldowns, "record_error", health,
@@ -820,7 +726,7 @@ def test_context_failures_retire_in_order_before_later_model_work(
 
     patch_tweet_lookup_method(monkeypatch, "get_cached", fetch)
     monkeypatch.setattr(bot, "api_error_is_permanent_target_failure", lambda error: error is lookup_failure)
-    build_context = bot._reply_context_owner().build_quote
+    build_context = bot._reply_assembly()._reply_context_owner().build_quote
 
     def context_for_candidate(original_tweet, quote_tweet):
         if failure_kind == "invalid_context" and quote_tweet["id"] == "910":
@@ -835,9 +741,9 @@ def test_context_failures_retire_in_order_before_later_model_work(
         ("skip", "mark_quote_tweet_skipped"),
     ):
         original_callback = (
-            bot._reply_evaluation_owner().record if label == "terminal"
+            bot._reply_assembly()._reply_evaluation_owner().record if label == "terminal"
             else cycle.mark_quote_tweet_skipped if label == "skip"
-            else bot._reply_generation_owner().record_result
+            else bot._reply_assembly()._reply_generation_owner().record_result
         )
         callback = Mock(wraps=original_callback)
         trace.attach_mock(callback, label)
@@ -921,9 +827,9 @@ def test_context_rejection_is_free_but_evaluation_budget_spans_original_posts(mo
     }
     lookup = Mock(side_effect=lambda target, _state, **kwargs: dict(original, id=target))
     patch_tweet_lookup_method(monkeypatch, "get_cached", lookup)
-    bot.get_quote_tweets_for_posts.return_value = quotes_by_original
+    bot._reply_assembly().get_quote_tweets_for_posts.return_value = quotes_by_original
     monkeypatch.setattr(bot, "MAX_QUOTE_POSTS_PER_CHECK", 2)
-    build_context = bot._reply_context_owner().build_quote
+    build_context = bot._reply_assembly()._reply_context_owner().build_quote
 
     def context_for_candidate(original_tweet, quote_tweet):
         if quote_tweet["id"] == "910":
@@ -934,7 +840,7 @@ def test_context_rejection_is_free_but_evaluation_budget_spans_original_posts(mo
 
     def zero_call_failure(context, media, *, state, evaluation_outcome):
         assert "_prepared_media_context" not in context
-        assert media is bot.reply_media_context_for_candidate.return_value
+        assert media is bot._reply_native_media.ReplyMedia._fixture_media_context.return_value
         evaluated.append(context["target_id"])
         evaluation_outcome.update(status="operational_failure", error_category="image_input",
                                   reason="unusable_image", model_call_count=0)
@@ -946,7 +852,7 @@ def test_context_rejection_is_free_but_evaluation_budget_spans_original_posts(mo
 
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
     assert evaluated == ["911", "921"]
-    bot.get_quote_tweets_for_posts.assert_called_once_with(["900", "901", "902"], state)
+    bot._reply_assembly().get_quote_tweets_for_posts.assert_called_once_with(["900", "901", "902"], state)
     assert lookup.call_args_list == [
         call("900", state), call("900", state, include_media=True), call("900", state, include_media=True),
         call("901", state), call("901", state, include_media=True),
@@ -967,7 +873,7 @@ def test_context_rejection_is_free_but_evaluation_budget_spans_original_posts(mo
 ])
 def test_pre_generation_failures_keep_their_own_exception_boundary(monkeypatch, boundary):
     original, quotes = _configure_cycle(monkeypatch)
-    prepared_context = bot._reply_context_owner().build_quote(original, quotes[0])
+    prepared_context = bot._reply_assembly()._reply_context_owner().build_quote(original, quotes[0])
     assert prepared_context is not None
     context = prepared_context.context
     patch_reply_context_method(monkeypatch, "build_quote", Mock(return_value=prepared_context))
@@ -1010,11 +916,11 @@ def test_empty_combined_search_needs_no_original_or_legacy_lookup(monkeypatch):
     patch_reply_owner_method(
         monkeypatch, quote_discovery.QuoteWatchPosts, "lookup", Mock(return_value=parents),
     )
-    bot.get_quote_tweets_for_posts.return_value = {parent: [] for parent in parents}
+    bot._reply_assembly().get_quote_tweets_for_posts.return_value = {parent: [] for parent in parents}
     legacy = Mock(side_effect=AssertionError("legacy quote lookup must not run"))
-    monkeypatch.setattr(bot, "get_quote_tweets_for_post", legacy)
+    monkeypatch.setattr(assembly.ReplyAssembly, "get_quote_tweets_for_post", legacy)
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
-    bot.get_quote_tweets_for_posts.assert_called_once_with(parents, state)
+    bot._reply_assembly().get_quote_tweets_for_posts.assert_called_once_with(parents, state)
     lookup.assert_not_called()
     legacy.assert_not_called()
     bot.create_post.assert_not_called()

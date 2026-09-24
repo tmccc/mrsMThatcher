@@ -327,7 +327,7 @@ def test_quote_lookup_repeated_saved_token_is_one_bounded_partial_warning(
     )
     caplog.set_level(logging.WARNING)
 
-    result = bot.get_quote_tweets_for_post("900", state)
+    result = bot._reply_assembly().get_quote_tweets_for_post("900", state)
 
     assert [item["id"] for item in result] == ["100"]
     assert requests == [repeated_token]
@@ -401,7 +401,7 @@ def test_quote_lookup_active_suppression_refetches_head_without_warning_or_write
     monkeypatch.setattr(bot, "log_event", lambda name, **_fields: events.append(name))
     caplog.set_level(logging.WARNING)
 
-    result = bot.get_quote_tweets_for_post("900", state)
+    result = bot._reply_assembly().get_quote_tweets_for_post("900", state)
 
     assert requests == [None]
     assert [item["id"] for item in result] == ["101"]
@@ -452,7 +452,7 @@ def test_quote_lookup_matching_saved_cursor_is_removed_before_fresh_head(
         ),
     )
 
-    result = bot.get_quote_tweets_for_post("900", state)
+    result = bot._reply_assembly().get_quote_tweets_for_post("900", state)
 
     assert requests == [None]
     assert [item["id"] for item in result] == ["101"]
@@ -502,7 +502,7 @@ def test_quote_lookup_saved_repeated_cursor_is_durably_cleared_across_reload(
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
     bot.save_state(state, durable=True)
 
-    result = bot.get_quote_tweets_for_post("900", state)
+    result = bot._reply_assembly().get_quote_tweets_for_post("900", state)
 
     assert [item["id"] for item in result] == expected_ids
     assert requests == expected_requests
@@ -552,7 +552,7 @@ def test_quote_lookup_invalid_saved_cursor_then_repeated_head_token_saves_backof
     )
     caplog.set_level(logging.WARNING)
 
-    result = bot.get_quote_tweets_for_post("900", state)
+    result = bot._reply_assembly().get_quote_tweets_for_post("900", state)
 
     assert requests == ["A", None]
     assert [item["id"] for item in result] == ["101"]
@@ -589,7 +589,7 @@ def test_quote_lookup_repeated_token_after_several_pages_preserves_all_results(
         lambda name, **fields: events.append((name, fields)),
     )
 
-    result = bot.get_quote_tweets_for_post("900")
+    result = bot._reply_assembly().get_quote_tweets_for_post("900")
 
     assert [item["id"] for item in result] == ["101", "102", "103"]
     assert requests == [None, "A", "B"]
@@ -628,7 +628,7 @@ def test_quote_lookup_normal_or_missing_next_token_finishes_without_warning(
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
     monkeypatch.setattr(bot, "log_event", lambda name, **_fields: events.append(name))
 
-    result = bot.get_quote_tweets_for_post("900")
+    result = bot._reply_assembly().get_quote_tweets_for_post("900")
 
     assert [item["id"] for item in result] == ["100"] + (
         ["101"] if len(responses) == 2 else []
@@ -673,7 +673,7 @@ def test_quote_lookup_different_cursor_clears_stale_suppression_and_continues(
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
     caplog.set_level(logging.INFO)
 
-    result = bot.get_quote_tweets_for_post("900", state)
+    result = bot._reply_assembly().get_quote_tweets_for_post("900", state)
 
     assert requests == [None, changed_token]
     assert [item["id"] for item in result] == ["101", "102"]
@@ -730,7 +730,7 @@ def test_quote_lookup_expiry_probes_once_and_repeat_renews_suppression(
     )
     caplog.set_level(logging.WARNING)
 
-    result = bot.get_quote_tweets_for_post("900", state)
+    result = bot._reply_assembly().get_quote_tweets_for_post("900", state)
 
     assert requests == [None, repeated_token]
     assert requests.count(repeated_token) == 1
@@ -790,7 +790,7 @@ def test_quote_lookup_expired_probe_progress_clears_and_follows_new_cursor(
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
     caplog.set_level(logging.INFO)
 
-    result = bot.get_quote_tweets_for_post("900", state)
+    result = bot._reply_assembly().get_quote_tweets_for_post("900", state)
 
     assert requests == [None, repeated_token, changed_token]
     assert requests.count(repeated_token) == 1
@@ -822,7 +822,7 @@ def test_quote_cursor_suppression_survives_state_save_and_reload(
     monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
 
-    bot.get_quote_tweets_for_post("900", state)
+    bot._reply_assembly().get_quote_tweets_for_post("900", state)
     loaded = bot.load_state()
 
     expected = repeated_quote_cursor_suppression(
@@ -896,7 +896,7 @@ def test_quote_lookup_valid_saved_continuation_still_resumes(
 
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
 
-    result = bot.get_quote_tweets_for_post("900", state)
+    result = bot._reply_assembly().get_quote_tweets_for_post("900", state)
 
     assert requests == [saved_token]
     assert [item["id"] for item in result] == ["101"]
@@ -954,7 +954,7 @@ def test_quote_cursor_backoff_mocked_multi_cycle_request_reduction(
     discovered_by_cycle: list[list[str]] = []
     for cycle_number in range(1, 6):
         cycle["number"] = cycle_number
-        result = bot.get_quote_tweets_for_post("900", state)
+        result = bot._reply_assembly().get_quote_tweets_for_post("900", state)
         discovered_by_cycle.append([item["id"] for item in result])
         clock["now"] += 3600
 
@@ -963,7 +963,7 @@ def test_quote_cursor_backoff_mocked_multi_cycle_request_reduction(
     ]["900"]["retry_after_epoch"]
     clock["now"] = retry_after_epoch
     cycle["number"] = 6
-    recovered = bot.get_quote_tweets_for_post("900", state)
+    recovered = bot._reply_assembly().get_quote_tweets_for_post("900", state)
 
     assert [len(requests) for requests in per_cycle_requests] == [2, 1, 1, 1, 1, 3]
     assert sum(map(len, per_cycle_requests)) == 9
@@ -1053,11 +1053,7 @@ def test_quote_search_processes_new_quote_despite_legacy_cursor_suppression(
         "is_probably_spam_or_not_worth_replying",
         lambda _text: False,
     )
-    monkeypatch.setattr(
-        bot,
-        "reply_media_context_for_candidate",
-        lambda *_args, **_kwargs: {},
-    )
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", lambda *_args, **_kwargs: {})
     patch_reply_owner_method(
         monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(no_reply),
@@ -1102,7 +1098,7 @@ def test_mentions_invalid_saved_cursor_clears_state_and_preserves_since_id(
         ),
     )
 
-    assert bot.get_mentions(state) == []
+    assert bot._reply_assembly()._mention_discovery_callback()(state) == []
 
     assert requests[0]["pagination_token"] == "expired-token"
     assert requests[0]["since_id"] == "99"
@@ -1143,7 +1139,7 @@ def test_mentions_invalid_cursor_stays_cleared_and_defers_head_retry(
         ),
     )
 
-    assert bot.get_mentions(state) == []
+    assert bot._reply_assembly()._mention_discovery_callback()(state) == []
 
     assert requests[0]["pagination_token"] == "expired-token"
     assert len(requests) == 1
@@ -1184,7 +1180,7 @@ def test_hot_post_invalid_saved_cursor_clears_state_and_preserves_query(
         ),
     )
 
-    assert bot.get_hot_post_reply_candidates(state) == []
+    assert bot._reply_assembly()._hot_post_discovery_callback()(state) == []
 
     assert requests[0]["pagination_token"] == "expired-token"
     assert requests[0]["since_id"] == "250"
@@ -1221,7 +1217,7 @@ def test_quote_lookup_invalid_saved_cursor_clears_state_and_retries_from_head(
         ),
     )
 
-    assert bot.get_quote_tweets_for_post("900", state) == []
+    assert bot._reply_assembly().get_quote_tweets_for_post("900", state) == []
 
     assert requests[0]["pagination_token"] == "expired-token"
     assert "pagination_token" not in requests[1]

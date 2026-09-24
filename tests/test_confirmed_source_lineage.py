@@ -321,12 +321,12 @@ def test_conversational_confirmed_receipt_cannot_retire_different_source(
         post_id="950002",
     )
     replacement = _conversational_sending(author_id="43")
-    confirmed = bot._confirmed_reply_receipt_from_sending(
+    confirmed = bot._reply_assembly()._reply_receipt_values_owner().confirmed_from_sending(
         replacement,
         reply_post_id="950002",
         confirmation_epoch=1_800_000_010,
     )
-    assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed)
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(confirmed)
     _write_exact(path, bot.canonical_atomic_json_bytes(confirmed))
     from mrs_bot_state_generation import record_receipt_commit
     state = bot.default_state()
@@ -522,7 +522,7 @@ def test_conversational_reconciliation_rejects_wrong_source_before_state_mutatio
         validator_id=journal.LANE_SOURCE_VALIDATOR_ID,
     )
     replacement = _conversational_sending(author_id="43")
-    confirmed = bot._confirmed_reply_receipt_from_sending(
+    confirmed = bot._reply_assembly()._reply_receipt_values_owner().confirmed_from_sending(
         replacement,
         reply_post_id="950102",
         confirmation_epoch=1_800_000_010,

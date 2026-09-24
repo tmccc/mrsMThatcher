@@ -117,7 +117,7 @@ def test_capture_identity_survives_draft_receipt_and_reconciliation_round_trips(
         bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY,
     )
     state = bot.default_state()
-    first_owner = bot._reply_draft_owner()
+    first_owner = bot._reply_assembly()._reply_draft_owner()
     assert first_owner.store(
         state, "100", "mention", result.reply, context=context,
     )
@@ -128,7 +128,7 @@ def test_capture_identity_survives_draft_receipt_and_reconciliation_round_trips(
         "log_event",
         lambda name, **fields: recovery_events.append((name, fields)),
     )
-    recovered = bot._reply_draft_owner().recover(
+    recovered = bot._reply_assembly()._reply_draft_owner().recover(
         round_tripped, "100", "mention", context=context,
     )
 
@@ -159,14 +159,14 @@ def test_capture_identity_survives_draft_receipt_and_reconciliation_round_trips(
     receipt["reply_context"] = copy.deepcopy(context)
     receipt["ai_reply_draft"] = copy.deepcopy(recovered.reply.draft_record)
     receipt = json.loads(json.dumps(receipt))
-    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt)
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(receipt)
     reconciliation_events: list[tuple[str, dict[str, object]]] = []
     monkeypatch.setattr(
         bot,
         "log_event",
         lambda name, **fields: reconciliation_events.append((name, fields)),
     )
-    bot.apply_confirmed_reply_receipt(bot.default_state(), receipt)
+    bot._reply_assembly()._confirmed_reply_state_applier()(bot.default_state(), receipt)
     confirmed = next(
         fields for name, fields in reconciliation_events
         if name == "single_call_reply_posting_outcome"
@@ -266,7 +266,7 @@ def test_duplicate_recovery_retains_historical_capture_across_digest_window(
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 2_000_000_000)
     state = bot.default_state()
-    assert bot._reply_draft_owner().store(
+    assert bot._reply_assembly()._reply_draft_owner().store(
         state, "100", "mention", generated.reply, context=context,
     )
     stored = state["pending_ai_reply_drafts"]["mention:100"]
@@ -285,7 +285,7 @@ def test_duplicate_recovery_retains_historical_capture_across_digest_window(
         "log_event",
         lambda name, **fields: decision_events.append((name, fields)),
     )
-    recovery_owner = bot._reply_draft_owner()
+    recovery_owner = bot._reply_assembly()._reply_draft_owner()
     recovered = recovery_owner.recover(
         round_tripped,
         "100",
@@ -408,7 +408,7 @@ def test_tampered_draft_call_id_is_not_trusted_as_failure_correlation(
         bot, "log_event", lambda name, **fields: events.append((name, fields)),
     )
 
-    recovered = bot._reply_draft_owner().recover(
+    recovered = bot._reply_assembly()._reply_draft_owner().recover(
         state,
         "100",
         "mention",
@@ -436,10 +436,10 @@ def test_legacy_pending_draft_recovers_without_inventing_capture_identity(
     monkeypatch.setattr(
         bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY,
     )
-    assert bot._reply_draft_owner().store(
+    assert bot._reply_assembly()._reply_draft_owner().store(
         state, "100", "mention", reply, context=context,
     )
-    recovered = bot._reply_draft_owner().recover(
+    recovered = bot._reply_assembly()._reply_draft_owner().recover(
         json.loads(json.dumps(state)), "100", "mention", context=context,
     )
 
@@ -458,10 +458,12 @@ def test_pending_ai_reply_survives_state_round_trip_and_is_reused(
     state = bot.default_state()
     context = unit_reply_context(target_id="100", contribution="A stable contribution.")
     reply = unit_approved_reply(context, text="The first draft remains the first draft.")
-    assert bot.store_pending_ai_reply(state, "100", "mention", reply, context=context) is True
+    assert bot._reply_assembly()._reply_draft_owner().store(state, "100", "mention", reply, context=context) is True
     bot.save_state(state, durable=True)
     loaded = bot.load_state()
-    reused = bot.pending_ai_reply(loaded, "100", "mention", context=context)
+    recovered = bot._reply_assembly()._reply_draft_owner().recover(loaded, "100", "mention", context=context)
+    assert recovered.status == "reply"
+    reused = recovered.reply
     assert reused == reply
     assert isinstance(reused, ValidatedReply)
     assert reused.draft_record == reply.draft_record
@@ -520,13 +522,15 @@ def test_real_factual_passage_whitespace_survives_pending_draft_round_trip(
     reply = result.reply
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: repository)
     state = bot.default_state()
-    assert bot.store_pending_ai_reply(state, "100", "mention", reply, context=context)
+    assert bot._reply_assembly()._reply_draft_owner().store(state, "100", "mention", reply, context=context)
     assert pipeline.validate_persisted_draft(
         reply.draft_record, context=context, repository=repository,
     ) == reply.draft_record
     bot.save_state(state, durable=True)
     loaded = bot.load_state()
-    reused = bot.pending_ai_reply(loaded, "100", "mention", context=context)
+    recovered = bot._reply_assembly()._reply_draft_owner().recover(loaded, "100", "mention", context=context)
+    assert recovered.status == "reply"
+    reused = recovered.reply
     assert isinstance(reused, ValidatedReply)
     assert reused == canonical_passage
     assert reused.draft_record == reply.draft_record
@@ -551,8 +555,9 @@ def test_real_factual_passage_whitespace_survives_pending_draft_round_trip(
             reply.draft_record, context=context, repository=changed_repository,
         )
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: changed_repository)
-    assert bot.pending_ai_reply(loaded, "100", "mention", context=context) is None
-    assert not bot.store_pending_ai_reply(
+    rejected = bot._reply_assembly()._reply_draft_owner().recover(loaded, "100", "mention", context=context)
+    assert rejected is None or rejected.reply is None
+    assert not bot._reply_assembly()._reply_draft_owner().store(
         bot.default_state(), "100", "mention", reply, context=context,
     )
     assert transport.call_count == 1
@@ -562,14 +567,14 @@ def test_confirmed_reply_reconciliation_clears_pending_ai_draft() -> None:
     state = bot.default_state()
     context = unit_reply_context(target_id="100")
     reply = unit_approved_reply(context, text="A stable draft.")
-    assert bot.store_pending_ai_reply(state, "100", "mention", reply, context=context) is True
+    assert bot._reply_assembly()._reply_draft_owner().store(state, "100", "mention", reply, context=context) is True
     receipt = unit_confirmed_reply_receipt(
         target_id="100",
         reply_post_id="900000",
         text="A stable draft.",
     )
-    bot.apply_confirmed_reply_receipt(state, receipt)
-    assert bot.pending_ai_reply(state, "100", "mention", context=context) is None
+    bot._reply_assembly()._confirmed_reply_state_applier()(state, receipt)
+    assert bot._reply_assembly()._reply_draft_owner().recover(state, "100", "mention", context=context) is None
 
 
 def test_nonempty_v1_pending_reply_draft_is_rejected(
@@ -599,9 +604,10 @@ def test_pending_ai_reply_rejects_changed_incoming_context() -> None:
     original = unit_reply_context(target_id="100", contribution="A first contribution.")
     changed = unit_reply_context(target_id="100", contribution="A materially different contribution.")
     reply = unit_approved_reply(original, text="Responsibility matters.", mode="opinion_or_principle")
-    assert bot.store_pending_ai_reply(state, "100", "mention", reply, context=original) is True
+    assert bot._reply_assembly()._reply_draft_owner().store(state, "100", "mention", reply, context=original) is True
 
-    assert bot.pending_ai_reply(state, "100", "mention", context=changed) is None
+    rejected = bot._reply_assembly()._reply_draft_owner().recover(state, "100", "mention", context=changed)
+    assert rejected is None or rejected.reply is None
 
 
 def test_safe_pending_opinion_reply_reuses_the_persisted_context() -> None:
@@ -610,9 +616,10 @@ def test_safe_pending_opinion_reply_reuses_the_persisted_context() -> None:
     text = "Responsibility matters more than rhetoric."
     context = unit_reply_context(target_id="100", contribution=incoming)
     reply = unit_approved_reply(context, text=text, mode="opinion_or_principle")
-    assert bot.store_pending_ai_reply(state, "100", "mention", reply, context=context) is True
+    assert bot._reply_assembly()._reply_draft_owner().store(state, "100", "mention", reply, context=context) is True
 
-    assert bot.pending_ai_reply(state, "100", "mention", context=context) == reply
+    recovered = bot._reply_assembly()._reply_draft_owner().recover(state, "100", "mention", context=context)
+    assert recovered.status == "reply" and recovered.reply == reply
 
 
 def test_pending_ai_reply_is_retired_if_confirmed_replies_now_duplicate_it() -> None:
@@ -621,25 +628,20 @@ def test_pending_ai_reply_is_retired_if_confirmed_replies_now_duplicate_it() -> 
     text = "Responsibility matters more than rhetoric."
     context = unit_reply_context(target_id="100", contribution=incoming)
     reply = unit_approved_reply(context, text=text, mode="opinion_or_principle")
-    assert bot.store_pending_ai_reply(state, "100", "mention", reply, context=context) is True
+    assert bot._reply_assembly()._reply_draft_owner().store(state, "100", "mention", reply, context=context) is True
 
-    outcome: dict[str, object] = {}
-    reused = bot.pending_ai_reply(
+    recovered = bot._reply_assembly()._reply_draft_owner().recover(
         state,
         "100",
         "mention",
         context=context,
         recent_replies=[text],
-        evaluation_outcome=outcome,
     )
-    assert reused is None
+    assert recovered.reply is None
     assert state.get("pending_ai_reply_drafts") is None
-    assert outcome == {
-        "status": "operational_failure",
-        "reason": "persisted_draft_local_validation_failed",
-        "error_category": "local_validation",
-        "model_call_count": 0,
-    }
+    assert (recovered.status, recovered.reason, recovered.error_category, recovered.model_call_count) == (
+        "operational_failure", "persisted_draft_local_validation_failed", "local_validation", 0,
+    )
 
 
 @pytest.mark.parametrize("lane", ["mention", "hot_post_reply", "quote_tweet"])
@@ -662,7 +664,7 @@ def test_fresh_draft_checks_current_history_without_changing_model_context(
     }]
     monkeypatch.setattr(bot, "now_epoch", lambda: current)
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
-    same_author, recent = bot._reply_history_owner().for_evaluation(
+    same_author, recent = bot._reply_assembly()._reply_history_owner().for_evaluation(
         state, context=context, target_id="102",
     )
     assert same_author == [] and recent == []
@@ -681,7 +683,7 @@ def test_fresh_draft_checks_current_history_without_changing_model_context(
     assert result.reply == text
     before = copy.deepcopy(state)
 
-    assert not bot.store_pending_ai_reply(
+    assert not bot._reply_assembly()._reply_draft_owner().store(
         state, "102", lane, result.reply, context=context,
     )
 
@@ -729,7 +731,7 @@ def test_duplicate_pending_draft_is_retired_and_later_mention_proceeds(
         text=text,
         mode="opinion_or_principle",
     )
-    assert bot.store_pending_ai_reply(
+    assert bot._reply_assembly()._reply_draft_owner().store(
         state,
         "101",
         "mention",
@@ -797,11 +799,7 @@ def test_duplicate_pending_draft_is_retired_and_later_mention_proceeds(
         monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda candidate, _state: PreparedReplyContext(candidate_context(candidate), {}),
     )
-    monkeypatch.setattr(
-        bot,
-        "reply_media_context_for_candidate",
-        lambda *_args, **_kwargs: {},
-    )
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
         bot,
         "reply_evidence_repository",
@@ -882,7 +880,7 @@ def test_recovery_duplicate_comparisons_include_same_author_beyond_latest_30(
         target_author_id="201",
     )
 
-    comparisons = bot.recovery_comparison_account_replies(
+    comparisons = bot._reply_assembly()._reply_history_owner().recovery_replies(
         state,
         context=context,
     )
@@ -926,7 +924,8 @@ def test_pending_reply_created_under_an_older_strategy_version_is_not_reused() -
     record["strategy_version"] = "ai-first-reply-v1"
     state["pending_ai_reply_drafts"] = {"mention:100": record}
 
-    assert bot.pending_ai_reply(state, "100", "mention", context=context) is None
+    rejected = bot._reply_assembly()._reply_draft_owner().recover(state, "100", "mention", context=context)
+    assert rejected is None or rejected.reply is None
 
 
 def test_pending_factual_reply_is_not_reused_when_evidence_disappears(
@@ -940,12 +939,13 @@ def test_pending_factual_reply_is_not_reused_when_evidence_disappears(
         mode="direct_factual_answer",
         factual=True,
     )
-    assert bot.store_pending_ai_reply(state, "100", "mention", reply, context=context) is True
+    assert bot._reply_assembly()._reply_draft_owner().store(state, "100", "mention", reply, context=context) is True
     missing_repository = UnitReplyEvidenceRepository()
     missing_repository.passages = {}
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: missing_repository)
 
-    assert bot.pending_ai_reply(state, "100", "mention", context=context) is None
+    rejected = bot._reply_assembly()._reply_draft_owner().recover(state, "100", "mention", context=context)
+    assert rejected is None or rejected.reply is None
 
 
 def test_pending_factual_reply_fails_closed_when_local_corpus_validation_fails(
@@ -959,14 +959,15 @@ def test_pending_factual_reply_fails_closed_when_local_corpus_validation_fails(
         mode="direct_factual_answer",
         factual=True,
     )
-    assert bot.store_pending_ai_reply(state, "100", "mention", reply, context=context) is True
+    assert bot._reply_assembly()._reply_draft_owner().store(state, "100", "mention", reply, context=context) is True
     monkeypatch.setattr(
         bot,
         "reply_evidence_repository",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("invalid local corpus")),
     )
 
-    assert bot.pending_ai_reply(state, "100", "mention", context=context) is None
+    rejected = bot._reply_assembly()._reply_draft_owner().recover(state, "100", "mention", context=context)
+    assert rejected is None or rejected.reply is None
 
 
 def test_pending_reply_is_preserved_when_evidence_repository_is_temporarily_unavailable(
@@ -979,7 +980,7 @@ def test_pending_reply_is_preserved_when_evidence_repository_is_temporarily_unav
         text="Responsibility matters more than rhetoric.",
         mode="opinion_or_principle",
     )
-    assert bot.store_pending_ai_reply(state, "100", "mention", reply, context=context)
+    assert bot._reply_assembly()._reply_draft_owner().store(state, "100", "mention", reply, context=context)
     saved = copy.deepcopy(state["pending_ai_reply_drafts"]["mention:100"])
     monkeypatch.setattr(
         bot,
@@ -988,7 +989,7 @@ def test_pending_reply_is_preserved_when_evidence_repository_is_temporarily_unav
     )
 
     with pytest.raises(bot.ReplyEvidenceUnavailable, match="corpus unavailable"):
-        bot.pending_ai_reply(state, "100", "mention", context=context)
+        bot._reply_assembly()._reply_draft_owner().recover(state, "100", "mention", context=context)
 
     assert state["pending_ai_reply_drafts"]["mention:100"] == saved
 
@@ -1002,9 +1003,11 @@ def test_pending_factual_reply_is_reused_after_source_hash_revalidation() -> Non
         mode="direct_factual_answer",
         factual=True,
     )
-    assert bot.store_pending_ai_reply(state, "100", "mention", reply, context=context) is True
+    assert bot._reply_assembly()._reply_draft_owner().store(state, "100", "mention", reply, context=context) is True
 
-    reused = bot.pending_ai_reply(state, "100", "mention", context=context)
+    recovered = bot._reply_assembly()._reply_draft_owner().recover(state, "100", "mention", context=context)
+    assert recovered.status == "reply"
+    reused = recovered.reply
 
     assert reused == reply
     assert reused.draft_record["used_fact_sources"] == reply.draft_record["used_fact_sources"]
@@ -1015,7 +1018,7 @@ def test_pending_ai_reply_drafts_are_bounded() -> None:
     for target in range(101, 202):
         context = unit_reply_context(target_id=str(target))
         reply = unit_approved_reply(context, text="Stable draft.")
-        assert bot.store_pending_ai_reply(state, str(target), "mention", reply, context=context)
+        assert bot._reply_assembly()._reply_draft_owner().store(state, str(target), "mention", reply, context=context)
     assert len(state["pending_ai_reply_drafts"]) == 100
     assert "mention:101" not in state["pending_ai_reply_drafts"]
     assert "mention:201" in state["pending_ai_reply_drafts"]

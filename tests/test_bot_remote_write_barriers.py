@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, call
 
 import pytest
+import mrs_bot_reply_assembly as assembly
 
 import mrsMThatcher2 as bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
@@ -120,7 +121,7 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
             for dep, value in current.items():
                 if name == "block_if_ambiguous_remote_post" and dep == "load_confirmed_reply_receipt":
                     patch.setattr(
-                        bot,
+                        assembly.ReplyAssembly,
                         "_reply_receipts_owner",
                         Mock(return_value=SimpleNamespace(load=value)),
                     )
@@ -500,7 +501,7 @@ def _open_preflight(monkeypatch):
         probes[name] = probe
         monkeypatch.setattr(bot, name, probe)
     monkeypatch.setattr(
-        bot,
+        assembly.ReplyAssembly,
         "_reply_receipts_owner",
         Mock(return_value=SimpleNamespace(load=probes["load_confirmed_reply_receipt"])),
     )

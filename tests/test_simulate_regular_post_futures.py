@@ -147,7 +147,6 @@ def test_hard_guards_block_post_upload_reply_lock_and_network(tmp_path: Path) ->
     guarded_names = (
         "upload_media",
         "create_post",
-        "generate_single_call_reply", "evaluate_single_call_reply",
         "acquire_instance_lock",
         "post_random_quote",
         "post_next_meme",
@@ -155,7 +154,6 @@ def test_hard_guards_block_post_upload_reply_lock_and_network(tmp_path: Path) ->
         "maybe_reply_to_quote_tweets",
         "write_regular_post_receipt",
         "write_meme_post_receipt",
-        "write_confirmed_reply_receipt",
         "remove_regular_post_receipt",
         "remove_meme_post_receipt",
         "remove_confirmed_reply_receipt",
@@ -170,7 +168,7 @@ def test_hard_guards_block_post_upload_reply_lock_and_network(tmp_path: Path) ->
     try:
         sim.install_hard_guards(bot, writer)
         for name in (
-            "upload_media", "create_post", "generate_single_call_reply", "evaluate_single_call_reply", "acquire_instance_lock",
+            "upload_media", "create_post", "acquire_instance_lock",
             "post_random_quote", "post_next_meme", "maybe_reply_to_mentions", "maybe_reply_to_quote_tweets",
         ):
             with pytest.raises(sim.SimulationSafetyError):

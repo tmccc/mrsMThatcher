@@ -12,6 +12,8 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
+import mrs_bot_reply_assembly as assembly
+
 import pytest
 
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
@@ -84,7 +86,7 @@ def make_owner():
         current = {field: getattr(bot, name) for field, name in OWNER_INPUTS.items()}
         current["default_post_maximum_chars"] = bot._DEFAULT_REPLY_CONTEXT_POST_MAXIMUM_CHARS
         current["tweets"] = bot._tweet_lookup_cache_owner()
-        current["media"] = bot._reply_media_owner()
+        current["media"] = bot._reply_assembly()._reply_media_owner()
         return reply_context.ReplyContext(**{**current, **overrides})
     return build
 
@@ -105,8 +107,8 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
         tweets_factory = Mock(return_value=tweets)
         media_factory = Mock(return_value=media)
         monkeypatch.setattr(bot, "_tweet_lookup_cache_owner", tweets_factory)
-        monkeypatch.setattr(bot, "_reply_media_owner", media_factory)
-        owner = bot._reply_context_owner()
+        monkeypatch.setattr(assembly.ReplyAssembly, "_reply_media_owner", media_factory)
+        owner = bot._reply_assembly()._reply_context_owner()
         tweets_factory.assert_called_once_with()
         media_factory.assert_called_once_with()
         assert owner.tweets is tweets
@@ -150,7 +152,7 @@ def test_owner_keeps_assembled_post_maximum_after_config_rebind(monkeypatch):
     monkeypatch.setattr(reply_context, "trim_context_text", trim)
     monkeypatch.setattr(bot, "MAX_VISIBLE_TEXT_CHARACTERS", 7)
     monkeypatch.setattr(bot, "MY_USER_ID", "200")
-    owner = bot._reply_context_owner()
+    owner = bot._reply_assembly()._reply_context_owner()
     assert owner.maximum_visible_chars == 7
     assert owner.default_post_maximum_chars == fixed
 
@@ -332,7 +334,7 @@ def test_context_lookup_handoff_bounds_parent_reads_and_refreshes_quoted_media(m
     for name in ("get_tweet_by_id_cached", "prune_tweet_cache"):
         relays[name] = Mock(side_effect=AssertionError(f"root relay used: {name}"))
         monkeypatch.setattr(bot, name, relays[name])
-    owner = bot._reply_context_owner()
+    owner = bot._reply_assembly()._reply_context_owner()
     assert isinstance(owner.tweets, TweetLookupCache)
 
     chain = owner.parent_chain(target, state)
@@ -408,7 +410,7 @@ def test_context_keeps_usable_suffix_raw_ancestor_quote_and_media_copy_metadata_
     monkeypatch.setattr(reply_context, "copy", SimpleNamespace(deepcopy=trace.copy))
     monkeypatch.setattr(reply_context.ReplyContext, "parent_chain", parents)
     media_results = []
-    original_media = bot.reply_media_context_for_candidate
+    original_media = bot._reply_assembly()._reply_media_owner().context
 
     def prepare_media(*args, **kwargs):
         result = original_media(*args, **kwargs)

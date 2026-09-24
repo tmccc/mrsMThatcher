@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import inspect
 from pathlib import Path
 import subprocess
 import sys
@@ -50,95 +49,60 @@ assert 'requests' not in sys.modules
     assert discovery.normalise_tweet_text is bot.normalise_tweet_text
 
 
-def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
-    counts = {
-        "quote_repeated_cursor_suppression_record": 2,
-        "normalise_quote_repeated_cursor_suppressions": 3,
-        "get_quote_tweets_for_post": 12,
-        "get_quote_tweets_for_posts": 6,
-    }
-    for name, count in counts.items():
-        adapter = getattr(bot, name)
-        public = inspect.signature(adapter).parameters
-        dependencies = inspect.signature(getattr(discovery, name)).parameters.keys() - public.keys()
-        assert len(dependencies) == count
-        args = tuple(object() for p in public.values() if p.kind == p.POSITIONAL_OR_KEYWORD)
-        kwargs = {p.name: object() for p in public.values() if p.kind == p.KEYWORD_ONLY}
+def test_quote_discovery_assembly_binds_current_transport_without_running_it(monkeypatch):
+    one = Mock(return_value=[{"id": "1"}])
+    many = Mock(return_value={"900": []})
+    monkeypatch.setattr(discovery, "get_quote_tweets_for_post", one)
+    monkeypatch.setattr(discovery, "get_quote_tweets_for_posts", many)
+    state = {}
+    for index in range(2):
+        transport = Mock()
+        clock = Mock()
+        monkeypatch.setattr(bot, "x_paginated_get", transport)
+        monkeypatch.setattr(bot, "now_epoch", clock)
+        assembly_owner = bot._reply_assembly()
+        assert assembly_owner.get_quote_tweets_for_post("900", state) == [{"id": "1"}]
+        assert assembly_owner.get_quote_tweets_for_posts(["900"], state) == {"900": []}
+        assert one.call_args.args[0] == "900"
+        assert one.call_args.args[1] is state
+        assert one.call_args.kwargs["x_paginated_get"] is transport
+        assert one.call_args.kwargs["now_epoch"] is clock
+        assert many.call_args.args[0] == ["900"]
+        assert many.call_args.args[1] is state
+        assert many.call_args.kwargs["x_paginated_get"] is transport
+        transport.assert_not_called()
+        clock.assert_not_called()
+    failure = TypeError("discovery failed")
+    one.side_effect = failure
+    with pytest.raises(TypeError) as caught:
+        bot._reply_assembly().get_quote_tweets_for_post("900", state)
+    assert caught.value is failure
+
+
+
+def test_watch_assembly_binds_current_owners_without_reading_files_or_seeding(monkeypatch):
+    captured = []
+    for index in range(2):
+        path, clock = object(), Mock()
+        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", path)
+        monkeypatch.setattr(bot, "now_epoch", clock)
+        owner = bot._reply_assembly()._quote_watch_posts_owner()
+        captured.append(owner)
+        assert owner.watch_file is path
+        assert owner.tweets.now_epoch is clock
+        clock.assert_not_called()
+    assert captured[0] is not captured[1]
+    state = {}
+    for method in ("load_extra", "lookup", "recent"):
         result = object()
-        owner = Mock(return_value=result)
+        call_owner = Mock(return_value=result)
         with monkeypatch.context() as patch:
-            patch.setattr(discovery, name, owner)
-            for _ in range(2):
-                current = {key: object() for key in dependencies}
-                for key, value in current.items():
-                    patch.setattr(bot, key, value)
-                assert adapter(*args, **kwargs) is result
-                actual_args, actual_kwargs = owner.call_args
-                assert len(actual_args) == len(args)
-                assert all(actual is expected for actual, expected in zip(actual_args, args))
-                expected_kwargs = {**kwargs, **current}
-                assert actual_kwargs.keys() == expected_kwargs.keys()
-                assert all(actual_kwargs[key] is value for key, value in expected_kwargs.items())
-            failure = TypeError(name)
-            owner.side_effect = failure
-            with pytest.raises(TypeError) as caught:
-                adapter(*args, **kwargs)
-            assert caught.value is failure
+            patch.setattr(discovery.QuoteWatchPosts, method, call_owner)
+            owner = bot._reply_assembly()._quote_watch_posts_owner()
+            args = () if method == "load_extra" else (state,)
+            assert getattr(owner, method)(*args) is result
+            call_owner.assert_called_once_with(*args)
 
-    owner = Mock()
-    monkeypatch.setattr(discovery, "get_quote_tweets_for_post", owner)
-    bot.get_quote_tweets_for_post("900")
-    assert owner.call_args.args == ("900", None)
-    monkeypatch.setattr(discovery, "normalise_quote_repeated_cursor_suppressions", owner)
-    bot.normalise_quote_repeated_cursor_suppressions({})
-    assert owner.call_args.kwargs["current_epoch"] is None
-    monkeypatch.setattr(discovery, "quote_repeated_cursor_suppression_record", owner)
-    bot.quote_repeated_cursor_suppression_record("900", {}, current_epoch=100)
-    assert owner.call_args.kwargs["allow_expired"] is False
-
-
-def test_watch_adapters_bind_current_owners_without_reading_files_or_seeding(monkeypatch):
-    fields = {
-        "watch_file": "EXTRA_QUOTE_WATCH_FILE", "maximum_extra_posts": "MAX_EXTRA_QUOTE_WATCH_POSTS",
-        "maximum_posts": "MAX_QUOTE_POSTS_PER_CHECK", "lookback_posts": "QUOTE_POST_LOOKBACK_MAIN_POSTS",
-        "tweets": "_tweet_lookup_cache_owner", "log": "log",
-    }
-    for name, method in (
-        ("load_extra_quote_watch_post_ids", "load_extra"),
-        ("build_quote_lookup_post_ids", "lookup"),
-        ("get_recent_own_post_ids_for_quote_lookup", "recent"),
-    ):
-        adapter = getattr(bot, name)
-        parameters = inspect.signature(adapter).parameters
-        assert tuple(parameters) == (() if method == "load_extra" else ("state",))
-        args = tuple(object() for _ in parameters)
-        result, captured = object(), []
-        callback = Mock(return_value=result)
-
-        def observe(owner, *actual_args):
-            captured.append(owner)
-            return callback(*actual_args)
-
-        with monkeypatch.context() as patch:
-            patch.setattr(discovery.QuoteWatchPosts, method, observe)
-            for _ in range(2):
-                current = {field: Mock() for field in fields}
-                for field, root_name in fields.items():
-                    patch.setattr(
-                        bot, root_name,
-                        Mock(return_value=current[field]) if field == "tweets" else current[field],
-                    )
-                assert adapter(*args) is result
-                assert len(callback.call_args.args) == len(args)
-                assert all(actual is expected for actual, expected in zip(callback.call_args.args, args))
-                assert all(getattr(captured[-1], field) is value for field, value in current.items())
-                assert all(not value.mock_calls for value in current.values())
-            assert captured[0] is not captured[1]
-            failure = OSError("current watch selection failed")
-            callback.side_effect = failure
-            with pytest.raises(OSError) as caught:
-                adapter(*args)
-            assert caught.value is failure
 
 
 def test_watch_file_rereads_utf8_parsing_deduplication_and_post_append_cap(tmp_path, monkeypatch):
@@ -217,7 +181,7 @@ def test_lookup_seeds_before_watch_read_and_preserves_priority_references_and_lo
     monkeypatch.setattr(bot, "MAX_QUOTE_POSTS_PER_CHECK", 4)
     monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", path)
     monkeypatch.setattr(bot, "log", log)
-    assert bot.build_quote_lookup_post_ids(state) == ["902", "900", "903", "901"]
+    assert bot._reply_assembly()._quote_watch_posts_owner().lookup(state) == ["902", "900", "903", "901"]
     assert events == ["seed", "watch"]
     assert recent == ["900", " 901 ", "900", "", None]
     assert extras == [" 902 ", "900", "902"]
@@ -228,10 +192,10 @@ def test_lookup_seeds_before_watch_read_and_preserves_priority_references_and_lo
     ]
     obsolete_seed.assert_not_called()
     monkeypatch.setattr(bot, "MAX_QUOTE_POSTS_PER_CHECK", 0)
-    assert bot.build_quote_lookup_post_ids(state) == ["902"]
-    assert bot.get_recent_own_post_ids_for_quote_lookup(state) == ["903", "900", " 901 ", "", "None"]
+    assert bot._reply_assembly()._quote_watch_posts_owner().lookup(state) == ["902"]
+    assert bot._reply_assembly()._quote_watch_posts_owner().recent(state) == ["903", "900", " 901 ", "", "None"]
     monkeypatch.setattr(bot, "QUOTE_POST_LOOKBACK_MAIN_POSTS", -1)
-    assert bot.get_recent_own_post_ids_for_quote_lookup(state) == ["903", "900", " 901 ", ""]
+    assert bot._reply_assembly()._quote_watch_posts_owner().recent(state) == ["903", "900", " 901 ", ""]
 
 
 def test_suppression_expiration_max_epoch_exact_types_and_canonical_copy(monkeypatch):
@@ -328,7 +292,7 @@ def test_discovery_passes_paginator_contract_and_preserves_media_author_data_ide
     monkeypatch.setattr(bot, "log_json_debug", debug)
     monkeypatch.setattr(bot, "save_state", saves)
     monkeypatch.setattr(bot, "log", log)
-    assert bot.get_quote_tweets_for_post(900, state) is data
+    assert bot._reply_assembly().get_quote_tweets_for_post(900, state) is data
     assert events == ["paginate", "media", "debug"]
     assert data[1]["_author_user"] == data[2]["_author_user"] == {}
     assert data[1]["_author_user"] is not data[2]["_author_user"]
@@ -346,7 +310,7 @@ def test_discovery_state_none_and_native_result_errors_keep_callback_order(monke
     monkeypatch.setattr(discovery, "attach_media_to_tweets", attach)
     monkeypatch.setattr(bot, "save_state", saves)
     with pytest.raises(AttributeError):
-        bot.get_quote_tweets_for_post("900")
+        bot._reply_assembly().get_quote_tweets_for_post("900")
     attach.assert_called_once_with([], None)
     assert "pagination_token" not in paginate.call_args.args[2]
     paginate.call_args.kwargs["on_invalid_cursor"]()
@@ -354,12 +318,12 @@ def test_discovery_state_none_and_native_result_errors_keep_callback_order(monke
     failure = RuntimeError("media callback failed")
     attach.side_effect = failure
     with pytest.raises(RuntimeError) as caught:
-        bot.get_quote_tweets_for_post("900")
+        bot._reply_assembly().get_quote_tweets_for_post("900")
     assert caught.value is failure
     attach.reset_mock(side_effect=True)
     paginate.return_value = None
     with pytest.raises(AttributeError):
-        bot.get_quote_tweets_for_post("900")
+        bot._reply_assembly().get_quote_tweets_for_post("900")
     attach.assert_not_called()
 
 
@@ -377,7 +341,7 @@ def test_cleanup_save_failure_preserves_state_identity_and_precedes_request(monk
     monkeypatch.setattr(bot, "save_state", save)
     monkeypatch.setattr(bot, "x_paginated_get", request)
     with pytest.raises(OSError) as caught:
-        bot.get_quote_tweets_for_post("900", state)
+        bot._reply_assembly().get_quote_tweets_for_post("900", state)
     assert caught.value is failure
     request.assert_not_called()
 
@@ -406,7 +370,7 @@ def test_combined_search_matches_five_parents_and_keeps_expansions(monkeypatch):
     state = bot.default_state()
     state["quote_lookup_pagination_tokens"] = {parents[0]: "legacy-cursor"}
     state["quote_lookup_repeated_cursor_suppressions"] = {parents[0]: {"cursor_sha256": "old"}}
-    result = bot.get_quote_tweets_for_posts(parents, state)
+    result = bot._reply_assembly().get_quote_tweets_for_posts(parents, state)
     assert list(result) == parents
     assert result[parents[0]] == [first]
     assert result[parents[4]] == [second]
@@ -429,8 +393,8 @@ def test_combined_search_matches_five_parents_and_keeps_expansions(monkeypatch):
 def test_combined_search_empty_and_invalid_watch_ids_do_not_request(monkeypatch):
     request = Mock()
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
-    assert bot.get_quote_tweets_for_posts([]) == {}
-    assert bot.get_quote_tweets_for_posts(["x OR from:anyone", "²", "００３", "0", "9" * 40]) == {}
+    assert bot._reply_assembly().get_quote_tweets_for_posts([]) == {}
+    assert bot._reply_assembly().get_quote_tweets_for_posts(["x OR from:anyone", "²", "００３", "0", "9" * 40]) == {}
     request.assert_not_called()
 
 
@@ -438,7 +402,7 @@ def test_combined_search_batches_long_watch_lists_with_bounded_queries(monkeypat
     parents = [str(2097428574235992387 - i) for i in range(23)]
     request = Mock(return_value={"meta": {"result_count": 0}})
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
-    assert bot.get_quote_tweets_for_posts(parents + parents) == {parent: [] for parent in parents}
+    assert bot._reply_assembly().get_quote_tweets_for_posts(parents + parents) == {parent: [] for parent in parents}
     assert request.call_count == 3
     assert all(len(call.args[1]["query"]) <= 512 for call in request.call_args_list)
     queries = " ".join(call.args[1]["query"] for call in request.call_args_list)
@@ -454,16 +418,16 @@ def test_single_quote_search_continuation_survives_reload(monkeypatch):
     ])
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
     state = bot.default_state()
-    assert bot.get_quote_tweets_for_posts(["900"], state)["900"] == [first]
+    assert bot._reply_assembly().get_quote_tweets_for_posts(["900"], state)["900"] == [first]
     state = bot.load_state()
     query = "(quotes_of_tweet_id:900) -is:retweet"
     assert state["quote_search_pagination_tokens"] == {query: "A"}
-    assert bot.get_quote_tweets_for_posts(["900"], state)["900"] == [first]
+    assert bot._reply_assembly().get_quote_tweets_for_posts(["900"], state)["900"] == [first]
     assert request.call_count == 1
-    bot.mark_quote_tweet_skipped(state, "910")
+    bot._reply_state.mark_quote_tweet_skipped(state, "910")
     bot.save_state(state, durable=True)
     state = bot.load_state()
-    assert bot.get_quote_tweets_for_posts(["900"], state)["900"] == [second]
+    assert bot._reply_assembly().get_quote_tweets_for_posts(["900"], state)["900"] == [second]
     assert [call.args[1].get("pagination_token") for call in request.call_args_list] == [None, "A"]
     assert bot.load_state()["quote_search_pagination_tokens"] == {}
 
@@ -487,7 +451,7 @@ def test_search_commits_enriched_candidates_before_continuation(monkeypatch):
 
     monkeypatch.setattr(bot, "save_state", observe)
     state = bot.default_state()
-    result = bot.get_quote_tweets_for_posts(["900"], state)
+    result = bot._reply_assembly().get_quote_tweets_for_posts(["900"], state)
     assert result["900"][0] is quote
     assert state["quote_pending_candidates"]["912"] is quote
     assert len(saved) == 2
@@ -518,13 +482,13 @@ def test_search_save_failure_cannot_advance_past_unqueued_candidates(monkeypatch
 
     monkeypatch.setattr(bot, "save_state", fail_once)
     with pytest.raises(OSError, match="injected save failure"):
-        bot.get_quote_tweets_for_posts(["900"], state)
+        bot._reply_assembly().get_quote_tweets_for_posts(["900"], state)
     durable = bot.load_state()
     assert durable["quote_search_pagination_tokens"] == {}
     assert bool(durable["quote_pending_candidates"]) == (failed_save == 2)
     # A failed first save leaves pending work in memory. A later call must
     # make that queue durable before exposing it, without fetching another page.
-    assert bot.get_quote_tweets_for_posts([], state) == {"900": [quote]}
+    assert bot._reply_assembly().get_quote_tweets_for_posts([], state) == {"900": [quote]}
     assert request.call_count == 1
     assert bot.load_state()["quote_pending_candidates"] == {"912": quote}
 
@@ -534,10 +498,10 @@ def test_last_search_page_is_durable_even_without_cursor_change(monkeypatch):
     request = Mock(return_value={"data": [quote]})
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
     state = bot.default_state()
-    bot.get_quote_tweets_for_posts(["900"], state)
+    bot._reply_assembly().get_quote_tweets_for_posts(["900"], state)
     state = bot.load_state()
     assert state["quote_search_pagination_tokens"] == {}
-    assert bot.get_quote_tweets_for_posts(["901"], state) == {"900": [quote]}
+    assert bot._reply_assembly().get_quote_tweets_for_posts(["901"], state) == {"900": [quote]}
     assert request.call_count == 1
 
 
@@ -549,7 +513,7 @@ def test_invalid_pending_quotes_block_discovery_without_discarding_queue(monkeyp
     request = Mock()
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
     with pytest.raises(ValueError):
-        bot.get_quote_tweets_for_posts(["900"], state)
+        bot._reply_assembly().get_quote_tweets_for_posts(["900"], state)
     assert state["quote_pending_candidates"] is pending
     request.assert_not_called()
 
@@ -561,7 +525,7 @@ def test_combined_search_changed_watch_set_discards_previous_continuation(monkey
     monkeypatch.setattr(bot, "save_state", lambda state, **kw: saved.append(copy.deepcopy(state)))
     request = Mock(return_value={"meta": {"result_count": 0}})
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
-    assert bot.get_quote_tweets_for_posts(["901"], state) == {"901": []}
+    assert bot._reply_assembly().get_quote_tweets_for_posts(["901"], state) == {"901": []}
     assert "pagination_token" not in request.call_args.args[1]
     assert saved[0]["quote_search_pagination_tokens"] == {}
 
@@ -573,7 +537,7 @@ def test_combined_search_invalid_saved_cursor_recovers_once(monkeypatch):
     quote = _search_quote("910", "900")
     request = Mock(side_effect=[bot.ApiError('Invalid pagination_token', service="x", status_code=400), {"data": [quote]}])
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
-    assert bot.get_quote_tweets_for_posts(["900"], state) == {"900": [quote]}
+    assert bot._reply_assembly().get_quote_tweets_for_posts(["900"], state) == {"900": [quote]}
     assert [call.args[1].get("pagination_token") for call in request.call_args_list] == ["expired", None]
     assert bot.load_state()["quote_search_pagination_tokens"] == {}
 
@@ -583,7 +547,7 @@ def test_combined_search_repeated_cursor_retains_unique_partial_quotes(monkeypat
     request = Mock(return_value={"data": [quote], "meta": {"next_token": "A"}})
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
     state = bot.default_state()
-    assert bot.get_quote_tweets_for_posts(["900"], state) == {"900": [quote]}
+    assert bot._reply_assembly().get_quote_tweets_for_posts(["900"], state) == {"900": [quote]}
     assert request.call_count == 2
     assert state["quote_search_pagination_tokens"] == {}
 
@@ -595,7 +559,7 @@ def test_combined_search_incomplete_page_raises_without_advancing_saved_cursor(m
     request = Mock(return_value={"errors": [{"detail": "unavailable"}], "meta": {"next_token": "B"}})
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
     with pytest.raises(bot.ApiError):
-        bot.get_quote_tweets_for_posts(["900"], state)
+        bot._reply_assembly().get_quote_tweets_for_posts(["900"], state)
     assert state["quote_search_pagination_tokens"] == {query: "A"}
 
 
@@ -611,7 +575,7 @@ def test_combined_search_later_batch_failure_does_not_advance_undelivered_result
     save = Mock()
     monkeypatch.setattr(bot, "save_state", save)
     with pytest.raises(bot.ApiError):
-        bot.get_quote_tweets_for_posts(parents, state)
+        bot._reply_assembly().get_quote_tweets_for_posts(parents, state)
     assert state["quote_search_pagination_tokens"] == {}
     save.assert_not_called()
 
@@ -623,7 +587,7 @@ def test_split_quote_search_resumes_without_another_combined_head(monkeypatch):
     quote = _search_quote("910", "900")
     request = Mock(side_effect=[{"data": [quote]}, {"meta": {"result_count": 0}}])
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
-    assert bot.get_quote_tweets_for_posts(["901", "900"], state) == {"901": [], "900": [quote]}
+    assert bot._reply_assembly().get_quote_tweets_for_posts(["901", "900"], state) == {"901": [], "900": [quote]}
     assert [call.args[1]["query"] for call in request.call_args_list] == ["(quotes_of_tweet_id:900) -is:retweet", query]
     assert [call.args[1].get("pagination_token") for call in request.call_args_list] == [None, "A"]
     assert bot.load_state()["quote_search_pagination_tokens"] == {}

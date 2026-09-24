@@ -3,12 +3,13 @@ from __future__ import annotations
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
 
 import copy
-import inspect
 import json
 from pathlib import Path
 import subprocess
 import sys
 from unittest.mock import Mock, call
+
+import mrs_bot_reply_assembly as assembly
 
 import pytest
 
@@ -82,123 +83,26 @@ assert 'single_call_reply' not in sys.modules
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monkeypatch):
-    adapter = bot.maybe_reply_to_mentions
-    public = inspect.signature(adapter).parameters
-    parameters = inspect.signature(cycle.maybe_reply_to_mentions).parameters
-    assert tuple(public) == ("state", "_fresh_mention_ai_evaluations", "_skip_hot_post_fetch")
-    assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
-    assert public["_fresh_mention_ai_evaluations"].default == 0
-    assert public["_skip_hot_post_fetch"].default is False
-    assert len(parameters) == 38
-    assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 37
-    removed = {
-        name for name in vars(interfaces) if name.startswith("NORMAL_CHECK_STATUS_")
-    } | {
-        "AmbiguousRemotePostOutcome", "ConfirmedReplyLocalPersistenceError",
-        "ProvedRemotePostNonSuccess", "UnrecoverableConfirmedReplyPersistenceError",
-        "api_error_is_reply_not_allowed",
-        "_is_terminal_candidate_local_failure",
-        "pending_ai_reply_draft_key", "completed_mention_watermark_covers_target",
-        "mention_pagination_provenance_is_valid",
-        "terminal_reply_evaluation", "trim_context_text", "append_unique_durable",
-        "pending_mention_candidates", "mark_mention_seen_if_applicable",
-        "AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY",
-        "active_author_evaluation_quarantine", "clarification_reply_context",
-        "clarification_thread_is_terminal", "clear_author_evaluation_quarantine_history",
-        "daily_author_reply_count", "daily_author_reply_counts",
-        "prune_author_evaluation_quarantines", "prune_completed_mention_quarantine_evaluations",
-        "prune_reply_evaluation_records", "record_qualifying_author_no_reply",
-        "record_terminal_reply_evaluation", "reset_daily_reply_count_if_needed",
-        "build_context_for_reply_ai", "cache_tweet", "evaluate_single_call_reply",
-        "_record_single_call_result", "recovery_comparison_account_replies",
-    }
-    for name, function in inspect.getmembers(cycle, inspect.isfunction):
-        if function.__module__ == cycle.__name__:
-            assert removed.isdisjoint(inspect.signature(function).parameters), name
-    dependencies = parameters.keys() - public.keys()
-    owner_factories = {
-        "author_quarantines": "_author_quarantine_owner",
-        "reply_evaluations": "_reply_evaluation_owner",
-        "clarifications": "_clarification_reply_owner",
-        "accounting": "_daily_reply_accounting_owner",
-        "mention_queue": "_mention_queue_owner",
-        "reply_contexts": "_reply_context_owner",
-        "tweets": "_tweet_lookup_cache_owner",
-        "generation": "_reply_generation_owner",
-        "history": "_reply_history_owner",
-        "cooldowns": "_api_cooldown_owner",
-        "controls": "_runtime_controls_owner",
-    }
-    assert {"config", "persistence", "delivery", *owner_factories} <= dependencies
-    state, result = {}, object()
-    owner = Mock(return_value=result)
-    monkeypatch.setattr(cycle, "maybe_reply_to_mentions", owner)
-    for options in ({}, {"_fresh_mention_ai_evaluations": 3, "_skip_hot_post_fetch": True}):
-        current = {key: object() for key in dependencies}
-        factories = {}
-        for key, value in current.items():
-            if key == "config":
-                monkeypatch.setattr(bot._reply_cycle_interfaces, "NormalReplyConfig", Mock(return_value=value))
-            elif key in {"persistence", "delivery"}:
-                factories[key] = Mock(return_value=value)
-                monkeypatch.setattr(bot, f"_reply_cycle_{key}", factories[key])
-            elif key in owner_factories:
-                factories[key] = Mock(return_value=value)
-                monkeypatch.setattr(bot, owner_factories[key], factories[key])
-            else:
-                monkeypatch.setattr(bot, key, value)
-        draft_owner = Mock(return_value=Mock(retire_ineligible=Mock()))
-        watch_owner = Mock(return_value=object())
-        monkeypatch.setattr(bot, "_reply_draft_owner", draft_owner)
-        monkeypatch.setattr(bot, "_quote_watch_posts_owner", watch_owner)
-        assert adapter(state, **options) is result
-        for key, factory in factories.items():
-            if key == "generation":
-                factory.assert_called_once_with(
-                    cooldowns=current["cooldowns"], history=current["history"],
-                )
-            elif key == "delivery":
-                factory.assert_called_once_with(
-                    cooldowns=current["cooldowns"], drafts=draft_owner.return_value,
-                    tweets=current["tweets"],
-                )
-            elif key == "persistence":
-                factory.assert_called_once_with(drafts=draft_owner.return_value)
-            else:
-                factory.assert_called_once_with()
-        draft_owner.assert_called_once_with(
-            history=current["history"], generation=current["generation"],
-        )
-        args, kwargs = owner.call_args
-        assert len(args) == 1 and args[0] is state
-        expected = {
-            "_fresh_mention_ai_evaluations": 0, "_skip_hot_post_fetch": False,
-            **options, **current,
-        }
-        assert kwargs.keys() == expected.keys()
-        discovery_callbacks = {"get_mentions", "get_hot_post_reply_candidates"}
-        assert all(
-            kwargs[key] is value
-            for key, value in expected.items()
-            if key not in discovery_callbacks
-        )
-        assert kwargs["get_mentions"].func is mention_discovery.get_mentions
-        assert kwargs["get_mentions"].keywords["tweets"] is current["tweets"]
-        assert kwargs["get_mentions"].keywords["reply_evaluations"] is current["reply_evaluations"]
-        assert kwargs["get_mentions"].keywords["mention_queue"] is current["mention_queue"]
-        assert kwargs["get_hot_post_reply_candidates"].func is bot._hot_post_discovery.get_hot_post_reply_candidates
-        assert kwargs["get_hot_post_reply_candidates"].keywords["tweets"] is current["tweets"]
-        assert kwargs["get_hot_post_reply_candidates"].keywords["reply_evaluations"] is current["reply_evaluations"]
-        assert kwargs["get_hot_post_reply_candidates"].keywords["watch_posts"] is watch_owner.return_value
-        assert kwargs["get_hot_post_reply_candidates"].keywords["cooldowns"] is current["cooldowns"]
-        assert kwargs["get_hot_post_reply_candidates"].keywords["controls"] is current["controls"]
-        watch_owner.assert_called_once_with(tweets=current["tweets"])
-    failure = TypeError("current owner failure")
-    owner.side_effect = failure
-    with pytest.raises(TypeError) as caught:
-        adapter(state)
-    assert caught.value is failure
+def test_scheduler_entry_uses_a_fresh_runner_and_preserves_state_identity(monkeypatch):
+    _configure_cycle(monkeypatch)
+    state = bot.default_state()
+    monkeypatch.setattr(mention_discovery, "get_mentions", Mock(return_value=[]))
+    seen = []
+    original = assembly.ReplyAssembly.normal_runner
+
+    def build(self):
+        runner = original(self)
+        seen.append(runner)
+        return runner
+
+    monkeypatch.setattr(assembly.ReplyAssembly, "normal_runner", build)
+    assert bot.maybe_reply_to_mentions(state) == interfaces.NORMAL_CHECK_STATUS_CHECKED
+    assert bot.maybe_reply_to_mentions(state) == interfaces.NORMAL_CHECK_STATUS_CHECKED
+    assert len(seen) == 2 and seen[0] is not seen[1]
+    assert seen[0].generation.history is seen[0].history
+    assert seen[0].delivery.cooldowns is seen[0].cooldowns
+    assert seen[0].delivery.tweets is seen[0].tweets
+
 
 
 def test_discovery_assembly_reuses_cycle_owner_identity(monkeypatch):
@@ -211,14 +115,14 @@ def test_discovery_assembly_reuses_cycle_owner_identity(monkeypatch):
     drafts = Mock()
     watch_posts = object()
     watch_owner = Mock(return_value=watch_posts)
-    monkeypatch.setattr(bot, "_quote_watch_posts_owner", watch_owner)
+    monkeypatch.setattr(assembly.ReplyAssembly, "_quote_watch_posts_owner", watch_owner)
 
-    mention_callback = bot._mention_discovery_callback(
+    mention_callback = bot._reply_assembly()._mention_discovery_callback(
         tweets=tweets,
         mention_queue=mention_queue,
         reply_evaluations=reply_evaluations,
     )
-    hot_post_callback = bot._hot_post_discovery_callback(
+    hot_post_callback = bot._reply_assembly()._hot_post_discovery_callback(
         tweets=tweets,
         drafts=drafts,
         cooldowns=cooldowns,
@@ -294,68 +198,54 @@ def test_cycle_hands_cooldown_and_control_work_to_typed_owners(monkeypatch):
 
 
 @pytest.mark.parametrize("initial_count,model_calls", [(2, 1), (2, 0), (4, 1)])
-def test_backlog_continuation_uses_current_root_state_and_budget(monkeypatch, initial_count, model_calls):
+def test_backlog_continuation_preserves_budget_and_skips_hot_fetch(monkeypatch, initial_count, model_calls):
     _configure_cycle(monkeypatch)
-    adapter = bot.maybe_reply_to_mentions
-    cycle_entry = Mock(wraps=cycle.maybe_reply_to_mentions)
-    monkeypatch.setattr(cycle, "maybe_reply_to_mentions", cycle_entry)
+    state = bot.default_state()
+    queue_active_mention(state, mention(105, 205), base_since_id="99")
 
     def generate(context, *args, evaluation_outcome, **kwargs):
         editorial_no_reply(context, *args, evaluation_outcome=evaluation_outcome, **kwargs)
         evaluation_outcome["model_call_count"] = model_calls
 
-    patch_reply_owner_method(monkeypatch, generation_owner.ReplyGeneration, "evaluate", legacy_reply_evaluator(generate))
-    for _ in range(2):
-        state = bot.default_state()
-        queue_active_mention(state, mention(105, 205), base_since_id="99")
-        result = object()
-
-        def continue_backlog(actual_state, **kwargs):
-            assert actual_state is state
-            assert kwargs == {
-                "_fresh_mention_ai_evaluations": initial_count + model_calls,
-                "_skip_hot_post_fetch": True,
-            }
-            saved = json.loads(bot.STATE_FILE.read_text())
-            assert saved["mention_pending_candidates"] == {}
-            assert saved["mention_backlog"] == state["mention_backlog"]
-            assert saved["reply_evaluation_records"]["105"]["outcome"] == "no_reply"
-            previous = cycle_entry.call_args.kwargs
-            current_clock = Mock(return_value=bot.now_epoch())
-            with monkeypatch.context() as patch:
-                patch.setattr(bot, "ENABLE_AUTO_REPLIES", False)
-                patch.setattr(bot, "now_epoch", current_clock)
-                assert adapter(actual_state, **kwargs) == bot.NORMAL_CHECK_STATUS_DISABLED
-            continued = cycle_entry.call_args.kwargs
-            for name in ("author_quarantines", "reply_evaluations", "clarifications", "accounting",
-                         "reply_contexts", "tweets", "generation", "history", "cooldowns", "controls"):
-                assert continued[name] is not previous[name]
-            assert continued["author_quarantines"].now_epoch is current_clock
-            assert continued["reply_evaluations"].now_epoch is current_clock
-            for name in ("tweets", "history"):
-                assert continued[name].now_epoch is current_clock
-            assert continued["generation"].cooldowns is continued["cooldowns"]
-            assert continued["generation"].cooldowns.now_epoch is current_clock
-            assert continued["delivery"].cooldowns is continued["cooldowns"]
-            return result
-
-        current_callback = Mock(side_effect=continue_backlog)
-        monkeypatch.setattr(bot, "maybe_reply_to_mentions", current_callback)
-        actual = adapter(state, _fresh_mention_ai_evaluations=initial_count)
-        if initial_count + model_calls < bot.MAX_MENTIONS_PER_CHECK:
-            assert actual is result
-            current_callback.assert_called_once_with(
-                state, _fresh_mention_ai_evaluations=initial_count + model_calls,
-                _skip_hot_post_fetch=True,
-            )
-        else:
-            assert actual == bot.NORMAL_CHECK_STATUS_CHECKED
-            current_callback.assert_not_called()
-        assert state["mention_pending_candidates"] == {}
-        assert state["last_seen_mention_id"] == "99"
-    assert bot._hot_post_discovery.get_hot_post_reply_candidates.call_count == 2
+    patch_reply_owner_method(
+        monkeypatch, generation_owner.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(generate),
+    )
+    runner = bot._reply_assembly().normal_runner()
+    result = runner.run(state, _fresh_mention_ai_evaluations=initial_count)
+    if initial_count + model_calls < bot.MAX_MENTIONS_PER_CHECK:
+        assert result == cycle.ContinueNormalReplyPass(initial_count + model_calls, True)
+    else:
+        assert result == interfaces.NORMAL_CHECK_STATUS_CHECKED
+    saved = json.loads(bot.STATE_FILE.read_text())
+    assert saved["mention_pending_candidates"] == {}
+    assert saved["mention_backlog"] == state["mention_backlog"]
+    assert saved["reply_evaluation_records"]["105"]["outcome"] == "no_reply"
+    assert state["last_seen_mention_id"] == "99"
+    bot._hot_post_discovery.get_hot_post_reply_candidates.assert_called_once()
     bot.x_request.assert_not_called()
     bot.create_post.assert_not_called()
+
+
+def test_assembly_continuation_rebuilds_runner_with_same_state_and_budget(monkeypatch):
+    state = {}
+    first = Mock()
+    second = Mock()
+    first.run.return_value = cycle.ContinueNormalReplyPass(3, True)
+    second.run.return_value = interfaces.NORMAL_CHECK_STATUS_CHECKED
+    build = Mock(side_effect=[first, second])
+    monkeypatch.setattr(assembly.ReplyAssembly, "normal_runner", build)
+    assert bot._reply_assembly().run_normal(state) == interfaces.NORMAL_CHECK_STATUS_CHECKED
+    assert first.run.call_args.args[0] is state
+    assert second.run.call_args.args[0] is state
+    assert first.run.call_args.kwargs == {
+        "_fresh_mention_ai_evaluations": 0, "_skip_hot_post_fetch": False,
+    }
+    assert second.run.call_args.kwargs == {
+        "_fresh_mention_ai_evaluations": 3, "_skip_hot_post_fetch": True,
+    }
+    assert build.call_count == 2
+
 
 
 @pytest.mark.parametrize("callback", ["recovery_comparison_account_replies", "recover_pending_ai_reply"])
@@ -408,15 +298,11 @@ def test_receipt_preparation_and_confirmed_state_errors_are_not_transport_errors
         )
     else:
         monkeypatch.setattr(
-            bot, "_confirmed_reply_state_applier",
+            assembly.ReplyAssembly, "_confirmed_reply_state_applier",
             Mock(return_value=Mock(side_effect=failure)),
         )
-    for relay in ("bind_conversational_reply_attempt_time", "apply_confirmed_reply_receipt"):
-        monkeypatch.setattr(
-            bot, relay, Mock(side_effect=AssertionError(f"obsolete root relay used: {relay}")),
-        )
     transport = Mock(return_value=({}, {"reply_post_id": "900"}))
-    monkeypatch.setattr(bot, "_post_conversational_reply_with_current_owners", transport)
+    monkeypatch.setattr(assembly.ReplyAssembly, "post_with_current_owners", transport)
     accounted = Mock()
     outcomes = Mock(wraps=bot.log_ai_reply_posting_outcome)
     cleanup = Mock(wraps=bot.remove_confirmed_reply_receipt)
@@ -491,9 +377,9 @@ def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_sa
         ("save", "save_state"),
     ):
         original = (
-            bot._reply_draft_owner().clear if label == "clear"
-            else bot._reply_evaluation_owner().record if label == "terminal"
-            else bot._mention_queue_owner().mark_seen if label == "seen"
+            bot._reply_assembly()._reply_draft_owner().clear if label == "clear"
+            else bot._reply_assembly()._reply_evaluation_owner().record if label == "terminal"
+            else bot._reply_assembly()._mention_queue_owner().mark_seen if label == "seen"
             else getattr(bot, name)
         )
 
@@ -513,7 +399,7 @@ def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_sa
     context = Mock(side_effect=AssertionError("ineligible target must not build context"))
     patch_reply_context_method(monkeypatch, "build", context)
 
-    assert bot.maybe_reply_to_mentions(
+    assert bot._reply_assembly().normal_runner().run(
         state, _fresh_mention_ai_evaluations=bot.MAX_MENTIONS_PER_CHECK,
     ) == bot.NORMAL_CHECK_STATUS_CHECKED
 
@@ -530,7 +416,6 @@ def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_sa
     assert saved["reply_evaluation_records"]["105"]["outcome"] == "reply_not_permitted"
     context.assert_not_called()
     evaluate.assert_not_called()
-    bot.reply_media_context_for_candidate.assert_not_called()
     bot.x_request.assert_not_called()
     bot.create_post.assert_not_called()
 
@@ -591,7 +476,7 @@ def test_mixed_quarantine_retirements_are_durable_before_later_context(
 def test_daily_reset_and_confirmed_reconciliation_precede_barrier_when_disabled(monkeypatch):
     _configure_cycle(monkeypatch)
     receipt = unit_confirmed_v4_reply_receipt(confirmation_epoch=bot.now_epoch())
-    bot.write_confirmed_reply_receipt(receipt)
+    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
     state = bot.default_state()
     state.update(daily_reply_date="2000-01-01", daily_reply_count=48)
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", False)
@@ -601,8 +486,8 @@ def test_daily_reset_and_confirmed_reconciliation_precede_barrier_when_disabled(
         ("reconcile", "reconcile_confirmed_reply_receipt"),
     ):
         original = (
-            bot._daily_reply_accounting_owner().reset
-            if label == "reset" else bot._reply_completion_owner().reconcile
+            bot._reply_assembly()._daily_reply_accounting_owner().reset
+            if label == "reset" else bot._reply_assembly()._reply_completion_owner().reconcile
         )
         callback = Mock(wraps=original)
         trace.attach_mock(callback, label)
@@ -753,22 +638,25 @@ def test_prepared_context_preserves_clarification_and_media_through_recovery(mon
     draft_context = {**context, "clarification_request": expected_clarification}
     reply = unit_approved_reply(draft_context)
     if recovered:
-        assert bot.store_pending_ai_reply(state, "105", "mention", reply, context=draft_context)
+        assert bot._reply_assembly()._reply_draft_owner().store(state, "105", "mention", reply, context=draft_context)
     media = {"native_media": []}
     prepared = interfaces.PreparedReplyContext(context, media)
     patch_reply_context_method(monkeypatch, "build", Mock(return_value=prepared))
-    prepare_context = cycle._prepare_reply_context
+    prepare_context = cycle.NormalReplyCycle._prepare_reply_context
 
-    def prepare(*args, **kwargs):
-        result = prepare_context(*args, **kwargs)
+    def prepare(runner, *args, **kwargs):
+        result = prepare_context(runner, *args, **kwargs)
         assert result is prepared
         assert result.context is context
         assert result.media_context is media
         return result
 
     preparation = Mock(side_effect=prepare)
-    monkeypatch.setattr(cycle, "_prepare_reply_context", preparation)
-    recovery = Mock(wraps=bot._reply_draft_owner().recover)
+    monkeypatch.setattr(
+        cycle.NormalReplyCycle, "_prepare_reply_context",
+        lambda runner, *args, **kwargs: preparation(runner, *args, **kwargs),
+    )
+    recovery = Mock(wraps=bot._reply_assembly()._reply_draft_owner().recover)
     patch_reply_draft_method(monkeypatch, "recover", recovery)
     evaluator = Mock(return_value=bot.PipelineResult(
         status="reply", reason="useful_reply", reply=reply, model_call_count=1,
@@ -898,10 +786,7 @@ def test_normal_owner_handoffs_keep_current_recovery_and_chronological_model_his
         "collect_reply_images", "openai_responses_reply_call",
         "reply_media_context_for_candidate",
         "load_confirmed_reply_receipt", "reconcile_confirmed_reply_receipt",
-        "bind_conversational_reply_attempt_time",
         "reply_target_is_available_immediately_before_send",
-        "post_conversational_reply_with_durable_identity",
-        "apply_confirmed_reply_receipt",
     ):
         relays[name] = Mock(side_effect=AssertionError(f"root relay used: {name}"))
         monkeypatch.setattr(bot, name, relays[name], raising=False)

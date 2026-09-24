@@ -61,13 +61,13 @@ def test_schema_v4_source_lineage_accepts_real_ai_reply_string_subclass() -> Non
     sending["ai_reply_draft"] = reply.draft_record
     assert bot.sending_reply_receipt_is_semantically_valid(sending)
 
-    confirmed = bot._confirmed_reply_receipt_from_sending(
+    confirmed = bot._reply_assembly()._reply_receipt_values_owner().confirmed_from_sending(
         sending,
         reply_post_id="999",
         confirmation_epoch=2_000_000_005,
     )
 
-    assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed)
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(confirmed)
     reconstructed = bot.conversational_sending_receipt_from_confirmed(confirmed)
     assert reconstructed["reply_text"] is reply
     assert reconstructed == sending
@@ -78,7 +78,7 @@ def test_conversational_source_lineage_helpers_require_integer_schema(
     schema_version: object,
 ) -> None:
     sending = unit_sending_v4_reply_receipt()
-    confirmed = bot._confirmed_reply_receipt_from_sending(
+    confirmed = bot._reply_assembly()._reply_receipt_values_owner().confirmed_from_sending(
         sending,
         reply_post_id="999",
         confirmation_epoch=2_000_000_005,
@@ -90,7 +90,7 @@ def test_conversational_source_lineage_helpers_require_integer_schema(
     template = unit_v4_reply_receipt_template()
     template["schema_version"] = schema_version
     with pytest.raises(RuntimeError, match="schema-v4 sending template"):
-        bot.bind_conversational_reply_attempt_time(template)
+        bot._reply_assembly()._reply_receipt_values_owner().bind_attempt(template)
 
 
 def test_current_conversational_receipt_requires_string_identifier_fields(
@@ -134,13 +134,13 @@ def test_current_conversational_receipt_requires_string_identifier_fields(
         is False
     )
 
-    confirmed = bot._confirmed_reply_receipt_from_sending(
+    confirmed = bot._reply_assembly()._reply_receipt_values_owner().confirmed_from_sending(
         receipt,
         reply_post_id="950002",
         confirmation_epoch=1_800_000_001,
     )
     confirmed["reply_post_id"] = 950002
-    assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed) is False
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(confirmed) is False
 
 
 def test_malformed_reply_post_id_is_not_recorded(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -362,11 +362,11 @@ def test_confirmed_reply_receipt_reconciliation_is_idempotent(
         epoch=fixed_epoch,
     )
 
-    bot.write_confirmed_reply_receipt(receipt)
+    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
     assert bot.reconcile_confirmed_reply_receipt(state) is True
     assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
 
-    bot.write_confirmed_reply_receipt(receipt)
+    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
     assert bot.reconcile_confirmed_reply_receipt(state) is True
 
     assert state["daily_reply_count"] == 1
@@ -400,7 +400,7 @@ def test_confirmed_receipt_recovery_does_not_change_no_reply_strikes() -> None:
         epoch=fixed_epoch,
     )
 
-    bot.apply_confirmed_reply_receipt(state, receipt)
+    bot._reply_assembly()._confirmed_reply_state_applier()(state, receipt)
 
     assert state["author_evaluation_quarantines"] == before
 
@@ -414,11 +414,11 @@ def test_conversational_reply_receipt_schema_v3_lifecycle_is_explicit() -> None:
         "reply_post_id": "999",
     }
 
-    assert bot.confirmed_reply_receipt_is_semantically_valid(legacy) is True
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(legacy) is True
     assert bot.sending_reply_receipt_is_semantically_valid(legacy) is False
     assert bot.sending_reply_receipt_is_semantically_valid(sending) is True
-    assert bot.confirmed_reply_receipt_is_semantically_valid(sending) is False
-    assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed) is True
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(sending) is False
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(confirmed) is True
     assert bot.sending_reply_receipt_is_semantically_valid(confirmed) is False
 
 
@@ -442,7 +442,7 @@ def test_conversational_reply_receipt_schema_v4_separates_attempt_and_confirmati
     assert "confirmation_epoch" not in sending
     assert sending["reply_epoch"] == attempt_epoch
     assert sending["daily_reply_date"] == bot.epoch_date_str(attempt_epoch)
-    assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed) is True
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(confirmed) is True
     assert confirmed["attempt_epoch"] == attempt_epoch
     assert confirmed["confirmation_epoch"] == confirmation_epoch
     assert confirmed["reply_epoch"] == confirmation_epoch
@@ -471,7 +471,7 @@ def test_schema_v4_confirmed_receipt_rejects_inconsistent_timing(
     confirmed = unit_confirmed_v4_reply_receipt()
     confirmed[field] = value
 
-    assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed) is False
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(confirmed) is False
 
 
 def test_schema_v4_sending_receipt_rejects_invented_confirmation() -> None:
@@ -494,7 +494,7 @@ def test_schema_v4_mention_receipt_accepts_pagination_provenance() -> None:
     }
 
     assert bot.sending_reply_receipt_is_semantically_valid(sending) is True
-    assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed) is True
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(confirmed) is True
 
 
 @pytest.mark.parametrize("lane", ["mention", "quote_tweet"])
@@ -506,7 +506,7 @@ def test_reply_post_helper_captures_confirmation_after_remote_success(
     confirmation_epoch = int(datetime(2026, 7, 7, 0, 0, 5).timestamp())
     clock = {"epoch": attempt_epoch}
     monkeypatch.setattr(bot, "now_epoch", lambda: clock["epoch"])
-    sending = bot.bind_conversational_reply_attempt_time(
+    sending = bot._reply_assembly()._reply_receipt_values_owner().bind_attempt(
         unit_v4_reply_receipt_template(lane=lane)
     )
 
@@ -519,7 +519,7 @@ def test_reply_post_helper_captures_confirmation_after_remote_success(
         return {"data": {"id": "999"}}
 
     install_receipt_bound_x_request_stub(monkeypatch, confirmed_remote)
-    response, confirmed = bot.post_conversational_reply_with_durable_identity(
+    response, confirmed = bot._reply_assembly().post_with_current_owners(
         state=bot.default_state(),
         receipt_template=sending,
         reply_text=str(sending["reply_text"]),
@@ -545,7 +545,7 @@ def test_schema_v4_clock_rollback_uses_conservative_confirmation_time(
     attempt_epoch = 2_000_000_000
     clock = {"epoch": attempt_epoch}
     monkeypatch.setattr(bot, "now_epoch", lambda: clock["epoch"])
-    sending = bot.bind_conversational_reply_attempt_time(
+    sending = bot._reply_assembly()._reply_receipt_values_owner().bind_attempt(
         unit_v4_reply_receipt_template()
     )
 
@@ -560,7 +560,7 @@ def test_schema_v4_clock_rollback_uses_conservative_confirmation_time(
         monkeypatch,
         confirmed_after_clock_rollback,
     )
-    _, confirmed = bot.post_conversational_reply_with_durable_identity(
+    _, confirmed = bot._reply_assembly().post_with_current_owners(
         state=bot.default_state(),
         receipt_template=sending,
         reply_text=str(sending["reply_text"]),
@@ -572,19 +572,19 @@ def test_schema_v4_clock_rollback_uses_conservative_confirmation_time(
     assert confirmed["attempt_epoch"] == attempt_epoch
     assert confirmed["confirmation_epoch"] == attempt_epoch
     assert confirmed["reply_epoch"] == attempt_epoch
-    assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed) is True
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(confirmed) is True
 
 
 def test_invalid_v4_confirmation_never_mutates_fallback_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(bot, "now_epoch", lambda: 2_000_000_000)
-    sending = bot.bind_conversational_reply_attempt_time(
+    sending = bot._reply_assembly()._reply_receipt_values_owner().bind_attempt(
         unit_v4_reply_receipt_template()
     )
     state = bot.default_state()
     baseline = copy.deepcopy(state)
-    original_validator = bot._reply_receipt_values_owner().confirmed_is_valid
+    original_validator = bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid
 
     install_receipt_bound_x_request_stub(
         monkeypatch,
@@ -602,7 +602,7 @@ def test_invalid_v4_confirmation_never_mutates_fallback_state(
     )
 
     with pytest.raises(bot.UnrecoverableConfirmedReplyPersistenceError):
-        bot.post_conversational_reply_with_durable_identity(
+        bot._reply_assembly().post_with_current_owners(
             state=state,
             receipt_template=sending,
             reply_text=str(sending["reply_text"]),
@@ -623,7 +623,7 @@ def test_schema_v4_promotion_failure_fallback_uses_confirmation_time(
     confirmation_epoch = int(datetime(2026, 7, 7, 0, 0, 5).timestamp())
     clock = {"epoch": attempt_epoch}
     monkeypatch.setattr(bot, "now_epoch", lambda: clock["epoch"])
-    sending = bot.bind_conversational_reply_attempt_time(
+    sending = bot._reply_assembly()._reply_receipt_values_owner().bind_attempt(
         unit_v4_reply_receipt_template()
     )
     state = bot.default_state()
@@ -649,7 +649,7 @@ def test_schema_v4_promotion_failure_fallback_uses_confirmation_time(
     )
 
     with pytest.raises(bot.ConfirmedReplyLocalPersistenceError):
-        bot.post_conversational_reply_with_durable_identity(
+        bot._reply_assembly().post_with_current_owners(
             state=state,
             receipt_template=sending,
             reply_text=str(sending["reply_text"]),
@@ -685,7 +685,7 @@ def test_schema_v4_failed_remote_outcome_never_invents_confirmation(
     expected_exception: type[Exception],
 ) -> None:
     monkeypatch.setattr(bot, "now_epoch", lambda: 2_000_000_000)
-    sending = bot.bind_conversational_reply_attempt_time(
+    sending = bot._reply_assembly()._reply_receipt_values_owner().bind_attempt(
         unit_v4_reply_receipt_template()
     )
     monkeypatch.setattr(
@@ -695,7 +695,7 @@ def test_schema_v4_failed_remote_outcome_never_invents_confirmation(
     )
 
     with pytest.raises(expected_exception):
-        bot.post_conversational_reply_with_durable_identity(
+        bot._reply_assembly().post_with_current_owners(
             state=bot.default_state(),
             receipt_template=sending,
             reply_text=str(sending["reply_text"]),
@@ -731,8 +731,8 @@ def test_schema_v4_confirmation_advances_daily_counters_once_across_midnight(
     state["daily_quote_reply_date"] = bot.epoch_date_str(attempt_epoch)
     state["daily_quote_reply_count"] = 3
 
-    bot.apply_confirmed_reply_receipt(state, receipt)
-    bot.apply_confirmed_reply_receipt(state, receipt)
+    bot._reply_assembly()._confirmed_reply_state_applier()(state, receipt)
+    bot._reply_assembly()._confirmed_reply_state_applier()(state, receipt)
 
     confirmation_date = bot.epoch_date_str(confirmation_epoch)
     assert state["daily_reply_date"] == confirmation_date
@@ -772,7 +772,7 @@ def test_confirmed_factual_reply_outcome_logs_compact_fact_metrics(
         ),
     )
 
-    bot.apply_confirmed_reply_receipt(bot.default_state(), receipt)
+    bot._reply_assembly()._confirmed_reply_state_applier()(bot.default_state(), receipt)
 
     outcome = next(
         values
@@ -801,7 +801,7 @@ def test_schema_v4_reconciliation_never_rolls_newer_daily_state_backward() -> No
     state["daily_quote_reply_date"] = "2026-07-08"
     state["daily_quote_reply_count"] = 2
 
-    bot.apply_confirmed_reply_receipt(state, receipt)
+    bot._reply_assembly()._confirmed_reply_state_applier()(state, receipt)
 
     assert state["daily_reply_date"] == "2026-07-08"
     assert state["daily_reply_count"] == 4
@@ -818,7 +818,7 @@ def test_reply_spacing_is_measured_from_schema_v4_confirmation(
     state = bot.default_state()
     state["daily_reply_date"] = bot.epoch_date_str(confirmation_epoch)
     state["daily_reply_count"] = 0
-    bot.apply_confirmed_reply_receipt(
+    bot._reply_assembly()._confirmed_reply_state_applier()(
         state,
         unit_confirmed_v4_reply_receipt(
             attempt_epoch=attempt_epoch,
@@ -872,7 +872,7 @@ def test_schema_v3_mention_receipt_accepts_exact_pagination_provenance(
     }
 
     assert bot.sending_reply_receipt_is_semantically_valid(sending) is True
-    assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed) is True
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(confirmed) is True
 
 
 @pytest.mark.parametrize(
@@ -923,7 +923,7 @@ def test_legacy_schema_v2_receipt_rejects_new_pagination_provenance() -> None:
         "next_token": "page-4",
     }
 
-    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(receipt) is False
 
 
 def test_confirmed_mention_receipt_restores_pagination_without_advancing_watermark() -> None:
@@ -937,8 +937,8 @@ def test_confirmed_mention_receipt_restores_pagination_without_advancing_waterma
     state["last_seen_mention_id"] = "99"
     state["mention_pagination"] = {}
 
-    bot.apply_confirmed_reply_receipt(state, receipt)
-    bot.apply_confirmed_reply_receipt(state, receipt)
+    bot._reply_assembly()._confirmed_reply_state_applier()(state, receipt)
+    bot._reply_assembly()._confirmed_reply_state_applier()(state, receipt)
 
     assert state["last_seen_mention_id"] == "99"
     assert state["mention_pagination"] == pagination
@@ -954,7 +954,7 @@ def test_confirmed_mention_receipt_after_backlog_reset_cannot_skip_unseen_ids(
         "next_token": "page-A",
     }
     receipt = unit_confirmed_v4_reply_receipt(target_id="105")
-    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is True
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(receipt) is True
 
     state = bot.default_state()
     state["last_seen_mention_id"] = "99"
@@ -993,7 +993,7 @@ def test_confirmed_mention_receipt_after_backlog_reset_cannot_skip_unseen_ids(
         "head_traversal_started": False,
     }
 
-    bot.apply_confirmed_reply_receipt(reset_state, receipt)
+    bot._reply_assembly()._confirmed_reply_state_applier()(reset_state, receipt)
 
     assert reset_state["last_seen_mention_id"] == "99"
     assert reset_state["mention_pagination"] == {}
@@ -1028,7 +1028,7 @@ def test_confirmed_truncated_mention_receipt_reconciles_after_restart_without_x(
         ),
     )
 
-    bot.write_confirmed_reply_receipt(receipt)
+    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
     assert bot.reconcile_confirmed_reply_receipt(state) is True
 
     assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
@@ -1099,7 +1099,7 @@ def test_confirmed_receipt_reconciliation_cannot_authorise_stale_pending_state(
         )),
     )
 
-    bot.write_confirmed_reply_receipt(receipt)
+    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
     assert bot.reconcile_confirmed_reply_receipt(state) is True
 
     restarted = bot.load_state()
@@ -1192,7 +1192,7 @@ def test_receipt_recovery_from_backup_without_page_ownership_is_guarded(
         )),
     )
 
-    bot.write_confirmed_reply_receipt(receipt)
+    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
     assert bot.reconcile_confirmed_reply_receipt(state) is True
 
     restarted = bot.load_state()
@@ -1225,7 +1225,7 @@ def test_confirmed_mention_receipt_rejects_pagination_base_mismatch() -> None:
         bot.InvalidConfirmedReplyReceipt,
         match="pagination base does not match",
     ):
-        bot.apply_confirmed_reply_receipt(state, receipt)
+        bot._reply_assembly()._confirmed_reply_state_applier()(state, receipt)
 
     assert state["last_seen_mention_id"] == "98"
     assert state["mention_pagination"] == {}
@@ -1242,8 +1242,8 @@ def test_legacy_mention_receipt_without_pagination_remains_valid_and_advances_wa
     state = bot.default_state()
     state["last_seen_mention_id"] = "99"
 
-    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is True
-    bot.apply_confirmed_reply_receipt(state, receipt)
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(receipt) is True
+    bot._reply_assembly()._confirmed_reply_state_applier()(state, receipt)
 
     assert state["last_seen_mention_id"] == "100"
     assert state["mention_pagination"] == {}
@@ -1265,7 +1265,7 @@ def test_legacy_mention_receipt_preserves_matching_active_pagination(
     state["last_seen_mention_id"] = "99"
     state["mention_pagination"] = pagination
 
-    bot.apply_confirmed_reply_receipt(state, receipt)
+    bot._reply_assembly()._confirmed_reply_state_applier()(state, receipt)
 
     assert state["last_seen_mention_id"] == "99"
     assert state["mention_pagination"] == pagination
@@ -1291,7 +1291,7 @@ def test_conversational_reply_receipt_is_durable_before_remote_write(
 
     install_receipt_bound_x_request_stub(monkeypatch, confirmed_remote)
 
-    response, confirmed = bot.post_conversational_reply_with_durable_identity(
+    response, confirmed = bot._reply_assembly().post_with_current_owners(
         state=state,
         receipt_template=sending,
         reply_text=str(sending["reply_text"]),
@@ -1312,7 +1312,7 @@ def test_prepared_reply_bypass_requires_exact_receipt_text_and_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sending = unit_sending_reply_receipt()
-    bot.write_sending_reply_receipt(sending)
+    bot._reply_assembly()._reply_receipts_owner().write(sending, confirmed=False)
     remote_calls = 0
 
     def remote(*_args: object, **_kwargs: object) -> dict[str, object]:
@@ -1369,7 +1369,7 @@ def test_sending_reply_receipt_blocks_each_remote_lane_before_preparation(
     import historical_context_formatter
 
     sending = unit_sending_reply_receipt()
-    bot.write_sending_reply_receipt(sending)
+    bot._reply_assembly()._reply_receipts_owner().write(sending, confirmed=False)
     calls: list[str] = []
 
     def prepared(name: str) -> None:
@@ -1463,7 +1463,7 @@ def test_conversational_reply_template_must_match_declared_lane(
     )
 
     with pytest.raises(RuntimeError, match="invalid reply receipt template"):
-        bot.post_conversational_reply_with_durable_identity(
+        bot._reply_assembly().post_with_current_owners(
             state=bot.default_state(),
             receipt_template=sending,
             reply_text=str(sending["reply_text"]),
@@ -1488,7 +1488,7 @@ def test_conversational_post_rejects_legacy_receipt_before_transport(
     )
 
     with pytest.raises(RuntimeError, match="current schema-v4"):
-        bot.post_conversational_reply_with_durable_identity(
+        bot._reply_assembly().post_with_current_owners(
             state=bot.default_state(),
             receipt_template=sending,
             reply_text=str(sending["reply_text"]),
@@ -1515,7 +1515,7 @@ def test_generic_reply_rejection_preserves_sending_receipt(
     install_receipt_bound_x_request_stub(monkeypatch, rejected)
 
     with pytest.raises(bot.AmbiguousRemotePostOutcome, match="outcome is unproved"):
-        bot.post_conversational_reply_with_durable_identity(
+        bot._reply_assembly().post_with_current_owners(
             state=bot.default_state(),
             receipt_template=sending,
             reply_text=str(sending["reply_text"]),
@@ -1554,7 +1554,7 @@ def test_unclassified_reply_interruption_preserves_sending_receipt(
     )
 
     with pytest.raises(expected):
-        bot.post_conversational_reply_with_durable_identity(
+        bot._reply_assembly().post_with_current_owners(
             state=bot.default_state(),
             receipt_template=sending,
             reply_text=str(sending["reply_text"]),
@@ -1604,7 +1604,7 @@ def test_reply_ambiguity_marker_and_state_failure_preserve_restart_barrier(
     )
 
     with pytest.raises(bot.AmbiguousRemotePostOutcome):
-        bot.post_conversational_reply_with_durable_identity(
+        bot._reply_assembly().post_with_current_owners(
             state=bot.default_state(),
             receipt_template=sending,
             reply_text=str(sending["reply_text"]),
@@ -1661,7 +1661,7 @@ def test_reply_promotion_state_and_marker_failure_blocks_restart_duplicate(
     )
 
     with pytest.raises(bot.UnrecoverableConfirmedReplyPersistenceError):
-        bot.post_conversational_reply_with_durable_identity(
+        bot._reply_assembly().post_with_current_owners(
             state=bot.default_state(),
             receipt_template=sending,
             reply_text=str(sending["reply_text"]),
@@ -1704,7 +1704,7 @@ def test_reply_promotion_failure_uses_confirmed_state_fallback(
     )
 
     with pytest.raises(bot.ConfirmedReplyLocalPersistenceError):
-        bot.post_conversational_reply_with_durable_identity(
+        bot._reply_assembly().post_with_current_owners(
             state=state,
             receipt_template=sending,
             reply_text=str(sending["reply_text"]),
@@ -1714,8 +1714,8 @@ def test_reply_promotion_failure_uses_confirmed_state_fallback(
         )
 
     assert bot.load_confirmed_reply_receipt() == ("absent", None)
-    assert bot.confirmed_reply_emergency_representation_is_complete(
-        bot._confirmed_reply_receipt_from_sending(
+    assert bot._reply_assembly().emergency_representation_is_complete(
+        bot._reply_assembly()._reply_receipt_values_owner().confirmed_from_sending(
             sending,
             reply_post_id="999",
             confirmation_epoch=int(sending["attempt_epoch"]),
@@ -1755,7 +1755,7 @@ def test_reply_sigint_is_delivered_only_after_confirmed_receipt(
     monkeypatch.setattr(bot, "end_confirmed_post_sigint_deferral", deliver_sigint)
 
     with pytest.raises(KeyboardInterrupt):
-        bot.post_conversational_reply_with_durable_identity(
+        bot._reply_assembly().post_with_current_owners(
             state=state,
             receipt_template=sending,
             reply_text=str(sending["reply_text"]),
@@ -1798,7 +1798,7 @@ def test_reply_post_return_inspection_failure_restores_guard_and_keeps_barriers(
     )
 
     with pytest.raises(bot.AmbiguousRemotePostOutcome, match="identity could not"):
-        bot.post_conversational_reply_with_durable_identity(
+        bot._reply_assembly().post_with_current_owners(
             state=state,
             receipt_template=sending,
             reply_text=str(sending["reply_text"]),
@@ -1858,7 +1858,7 @@ def test_reply_sigint_during_confirmed_promotion_reconciles_without_duplicate(
     install_receipt_bound_x_request_stub(monkeypatch, confirmed_remote)
 
     with pytest.raises(KeyboardInterrupt):
-        bot.post_conversational_reply_with_durable_identity(
+        bot._reply_assembly().post_with_current_owners(
             state=bot.default_state(),
             receipt_template=sending,
             reply_text=str(sending["reply_text"]),
@@ -1901,7 +1901,7 @@ def test_reply_sigint_during_confirmed_promotion_reconciles_without_duplicate(
 
 def test_remove_reply_receipt_refuses_changed_transaction() -> None:
     sending = unit_sending_reply_receipt()
-    bot.write_sending_reply_receipt(sending)
+    bot._reply_assembly()._reply_receipts_owner().write(sending, confirmed=False)
     changed = {**sending, "target_id": "101"}
 
     with pytest.raises(
@@ -2009,7 +2009,7 @@ def test_clarification_receipt_requires_grounded_direct_reply_metadata() -> None
         },
     }
 
-    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(receipt) is False
 
 
 def test_clarification_receipt_accepts_valid_single_call_clarification_draft() -> None:
@@ -2032,7 +2032,7 @@ def test_clarification_receipt_accepts_valid_single_call_clarification_draft() -
         "trigger": "explicit_correction",
     }
 
-    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is True
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(receipt) is True
 
 
 def test_confirmed_reply_receipt_preserves_ai_draft_after_reconciliation(
@@ -2056,9 +2056,9 @@ def test_confirmed_reply_receipt_preserves_ai_draft_after_reconciliation(
         factual=True,
     )
 
-    bot.write_confirmed_reply_receipt(receipt)
+    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
     assert bot.reconcile_confirmed_reply_receipt(state) is True
-    bot.write_confirmed_reply_receipt(receipt)
+    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
     assert bot.reconcile_confirmed_reply_receipt(state) is True
 
     assert len(state["ai_reply_history"]) == 1
@@ -2074,7 +2074,7 @@ def test_confirmed_reply_receipt_preserves_ai_draft_after_reconciliation(
     assert history["validated_draft_hash"] == receipt["ai_reply_draft"][
         "validated_draft_hash"
     ]
-    assert bot.recent_same_author_account_interactions(
+    assert bot._reply_assembly()._reply_history_owner().recent_same_author_interactions(
         state,
         author_id="200",
         conversation_id="different-conversation",
@@ -2097,20 +2097,20 @@ def test_confirmed_reply_receipt_rejects_malformed_ai_draft() -> None:
         factual=True,
     )
     receipt["ai_reply_draft"]["proposed_reply"] = {"not": "a string"}
-    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(receipt) is False
 
     receipt = unit_confirmed_reply_receipt(
         text="People moved from East Germany towards West Germany in November 1989.",
         factual=True,
     )
     receipt["ai_reply_draft"]["mode"] = []
-    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(receipt) is False
 
 
 def test_confirmed_reply_receipt_rejects_unexpected_legacy_approval_field() -> None:
     receipt = unit_confirmed_reply_receipt(text="An alleged correction.")
     receipt["ai_reply_draft"]["legacy_approval"] = "revise"
-    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(receipt) is False
 
 
 @pytest.mark.parametrize("field", ["used_fact_sources", "used_fact_ids", "trusted_fact_ids"])
@@ -2120,7 +2120,7 @@ def test_confirmed_reply_receipt_rejects_incomplete_or_changed_evidence(field: s
         factual=True,
     )
     receipt["ai_reply_draft"][field] = []
-    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(receipt) is False
 
 
 @pytest.mark.parametrize(
@@ -2138,14 +2138,14 @@ def test_confirmed_reply_receipt_binds_outer_identity_to_approved_context(
     receipt = unit_confirmed_reply_receipt()
     receipt[outer_field] = bad_value
 
-    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(receipt) is False
 
 
 def test_confirmed_quote_tweet_receipt_binds_original_post_to_context() -> None:
     receipt = unit_confirmed_reply_receipt(lane="quote_tweet", original_post_id="900")
     receipt["original_post_id"] = "901"
 
-    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(receipt) is False
 
 
 def test_confirmed_quote_tweet_reply_receipt_reconciliation_is_idempotent(
@@ -2170,9 +2170,9 @@ def test_confirmed_quote_tweet_reply_receipt_reconciliation_is_idempotent(
         epoch=fixed_epoch,
     )
 
-    bot.write_confirmed_reply_receipt(receipt)
+    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
     assert bot.reconcile_confirmed_reply_receipt(state) is True
-    bot.write_confirmed_reply_receipt(receipt)
+    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
     assert bot.reconcile_confirmed_reply_receipt(state) is True
 
     assert state["daily_reply_count"] == 1
@@ -2201,7 +2201,7 @@ def test_confirmed_reply_receipt_persistence_failure_keeps_receipt(
     state = bot.default_state()
     state["daily_reply_date"] = receipt["daily_reply_date"]
 
-    bot.write_confirmed_reply_receipt(receipt)
+    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
     monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: (_ for _ in ()).throw(OSError("state failed")))
 
     with pytest.raises(bot.ConfirmedReplyLocalPersistenceError):

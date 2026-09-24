@@ -610,7 +610,7 @@ def _invoke_lane(bot: Any, lane: str, state_directory: Path) -> None:
 
         bot.reply_evidence_repository = lambda: UNIT_REPLY_REPOSITORY
         receipt = unit_sending_v4_reply_receipt()
-        bot.post_conversational_reply_with_durable_identity(
+        bot._reply_assembly().post_with_current_owners(
             state=bot.default_state(),
             receipt_template=receipt,
             reply_text=str(receipt["reply_text"]),

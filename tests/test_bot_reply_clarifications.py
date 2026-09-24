@@ -13,6 +13,8 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
+import mrs_bot_reply_assembly as assembly
+
 import pytest
 
 import mrs_bot_reply_clarifications as clarifications
@@ -37,14 +39,14 @@ def make_owner():
     """Compose clarification operations with isolated runtime boundaries."""
     def build(**overrides):
         current = {field: getattr(bot, name) for field, name in OWNER_INPUTS.items()}
-        current["contexts"] = bot._reply_context_owner()
+        current["contexts"] = bot._reply_assembly()._reply_context_owner()
         return clarifications.ClarificationReplies(**{**current, **overrides})
     return build
 
 
 def clarification_contexts(*, parent_id=None, is_our_auto_reply=None):
     """Return a context owner double retaining a real current lookup owner."""
-    owner = bot._reply_context_owner()
+    owner = bot._reply_assembly()._reply_context_owner()
     return SimpleNamespace(
         parent_id=owner.parent_id if parent_id is None else parent_id,
         is_our_auto_reply=(
@@ -104,8 +106,8 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
             monkeypatch.setattr(bot, name, current[field])
         contexts = Mock(spec=bot._reply_context.ReplyContext)
         context_factory = Mock(return_value=contexts)
-        monkeypatch.setattr(bot, "_reply_context_owner", context_factory)
-        owner = bot._clarification_reply_owner()
+        monkeypatch.setattr(assembly.ReplyAssembly, "_reply_context_owner", context_factory)
+        owner = bot._reply_assembly()._clarification_reply_owner()
         context_factory.assert_called_once_with()
         assert owner.contexts is contexts
         assert isinstance(owner, clarifications.ClarificationReplies)
@@ -134,7 +136,7 @@ def test_root_adapters_preserve_arguments_result_identity_and_errors(monkeypatch
         for _ in range(2):
             owner = Mock(spec=clarifications.ClarificationReplies)
             factory = Mock(return_value=owner)
-            monkeypatch.setattr(bot, "_clarification_reply_owner", factory)
+            monkeypatch.setattr(assembly.ReplyAssembly, "_clarification_reply_owner", factory)
             implementation = getattr(owner, method_name)
             result = object()
             implementation.return_value = result
@@ -167,7 +169,7 @@ def test_aliases_share_fixed_objects_and_tokens_use_owned_regex_and_stopwords(mo
     finally:
         stopwords.remove("stage25token")
     assert bot._clarification_tokens is clarifications._clarification_tokens
-    monkeypatch.setattr(bot, "_clarification_reply_owner", Mock(side_effect=AssertionError("pure tokens built runtime owner")))
+    monkeypatch.setattr(assembly.ReplyAssembly, "_clarification_reply_owner", Mock(side_effect=AssertionError("pure tokens built runtime owner")))
     monkeypatch.setattr(clarifications, "CLARIFICATION_TOKEN_RE", re.compile(r"\d+"))
     monkeypatch.setattr(clarifications, "CLARIFICATION_TOKEN_STOPWORDS", {"25"})
     assert owner.tokens("@user99 stage 25 or 26 or 26?") == {"26"}
@@ -186,7 +188,7 @@ def confirmed_question(monkeypatch):
     state = bot.default_state()
     bot.cache_tweet(state, tweet_id="100", author_id="200", conversation_id="700",
                     text=question_text, referenced_tweets=[])
-    bot.apply_confirmed_reply_receipt(state, unit_confirmed_reply_receipt(
+    bot._reply_assembly()._confirmed_reply_state_applier()(state, unit_confirmed_reply_receipt(
         target_id="100", reply_post_id="900", conversation_id="700", contribution=question_text,
     ))
     candidate = mention(101, 200, "@MrsMThatcher You did not answer my question: where did Berlin people move?")
@@ -199,7 +201,7 @@ def test_cached_clarification_keeps_original_references_and_current_correction_t
     before = copy.deepcopy((state, candidate))
     prior, question = state["tweet_cache"]["900"], state["tweet_cache"]["100"]
     trace = Mock()
-    contexts = bot._reply_context_owner()
+    contexts = bot._reply_assembly()._reply_context_owner()
     trace.parent = Mock(wraps=contexts.parent_id)
     trace.own = Mock(wraps=contexts.is_our_auto_reply)
     trace.cue.search = Mock(wraps=bot.CLARIFICATION_CUE_RE.search)
@@ -229,7 +231,7 @@ def test_cached_clarification_keeps_original_references_and_current_correction_t
 
 def test_clarification_requires_ledger_and_cache_proof_and_catches_only_current_parent_error(monkeypatch, make_owner, confirmed_question):
     state, candidate = confirmed_question
-    parent = Mock(wraps=bot._reply_context_owner().parent_id)
+    parent = Mock(wraps=bot._reply_assembly()._reply_context_owner().parent_id)
     owner = make_owner(contexts=clarification_contexts(parent_id=parent))
     with monkeypatch.context() as patch:
         patch.setitem(state, "own_auto_reply_ids", [])

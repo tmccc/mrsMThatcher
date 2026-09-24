@@ -12,6 +12,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrsMThatcher2 as bot
+import mrs_bot_reply_assembly as assembly
 import mrs_bot_transaction_recovery as recovery
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
@@ -134,6 +135,8 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
                     patch.setattr(bot, "_reconcile_main_post_receipts_with_owners", value)
                 elif dep == "receipts":
                     continue
+                elif dep == "_reply_confirmation_epoch_after_remote_success":
+                    patch.setattr(assembly.ReplyAssembly, "observed_confirmation_epoch", value)
                 else:
                     patch.setattr(bot, dep, value)
             if name in {
@@ -331,6 +334,8 @@ def _prebarrier(monkeypatch, present=(), classification="clear"):
         callback.side_effect = AssertionError("unexpected dependency: " + name)
         if name == "confirmed_context_outbox_matches_receipt":
             monkeypatch.setattr(recovery, name, callback)
+        elif name == "_reply_confirmation_epoch_after_remote_success":
+            monkeypatch.setattr(assembly.ReplyAssembly, "observed_confirmation_epoch", callback)
         elif name == "reconcile_main_post_receipts":
             def reconcile(*args, receipts, tweets, _callback=callback, **kwargs):
                 return _callback(*args, **kwargs)

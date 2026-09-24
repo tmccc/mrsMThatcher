@@ -9,6 +9,8 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
+import mrs_bot_reply_assembly as assembly
+
 import pytest
 
 from tests.helpers.adapter_assertions import assert_adapters_forward_current_dependencies
@@ -93,14 +95,14 @@ def test_receipt_owner_binds_current_runtime_without_running_operations(monkeypa
         "mutation_authority": "transaction_mutation_authority",
     }
     value_factory = Mock()
-    monkeypatch.setattr(bot, "_reply_receipt_values_owner", value_factory)
+    monkeypatch.setattr(assembly.ReplyAssembly, "_reply_receipt_values_owner", value_factory)
     owners = []
     for _ in range(2):
         current = {field: Mock() for field in bindings}
         for field, root_name in bindings.items():
             monkeypatch.setattr(bot, root_name, current[field])
         value_factory.return_value = Mock(spec=values.ReplyReceiptValues)
-        owner = bot._reply_receipts_owner()
+        owner = bot._reply_assembly()._reply_receipts_owner()
         owners.append(owner)
         assert set(vars(owner)) == set(bindings) | {"values", "current_receipts"}
         assert all(getattr(owner, name) is value for name, value in current.items())
@@ -111,15 +113,13 @@ def test_receipt_owner_binds_current_runtime_without_running_operations(monkeypa
         assert all(not value.mock_calls for value in current.values())
     assert owners[0].path is not owners[1].path
     newer_factory = Mock(return_value=object())
-    monkeypatch.setattr(bot, "_reply_receipts_owner", newer_factory)
+    monkeypatch.setattr(assembly.ReplyAssembly, "_reply_receipts_owner", newer_factory)
     assert owners[0].current_receipts() is newer_factory.return_value
     newer_factory.assert_called_once_with()
 
 
 @pytest.mark.parametrize("name,method,operation_options", [
     ("load_confirmed_reply_receipt", "load", {}),
-    ("write_confirmed_reply_receipt", "write", {"confirmed": True}),
-    ("write_sending_reply_receipt", "write", {"confirmed": False}),
     ("promote_sending_reply_receipt", "promote", {}),
     ("_promote_legacy_sending_reply_receipt_from_confirmed_transport", "promote", {"legacy_recovery": True}),
 ])
@@ -133,7 +133,7 @@ def test_receipt_adapters_bind_current_owner_and_preserve_arguments_results_erro
     options = {key: object() for key, parameter in public.items()
                if parameter.kind == inspect.Parameter.KEYWORD_ONLY}
     factory = Mock()
-    monkeypatch.setattr(bot, "_reply_receipts_owner", factory)
+    monkeypatch.setattr(assembly.ReplyAssembly, "_reply_receipts_owner", factory)
     for _ in range(2):
         owner = Mock(spec=delivery.ReplyReceipts)
         factory.return_value = owner
@@ -151,8 +151,8 @@ def test_receipt_adapters_bind_current_owner_and_preserve_arguments_results_erro
     assert caught.value is failure
 
 
-def test_post_adapter_preserves_current_dependencies_and_lazy_receipt_operations(monkeypatch):
-    adapter = bot.post_conversational_reply_with_durable_identity
+def test_post_assembly_preserves_current_dependencies_and_lazy_receipt_operations(monkeypatch):
+    adapter = bot._reply_assembly().post_with_current_owners
     public = inspect.signature(adapter).parameters
     dependencies = (
         inspect.signature(delivery.post_conversational_reply_with_durable_identity).parameters.keys()
@@ -169,10 +169,10 @@ def test_post_adapter_preserves_current_dependencies_and_lazy_receipt_operations
     completion_factory = Mock()
     receipt_factory = Mock()
     cooldown_factory = Mock()
-    monkeypatch.setattr(bot, "_reply_draft_owner", draft_factory)
-    monkeypatch.setattr(bot, "_reply_completion_owner", completion_factory)
-    monkeypatch.setattr(bot, "_reply_receipts_owner", receipt_factory)
-    monkeypatch.setattr(bot, "_reply_receipt_values_owner", value_factory)
+    monkeypatch.setattr(assembly.ReplyAssembly, "_reply_draft_owner", draft_factory)
+    monkeypatch.setattr(assembly.ReplyAssembly, "_reply_completion_owner", completion_factory)
+    monkeypatch.setattr(assembly.ReplyAssembly, "_reply_receipts_owner", receipt_factory)
+    monkeypatch.setattr(assembly.ReplyAssembly, "_reply_receipt_values_owner", value_factory)
     monkeypatch.setattr(bot, "_api_cooldown_owner", cooldown_factory)
     monkeypatch.setattr(delivery, "post_conversational_reply_with_durable_identity", implementation)
     for _ in range(2):
@@ -220,7 +220,7 @@ def test_post_adapter_preserves_current_dependencies_and_lazy_receipt_operations
         assert emergency.keywords["has_target_draft"] is draft_factory.return_value.has_target
         assert not value_factory.return_value.mock_calls
     newer_factory = Mock(return_value=Mock(spec=delivery.ReplyReceipts))
-    monkeypatch.setattr(bot, "_reply_receipts_owner", newer_factory)
+    monkeypatch.setattr(assembly.ReplyAssembly, "_reply_receipts_owner", newer_factory)
     assert actual_kwargs["receipts"]() is newer_factory.return_value
     newer_factory.assert_called_once_with()
     failure = TypeError("current delivery dependency")
@@ -280,7 +280,7 @@ def test_loader_keeps_read_errors_and_dictionary_guard_before_validation(monkeyp
 def test_writer_checks_retirement_namespace_validation_then_create_and_preserves_cause(monkeypatch, lifecycle):
     receipt = unit_sending_v4_reply_receipt()
     if lifecycle == "confirmed":
-        receipt = bot._confirmed_reply_receipt_from_sending(
+        receipt = bot._reply_assembly()._reply_receipt_values_owner().confirmed_from_sending(
             receipt, reply_post_id="999", confirmation_epoch=receipt["attempt_epoch"],
         )
     trace = Mock()
@@ -296,7 +296,9 @@ def test_writer_checks_retirement_namespace_validation_then_create_and_preserves
             patch_reply_owner_method(monkeypatch, values.ReplyReceiptValues, f"{lifecycle}_is_valid", callback)
         else:
             monkeypatch.setattr(bot, name, callback)
-    writer = getattr(bot, f"write_{lifecycle}_reply_receipt")
+    writer = lambda receipt: bot._reply_assembly()._reply_receipts_owner().write(
+        receipt, confirmed=lifecycle == "confirmed"
+    )
     writer(receipt)
     assert trace.mock_calls == [call.retirement(), call.namespace(bot.CONFIRMED_REPLY_RECEIPT_FILE),
                                 call.validation(receipt), call.create(bot.CONFIRMED_REPLY_RECEIPT_FILE, receipt)]
@@ -371,7 +373,7 @@ def test_root_removal_binds_real_commit_proof_and_current_secure_reader(monkeypa
     from mrs_bot_state_generation import record_receipt_commit
 
     sending = unit_sending_v4_reply_receipt()
-    receipt = bot._confirmed_reply_receipt_from_sending(
+    receipt = bot._reply_assembly()._reply_receipt_values_owner().confirmed_from_sending(
         sending, reply_post_id="999", confirmation_epoch=sending["attempt_epoch"],
     )
     state = bot.default_state()
@@ -405,7 +407,7 @@ def test_root_removal_binds_real_commit_proof_and_current_secure_reader(monkeypa
 
 
 def _deliver(receipt, state=None):
-    return bot.post_conversational_reply_with_durable_identity(
+    return bot._reply_assembly().post_with_current_owners(
         state=bot.default_state() if state is None else state,
         receipt_template=receipt, reply_text=receipt["reply_text"],
         reply_to_id=receipt["target_id"], made_with_ai=False,
@@ -434,7 +436,7 @@ def test_delivery_keeps_shallow_template_plain_transport_text_and_return_objects
     ):
         method = {"write": "write", "promote": "promote"}.get(label)
         original_callback = (
-            getattr(bot._reply_receipts_owner(), method)
+            getattr(bot._reply_assembly()._reply_receipts_owner(), method)
             if method else (
                 bot._remote_write_barriers.block_if_ambiguous_remote_post
                 if label == "barrier" else getattr(bot, name)
@@ -495,7 +497,7 @@ def test_delivery_owned_template_failure_precedes_namespace_barrier_and_guard(mo
 
 def test_delivery_namespace_and_durable_create_failure_precede_sigint_guard(monkeypatch):
     receipt = unit_sending_v4_reply_receipt()
-    bot.write_sending_reply_receipt(receipt)
+    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=False)
     barrier = Mock(wraps=bot._reply_remote_write_barrier())
     begin = Mock(side_effect=AssertionError("guard started before durable sending receipt"))
     monkeypatch.setattr(bot, "_reply_remote_write_barrier", Mock(return_value=barrier))
@@ -709,7 +711,7 @@ def test_promotion_families_share_source_checks_before_projection_and_replacemen
     owner = Mock(spec=values.ReplyReceiptValues)
     owner.confirmed_from_sending = trace.project
     setattr(owner, "legacy_confirmed_is_valid" if legacy else "confirmed_is_valid", trace.validate)
-    monkeypatch.setattr(bot, "_reply_receipt_values_owner", Mock(return_value=owner))
+    monkeypatch.setattr(assembly.ReplyAssembly, "_reply_receipt_values_owner", Mock(return_value=owner))
     for name, callback in (
         ("journal_path_for_receipt", trace.path),
         ("bind_confirmed_transport_source", trace.bind),
@@ -788,7 +790,7 @@ def test_delivery_binds_publication_after_barrier_runtime_changes(monkeypatch, t
         result = original_barrier(*args, **kwargs)
         monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", current_path)
         monkeypatch.setattr(bot, "durable_create_receipt_json", current_create)
-        monkeypatch.setattr(bot, "_reply_receipt_values_owner", Mock(return_value=current_values))
+        monkeypatch.setattr(assembly.ReplyAssembly, "_reply_receipt_values_owner", Mock(return_value=current_values))
         return result
 
     monkeypatch.setattr(
@@ -821,21 +823,21 @@ def test_publication_keeps_its_bindings_when_retirement_check_changes_runtime(mo
     later_reader = Mock(return_value=(True, receipt))
     forbidden = Mock(side_effect=AssertionError("active publication rebound its runtime"))
     monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", path)
-    monkeypatch.setattr(bot, "_reply_receipt_values_owner", Mock(return_value=original_values))
+    monkeypatch.setattr(assembly.ReplyAssembly, "_reply_receipt_values_owner", Mock(return_value=original_values))
     monkeypatch.setattr(bot, "receipt_namespace_entry_exists", namespace)
     monkeypatch.setattr(bot, "durable_create_receipt_json", create)
     monkeypatch.setattr(bot, "log", logger)
 
     def retirement_check():
         monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", later_path)
-        monkeypatch.setattr(bot, "_reply_receipt_values_owner", Mock(return_value=later_values))
+        monkeypatch.setattr(assembly.ReplyAssembly, "_reply_receipt_values_owner", Mock(return_value=later_values))
         monkeypatch.setattr(bot, "load_receipt_json_no_follow", later_reader)
         monkeypatch.setattr(bot, "receipt_namespace_entry_exists", forbidden)
         monkeypatch.setattr(bot, "durable_create_receipt_json", forbidden)
         return False
 
     monkeypatch.setattr(bot, "remote_receipt_retirement_is_blocking", retirement_check)
-    bot.write_sending_reply_receipt(receipt)
+    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=False)
     namespace.assert_called_once_with(path)
     create.assert_called_once_with(path, receipt)
     assert create.call_args.args[0] is path and create.call_args.args[1] is receipt
@@ -877,7 +879,7 @@ def test_promotion_refreshes_nested_load_but_keeps_bound_promotion_authorities(m
     validator_name = ("_legacy_conversational_transport_source_semantic_validator"
                       if legacy else "transport_source_semantic_validator")
     monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", path)
-    monkeypatch.setattr(bot, "_reply_receipt_values_owner", Mock(return_value=promotion_values))
+    monkeypatch.setattr(assembly.ReplyAssembly, "_reply_receipt_values_owner", Mock(return_value=promotion_values))
     monkeypatch.setattr(bot, "load_receipt_json_no_follow", forbidden)
     monkeypatch.setattr(bot, "bind_confirmed_transport_source", bind)
     monkeypatch.setattr(bot, "journal_path_for_receipt", journal)
@@ -885,14 +887,14 @@ def test_promotion_refreshes_nested_load_but_keeps_bound_promotion_authorities(m
     monkeypatch.setattr(bot, "transaction_mutation_authority", authority)
     monkeypatch.setattr(bot, validator_name, validator)
     monkeypatch.setattr(delivery, "canonical_atomic_json_bytes", lambda receipt: b"sending" if receipt is sending else b"confirmed")
-    promotion = bot._reply_receipts_owner()
+    promotion = bot._reply_assembly()._reply_receipts_owner()
     monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", nested_path)
-    monkeypatch.setattr(bot, "_reply_receipt_values_owner", Mock(return_value=load_values))
+    monkeypatch.setattr(assembly.ReplyAssembly, "_reply_receipt_values_owner", Mock(return_value=load_values))
 
     def read_current(actual_path):
         assert actual_path is nested_path
         monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", later_path)
-        monkeypatch.setattr(bot, "_reply_receipt_values_owner", forbidden)
+        monkeypatch.setattr(assembly.ReplyAssembly, "_reply_receipt_values_owner", forbidden)
         monkeypatch.setattr(bot, "bind_confirmed_transport_source", forbidden)
         monkeypatch.setattr(bot, "replace_bound_source_receipt", forbidden)
         monkeypatch.setattr(bot, "transaction_mutation_authority", forbidden)
@@ -924,7 +926,7 @@ def test_retirement_proof_gate_precedes_receipt_read_and_authority(monkeypatch, 
     from mrs_bot_state_generation import record_receipt_commit
 
     sending = unit_sending_v4_reply_receipt()
-    receipt = sending if sending_fallback else bot._confirmed_reply_receipt_from_sending(
+    receipt = sending if sending_fallback else bot._reply_assembly()._reply_receipt_values_owner().confirmed_from_sending(
         sending, reply_post_id="999", confirmation_epoch=sending["attempt_epoch"],
     )
     state = bot.default_state()
@@ -979,10 +981,10 @@ def test_cycle_delivery_binds_current_routing_without_running_callbacks(monkeypa
         values_factory = Mock(return_value=receipt_values)
         receipts_factory = Mock(return_value=receipts)
         completion_factory = Mock(return_value=completion)
-        monkeypatch.setattr(bot, "_reply_receipt_values_owner", values_factory)
-        monkeypatch.setattr(bot, "_reply_receipts_owner", receipts_factory)
-        monkeypatch.setattr(bot, "_reply_completion_owner", completion_factory)
-        owner = bot._reply_cycle_delivery(
+        monkeypatch.setattr(assembly.ReplyAssembly, "_reply_receipt_values_owner", values_factory)
+        monkeypatch.setattr(assembly.ReplyAssembly, "_reply_receipts_owner", receipts_factory)
+        monkeypatch.setattr(assembly.ReplyAssembly, "_reply_completion_owner", completion_factory)
+        owner = bot._reply_assembly()._reply_cycle_delivery(
             cooldowns=cooldowns, drafts=drafts, tweets=tweets,
         )
         owners.append(owner)
@@ -995,7 +997,7 @@ def test_cycle_delivery_binds_current_routing_without_running_callbacks(monkeypa
         assert owner.block_ambiguous.keywords["load_confirmed_reply_receipt"] == receipts.load
         assert owner.receipts is receipts and owner.completion is completion
         assert owner.receipt_values is receipt_values and owner.tweets is tweets
-        assert owner.post is bot._post_conversational_reply_with_current_owners
+        assert owner.post.__func__ is assembly.ReplyAssembly.post_with_current_owners
         assert owner.cooldowns is cooldowns
         values_factory.assert_called_once_with(drafts=drafts)
         receipts_factory.assert_called_once_with(values=receipt_values)
@@ -1035,8 +1037,8 @@ def test_cycle_delivery_keeps_bound_routing_while_post_binds_current_send_depend
             monkeypatch.setattr(bot, name, value)
         monkeypatch.setattr(bot, "ApiError", NextApiError)
         monkeypatch.setattr(bot, "create_post", create)
-        monkeypatch.setattr(bot, "_reply_receipt_values_owner", value_factory)
-        monkeypatch.setattr(bot, "_reply_completion_owner", completion_factory)
+        monkeypatch.setattr(assembly.ReplyAssembly, "_reply_receipt_values_owner", value_factory)
+        monkeypatch.setattr(assembly.ReplyAssembly, "_reply_completion_owner", completion_factory)
         return True
 
     def post(**kwargs):
@@ -1070,7 +1072,7 @@ def test_cycle_delivery_keeps_bound_routing_while_post_binds_current_send_depend
         bot, "record_api_error",
         Mock(side_effect=AssertionError("obsolete root cooldown relay used")),
     )
-    owner = bot._reply_cycle_delivery()
+    owner = bot._reply_assembly()._reply_cycle_delivery()
     value_factory.assert_not_called()
     completion_factory.assert_not_called()
     assert owner.deliver(

@@ -336,7 +336,7 @@ def exercise_direct_preflights(
         ),
         (
             "provider_request",
-            lambda: bot.openai_responses_reply_call(
+            lambda: bot._reply_assembly()._reply_model_transport_owner().call(
                 request={},
                 timeout_seconds=1,
                 lane="mention",

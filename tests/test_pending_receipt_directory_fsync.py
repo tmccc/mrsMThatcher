@@ -352,7 +352,7 @@ def test_unsafe_receipt_namespace_is_never_absent_or_overwritten(
             attempt_epoch=CONFIRMATION_EPOCH,
             target_id="880001",
         )
-        writer = lambda: bot.write_sending_reply_receipt(receipt)
+        writer = lambda: bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=False)
 
     if entry_type == "dangling_symlink":
         path.symlink_to(path.with_name("missing-target"))
@@ -539,7 +539,7 @@ def _actual_conversational_create_is_blocked(
     monkeypatch.setattr(bot, "create_post", actual_create_post)
     monkeypatch.setattr(bot, "x_request", x_boundary)
     with pytest.raises(bot.AmbiguousRemotePostOutcome):
-        bot.post_conversational_reply_with_durable_identity(
+        bot._reply_assembly().post_with_current_owners(
             state=bot.default_state(),
             receipt_template=reply,
             reply_text=str(reply["reply_text"]),
@@ -1090,7 +1090,7 @@ def test_durability_uncertainty_blocks_x_and_provider_transports(
     with pytest.raises(bot.AmbiguousRemotePostOutcome):
         bot.x_request("POST", "/2/tweets", json={"text": "synthetic"})
     with pytest.raises(bot.AmbiguousRemotePostOutcome):
-        bot.openai_responses_reply_call(
+        bot._reply_assembly()._reply_model_transport_owner().call(
             request={},
             timeout_seconds=1,
             lane="mention",
@@ -1891,7 +1891,10 @@ def test_later_valid_marker_recovery_releases_sigint_once_without_remote_actions
     monkeypatch.setattr(bot, "create_post", remote_lane_reached)
     monkeypatch.setattr(bot, "upload_media", remote_lane_reached)
     monkeypatch.setattr(bot, "x_request", remote_lane_reached)
-    monkeypatch.setattr(bot, "openai_responses_reply_call", remote_lane_reached)
+    monkeypatch.setattr(
+        bot._reply_model_transport.ReplyModelTransport, "call",
+        lambda _owner, *args, **kwargs: remote_lane_reached(*args, **kwargs),
+    )
 
     original_signal_handler = signal.getsignal(signal.SIGINT)
     delivered: list[int] = []
@@ -2065,7 +2068,10 @@ def test_main_rechecks_marker_durability_on_every_blocked_tick(
     monkeypatch.setattr(bot, "create_post", remote_lane_reached)
     monkeypatch.setattr(bot, "upload_media", remote_lane_reached)
     monkeypatch.setattr(bot, "x_request", remote_lane_reached)
-    monkeypatch.setattr(bot, "openai_responses_reply_call", remote_lane_reached)
+    monkeypatch.setattr(
+        bot._reply_model_transport.ReplyModelTransport, "call",
+        lambda _owner, *args, **kwargs: remote_lane_reached(*args, **kwargs),
+    )
 
     original_signal_handler = signal.getsignal(signal.SIGINT)
     delivered: list[int] = []
@@ -2198,7 +2204,10 @@ def test_fresh_process_marker_disappearance_blocks_multiple_real_daemon_ticks(
     monkeypatch.setattr(bot, "create_post", remote_lane_reached)
     monkeypatch.setattr(bot, "upload_media", remote_lane_reached)
     monkeypatch.setattr(bot, "x_request", remote_lane_reached)
-    monkeypatch.setattr(bot, "openai_responses_reply_call", remote_lane_reached)
+    monkeypatch.setattr(
+        bot._reply_model_transport.ReplyModelTransport, "call",
+        lambda _owner, *args, **kwargs: remote_lane_reached(*args, **kwargs),
+    )
 
     marker_payload = _ambiguous_marker_payload()
     bot.atomic_write_json(

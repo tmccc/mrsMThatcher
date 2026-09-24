@@ -50,7 +50,7 @@ def test_real_root_adapter_accepts_natural_conversation_in_one_call(monkeypatch,
     """A mocked editorial decision reaches a bound draft without another call."""
     response = response_envelope(raw_decision(kind=kind, reply=text))
     calls, sleeps, _ = configure(monkeypatch, [FakeHttpResponse(200, body=response)])
-    result = bot.evaluate_single_call_reply(context(), state=bot.default_state())
+    result = bot._reply_assembly()._reply_generation_owner().evaluate(context(), state=bot.default_state())
     assert result.status == 'reply'
     assert str(result.reply) == text
     assert result.reply.draft_record['factual_claims'] == []
@@ -63,7 +63,7 @@ def test_short_429_recovery_still_persists_health_and_blocks_next_candidate(monk
     """Success after an allowed retry does not erase the rate-limit event."""
     calls, sleeps, saves = configure(monkeypatch, [FakeHttpResponse(429, headers=headers), FakeHttpResponse(200, body=response_envelope(raw_decision()))])
     state = bot.default_state()
-    result = bot.evaluate_single_call_reply(context(), state=state)
+    result = bot._reply_assembly()._reply_generation_owner().evaluate(context(), state=state)
     assert result.status == 'reply'
     assert result.provider_request_attempt_count == 2
     assert result.provider_status_code == 429
@@ -71,7 +71,7 @@ def test_short_429_recovery_still_persists_health_and_blocks_next_candidate(monk
     assert len(calls) == 2
     assert state['openai_error_epochs'] == [2_000_000_000]
     assert saves[-1]['openai_api_cooldown_until_epoch'] == 2_000_000_061
-    assert bot.evaluate_single_call_reply(context(), state=state).reason == 'openai_cooldown'
+    assert bot._reply_assembly()._reply_generation_owner().evaluate(context(), state=state).reason == 'openai_cooldown'
     assert len(calls) == 2
 
 
@@ -80,7 +80,7 @@ def test_long_or_unknown_429_defers_without_sleep_or_second_call(monkeypatch, he
     """Only a proved short provider delay is eligible for immediate retry."""
     calls, sleeps, saves = configure(monkeypatch, [FakeHttpResponse(429, headers=headers)])
     state = bot.default_state()
-    result = bot.evaluate_single_call_reply(context(), state=state)
+    result = bot._reply_assembly()._reply_generation_owner().evaluate(context(), state=state)
     assert result.status == 'operational_failure'
     assert result.provider_request_attempt_count == 1
     assert len(calls) == 1 and sleeps == []
@@ -90,7 +90,7 @@ def test_long_or_unknown_429_defers_without_sleep_or_second_call(monkeypatch, he
 def test_short_429_then_ambiguous_timeout_is_never_retried_again(monkeypatch):
     """A second ambiguous transport failure retains 429 authority and stops."""
     calls, sleeps, saves = configure(monkeypatch, [FakeHttpResponse(429, headers={'Retry-After': '1'}), bot.requests.ReadTimeout('offline timeout')])
-    result = bot.evaluate_single_call_reply(context(), state=bot.default_state())
+    result = bot._reply_assembly()._reply_generation_owner().evaluate(context(), state=bot.default_state())
     assert result.error_category == 'provider_ambiguous_timeout'
     assert result.provider_request_attempt_count == 2
     assert len(calls) == 2
@@ -106,7 +106,7 @@ def test_root_download_checks_exact_content_length(monkeypatch, declared, transi
     metadata = {'status': 'supplied', 'photos_expected': 1, 'photos': [{'media_key': 'm1', 'url': 'https://pbs.twimg.com/media/offline', 'attachment_role': 'target_contribution', 'source_post_id': '100'}]}
     error = bot.ReplyMediaTransientUnavailable if transient else bot.ReplyMediaUnavailable
     with pytest.raises(error, match='declared length'):
-        bot.collect_reply_images(metadata)
+        bot._reply_assembly()._reply_media_owner().collect(metadata)
     assert response.closed
 
 
@@ -126,7 +126,7 @@ def test_v3_draft_receipts_reconcile_but_pending_drafts_cannot_send(monkeypatch)
     draft['validated_draft_hash'] = bot._legacy_reply_value_sha256({key: value for key, value in draft.items() if key != 'validated_draft_hash'})
     assert bot._legacy_ai_reply_receipt_draft_is_valid(receipt, receipt['reply_text'])
     with pytest.raises(ValueError):
-        bot.validate_current_ai_reply_draft(draft, context=receipt['reply_context'])
+        bot._reply_assembly()._reply_draft_owner().validate(draft, context=receipt['reply_context'])
 
 
 def test_root_context_payload_uses_utc_calendar_date(monkeypatch):
@@ -140,9 +140,9 @@ def test_root_context_payload_uses_utc_calendar_date(monkeypatch):
     try:
         monkeypatch.setattr(bot, 'now_epoch', lambda: 1_788_480_060)  # 2026-09-04 00:01 UTC
         patch_reply_context_method(monkeypatch, 'parent_chain', lambda *_: [])
-        monkeypatch.setattr(bot, 'reply_media_context_for_candidate', lambda *_args, **_kwargs: None)
+        patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", lambda *_args, **_kwargs: None)
         target = {'id': '100', 'author_id': '200', 'text': 'What happened today?', 'created_at': '2026-09-03T23:59:59Z', 'referenced_tweets': []}
-        prepared = bot._reply_context_owner().build(target, bot.default_state())
+        prepared = bot._reply_assembly()._reply_context_owner().build(target, bot.default_state())
         assert prepared is not None
         assert prepared.context['current_date'] == bot.current_utc_datetime().date().isoformat()
         assert prepared.context['current_date'] != datetime.fromtimestamp(bot.now_epoch()).date().isoformat()
@@ -160,7 +160,7 @@ def test_persisted_cooldown_blocks_provider_after_fresh_process(monkeypatch, tmp
     """A new process loads saved cooldown metadata before any provider call."""
     calls, sleeps, saves = configure(monkeypatch, [FakeHttpResponse(429, headers={'Retry-After': '120'})])
     state = bot.default_state()
-    bot.evaluate_single_call_reply(context(), state=state)
+    bot._reply_assembly()._reply_generation_owner().evaluate(context(), state=state)
     state_file = tmp_path / 'bot_state.json'
     proposed = tmp_path / 'proposed.json'
     proposed.write_text(json.dumps(saves[-1]), encoding='utf-8')
@@ -181,7 +181,7 @@ else:
         raise AssertionError("provider or image collection called during persisted cooldown")
     bot.requests.post = forbidden
     bot.collect_reply_images = forbidden
-    result = bot.evaluate_single_call_reply({"lane": "mention", "target_id": "100"}, state=state)
+    result = bot._reply_assembly()._reply_generation_owner().evaluate({"lane": "mention", "target_id": "100"}, state=state)
     assert result.reason == "openai_cooldown", result
 '''
     from tests.helpers.bot_runtime import IMPORT_ENV
@@ -197,7 +197,7 @@ def test_real_root_adapter_rejects_fabricated_fact_in_every_kind(monkeypatch, ki
     false = raw_decision(kind=kind, reply='Britain joined the European Economic Community in 1873.', facts=['F1'])
     calls, sleeps, saves = configure(monkeypatch, [FakeHttpResponse(200, body=response_envelope(false))])
     state = bot.default_state()
-    result = bot.evaluate_single_call_reply(context(), state=state)
+    result = bot._reply_assembly()._reply_generation_owner().evaluate(context(), state=state)
     assert result.status == 'operational_failure'
     assert result.error_category == 'local_validation'
     assert result.reply is None
@@ -213,7 +213,7 @@ def test_real_root_adapter_accepts_independently_bound_fact(monkeypatch):
     repository = FakeRepository(1)
     repository.passages['evidence-1'] = FakePassage('evidence-1', text)
     monkeypatch.setattr(bot, 'reply_evidence_repository', lambda: repository)
-    result = bot.evaluate_single_call_reply(context(), state=bot.default_state())
+    result = bot._reply_assembly()._reply_generation_owner().evaluate(context(), state=bot.default_state())
     assert result.status == 'reply'
     assert result.reply.draft_record['factual_claims'] == [{'text': text, 'fact_ids': ['F1']}]
     assert len(calls) == 1

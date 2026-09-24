@@ -129,9 +129,7 @@ def configure_provider_free_mention_check(
         ),
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: object())
-    monkeypatch.setattr(
-        bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {}
-    )
+    monkeypatch.setattr(bot._reply_native_media.ReplyMedia, "context", lambda _owner, *args, **kwargs: (lambda *_args, **_kwargs: {})(*args, **kwargs))
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
 

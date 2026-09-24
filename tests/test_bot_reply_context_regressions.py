@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from tests.helpers.reply_fixtures import patch_reply_owner_method
+
 
 import copy
 import json
@@ -147,7 +149,7 @@ def test_hot_post_reply_native_photo_context_is_retained_for_single_call(
 
         candidates = scenario["search_recent"]
         bot.attach_media_to_tweets(candidates, scenario["search_recent_extra"]["includes"])
-        media = bot.reply_media_context_for_candidate(candidates[0], lane="hot_post_reply", target_id="910")
+        media = bot._reply_assembly()._reply_media_owner().context(candidates[0], lane="hot_post_reply", target_id="910")
         assert media["photos"] == [{
             "media_key": "3_910",
             "url": "https://pbs.twimg.com/media/hot-photo.jpg",
@@ -176,7 +178,7 @@ def test_reply_images_prioritise_target_then_direct_quote_and_ignore_parent() ->
     quoted = candidate("90", "quoted-1", "quoted-2")
     unrelated_parent = candidate("80", "parent-1")
 
-    media = bot.reply_media_context_for_candidate(
+    media = bot._reply_assembly()._reply_media_owner().context(
         target,
         lane="mention",
         target_id="100",
@@ -202,7 +204,7 @@ def test_reply_images_prioritise_target_then_direct_quote_and_ignore_parent() ->
     }
     assert unrelated_parent["_attached_media"][0]["media_key"] == "parent-1"
 
-    target_only = bot.reply_media_context_for_candidate(
+    target_only = bot._reply_assembly()._reply_media_owner().context(
         candidate("101", "target-1", "target-2", "target-3"),
         lane="mention",
         target_id="101",
@@ -213,7 +215,7 @@ def test_reply_images_prioritise_target_then_direct_quote_and_ignore_parent() ->
         "target-2",
     ]
 
-    incomplete = bot.reply_media_context_for_candidate(
+    incomplete = bot._reply_assembly()._reply_media_owner().context(
         {
             "id": "102",
             "attachments": {"media_keys": ["target-missing"]},
@@ -239,7 +241,7 @@ def test_quote_tweet_context_wires_target_and_quoted_images_in_priority_order() 
             "url": f"https://pbs.twimg.com/media/{media_key}.jpg",
         }
 
-    prepared_context = bot._reply_context_owner().build_quote(
+    prepared_context = bot._reply_assembly()._reply_context_owner().build_quote(
         {
             "id": "900",
             "author_id": "12345",
@@ -335,8 +337,8 @@ def test_recent_account_replies_are_only_confirmed_conversational_replies() -> N
         "8002": {"post_type": "daily_meme", "text": "Cached meme post."},
     }
 
-    assert bot.recent_confirmed_account_replies(
-        state,
+    assert bot._reply_assembly()._reply_history_owner().recent_replies(
+        state, bot.MAX_RECENT_ACCOUNT_REPLIES,
         before_epoch=20,
         excluded_post_ids={"9002"},
     ) == [
@@ -344,7 +346,7 @@ def test_recent_account_replies_are_only_confirmed_conversational_replies() -> N
         {"post_id": "9003", "text": "Confirmed quote-tweet reply."},
         {"post_id": "9004", "text": "Confirmed generic reply."},
     ]
-    assert bot.recent_confirmed_account_replies(state) == []
+    assert bot._reply_assembly()._reply_history_owner().recent_replies(state, bot.MAX_RECENT_ACCOUNT_REPLIES) == []
 
 
 def test_recent_conversational_replies_take_latest_thirty_chronologically() -> None:
@@ -360,7 +362,7 @@ def test_recent_conversational_replies_take_latest_thirty_chronologically() -> N
         for index in range(1, 36)
     ]
 
-    replies = bot.recent_confirmed_account_replies(state, before_epoch=40)
+    replies = bot._reply_assembly()._reply_history_owner().recent_replies(state, bot.MAX_RECENT_ACCOUNT_REPLIES, before_epoch=40)
 
     assert [row["post_id"] for row in replies] == [
         str(9000 + index) for index in range(6, 36)
@@ -434,7 +436,7 @@ def test_same_author_history_is_bound_prior_deduplicated_and_cross_thread() -> N
         },
     ]
 
-    interactions = bot.recent_same_author_account_interactions(
+    interactions = bot._reply_assembly()._reply_history_owner().recent_same_author_interactions(
         state,
         author_id="200",
         conversation_id="current-conversation",
@@ -450,7 +452,7 @@ def test_same_author_history_is_bound_prior_deduplicated_and_cross_thread() -> N
         }
         for index in range(3, 11)
     ]
-    assert bot.recent_same_author_account_interactions(
+    assert bot._reply_assembly()._reply_history_owner().recent_same_author_interactions(
         state,
         author_id="200",
         conversation_id="current-conversation",
@@ -514,7 +516,7 @@ def test_generation_does_not_duplicate_same_author_reply_in_recent_replies(
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
 
-    assert bot.generate_single_call_reply(context, None, state=state) is None
+    assert bot._reply_assembly()._reply_generation_owner().evaluate(context, None, state=state).reply is None
     assert captured["same_author_interactions"] == [
         {
             "contributor": "An earlier contribution.",
@@ -582,7 +584,7 @@ def test_generation_excludes_quoted_target_from_same_author_history(
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
 
-    assert bot.generate_single_call_reply(context, None, state=state) is None
+    assert bot._reply_assembly()._reply_generation_owner().evaluate(context, None, state=state).reply is None
     assert captured["same_author_interactions"] == []
 
 
@@ -638,7 +640,7 @@ def test_generation_excludes_quoted_account_reply_from_recent_replies(
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
 
-    assert bot.generate_single_call_reply(context, None, state=state) is None
+    assert bot._reply_assembly()._reply_generation_owner().evaluate(context, None, state=state).reply is None
     assert captured["recent_account_replies"] == []
 
 
@@ -669,7 +671,7 @@ def test_long_parent_context_never_truncates_away_incoming_contribution(
     monkeypatch.setattr(bot, "SKIP_REPLIES_TO_OWN_AUTO_REPLIES", False)
     patch_reply_context_method(monkeypatch, "parent_chain", lambda _mention, _state: chain)
 
-    prepared_context = bot._reply_context_owner().build(mention, bot.default_state())
+    prepared_context = bot._reply_assembly()._reply_context_owner().build(mention, bot.default_state())
     assert prepared_context is not None
     context = prepared_context.context
 
@@ -719,7 +721,7 @@ def test_fifteen_turn_linear_thread_reaches_root_then_bounds_visible_path(
             "the verified cached parent path should be sufficient"
         ))
 
-    prepared_context = bot._reply_context_owner().build(
+    prepared_context = bot._reply_assembly()._reply_context_owner().build(
         mention,
         state,
     )
@@ -772,7 +774,7 @@ def test_uncached_parent_chain_performs_at_most_three_direct_lookups(
     patch_tweet_lookup_method(monkeypatch, "fetch", direct_lookup)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
-    chain = bot._reply_context_owner().parent_chain(mention, bot.default_state())
+    chain = bot._reply_assembly()._reply_context_owner().parent_chain(mention, bot.default_state())
 
     assert lookups == ["9", "8", "7"]
     assert [post["id"] for post in chain] == ["7", "8", "9"]
@@ -799,7 +801,7 @@ def test_parent_created_after_target_is_not_admitted_to_visible_context(
     }
     patch_reply_context_method(monkeypatch, "parent_chain", lambda *_args: [parent])
 
-    assert bot._reply_context_owner().build(mention, bot.default_state()) is None
+    assert bot._reply_assembly()._reply_context_owner().build(mention, bot.default_state()) is None
 
 
 def test_context_uses_only_parent_contiguous_path_not_cached_siblings(
@@ -852,7 +854,7 @@ def test_context_uses_only_parent_contiguous_path_not_cached_siblings(
     }
     patch_tweet_lookup_method(monkeypatch, "fetch", lambda *_args, **_kwargs: pytest.fail("context must use tweet_cache"))
 
-    prepared_context = bot._reply_context_owner().build(mention, state)
+    prepared_context = bot._reply_assembly()._reply_context_owner().build(mention, state)
     assert prepared_context is not None
     context = prepared_context.context
 
@@ -904,7 +906,7 @@ def test_author_cap_context_quote_commentary_refreshes_original_with_media(
     patch_tweet_lookup_method(monkeypatch, "fetch", fetch)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
-    prepared_context = bot._reply_context_owner().build(mention, state)
+    prepared_context = bot._reply_assembly()._reply_context_owner().build(mention, state)
     assert prepared_context is not None
     context = prepared_context.context
 
@@ -972,7 +974,7 @@ def test_declared_ancestor_quote_fails_context_closed_when_unresolvable(
 
     patch_tweet_lookup_method(monkeypatch, "get_cached", missing)
 
-    assert bot._reply_context_owner().build(target, bot.default_state()) is None
+    assert bot._reply_assembly()._reply_context_owner().build(target, bot.default_state()) is None
     assert lookups == [("900", True)]
 
 
@@ -1022,13 +1024,9 @@ def test_reply_plus_quote_preserves_real_thread_and_separates_quote(
             else pytest.fail("only the quoted subject may be fetched")
         ),
     )
-    monkeypatch.setattr(
-        bot,
-        "reply_media_context_for_candidate",
-        lambda *_args, **_kwargs: {},
-    )
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", lambda *_args, **_kwargs: {})
 
-    prepared_context = bot._reply_context_owner().build(
+    prepared_context = bot._reply_assembly()._reply_context_owner().build(
         target,
         bot.default_state(),
     )
@@ -1107,7 +1105,7 @@ def test_direct_quote_refreshes_cache_without_replacing_the_reply_path(
 
     patch_tweet_lookup_method(monkeypatch, "fetch", fetch)
 
-    prepared_context = bot._reply_context_owner().build(mention, state)
+    prepared_context = bot._reply_assembly()._reply_context_owner().build(mention, state)
     assert prepared_context is not None
     context = prepared_context.context
 
@@ -1166,7 +1164,7 @@ def test_image_only_direct_quote_reaches_one_multimodal_sol_call(
         ),
     )
 
-    prepared_context = bot._reply_context_owner().build(
+    prepared_context = bot._reply_assembly()._reply_context_owner().build(
         target,
         bot.default_state(),
     )
@@ -1289,7 +1287,7 @@ def test_non_contiguous_cached_author_cap_context_is_not_invented_into_path(
     }
     patch_tweet_lookup_method(monkeypatch, "fetch", lambda *_args, **_kwargs: pytest.fail("cached cap context must not fetch from X"))
 
-    prepared_context = bot._reply_context_owner().build(mention, state)
+    prepared_context = bot._reply_assembly()._reply_context_owner().build(mention, state)
     assert prepared_context is not None
     context = prepared_context.context
 
@@ -1316,7 +1314,7 @@ def test_quote_tweet_context_never_truncates_away_user_commentary(
     monkeypatch.setattr(bot, "THREAD_CONTEXT_MAX_TOTAL_CHARS", 220)
     monkeypatch.setattr(bot, "THREAD_CONTEXT_MAX_CHARS_PER_POST", 500)
 
-    prepared_context = bot._reply_context_owner().build_quote(
+    prepared_context = bot._reply_assembly()._reply_context_owner().build_quote(
         {"id": "900", "text": "original account post " + ("historical context " * 80)},
         {"id": "910", "conversation_id": "910", "author_id": "200", "text": incoming},
     )

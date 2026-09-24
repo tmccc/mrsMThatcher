@@ -9,6 +9,8 @@ import subprocess
 import sys
 from unittest.mock import Mock, call
 
+import mrs_bot_reply_assembly as assembly
+
 import pytest
 
 import mrs_bot_reply_history as reply_history
@@ -31,7 +33,7 @@ def make_owner():
             quoted_post_reference_id=bot.quoted_post_reference_id,
             maximum_state_epoch=bot.MAX_REASONABLE_STATE_EPOCH,
             maximum_recent_replies=bot.MAX_RECENT_ACCOUNT_REPLIES,
-            default_recent_reply_limit=inspect.signature(bot.recent_confirmed_account_replies).parameters["limit"].default,
+            default_recent_reply_limit=bot._DEFAULT_RECENT_ACCOUNT_REPLY_LIMIT,
             maximum_same_author_interactions=bot.MAX_SAME_AUTHOR_INTERACTIONS,
             maximum_age_seconds=bot.AI_REPLY_HISTORY_MAX_AGE_SECONDS,
             maximum_records=bot.AI_REPLY_HISTORY_MAX_RECORDS,
@@ -102,7 +104,7 @@ def test_root_owner_binds_current_dependencies_and_preserves_original_default(mo
         "maximum_age_seconds": "AI_REPLY_HISTORY_MAX_AGE_SECONDS",
         "maximum_records": "AI_REPLY_HISTORY_MAX_RECORDS",
     }
-    default = inspect.signature(bot.recent_confirmed_account_replies).parameters["limit"].default
+    default = bot._DEFAULT_RECENT_ACCOUNT_REPLY_LIMIT
     snapshots = []
     for _ in range(2):
         current = {field: object() for field in names}
@@ -110,7 +112,7 @@ def test_root_owner_binds_current_dependencies_and_preserves_original_default(mo
             current[field] = Mock()
         for field, root_name in names.items():
             monkeypatch.setattr(bot, root_name, current[field])
-        owner = bot._reply_history_owner()
+        owner = bot._reply_assembly()._reply_history_owner()
         assert isinstance(owner, reply_history.ReplyHistory)
         assert all(getattr(owner, field) is value for field, value in current.items())
         assert owner.default_recent_reply_limit == default
@@ -124,42 +126,10 @@ def test_root_owner_binds_current_dependencies_and_preserves_original_default(mo
         first.maximum_records = 1
 
 
-def test_root_adapters_preserve_arguments_result_identity_and_errors(monkeypatch):
-    methods = {
-        "recent_confirmed_account_replies": "recent_replies",
-        "recovery_comparison_account_replies": "recovery_replies",
-        "recent_same_author_account_interactions": "recent_same_author_interactions",
-    }
-    for root_name, method_name in methods.items():
-        adapter = getattr(bot, root_name)
-        public = inspect.signature(adapter).parameters
-        args = tuple(object() for parameter in public.values()
-                     if parameter.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD)
-        options = {name: object() for name, parameter in public.items()
-                   if parameter.kind == inspect.Parameter.KEYWORD_ONLY}
-        for _ in range(2):
-            owner = Mock(spec=reply_history.ReplyHistory)
-            factory = Mock(return_value=owner)
-            monkeypatch.setattr(bot, "_reply_history_owner", factory)
-            method = getattr(owner, method_name)
-            result = object()
-            method.return_value = result
-            assert adapter(*args, **options) is result
-            factory.assert_called_once_with()
-            actual_args, actual_options = method.call_args
-            assert len(actual_args) == len(args)
-            assert all(actual is expected for actual, expected in zip(actual_args, args))
-            assert actual_options.keys() == options.keys()
-            assert all(actual_options[name] is value for name, value in options.items())
-            failure = TypeError(root_name)
-            method.side_effect = failure
-            with pytest.raises(TypeError) as caught:
-                adapter(*args, **options)
-            assert caught.value is failure
 
 
 def test_recent_default_is_fixed_while_body_reads_current_cap(confirmed_row, monkeypatch, make_owner):
-    default = inspect.signature(bot.recent_confirmed_account_replies).parameters["limit"].default
+    default = bot._DEFAULT_RECENT_ACCOUNT_REPLY_LIMIT
     assert default == bot.MAX_RECENT_ACCOUNT_REPLIES
     assert inspect.signature(reply_history.ReplyHistory.recent_replies).parameters["limit"].default is inspect.Parameter.empty
     count = default + 5
@@ -175,10 +145,10 @@ def test_recent_default_is_fixed_while_body_reads_current_cap(confirmed_row, mon
     assert [row["post_id"] for row in limited.recent_replies(state, count, before_epoch=count + 1)] == [str(count - 1), str(count)]
     assert limited.recent_replies(state, 0, before_epoch=count + 1) == []
     monkeypatch.setattr(bot, "MAX_RECENT_ACCOUNT_REPLIES", count)
-    assert len(bot.recent_confirmed_account_replies(state, before_epoch=count + 1)) == default
+    assert len(bot._reply_assembly()._reply_history_owner().recent_replies(state, default, before_epoch=count + 1)) == default
     monkeypatch.setattr(bot, "MAX_RECENT_ACCOUNT_REPLIES", 2)
-    assert len(bot.recent_confirmed_account_replies(state, before_epoch=count + 1)) == 2
-    assert inspect.signature(bot.recent_confirmed_account_replies).parameters["limit"].default == default
+    assert len(bot._reply_assembly()._reply_history_owner().recent_replies(state, default, before_epoch=count + 1)) == 2
+    assert bot._DEFAULT_RECENT_ACCOUNT_REPLY_LIMIT == default
 
 
 def test_confirmed_rows_keep_references_and_lane_id_and_epoch_rules(confirmed_row, make_owner, monkeypatch):

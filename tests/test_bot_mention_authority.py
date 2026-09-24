@@ -7,6 +7,8 @@ import sys
 from unittest.mock import Mock, call
 from types import SimpleNamespace
 
+import mrs_bot_reply_assembly as assembly
+
 import pytest
 
 import mrs_bot_mention_authority as authority
@@ -21,7 +23,7 @@ METHODS = {'normalise_mention_pagination': 'normalise_pagination', 'normalise_me
 
 def authority_operation(name):
     if name in METHODS:
-        return getattr(bot._mention_authority_owner(), METHODS[name])
+        return getattr(bot._reply_assembly()._mention_authority_owner(), METHODS[name])
     return getattr(authority, name)
 
 
@@ -39,7 +41,7 @@ def test_composition_binds_current_authority_policy_without_runtime_access(monke
         current = {name: object() for name in fields}
         for name, value in current.items():
             monkeypatch.setattr(bot, name, value)
-        owner = bot._mention_authority_owner()
+        owner = bot._reply_assembly()._mention_authority_owner()
         assert owner is not previous
         assert all(getattr(owner, field) is current[name] for name, field in fields.items())
         previous = owner
@@ -105,7 +107,7 @@ def test_adapters_forward_public_arguments_defaults_references_and_native_errors
         result = object()
         target = Mock(return_value=result)
         with monkeypatch.context() as patch:
-            patch.setattr(bot, "_mention_authority_owner", Mock(return_value=SimpleNamespace(**{method: target})))
+            patch.setattr(assembly.ReplyAssembly, "_mention_authority_owner", Mock(return_value=SimpleNamespace(**{method: target})))
             for use_defaults in (True, False):
                 options = {
                     key: object() for key, param in public.items()
@@ -200,7 +202,7 @@ def test_pending_copies_are_shallow_and_validation_assigns_only_on_inequality(hi
     assert all(state[key] is value for key, value in before.items())
 
     state[history_key] = ["103"]
-    bot.record_terminal_reply_evaluation(state, target_id="104", lane="mention", reason="confirmed_no_reply")
+    bot._reply_assembly()._reply_evaluation_owner().record(state, target_id="104", lane="mention", reason="confirmed_no_reply")
     assert bot.validate_pending_mention_candidate_authority(
         state, path=bot.STATE_FILE, recover_pending_identity=True,
     ) == (True, True)

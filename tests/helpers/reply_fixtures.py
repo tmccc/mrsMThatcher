@@ -8,6 +8,9 @@ import hashlib
 import re
 from datetime import datetime
 from unittest.mock import Mock
+from mrs_bot_reply_assembly import ReplyAssembly
+
+import mrs_bot_reply_assembly as assembly
 
 import pytest
 
@@ -94,7 +97,7 @@ def patch_reply_owner_method(monkeypatch, owner_type, method: str, callback) -> 
 
 def patch_reply_receipt_method(monkeypatch, bot, method: str, callback) -> None:
     """Replace one bot's receipt operation while retaining fresh runtime bindings."""
-    owner_factory = bot._reply_receipts_owner
+    owner_factory = bot._reply_assembly()._reply_receipts_owner
 
     class FixtureReplyReceipts(type(owner_factory())):
         pass
@@ -104,9 +107,9 @@ def patch_reply_receipt_method(monkeypatch, bot, method: str, callback) -> None:
 
     setattr(FixtureReplyReceipts, method, invoke)
     monkeypatch.setattr(
-        bot,
+        ReplyAssembly,
         "_reply_receipts_owner",
-        lambda **kwargs: FixtureReplyReceipts(**vars(owner_factory(**kwargs))),
+        lambda self, **kwargs: FixtureReplyReceipts(**vars(owner_factory(**kwargs))),
     )
 
 
@@ -457,7 +460,6 @@ def configure_normal_cycle(monkeypatch):
             {},
         ),
     )
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", Mock(return_value={}))
     evaluate = legacy_reply_evaluator(Mock(side_effect=editorial_no_reply))
     patch_reply_owner_method(monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate", evaluate)
     return evaluate
@@ -480,12 +482,10 @@ def configure_quote_cycle(monkeypatch):
         Mock(return_value=["900"]),
     )
     patch_tweet_lookup_method(monkeypatch, "get_cached", Mock(return_value=original))
-    monkeypatch.setattr(bot, "get_quote_tweets_for_posts", Mock(return_value={"900": quotes}))
+    monkeypatch.setattr(assembly.ReplyAssembly, "get_quote_tweets_for_posts", Mock(return_value={"900": quotes}))
     media_context = Mock(return_value={})
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", media_context)
-    patch_reply_owner_method(
-        monkeypatch, bot._reply_native_media.ReplyMedia, "context", media_context,
-    )
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", media_context)
+    monkeypatch.setattr(bot._reply_native_media.ReplyMedia, "_fixture_media_context", media_context, raising=False)
     monkeypatch.setattr(bot, "x_request", Mock(side_effect=AssertionError("unexpected provider request")))
     monkeypatch.setattr(bot, "create_post", Mock(side_effect=AssertionError("unexpected remote write")))
     return original, quotes
@@ -495,7 +495,7 @@ def configure_quote_cycle(monkeypatch):
 def image_case():
     """Return a fresh HTTP image response and its bound candidate media context."""
     response = FakeHttpResponse(200, headers={"Content-Type": "image/png"})
-    media = bot.reply_media_context_for_candidate(
+    media = bot._reply_assembly()._reply_media_owner().context(
         {"id": "target", "_attached_media": [{
             "media_key": "native-photo", "type": "photo",
             "url": "http://127.0.0.1/media/native.png",

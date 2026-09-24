@@ -65,13 +65,13 @@ def test_quote_confirmation_prevents_second_public_reply(tmp_path, monkeypatch, 
         state = bot.default_state()
         state["recent_own_post_ids"] = ["900"]
         if case != "fresh":
-            prepared_context = bot._reply_context_owner().build(copy.deepcopy(target), state)
+            prepared_context = bot._reply_assembly()._reply_context_owner().build(copy.deepcopy(target), state)
             assert prepared_context is not None
             context = prepared_context.context
             assert prepared_context is not None
-            draft = bot.generate_single_call_reply(context, state=state)
+            draft = bot._reply_assembly()._reply_generation_owner().evaluate(context, state=state).reply
             assert draft == pending_text
-            assert bot.store_pending_ai_reply(state, "910", "mention", draft, context=context)
+            assert bot._reply_assembly()._reply_draft_owner().store(state, "910", "mention", draft, context=context)
         original_drafts = copy.deepcopy(state.get("pending_ai_reply_drafts", {}))
         bot.save_state(state, durable=True)
 

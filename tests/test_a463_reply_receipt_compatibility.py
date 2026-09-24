@@ -58,11 +58,11 @@ def _rehash(draft: dict) -> None:
 def test_frozen_schema4_receipts_are_valid_only_for_recovery(case):
     sending = case["sending_receipt"]
     assert hashlib.sha256(bot.canonical_atomic_json_bytes(sending)).hexdigest() == case["source_receipt_sha256"]
-    assert bot._legacy_sending_reply_receipt_is_semantically_valid(sending)
-    assert bot._legacy_confirmed_reply_receipt_is_semantically_valid(_confirmed_receipt(case))
+    assert bot._reply_assembly()._reply_receipt_values_owner().legacy_sending_is_valid(sending)
+    assert bot._reply_assembly()._reply_receipt_values_owner().legacy_confirmed_is_valid(_confirmed_receipt(case))
     assert not bot.sending_reply_receipt_is_semantically_valid(sending)
     with pytest.raises(ValueError, match="contract mismatch"):
-        bot.validate_current_ai_reply_draft(sending["ai_reply_draft"], context=sending["reply_context"])
+        bot._reply_assembly()._reply_draft_owner().validate(sending["ai_reply_draft"], context=sending["reply_context"])
 
 
 def test_obsolete_unsent_frozen_draft_is_discarded_for_regeneration(case):
@@ -77,7 +77,7 @@ def test_obsolete_unsent_frozen_draft_is_discarded_for_regeneration(case):
     assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
     assert not journal.exists()
 
-    result = bot.recover_pending_ai_reply(
+    result = bot._reply_assembly()._reply_draft_owner().recover(
         state, target, lane, context=sending["reply_context"],
     )
 
@@ -86,7 +86,7 @@ def test_obsolete_unsent_frozen_draft_is_discarded_for_regeneration(case):
     assert result.model_call_count == 0
     assert result.reply is None
     assert state == state_before
-    assert bot.recover_pending_ai_reply(state, target, lane, context=sending["reply_context"]) is None
+    assert bot._reply_assembly()._reply_draft_owner().recover(state, target, lane, context=sending["reply_context"]) is None
     assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
     assert not journal.exists()
     assert not bot.STATE_FILE.exists()
@@ -156,13 +156,13 @@ def test_frozen_schema4_rejects_tampering_even_when_draft_rehashed(corruption, f
     _rehash(draft)
     if corruption == "draft_hash":
         draft["validated_draft_hash"] = "0" * 64
-    assert not bot._legacy_sending_reply_receipt_is_semantically_valid(sending)
+    assert not bot._reply_assembly()._reply_receipt_values_owner().legacy_sending_is_valid(sending)
 
 
 def test_frozen_schema4_confirmed_receipt_requires_exact_source_hash(case):
     receipt = _confirmed_receipt(case)
     receipt["source_receipt_sha256"] = "0" * 64
-    assert not bot._legacy_confirmed_reply_receipt_is_semantically_valid(receipt)
+    assert not bot._reply_assembly()._reply_receipt_values_owner().legacy_confirmed_is_valid(receipt)
 
 
 def test_frozen_confirmed_journal_cannot_promote_different_receipt(case):
@@ -196,7 +196,7 @@ def test_frozen_confirmation_keeps_evidence_until_state_commit(case, monkeypatch
     status, receipt = bot.load_confirmed_reply_receipt()
     assert status == "valid"
     assert receipt["source_receipt_sha256"] == case["source_receipt_sha256"]
-    assert bot._legacy_confirmed_reply_receipt_is_semantically_valid(receipt)
+    assert bot._reply_assembly()._reply_receipt_values_owner().legacy_confirmed_is_valid(receipt)
     assert bot.reconcile_confirmed_reply_receipt(bot.load_state())
     assert not journal.exists()
     assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()

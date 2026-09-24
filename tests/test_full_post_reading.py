@@ -93,7 +93,7 @@ def test_legacy_parent_refreshes_respect_network_fetch_budget(monkeypatch):
     monkeypatch.setattr(bot, 'THREAD_CONTEXT_MAX_NETWORK_FETCHES', 1)
     lookup = Mock(side_effect=lambda tid, current: current['tweet_cache'][tid])
     patch_tweet_lookup_method(monkeypatch, "get_cached", lookup)
-    assert [row['id'] for row in bot._reply_context_owner().parent_chain(target, state)] == ['102']
+    assert [row['id'] for row in bot._reply_assembly()._reply_context_owner().parent_chain(target, state)] == ['102']
     lookup.assert_called_once_with('102', state)
 
 
@@ -108,13 +108,13 @@ def test_legacy_pending_mention_is_refreshed_and_saved_before_return(monkeypatch
     fresh['note_tweet'] = {'text': full}
     fetch = Mock(return_value=fresh)
     patch_tweet_lookup_method(monkeypatch, "fetch", fetch)
-    rows = bot.get_mentions(state)
+    rows = bot._reply_assembly()._mention_discovery_callback()(state)
     assert len(rows) == 1 and rows[0]['text'] == full
     saved = json.loads(bot.STATE_FILE.read_text())
     assert saved['mention_pending_candidates']['100']['text'] == full
     assert saved['tweet_cache']['100']['text'] == full
     assert saved['last_seen_mention_id'] == '100'
-    bot.get_mentions(saved)
+    bot._reply_assembly()._mention_discovery_callback()(saved)
     fetch.assert_called_once_with('100', include_media=True)
 
 
@@ -128,9 +128,9 @@ def test_legacy_queue_handles_deleted_and_transient_lookup_failures(monkeypatch,
     patch_tweet_lookup_method(monkeypatch, "fetch", Mock(side_effect=bot.ApiError('lookup failed', service='x', status_code=status, request_method='GET', request_path='/2/tweets/100')))
     if status == 503:
         with pytest.raises(bot.ApiError):
-            bot.get_mentions(state)
+            bot._reply_assembly()._mention_discovery_callback()(state)
         assert '100' in state['mention_pending_candidates']
     else:
-        assert bot.get_mentions(state) == []
+        assert bot._reply_assembly()._mention_discovery_callback()(state) == []
         assert state['mention_pending_candidates'] == {}
         assert json.loads(bot.STATE_FILE.read_text())['mention_pending_candidates'] == {}

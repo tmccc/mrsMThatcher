@@ -143,7 +143,6 @@ def test_second_429_metadata_reaches_global_openai_cooldown(
     ]
     events: list[tuple[str, dict[str, object]]] = []
     state = bot.default_state()
-    outcome: dict[str, object] = {}
 
     monkeypatch.setattr(bot, "single_call_reply", enabled_config())
     monkeypatch.setattr(bot, "now_epoch", lambda: current)
@@ -160,15 +159,16 @@ def test_second_429_metadata_reaches_global_openai_cooldown(
         lambda event, **fields: events.append((event, fields)),
     )
 
-    assert bot.generate_single_call_reply(
+    result = bot._reply_assembly()._reply_generation_owner().evaluate(
         pipeline_context(turns=1),
         None,
         state=state,
-        evaluation_outcome=outcome,
-    ) is None
+
+    )
+    assert result.reply is None
 
     assert responses == []
-    assert outcome["error_category"] == "provider_http_429"
+    assert result.error_category == "provider_http_429"
     assert state["openai_error_epochs"] == [current]
     assert state["openai_api_cooldown_until_epoch"] == current + 1 + 60
     assert state["openai_api_cooldown_reason"] == "openai returned 429/rate limit"
@@ -199,7 +199,6 @@ def test_first_429_metadata_survives_a_different_second_failure(
         responses.append(bot.requests.Timeout("unit timeout after 429"))
     events: list[tuple[str, dict[str, object]]] = []
     state = bot.default_state()
-    outcome: dict[str, object] = {}
 
     def post(*_args: object, **_kwargs: object) -> FakeHttpResponse:
         result = responses.pop(0)
@@ -223,15 +222,16 @@ def test_first_429_metadata_survives_a_different_second_failure(
         lambda event, **fields: events.append((event, fields)),
     )
 
-    assert bot.generate_single_call_reply(
+    result = bot._reply_assembly()._reply_generation_owner().evaluate(
         pipeline_context(turns=1),
         None,
         state=state,
-        evaluation_outcome=outcome,
-    ) is None
+
+    )
+    assert result.reply is None
 
     assert responses == []
-    assert outcome["error_category"] == (
+    assert result.error_category == (
         "provider_http_503"
         if second_failure == "http_503"
         else "provider_ambiguous_timeout"
@@ -262,7 +262,6 @@ def test_first_429_metadata_survives_a_malformed_success_envelope(
     responses = [first, second]
     events: list[tuple[str, dict[str, object]]] = []
     state = bot.default_state()
-    outcome: dict[str, object] = {}
 
     monkeypatch.setattr(bot, "single_call_reply", enabled_config())
     monkeypatch.setattr(bot, "now_epoch", lambda: current)
@@ -279,15 +278,16 @@ def test_first_429_metadata_survives_a_malformed_success_envelope(
         lambda event, **fields: events.append((event, fields)),
     )
 
-    assert bot.generate_single_call_reply(
+    result = bot._reply_assembly()._reply_generation_owner().evaluate(
         pipeline_context(turns=1),
         None,
         state=state,
-        evaluation_outcome=outcome,
-    ) is None
+
+    )
+    assert result.reply is None
 
     assert responses == []
-    assert outcome["error_category"] == "provider_envelope"
+    assert result.error_category == "provider_envelope"
     assert state["openai_error_epochs"] == [current]
     assert state["openai_api_cooldown_until_epoch"] == current + 1 + 60
     decision = next(
@@ -313,7 +313,6 @@ def test_first_429_then_local_rejection_preserves_both_dispositions(
         ),
     ]
     state = bot.default_state()
-    outcome: dict[str, object] = {}
     events: list[tuple[str, dict[str, object]]] = []
 
     monkeypatch.setattr(bot, "single_call_reply", enabled_config())
@@ -329,16 +328,17 @@ def test_first_429_then_local_rejection_preserves_both_dispositions(
         bot, "log_event", lambda event, **fields: events.append((event, fields)),
     )
 
-    assert bot.generate_single_call_reply(
+    result = bot._reply_assembly()._reply_generation_owner().evaluate(
         pipeline_context(turns=1),
         None,
         state=state,
-        evaluation_outcome=outcome,
-    ) is None
+
+    )
+    assert result.reply is None
 
     assert responses == []
-    assert outcome["error_category"] == "local_validation"
-    assert bot._is_terminal_candidate_local_failure(outcome) is True
+    assert result.error_category == "local_validation"
+    assert bot._is_terminal_candidate_local_failure(result) is True
     assert state["openai_error_epochs"] == [current]
     assert state["openai_api_cooldown_until_epoch"] == current + 1 + 60
     decision = next(
@@ -377,7 +377,6 @@ def test_validation_diagnostics_preserve_candidate_and_provider_health_routing(
     current = 2_000_000_000
     result = _run_response(response)
     state = bot.default_state()
-    outcome: dict[str, object] = {}
     events: list[tuple[str, dict[str, object]]] = []
     monkeypatch.setattr(bot, "now_epoch", lambda: current)
     patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [])
@@ -389,12 +388,13 @@ def test_validation_diagnostics_preserve_candidate_and_provider_health_routing(
         bot, "log_event", lambda event, **fields: events.append((event, fields)),
     )
 
-    assert bot.generate_single_call_reply(
-        pipeline_context(turns=1), None, state=state, evaluation_outcome=outcome,
-    ) is None
+    result = bot._reply_assembly()._reply_generation_owner().evaluate(
+        pipeline_context(turns=1), None, state=state,
+    )
+    assert result.reply is None
 
-    assert outcome["error_category"] == category
-    assert bot._is_terminal_candidate_local_failure(outcome) is terminal
+    assert result.error_category == category
+    assert bot._is_terminal_candidate_local_failure(result) is terminal
     assert bot._is_openai_provider_health_failure(category) is not terminal
     assert state["openai_error_epochs"] == ([] if terminal else [current])
     assert state["openai_api_cooldown_until_epoch"] == 0
@@ -451,7 +451,8 @@ def test_rejected_reply_survives_real_log_to_digest_json_without_becoming_publis
     patch_reply_draft_method(monkeypatch, "store", forbidden)
     source_context = pipeline_context(turns=1)
     source_context["target_id"] = "2090000000000000001"
-    assert bot.generate_single_call_reply(source_context, None, state=state) is None
+    result = bot._reply_assembly()._reply_generation_owner().evaluate(source_context, None, state=state)
+    assert result.reply is None
     assert not state.get("pending_ai_reply_drafts")
     assert not state.get("ai_reply_history")
     assert state["daily_reply_count"] == 0
@@ -495,7 +496,6 @@ def test_first_429_then_valid_decision_retains_rate_limit_health(
     ]
     events: list[tuple[str, dict[str, object]]] = []
     state = bot.default_state()
-    outcome: dict[str, object] = {}
 
     monkeypatch.setattr(bot, "single_call_reply", enabled_config())
     monkeypatch.setattr(bot, "now_epoch", lambda: current)
@@ -512,15 +512,16 @@ def test_first_429_then_valid_decision_retains_rate_limit_health(
         lambda event, **fields: events.append((event, fields)),
     )
 
-    assert bot.generate_single_call_reply(
+    result = bot._reply_assembly()._reply_generation_owner().evaluate(
         pipeline_context(turns=1),
         None,
         state=state,
-        evaluation_outcome=outcome,
-    ) is None
+
+    )
+    assert result.reply is None
 
     assert responses == []
-    assert outcome["status"] == "no_reply"
+    assert result.status == "no_reply"
     assert state["openai_error_epochs"] == [current]
     assert state["openai_api_cooldown_until_epoch"] == current + 61
     decision = next(
@@ -674,7 +675,6 @@ def test_unlabelled_transport_boundary_errors_do_not_poison_openai_health(
 
     current = 2_000_000_000
     state = bot.default_state()
-    outcome: dict[str, object] = {}
 
     def fail_transport(**_kwargs: object) -> dict[str, object]:
         raise exception_type("unlabelled unit failure")
@@ -690,14 +690,15 @@ def test_unlabelled_transport_boundary_errors_do_not_poison_openai_health(
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
 
-    assert bot.generate_single_call_reply(
+    result = bot._reply_assembly()._reply_generation_owner().evaluate(
         pipeline_context(turns=1),
         None,
         state=state,
-        evaluation_outcome=outcome,
-    ) is None
 
-    assert outcome["error_category"] == "transport_internal"
+    )
+    assert result.reply is None
+
+    assert result.error_category == "transport_internal"
     assert state["openai_error_epochs"] == []
     assert state["openai_api_cooldown_until_epoch"] == 0
     assert state["author_evaluation_quarantines"] == {}
@@ -739,7 +740,7 @@ def test_candidate_image_transient_failures_remain_retryable(
     }
 
     with pytest.raises(bot.ReplyMediaTransientUnavailable):
-        bot.collect_reply_images(media)
+        bot._reply_assembly()._reply_media_owner().collect(media)
 
 
 @pytest.mark.parametrize("lane", ["mention", "hot_post_reply"])
@@ -911,7 +912,7 @@ def test_content_specific_provider_outcomes_are_terminal_local_and_keep_usage(
         "status": result.status,
         "error_category": result.error_category,
     }
-    assert bot._is_terminal_candidate_local_failure(outcome) is True
+    assert bot._is_terminal_candidate_local_failure(result) is True
     assert bot._is_openai_provider_health_failure(result.error_category) is False
 
 
@@ -926,7 +927,6 @@ def test_unknown_incomplete_reason_remains_provider_health_and_retryable(
     )
     result = _run_response(response)
     state = bot.default_state()
-    outcome: dict[str, object] = {}
 
     assert result.error_category == "provider_incomplete"
     assert result.provider_usage["total_tokens"] == 145
@@ -943,13 +943,14 @@ def test_unknown_incomplete_reason_remains_provider_health_and_retryable(
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
 
-    assert bot.generate_single_call_reply(
+    result = bot._reply_assembly()._reply_generation_owner().evaluate(
         pipeline_context(turns=1),
         None,
         state=state,
-        evaluation_outcome=outcome,
-    ) is None
-    assert outcome["error_category"] == "provider_incomplete"
+
+    )
+    assert result.reply is None
+    assert result.error_category == "provider_incomplete"
     assert state["openai_error_epochs"] == [current]
     assert state["openai_api_cooldown_until_epoch"] == 0
     assert state.get("reply_evaluation_records", {}) == {}

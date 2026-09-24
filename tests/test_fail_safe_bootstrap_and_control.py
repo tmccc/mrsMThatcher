@@ -1792,7 +1792,7 @@ def test_global_pause_is_rechecked_at_remote_boundaries(
             image_path.write_bytes(b"not sent")
             bot.upload_media(str(image_path), lane="quote_image")
         elif boundary == "provider":
-            bot.openai_responses_reply_call(
+            bot._reply_assembly()._reply_model_transport_owner().call(
                 request={},
                 timeout_seconds=1,
                 lane="mention",

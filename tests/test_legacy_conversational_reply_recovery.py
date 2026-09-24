@@ -83,7 +83,7 @@ def test_legacy_confirmed_receipts_reconcile_locally_without_outbound_authority(
     receipt = _confirmed_receipt(case, receipt_schema_version)
     _persist_receipt(receipt)
 
-    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
+    assert bot._reply_assembly()._reply_receipt_values_owner().confirmed_is_valid(receipt) is False
     assert bot.load_confirmed_reply_receipt() == ("valid", receipt)
 
     state = bot.default_state()
@@ -109,18 +109,18 @@ def test_legacy_schema_v4_receipt_verifies_exact_source_bytes_and_hash(
     ]
 
     confirmed = _confirmed_receipt(case)
-    assert bot._legacy_confirmed_reply_receipt_is_semantically_valid(confirmed)
+    assert bot._reply_assembly()._reply_receipt_values_owner().legacy_confirmed_is_valid(confirmed)
     assert bot.conversational_sending_receipt_from_confirmed(confirmed) == sending
 
     changed_hash = copy.deepcopy(confirmed)
     changed_hash["source_receipt_sha256"] = "0" * 64
-    assert not bot._legacy_confirmed_reply_receipt_is_semantically_valid(
+    assert not bot._reply_assembly()._reply_receipt_values_owner().legacy_confirmed_is_valid(
         changed_hash
     )
 
     missing_hash = copy.deepcopy(confirmed)
     missing_hash.pop("source_receipt_sha256")
-    assert not bot._legacy_confirmed_reply_receipt_is_semantically_valid(
+    assert not bot._reply_assembly()._reply_receipt_values_owner().legacy_confirmed_is_valid(
         missing_hash
     )
 
@@ -137,7 +137,7 @@ def test_malformed_legacy_draft_fails_closed_without_escaping_validation() -> No
     }
     draft["validated_draft_hash"] = bot._legacy_reply_value_sha256(unsigned)
 
-    assert not bot._legacy_sending_reply_receipt_is_semantically_valid(
+    assert not bot._reply_assembly()._reply_receipt_values_owner().legacy_sending_is_valid(
         malformed
     )
 
@@ -164,8 +164,8 @@ def test_tested_pipeline_direct_answer_repair_variant_remains_recoverable() -> N
         bot.canonical_atomic_json_bytes(sending)
     ).hexdigest()
 
-    assert bot._legacy_sending_reply_receipt_is_semantically_valid(sending)
-    assert bot._legacy_confirmed_reply_receipt_is_semantically_valid(
+    assert bot._reply_assembly()._reply_receipt_values_owner().legacy_sending_is_valid(sending)
+    assert bot._reply_assembly()._reply_receipt_values_owner().legacy_confirmed_is_valid(
         _confirmed_receipt(case)
     )
 
@@ -265,7 +265,7 @@ def test_legacy_draft_is_never_reusable_as_a_current_pending_draft(
     sending = case["sending_receipt"]
 
     with pytest.raises((KeyError, RuntimeError, TypeError, ValueError)):
-        bot.validate_current_ai_reply_draft(
+        bot._reply_assembly()._reply_draft_owner().validate(
             sending["ai_reply_draft"],
             context=sending["reply_context"],
         )

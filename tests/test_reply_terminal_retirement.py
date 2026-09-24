@@ -102,38 +102,60 @@ def prepare_delivery(lane, outcome, *, save_failure=None, retirement_failure=Non
         enabled=True, mark_as_ai=True, maximum_daily_replies=10,
         maximum_daily_author_replies=2, minimum_reply_spacing=0, user_id="12345",
     )
-    dependencies = dict(
-        persistence=persistence, delivery=delivery, log=trace.log,
-        log_ai_reply_posting_outcome=trace.posting_outcome,
-        log_event=trace.event,
-        reply_evaluations=SimpleNamespace(record=trace.record),
-    )
     if lane == "quote_tweet":
-        dependencies.update(
+        runner = quote_cycle.QuoteReplyCycle(
+            delivery=delivery, ApiError=ApiError, ContextValidationError=ValueError,
             config=QuoteReplyConfig(
                 **settings, quote_checks_enabled=True,
                 minimum_quote_age_seconds=0,
                 maximum_candidates=3, maximum_daily_quote_replies=3,
             ),
+            PipelineResult=object, RemoteOperationsPaused=RemoteOperationsPaused,
+            ReplyEvidenceUnavailable=RuntimeError, SINGLE_CALL_STRATEGY_VERSION="test",
+            ValidatedReply=object, _log_validated_single_call_reply=Mock(),
+            generation=Mock(), api_error_is_permanent_target_failure=Mock(),
+            watch_posts=Mock(), reply_contexts=Mock(), tweets=Mock(),
+            persistence=persistence, conversational_reply_pipeline_enabled=Mock(),
+            accounting=Mock(), get_quote_tweets_for_posts=Mock(), cooldowns=Mock(),
+            is_probably_spam_or_not_worth_replying=Mock(), controls=Mock(),
+            log=trace.log, log_ai_reply_posting_outcome=trace.posting_outcome,
+            log_event=trace.event, now_epoch=Mock(), parse_x_datetime_to_epoch=Mock(),
+            reply_evaluations=SimpleNamespace(record=trace.record), history=Mock(),
+            reply_evidence_repository=Mock(), valid_tweets_sorted_by_id=Mock(),
         )
 
         def run():
             with patch.object(quote_cycle, "mark_quote_tweet_skipped", trace.mark_skipped):
-                return quote_cycle._deliver_reply(target, reply, receipt, state, **dependencies)
+                return runner._deliver_reply(target, reply, receipt, state)
     else:
         candidate = normal_cycle._ReplyCandidate(
             mention={"id": target, "_candidate_source": lane}, mention_id=target,
             author_id="205", incoming_text="question", source=lane,
             log_source="mention" if lane == "mention" else "hot-post",
         )
-        dependencies.update(
+        runner = normal_cycle.NormalReplyCycle(
+            delivery=delivery, author_quarantines=Mock(), ApiError=ApiError,
             config=NormalReplyConfig(**settings, maximum_fresh_evaluations=3, incoming_max_chars=1000),
+            PipelineResult=object, RemoteOperationsPaused=RemoteOperationsPaused,
+            ReplyEvidenceUnavailable=RuntimeError, SINGLE_CALL_STRATEGY_VERSION="test",
+            ValidatedReply=object, _log_validated_single_call_reply=Mock(),
+            generation=Mock(), reply_contexts=Mock(), tweets=Mock(), clarifications=Mock(),
+            persistence=persistence, conversational_reply_pipeline_enabled=Mock(),
+            accounting=Mock(), dedupe_reply_candidates=Mock(),
+            get_hot_post_reply_candidates=Mock(), get_mentions=Mock(), cooldowns=Mock(),
+            is_probably_spam_or_not_worth_replying=Mock(), controls=Mock(),
+            log=trace.log, log_ai_reply_posting_outcome=trace.posting_outcome,
+            log_event=trace.event,
             mention_queue=SimpleNamespace(mark_seen=trace.mark_seen),
+            maybe_mark_hot_post_reply_skipped=Mock(), now_epoch=Mock(),
+            reply_evaluations=SimpleNamespace(record=trace.record), history=Mock(),
+            reply_evidence_repository=Mock(), reply_target_is_directly_eligible=Mock(),
+            valid_tweets_sorted_by_id=Mock(),
         )
 
         def run():
             with patch.object(normal_cycle, "append_unique_durable", trace.append):
-                return normal_cycle._deliver_reply(state, candidate, replied_ids, reply, receipt, **dependencies)
+                return runner._deliver_reply(state, candidate, replied_ids, reply, receipt)
 
     return SimpleNamespace(
         run=run, state=state, trace=trace, snapshots=snapshots,

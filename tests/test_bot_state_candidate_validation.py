@@ -7,6 +7,8 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
+import mrs_bot_reply_assembly as assembly
+
 import pytest
 
 import mrs_bot_state_candidate_validation as validation
@@ -117,7 +119,12 @@ def test_adapters_forward_current_dependencies_references_and_native_errors(monk
                 }
                 for key, value in current.items():
                     if key in factories:
-                        patch.setattr(bot, factories[key], Mock(return_value=value))
+                        target = (
+                            assembly.ReplyAssembly
+                            if key in {"mention_authority", "author_quarantines", "reply_evaluations"}
+                            else bot
+                        )
+                        patch.setattr(target, factories[key], Mock(return_value=value))
                     else:
                         patch.setattr(bot, key, value)
                 assert adapter(original, **options) is result
@@ -127,7 +134,12 @@ def test_adapters_forward_current_dependencies_references_and_native_errors(monk
                 for key, value in (options | current).items():
                     supplied = owner.call_args.kwargs[key]
                     if key in factories:
-                        factory = getattr(bot, factories[key])
+                        target = (
+                            assembly.ReplyAssembly
+                            if key in {"mention_authority", "author_quarantines", "reply_evaluations"}
+                            else bot
+                        )
+                        factory = getattr(target, factories[key])
                         assert supplied is value
                         if key == "tweets":
                             factory.assert_called_once_with(state_values=current["state_values"])
@@ -326,7 +338,6 @@ def test_candidate_keeps_group_order_callback_references_and_history_children(mo
             "normalise_tweet_cache",
             "normalise_author_evaluation_quarantines",
             "prune_author_evaluation_quarantines",
-            "prune_reply_evaluation_records",
         )
     }
     for name, relay in obsolete_relays.items():
@@ -641,7 +652,7 @@ def test_candidate_shares_one_mention_owner_across_normalization_and_recovery(mo
     owner.canonical_candidates = canonical
     owner.normalise_pagination = normalise_pagination
     owner.validate_pending = validate
-    monkeypatch.setattr(bot, "_mention_authority_owner", factory)
+    monkeypatch.setattr(assembly.ReplyAssembly, "_mention_authority_owner", factory)
     monkeypatch.setattr(bot, "require_compatible_state_reader", reader)
     patch_normalization(monkeypatch, "prune_reply_evaluation_records", prune)
     result = bot.normalise_state_candidate(
@@ -656,7 +667,7 @@ def test_candidate_shares_one_mention_owner_across_normalization_and_recovery(mo
 def test_candidate_mention_owner_failure_stops_before_terminal_pruning(monkeypatch, tmp_path):
     failure = RuntimeError("current mention authority unavailable")
     factory, prune = Mock(side_effect=failure), Mock()
-    monkeypatch.setattr(bot, "_mention_authority_owner", factory)
+    monkeypatch.setattr(assembly.ReplyAssembly, "_mention_authority_owner", factory)
     patch_normalization(monkeypatch, "prune_reply_evaluation_records", prune)
     with pytest.raises(RuntimeError) as caught:
         bot.normalise_state_candidate({"mention_pending_candidates": {}}, path=tmp_path)
@@ -688,7 +699,7 @@ def test_mention_owner_binds_once_before_candidate_reads(monkeypatch, tmp_path, 
                     raise failure
             return super().__getitem__(key)
 
-    monkeypatch.setattr(bot, "_mention_authority_owner", current)
+    monkeypatch.setattr(assembly.ReplyAssembly, "_mention_authority_owner", current)
     state = State(mention_pending_candidates=pending)
     if lookup_fails:
         with pytest.raises(LookupError) as caught:

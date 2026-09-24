@@ -84,19 +84,19 @@ def test_incomplete_http_continuation_preserves_durable_unread_mentions(monkeypa
     monkeypatch.setattr(bot.requests, "request", transport)
     state = bot.default_state()
     state["last_seen_mention_id"] = "100"
-    assert [row["id"] for row in bot.get_mentions(state)] == ["300"]
-    bot.mark_mention_seen_if_applicable(state, {"id": "300"})
+    assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(state)] == ["300"]
+    bot._reply_assembly()._mention_queue_owner().mark_seen(state, {"id": "300"})
     bot.save_state(state, durable=True)
     before = json.loads(bot.STATE_FILE.read_text())
     with pytest.raises(bot.ApiError, match="incomplete paginated response"):
-        bot.get_mentions(state)
+        bot._reply_assembly()._mention_discovery_callback()(state)
     persisted = json.loads(bot.STATE_FILE.read_text())
     for key in ("last_seen_mention_id", "mention_backlog", "mention_pagination"):
         assert state[key] == persisted[key] == before[key]
     assert persisted["last_seen_mention_id"] == "100"
     assert persisted["mention_backlog"]["next_token"] == "older-page"
 
-    bot.get_mentions(persisted)
+    bot._reply_assembly()._mention_discovery_callback()(persisted)
     completed = json.loads(bot.STATE_FILE.read_text())
     assert completed["last_seen_mention_id"] == "300"
     assert completed["mention_backlog"] == completed["mention_pagination"] == {}
@@ -925,13 +925,9 @@ def test_active_quarantine_reports_one_skipped_pipeline_evaluation(
         "reply_evidence_repository",
         lambda: pytest.fail("quarantine must precede evidence preparation"),
     )
-    monkeypatch.setattr(
-        bot,
-        "reply_media_context_for_candidate",
-        lambda *_args, **_kwargs: pytest.fail(
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", lambda *_args, **_kwargs: pytest.fail(
             "quarantine must precede media preparation"
-        ),
-    )
+        ))
     patch_reply_owner_method(
         monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail("quarantine must make zero provider calls")),
@@ -1831,7 +1827,7 @@ def test_completed_watermark_prunes_sustained_quarantine_terminal_volume() -> No
         for target_id in range(1, count + 1)
     }
 
-    bot.prune_reply_evaluation_records(state, current_epoch=current)
+    bot._reply_assembly()._reply_evaluation_owner().prune(state, current_epoch=current)
 
     assert state["reply_evaluation_records"] == {}
 
@@ -1853,7 +1849,7 @@ def test_incomplete_backlog_quarantine_terminal_volume_stays_bounded() -> None:
         for target_id in range(1, count + 1)
     }
 
-    bot.prune_reply_evaluation_records(state, current_epoch=current)
+    bot._reply_assembly()._reply_evaluation_owner().prune(state, current_epoch=current)
 
     assert len(state["reply_evaluation_records"]) == bot.REPLY_EVALUATION_MAX_RECORDS
     assert "1" not in state["reply_evaluation_records"]
@@ -1888,8 +1884,8 @@ CORRUPT_PENDING_IDENTITIES = (
 
 
 def retire_all_pending(state: dict) -> None:
-    for candidate in bot.pending_mention_candidates(state):
-        bot.mark_mention_seen_if_applicable(state, candidate)
+    for candidate in bot._reply_assembly()._mention_queue_owner().pending(state):
+        bot._reply_assembly()._mention_queue_owner().mark_seen(state, candidate)
 
 
 def test_stale_pending_traversal_is_reset_before_queue_or_provider_work(
@@ -1928,7 +1924,7 @@ def test_stale_pending_traversal_is_reset_before_queue_or_provider_work(
         )),
     )
 
-    assert bot.pending_mention_candidates(state) == []
+    assert bot._reply_assembly()._mention_queue_owner().pending(state) == []
     assert state["last_seen_mention_id"] == "99"
     assert state["mention_backlog"] == {}
     assert state["mention_pagination"] == {}
@@ -1958,7 +1954,7 @@ def test_stale_pending_traversal_is_reset_before_queue_or_provider_work(
     monkeypatch.setattr(bot, "MENTIONS_MAX_PAGES_PER_CHECK", 1)
     monkeypatch.setattr(bot, "now_epoch", lambda: 2_000_000_000)
 
-    recovered = bot.get_mentions(state)
+    recovered = bot._reply_assembly()._mention_discovery_callback()(state)
 
     assert [row["id"] for row in recovered] == [
         "100",
@@ -1990,7 +1986,7 @@ def test_stale_traversal_disposes_covered_and_deduplicated_candidates(
         "105": mention(105, 205),
     }
     state["replied_to_ids"] = ["100"]
-    bot.record_terminal_reply_evaluation(
+    bot._reply_assembly()._reply_evaluation_owner().record(
         state,
         target_id="98",
         lane="mention",
@@ -2005,7 +2001,7 @@ def test_stale_traversal_disposes_covered_and_deduplicated_candidates(
         ),
     )
 
-    assert bot.pending_mention_candidates(state) == []
+    assert bot._reply_assembly()._mention_queue_owner().pending(state) == []
     assert state["mention_pending_candidates"] == {}
     assert state["mention_backlog"] == {}
     assert state["mention_pagination"] == {}
@@ -2152,7 +2148,7 @@ def test_corrupt_pending_identity_without_backup_uses_guarded_head_recovery(
         monkeypatch,
         {None: ([mention(100, 200)], None)},
     )
-    assert [candidate["id"] for candidate in bot.get_mentions(state)] == ["100"]
+    assert [candidate["id"] for candidate in bot._reply_assembly()._mention_discovery_callback()(state)] == ["100"]
     assert requests[0]["since_id"] == "99"
     assert "pagination_token" not in requests[0]
 
@@ -2185,7 +2181,7 @@ def test_queue_retrieval_discards_corrupt_pending_identity_without_provider_work
         )),
     )
 
-    assert bot.pending_mention_candidates(state) == []
+    assert bot._reply_assembly()._mention_queue_owner().pending(state) == []
     assert state["mention_backlog"] == {}
     assert state["mention_pagination"] == {}
     assert state["mention_pending_candidates"] == {}
@@ -2217,7 +2213,7 @@ def test_backlog_and_pagination_must_be_internally_coherent(
     state["mention_pending_candidates"] = {"105": mention(105, 205)}
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
-    assert bot.pending_mention_candidates(state) == []
+    assert bot._reply_assembly()._mention_queue_owner().pending(state) == []
     assert state["mention_backlog"] == {}
     assert state["mention_pagination"] == {}
     assert state["mention_pending_candidates"] == {}
@@ -2242,7 +2238,7 @@ def test_active_backlog_highest_identity_must_cover_its_watermark(
     }
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
-    assert bot.pending_mention_candidates(state) == []
+    assert bot._reply_assembly()._mention_queue_owner().pending(state) == []
     assert state["mention_backlog"] == {}
     assert state["mention_pagination"] == {}
     assert state["mention_backlog_reset_guard"] == {
@@ -2264,7 +2260,7 @@ def test_unfetched_head_backlog_cannot_seed_watermark_from_unowned_highest(
     state["mention_backlog"]["pages_completed"] = 0
     requests = install_mention_pages(monkeypatch, {None: ([], None)})
 
-    assert bot.get_mentions(state) == []
+    assert bot._reply_assembly()._mention_discovery_callback()(state) == []
     assert requests[0]["since_id"] == "99"
     assert "pagination_token" not in requests[0]
     assert state["last_seen_mention_id"] == "99"
@@ -2301,7 +2297,7 @@ def test_pagination_alone_requires_head_refetch_before_watermark_advancement(
         ),
     )
 
-    assert bot.pending_mention_candidates(state) == []
+    assert bot._reply_assembly()._mention_queue_owner().pending(state) == []
     assert state["mention_pagination"] == {
         "base_since_id": "99",
         "next_token": "A",
@@ -2322,7 +2318,7 @@ def test_pagination_alone_requires_head_refetch_before_watermark_advancement(
             ),
         },
     )
-    assert [candidate["id"] for candidate in bot.get_mentions(state)] == ["103"]
+    assert [candidate["id"] for candidate in bot._reply_assembly()._mention_discovery_callback()(state)] == ["103"]
     assert state["last_seen_mention_id"] == "99"
     assert state["mention_backlog_reset_guard"] == {
         "base_since_id": "99",
@@ -2330,7 +2326,7 @@ def test_pagination_alone_requires_head_refetch_before_watermark_advancement(
     }
     retire_all_pending(state)
 
-    assert [candidate["id"] for candidate in bot.get_mentions(state)] == [
+    assert [candidate["id"] for candidate in bot._reply_assembly()._mention_discovery_callback()(state)] == [
         "100",
         "101",
         "102",
@@ -2356,7 +2352,7 @@ def test_interrupted_head_guard_without_backlog_discards_pending_candidate(
     state["mention_pending_candidates"] = {"105": mention(105, 205)}
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
-    assert bot.pending_mention_candidates(state) == []
+    assert bot._reply_assembly()._mention_queue_owner().pending(state) == []
     assert state["mention_pending_candidates"] == {}
     assert state["mention_backlog_reset_guard"] == {
         "base_since_id": "99",
@@ -2430,19 +2426,19 @@ def test_truncated_pagination_resumes_across_cycles_and_advances_only_on_complet
     state = bot.default_state()
     state["last_seen_mention_id"] = "99"
 
-    assert [row["id"] for row in bot.get_mentions(state)] == ["104", "105"]
+    assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(state)] == ["104", "105"]
     assert state["last_seen_mention_id"] == "99"
     assert state["mention_backlog"]["next_token"] == "A"
     assert state["mention_backlog"]["pages_completed"] == 1
     assert state["mention_backlog"]["highest_mention_id"] == "105"
     retire_all_pending(state)
 
-    assert [row["id"] for row in bot.get_mentions(state)] == ["102", "103"]
+    assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(state)] == ["102", "103"]
     assert state["last_seen_mention_id"] == "99"
     assert state["mention_backlog"]["next_token"] == "B"
     retire_all_pending(state)
 
-    assert [row["id"] for row in bot.get_mentions(state)] == ["101"]
+    assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(state)] == ["101"]
     assert state["last_seen_mention_id"] == "105"
     assert state["mention_backlog"] == {}
     assert [request.get("pagination_token") for request in requests] == [None, "A", "B"]
@@ -2462,18 +2458,18 @@ def test_new_mentions_after_backlog_are_fetched_and_duplicates_are_not_reevaluat
     requests = install_mention_pages(monkeypatch, pages)
     state = bot.default_state()
     state["last_seen_mention_id"] = "99"
-    first = bot.get_mentions(state)
-    bot.record_terminal_reply_evaluation(
+    first = bot._reply_assembly()._mention_discovery_callback()(state)
+    bot._reply_assembly()._reply_evaluation_owner().record(
         state, target_id="105", lane="mention", reason="confirmed_no_reply"
     )
     retire_all_pending(state)
-    second = bot.get_mentions(state)
+    second = bot._reply_assembly()._mention_discovery_callback()(state)
 
     assert [row["id"] for row in first] == ["105"]
     assert [row["id"] for row in second] == ["101"]
     retire_all_pending(state)
     pages[None] = ([mention(106, 206)], None)
-    third = bot.get_mentions(state)
+    third = bot._reply_assembly()._mention_discovery_callback()(state)
     assert [row["id"] for row in third] == ["106"]
     assert requests[-1]["since_id"] == "105"
     assert state["last_seen_mention_id"] == "106"
@@ -2495,16 +2491,16 @@ def test_active_backlog_survives_restart(
     monkeypatch.setattr(bot, "save_state", original_save_state)
     state = bot.default_state()
     state["last_seen_mention_id"] = "99"
-    bot.get_mentions(state)
+    bot._reply_assembly()._mention_discovery_callback()(state)
     bot.save_state(state, durable=True)
 
     restarted = bot.load_state()
     assert restarted["mention_backlog"]["next_token"] == "A"
-    assert [row["id"] for row in bot.get_mentions(restarted)] == ["105"]
+    assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(restarted)] == ["105"]
     assert len(requests) == 1
     retire_all_pending(restarted)
     bot.save_state(restarted, durable=True)
-    assert [row["id"] for row in bot.get_mentions(restarted)] == ["101"]
+    assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(restarted)] == ["101"]
     assert requests[-1]["pagination_token"] == "A"
     assert restarted["last_seen_mention_id"] == "105"
 
@@ -2543,14 +2539,14 @@ def test_final_page_commits_watermark_and_pending_together_before_restart(
     state["last_seen_mention_id"] = "99"
 
     with pytest.raises(SimulatedCrash):
-        bot.get_mentions(state)
+        bot._reply_assembly()._mention_discovery_callback()(state)
 
     restarted = bot.load_state()
     assert restarted["last_seen_mention_id"] == "105"
     assert restarted["mention_backlog"] == {}
     assert restarted["mention_pagination"] == {}
     assert set(restarted["mention_pending_candidates"]) == {"105"}
-    assert [row["id"] for row in bot.get_mentions(restarted)] == ["105"]
+    assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(restarted)] == ["105"]
     assert len(requests) == 1
 
 
@@ -2571,7 +2567,7 @@ def test_repeated_token_persists_every_page_and_resets_after_queue_drains(
     state = bot.default_state()
     state["last_seen_mention_id"] = "99"
 
-    returned = bot.get_mentions(state)
+    returned = bot._reply_assembly()._mention_discovery_callback()(state)
     assert [row["id"] for row in returned] == ["103", "105"]
     assert [request.get("pagination_token") for request in requests] == [None, "A"]
     assert state["last_seen_mention_id"] == "99"
@@ -2586,9 +2582,9 @@ def test_repeated_token_persists_every_page_and_resets_after_queue_drains(
     }
 
     restarted = bot.load_state()
-    assert [row["id"] for row in bot.get_mentions(restarted)] == ["103", "105"]
+    assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(restarted)] == ["103", "105"]
     assert len(requests) == 2
-    bot.record_terminal_reply_evaluation(
+    bot._reply_assembly()._reply_evaluation_owner().record(
         restarted,
         target_id="105",
         lane="mention",
@@ -2597,7 +2593,7 @@ def test_repeated_token_persists_every_page_and_resets_after_queue_drains(
     retire_all_pending(restarted)
     bot.save_state(restarted, durable=True)
 
-    assert bot.get_mentions(restarted) == []
+    assert bot._reply_assembly()._mention_discovery_callback()(restarted) == []
     assert len(requests) == 2
     assert restarted["last_seen_mention_id"] == "99"
     assert restarted["mention_backlog"] == {}
@@ -2618,7 +2614,7 @@ def test_repeated_token_persists_every_page_and_resets_after_queue_drains(
 
     pages[None] = ([mention(105, 205), mention(103, 203)], None)
     restarted_again = bot.load_state()
-    assert [row["id"] for row in bot.get_mentions(restarted_again)] == ["103"]
+    assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(restarted_again)] == ["103"]
     assert len(requests) == 3
     assert requests[-1]["since_id"] == "99"
     assert bot.terminal_reply_evaluation(restarted_again, "105") is not None
@@ -2653,7 +2649,7 @@ def test_invalid_continuation_discards_saved_page_without_advancing_watermark(
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     with pytest.raises(bot.ApiError, match="Invalid pagination_token"):
-        bot.get_mentions(state)
+        bot._reply_assembly()._mention_discovery_callback()(state)
     assert calls == [None, "expired"]
     assert state["last_seen_mention_id"] == "99"
     assert state["mention_backlog"] == {}
@@ -2664,7 +2660,7 @@ def test_invalid_continuation_discards_saved_page_without_advancing_watermark(
         "head_traversal_started": False,
     }
 
-    bot.apply_confirmed_reply_receipt(
+    bot._reply_assembly()._confirmed_reply_state_applier()(
         state,
         {
             "target_id": "105",
@@ -2693,7 +2689,7 @@ def test_invalid_continuation_discards_saved_page_without_advancing_watermark(
         }
 
     monkeypatch.setattr(bot, "x_request", refetch)
-    assert [row["id"] for row in bot.get_mentions(state)] == [
+    assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(state)] == [
         "100",
         "101",
         "102",
@@ -2726,7 +2722,7 @@ def test_restored_cursor_after_reset_cannot_clear_guard_before_head_refetch(
         "head_traversal_started": False,
     }
 
-    bot.apply_confirmed_reply_receipt(
+    bot._reply_assembly()._confirmed_reply_state_applier()(
         state,
         {
             "target_id": "105",
@@ -2743,7 +2739,7 @@ def test_restored_cursor_after_reset_cannot_clear_guard_before_head_refetch(
         },
     )
 
-    assert [row["id"] for row in bot.get_mentions(state)] == ["103"]
+    assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(state)] == ["103"]
     assert state["last_seen_mention_id"] == "99"
     assert state["mention_backlog_reset_guard"] == {
         "base_since_id": "99",
@@ -2751,7 +2747,7 @@ def test_restored_cursor_after_reset_cannot_clear_guard_before_head_refetch(
     }
     retire_all_pending(state)
 
-    assert [row["id"] for row in bot.get_mentions(state)] == [
+    assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(state)] == [
         "100",
         "101",
         "102",
@@ -2805,7 +2801,7 @@ def test_legacy_orphaned_pending_candidate_is_guarded_before_receipt_reconciliat
         },
     ) in events
 
-    bot.apply_confirmed_reply_receipt(
+    bot._reply_assembly()._confirmed_reply_state_applier()(
         state,
         {
             "target_id": "105",
@@ -2831,11 +2827,11 @@ def test_legacy_orphaned_pending_candidate_is_guarded_before_receipt_reconciliat
             ),
         },
     )
-    assert [row["id"] for row in bot.get_mentions(state)] == ["98"]
+    assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(state)] == ["98"]
     assert requests == []
     retire_all_pending(state)
 
-    assert [row["id"] for row in bot.get_mentions(state)] == [
+    assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(state)] == [
         "100",
         "101",
         "102",
@@ -2873,7 +2869,7 @@ def test_confirmed_receipt_cannot_authorise_stale_pending_after_restart(
         "conversation_id": "105",
         "reply_text": "A confirmed reply.",
     }
-    bot.apply_confirmed_reply_receipt(state, receipt)
+    bot._reply_assembly()._confirmed_reply_state_applier()(state, receipt)
 
     assert state["last_seen_mention_id"] == "99"
     assert state["mention_backlog"] == {}
@@ -2900,7 +2896,7 @@ def test_confirmed_receipt_cannot_authorise_stale_pending_after_restart(
         },
     )
 
-    assert [row["id"] for row in bot.get_mentions(restarted)] == [
+    assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(restarted)] == [
         "100",
         "101",
         "102",
@@ -2924,7 +2920,7 @@ def test_receipt_pagination_without_page_ownership_installs_reset_guard(
     bot.save_state(older_state, durable=True)
     state = bot.load_state()
 
-    bot.apply_confirmed_reply_receipt(
+    bot._reply_assembly()._confirmed_reply_state_applier()(
         state,
         {
             "target_id": "105",
@@ -2965,7 +2961,7 @@ def test_receipt_pagination_without_page_ownership_installs_reset_guard(
         },
     )
 
-    assert [row["id"] for row in bot.get_mentions(state)] == ["103"]
+    assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(state)] == ["103"]
     assert state["last_seen_mention_id"] == "99"
     assert state["mention_backlog_reset_guard"] == {
         "base_since_id": "99",
@@ -2973,7 +2969,7 @@ def test_receipt_pagination_without_page_ownership_installs_reset_guard(
     }
     retire_all_pending(state)
 
-    assert [row["id"] for row in bot.get_mentions(state)] == [
+    assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(state)] == [
         "100",
         "101",
         "102",
@@ -3074,7 +3070,7 @@ def test_continuation_token_limit_is_shared_by_loader_and_writer(
     }
     bot.save_state(state, durable=True)
 
-    assert bot.get_mentions(state) == []
+    assert bot._reply_assembly()._mention_discovery_callback()(state) == []
     assert state["last_seen_mention_id"] == "99"
     assert state["mention_backlog"] == {}
     assert state["mention_pagination"] == {}
@@ -3090,7 +3086,7 @@ def test_continuation_token_limit_is_shared_by_loader_and_writer(
     )
 
     restarted = bot.load_state()
-    assert [row["id"] for row in bot.get_mentions(restarted)] == ["103"]
+    assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(restarted)] == ["103"]
     assert requests[-1].get("since_id") == "99"
     assert "pagination_token" not in requests[-1]
     assert len(requests) == 2
@@ -3140,7 +3136,7 @@ def test_failed_backlog_reset_leaves_only_consistent_state_generations(
     state["last_seen_mention_id"] = "99"
 
     with pytest.raises(OSError, match="injected mention backlog reset save failure"):
-        bot.get_mentions(state)
+        bot._reply_assembly()._mention_discovery_callback()(state)
 
     assert requests == [None, "A"]
     assert state["last_seen_mention_id"] == "99"

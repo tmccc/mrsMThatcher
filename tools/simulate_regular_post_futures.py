@@ -515,8 +515,6 @@ def install_hard_guards(bot: Any, writer: PrivateWriter) -> None:
     for name in (
         "upload_media",
         "create_post",
-        "generate_single_call_reply",
-        "evaluate_single_call_reply",
         "acquire_instance_lock",
         "post_random_quote",
         "post_next_meme",
@@ -524,7 +522,6 @@ def install_hard_guards(bot: Any, writer: PrivateWriter) -> None:
         "maybe_reply_to_quote_tweets",
         "write_regular_post_receipt",
         "write_meme_post_receipt",
-        "write_confirmed_reply_receipt",
         "remove_regular_post_receipt",
         "remove_meme_post_receipt",
         "remove_confirmed_reply_receipt",

@@ -92,32 +92,53 @@ def preparation(request, monkeypatch):
     )
 
     def run():
-        common = {
-            "SINGLE_CALL_STRATEGY_VERSION": "strategy-version",
-            "_log_validated_single_call_reply": trace.validated,
-            "delivery": delivery, "persistence": persistence,
-            "log": SimpleNamespace(error=trace.error), "log_event": trace.event,
-        }
         if lane == "quote_tweet":
-            decision = quote_cycle._resolve_reply_evaluation(
+            runner = quote_cycle.QuoteReplyCycle(
+                delivery=delivery, ApiError=Exception, ContextValidationError=ValueError,
+                config=Mock(), PipelineResult=object, RemoteOperationsPaused=RuntimeError,
+                ReplyEvidenceUnavailable=RuntimeError,
+                SINGLE_CALL_STRATEGY_VERSION="strategy-version",
+                ValidatedReply=ApprovedReply, _log_validated_single_call_reply=trace.validated,
+                generation=Mock(), api_error_is_permanent_target_failure=Mock(),
+                watch_posts=Mock(), reply_contexts=Mock(), tweets=Mock(),
+                persistence=persistence, conversational_reply_pipeline_enabled=Mock(),
+                accounting=Mock(), get_quote_tweets_for_posts=Mock(), cooldowns=Mock(),
+                is_probably_spam_or_not_worth_replying=Mock(), controls=Mock(),
+                log=SimpleNamespace(error=trace.error), log_ai_reply_posting_outcome=Mock(),
+                log_event=trace.event, now_epoch=Mock(), parse_x_datetime_to_epoch=Mock(),
+                reply_evaluations=SimpleNamespace(record=Mock()), history=Mock(),
+                reply_evidence_repository=Mock(), valid_tweets_sorted_by_id=Mock(),
+            )
+            decision = runner._resolve_reply_evaluation(
                 "105", SimpleNamespace(reply=case.reply), state,
-                ValidatedReply=ApprovedReply,
-                log=common["log"],
-                reply_evaluations=SimpleNamespace(record=Mock()), persistence=persistence,
             )
             if decision is not None:
                 return decision
-            return quote_cycle._prepare_reply_receipt(
+            return runner._prepare_reply_receipt(
                 quote_cycle._QuoteCandidate(target, "105", "205", "Incoming text"),
                 StringProbe("900", trace.original_id), case.reply, context, state,
-                **common,
             )
-        return normal_cycle._prepare_reply_receipt(
+        runner = normal_cycle.NormalReplyCycle(
+            delivery=delivery, author_quarantines=Mock(), ApiError=Exception,
+            config=Mock(), PipelineResult=object, RemoteOperationsPaused=RuntimeError,
+            ReplyEvidenceUnavailable=RuntimeError,
+            SINGLE_CALL_STRATEGY_VERSION="strategy-version",
+            ValidatedReply=ApprovedReply, _log_validated_single_call_reply=trace.validated,
+            generation=Mock(), reply_contexts=Mock(), tweets=Mock(), clarifications=Mock(),
+            persistence=persistence, conversational_reply_pipeline_enabled=Mock(),
+            accounting=Mock(), dedupe_reply_candidates=Mock(),
+            get_hot_post_reply_candidates=Mock(), get_mentions=Mock(), cooldowns=Mock(),
+            is_probably_spam_or_not_worth_replying=Mock(), controls=Mock(),
+            log=SimpleNamespace(error=trace.error), log_ai_reply_posting_outcome=Mock(),
+            log_event=trace.event, mention_queue=Mock(),
+            maybe_mark_hot_post_reply_skipped=Mock(), now_epoch=Mock(),
+            reply_evaluations=Mock(), history=Mock(), reply_evidence_repository=Mock(),
+            reply_target_is_directly_eligible=Mock(), valid_tweets_sorted_by_id=Mock(),
+        )
+        return runner._prepare_reply_receipt(
             state,
             normal_cycle._ReplyCandidate(target, "105", "205", "Incoming text", lane, lane),
             case.reply, context, clarification,
-            ValidatedReply=ApprovedReply,
-            **common,
         )
 
     case.run = run

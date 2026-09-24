@@ -603,7 +603,7 @@ def test_pause_after_tweet_authority_consumption_is_prospective_and_confirms_onc
     """A pause cannot retroactively cancel a durably committed tweet attempt."""
 
     receipt = unit_sending_v4_reply_receipt(text="unit reply")
-    bot.write_sending_reply_receipt(receipt)
+    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=False)
     pause_active = False
     consume_calls = 0
     request_calls = 0
@@ -670,7 +670,7 @@ def test_pause_after_tweet_authority_consumption_is_prospective_and_confirms_onc
     from mrs_bot_state_generation import record_receipt_commit
 
     state = bot.default_state()
-    bot.apply_confirmed_reply_receipt(state, confirmed)
+    bot._reply_assembly()._confirmed_reply_state_applier()(state, confirmed)
     record_receipt_commit(state, confirmed)
     proof = bot.save_state(state, durable=True)
     bot.retire_lane_transport_journal_if_present(
@@ -807,7 +807,7 @@ def test_public_post_has_no_health_io_inside_durable_transaction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     receipt = unit_sending_v4_reply_receipt(text="transaction ordering")
-    bot.write_sending_reply_receipt(receipt)
+    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=False)
     events: list[str] = []
     real_begin = bot.begin_transport_transaction
     real_arm = bot.arm_transport_transaction
@@ -1408,7 +1408,7 @@ def test_blank_x_create_response_preserves_exact_evidence_and_fails_closed(
     state = bot.default_state()
 
     with pytest.raises(bot.AmbiguousRemotePostOutcome) as caught:
-        bot.post_conversational_reply_with_durable_identity(
+        bot._reply_assembly().post_with_current_owners(
             state=state,
             receipt_template=sending,
             reply_text=str(sending["reply_text"]),
@@ -1537,7 +1537,7 @@ def test_valid_x_create_response_confirms_without_anomaly_or_mutation(
         target_id="100",
         text="Valid fixture reply.",
     )
-    bot.write_sending_reply_receipt(sending)
+    bot._reply_assembly()._reply_receipts_owner().write(sending, confirmed=False)
     decoded = {
         "data": {
             "edit_history_tweet_ids": ["123456789"],
@@ -1959,11 +1959,7 @@ def _configure_approved_mention_candidate(
         monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda *_args: PreparedReplyContext(dict(context), {}),
     )
-    monkeypatch.setattr(
-        bot,
-        "reply_media_context_for_candidate",
-        lambda *_args, **_kwargs: {},
-    )
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
     patch_reply_owner_method(
         monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
@@ -2042,7 +2038,7 @@ def _configure_approved_quote_candidate(
         lambda *_args, **_kwargs: dict(own_post),
     )
     monkeypatch.setattr(
-        bot,
+        bot._reply_assembly().__class__,
         "get_quote_tweets_for_posts",
         lambda *_args, **_kwargs: {"900": [dict(quote_post)]},
     )
@@ -2052,11 +2048,7 @@ def _configure_approved_quote_candidate(
         "is_probably_spam_or_not_worth_replying",
         lambda _text: False,
     )
-    monkeypatch.setattr(
-        bot,
-        "reply_media_context_for_candidate",
-        lambda *_args, **_kwargs: {},
-    )
+    patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "context", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
     patch_reply_owner_method(
         monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
@@ -3461,7 +3453,7 @@ def test_deleted_mention_reply_is_terminal_without_transport_barriers_or_quota(
         return _x_response(201, {"data": {"id": "900001"}})
 
     monkeypatch.setattr(bot.requests, "request", confirmed_later)
-    response, confirmed = bot.post_conversational_reply_with_durable_identity(
+    response, confirmed = bot._reply_assembly().post_with_current_owners(
         state=restarted,
         receipt_template=later_sending,
         reply_text=str(later_sending["reply_text"]),
@@ -3470,7 +3462,7 @@ def test_deleted_mention_reply_is_terminal_without_transport_barriers_or_quota(
         lane="mention",
     )
     assert response == {"data": {"id": "900001"}}
-    bot.apply_confirmed_reply_receipt(restarted, confirmed)
+    bot._reply_assembly()._confirmed_reply_state_applier()(restarted, confirmed)
     from mrs_bot_state_generation import record_receipt_commit
 
     record_receipt_commit(restarted, confirmed)
@@ -3800,7 +3792,7 @@ def test_proved_rejection_cannot_retire_replaced_same_target_receipt(
     )
 
     with pytest.raises(bot.ProvedRemotePostNonSuccess) as caught:
-        bot.post_conversational_reply_with_durable_identity(
+        bot._reply_assembly().post_with_current_owners(
             state=state,
             receipt_template=receipt,
             reply_text=str(receipt["reply_text"]),
@@ -4105,7 +4097,7 @@ def test_conversational_generic_4xx_retains_sending_receipt_and_blocks_retry(
     )
 
     def invoke() -> tuple[dict, dict]:
-        return bot.post_conversational_reply_with_durable_identity(
+        return bot._reply_assembly().post_with_current_owners(
             state=bot.default_state(),
             receipt_template=sending,
             reply_text=str(sending["reply_text"]),
@@ -4435,7 +4427,7 @@ def test_conversational_success_retires_journal_only_after_state_commit(
     )
     state = bot.default_state()
 
-    _response, confirmed = bot.post_conversational_reply_with_durable_identity(
+    _response, confirmed = bot._reply_assembly().post_with_current_owners(
         state=state,
         receipt_template=receipt,
         reply_text=str(receipt["reply_text"]),
@@ -4445,7 +4437,7 @@ def test_conversational_success_retires_journal_only_after_state_commit(
     )
     journal_path = bot.journal_path_for_receipt(bot.CONFIRMED_REPLY_RECEIPT_FILE)
     assert journal_path.exists()
-    bot.apply_confirmed_reply_receipt(state, confirmed)
+    bot._reply_assembly()._confirmed_reply_state_applier()(state, confirmed)
     from mrs_bot_state_generation import record_receipt_commit
 
     record_receipt_commit(state, confirmed)
@@ -4547,7 +4539,7 @@ def test_made_with_ai_generic_400_never_triggers_second_create(
 
     monkeypatch.setattr(bot.requests, "request", generic_400_with_field_name)
     receipt = unit_sending_reply_receipt(text="unit reply")
-    bot.write_sending_reply_receipt(receipt)
+    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=False)
 
     with pytest.raises(bot.AmbiguousRemotePostOutcome):
         bot.create_post(

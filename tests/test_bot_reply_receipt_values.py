@@ -9,6 +9,8 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
+import mrs_bot_reply_assembly as assembly
+
 import pytest
 
 import mrs_bot_reply_receipt_values as values
@@ -86,7 +88,11 @@ def make_owner():
     def build(**overrides):
         draft_is_valid = overrides.pop("draft_is_valid", None)
         current = {
-            field: getattr(bot, name)() if field in {"dates", "drafts"} else getattr(bot, name)
+            field: (
+                bot._reply_assembly()._reply_draft_owner() if field == "drafts"
+                else bot._receipt_dates_owner() if field == "dates"
+                else getattr(bot, name)
+            )
             for field, name in OWNER_INPUTS.items()
         }
         if draft_is_valid is not None:
@@ -103,11 +109,11 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
         current = {field: Mock() for field in OWNER_INPUTS}
         for field, name in OWNER_INPUTS.items():
             monkeypatch.setattr(
-                bot,
+                assembly.ReplyAssembly if field == "drafts" else bot,
                 name,
                 Mock(return_value=current[field]) if field in {"dates", "drafts"} else current[field],
             )
-        owner = bot._reply_receipt_values_owner()
+        owner = bot._reply_assembly()._reply_receipt_values_owner()
         assert isinstance(owner, values.ReplyReceiptValues)
         for field, value in current.items():
             assert getattr(owner, field) is value
@@ -133,7 +139,7 @@ def test_receipt_values_use_receipt_dates_without_root_date_relays(monkeypatch):
     template = unit_v4_reply_receipt_template()
     reply = unit_approved_reply(template["reply_context"], text=template["reply_text"])
     template["reply_text"], template["ai_reply_draft"] = reply, reply.draft_record
-    prepared = bot._reply_receipt_values_owner().bind_attempt(template)
+    prepared = bot._reply_assembly()._reply_receipt_values_owner().bind_attempt(template)
     expected = bot.datetime.fromtimestamp(
         epoch,
         tz=bot.ZoneInfo(bot.MAIN_POST_SCHEDULE_TIMEZONE),
@@ -141,51 +147,6 @@ def test_receipt_values_use_receipt_dates_without_root_date_relays(monkeypatch):
     assert prepared["daily_reply_date"] == expected
 
 
-def test_adapters_preserve_defaults_arguments_result_identity_and_errors(monkeypatch):
-    methods = {
-        "_conversational_reply_receipt_is_semantically_valid": "validate",
-        "conversational_sending_receipt_from_confirmed": "sending_from_confirmed",
-        "confirmed_reply_receipt_is_semantically_valid": "confirmed_is_valid",
-        "sending_reply_receipt_is_semantically_valid": "sending_is_valid",
-        "_legacy_confirmed_reply_receipt_is_semantically_valid": "legacy_confirmed_is_valid",
-        "_legacy_sending_reply_receipt_is_semantically_valid": "legacy_sending_is_valid",
-        "bind_conversational_reply_attempt_time": "bind_attempt",
-        "_confirmed_reply_receipt_from_sending": "confirmed_from_sending",
-        "_reply_confirmation_epoch_after_remote_success": "observed_confirmation_epoch",
-        "conversational_reply_confirmation_epoch": "confirmation_epoch",
-    }
-    for name, method_name in methods.items():
-        adapter = getattr(bot, name)
-        public = inspect.signature(adapter).parameters
-        args = tuple(object() for param in public.values() if param.kind == param.POSITIONAL_OR_KEYWORD)
-        for use_defaults in (True, False):
-            owner = Mock(spec=values.ReplyReceiptValues)
-            factory = Mock(return_value=owner)
-            monkeypatch.setattr(bot, "_reply_receipt_values_owner", factory)
-            implementation = getattr(owner, method_name)
-            result = object()
-            implementation.return_value = result
-            options = {
-                key: object() for key, param in public.items()
-                if param.kind == param.KEYWORD_ONLY
-                and (not use_defaults or param.default is param.empty)
-            }
-            expected = {
-                key: param.default for key, param in public.items()
-                if param.kind == param.KEYWORD_ONLY and param.default is not param.empty
-            } | options
-            assert adapter(*args, **options) is result
-            factory.assert_called_once_with()
-            actual_args, actual_kwargs = implementation.call_args
-            assert len(actual_args) == len(args)
-            assert all(actual is original for actual, original in zip(actual_args, args))
-            assert actual_kwargs.keys() == expected.keys()
-            assert all(actual_kwargs[key] is value for key, value in expected.items())
-            failure = TypeError(name)
-            implementation.side_effect = failure
-            with pytest.raises(TypeError) as caught:
-                adapter(*args, **options)
-            assert caught.value is failure
 
 
 def test_lifecycle_dispatch_uses_owned_validator_and_exact_flags(monkeypatch, make_owner):
@@ -276,7 +237,7 @@ def test_source_validation_uses_current_family_callbacks_in_order(monkeypatch, m
 
 def test_source_reconstruction_errors_are_caught_before_hashing(monkeypatch, make_owner):
     sending = unit_sending_v4_reply_receipt()
-    confirmed = bot._confirmed_reply_receipt_from_sending(
+    confirmed = bot._reply_assembly()._reply_receipt_values_owner().confirmed_from_sending(
         sending, reply_post_id="999", confirmation_epoch=2_000_000_005,
     )
     reconstruct = Mock(side_effect=ValueError("invalid source"))
