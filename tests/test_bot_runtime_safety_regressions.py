@@ -6,6 +6,7 @@ import json
 import multiprocessing
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -19,6 +20,26 @@ from tests.helpers.reply_fixtures import unit_sending_reply_receipt
 
 
 pytestmark = pytest.mark.allow_loopback_network
+
+
+def _patch_quote_runner(monkeypatch, operation):
+    """Replace the main-post assembly's public quote application operation."""
+    monkeypatch.setattr(bot._main_post_assembly_module.MainPostAssembly, "quote_runner",
+                        lambda _assembly: SimpleNamespace(post=operation))
+
+
+def _patch_meme_runner(monkeypatch, operation):
+    """Replace the main-post assembly's public meme application operation."""
+    monkeypatch.setattr(bot._main_post_assembly_module.MainPostAssembly, "meme_runner",
+                        lambda _assembly: SimpleNamespace(post=operation))
+
+
+def _patch_reply_lanes(monkeypatch, normal, quote):
+    """Replace the reply assembly's public lane operations."""
+    monkeypatch.setattr(bot._reply_assembly_module.ReplyAssembly, "run_normal",
+                        lambda _assembly, state: normal(state))
+    monkeypatch.setattr(bot._reply_assembly_module.ReplyAssembly, "run_quote",
+                        lambda _assembly, state: quote(state))
 
 
 @pytest.mark.parametrize(
@@ -208,7 +229,6 @@ def test_fresh_startup_with_uncertain_main_attempt_idles_without_remote_action(
         "create_post",
         "post_random_quote",
         "post_next_meme",
-        "run_reply_lane_checks_for_tick",
         "safely_process_due_historical_context_obligations",
     ):
         monkeypatch.setattr(bot, name, forbidden_remote_action)
@@ -267,7 +287,8 @@ def test_main_global_pause_stops_before_every_remote_lane(
         pytest.fail("global maintenance pause must block every remote lane")
 
     monkeypatch.setattr(bot, "reconcile_main_post_receipts", remote_lane_reached)
-    monkeypatch.setattr(bot, "run_reply_lane_checks_for_tick", remote_lane_reached)
+    monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator, "run_reply_lane_checks_for_tick",
+                        lambda _runtime, state, current: remote_lane_reached(state, current))
     monkeypatch.setattr(bot, "post_random_quote", remote_lane_reached)
     monkeypatch.setattr(bot, "post_next_meme", remote_lane_reached)
     monkeypatch.setattr(bot, "create_post", remote_lane_reached)
@@ -367,8 +388,9 @@ def test_main_total_persistence_loss_latch_stops_later_remote_lanes(
         raise bot.UnrecoverableConfirmedPostPersistenceError("confirmed and unrepresented")
 
     monkeypatch.setattr(bot, "safely_process_due_historical_context_obligations", context_tick)
-    monkeypatch.setattr(bot, "run_reply_lane_checks_for_tick", reply_tick)
-    monkeypatch.setattr(bot, "post_random_quote", catastrophic_quote)
+    monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator, "run_reply_lane_checks_for_tick",
+                        lambda _runtime, state, current: reply_tick(state, current))
+    _patch_quote_runner(monkeypatch, catastrophic_quote)
     monkeypatch.setattr(
         bot,
         "schedule_next_quote_post",
@@ -376,11 +398,8 @@ def test_main_total_persistence_loss_latch_stops_later_remote_lanes(
             "an unrecoverable confirmed post must never be scheduled for retry"
         ),
     )
-    monkeypatch.setattr(
-        bot,
-        "post_next_meme",
-        lambda _state: pytest.fail("meme lane must not run after the safety latch"),
-    )
+    _patch_meme_runner(monkeypatch, lambda _state: pytest.fail(
+        "meme lane must not run after the safety latch"))
     monkeypatch.setattr(
         bot,
         "atomic_write_json",
@@ -461,27 +480,27 @@ def test_main_routes_remote_safety_failures_without_error_retry_bookkeeping(
         lambda *_args, **_kwargs: [],
     )
     monkeypatch.setattr(
-        bot,
+        bot._tick_coordination.RuntimeCoordinator,
         "run_reply_lane_checks_for_tick",
-        lambda _state, _current: (0, 0),
+        lambda _runtime, _state, _current: (0, 0),
     )
     monkeypatch.setattr(
-        bot,
-        "record_api_error",
+        bot._api_cooldowns.ApiCooldowns,
+        "record_error",
         lambda *_args, **_kwargs: pytest.fail(
             "remote safety exceptions must not enter API-error bookkeeping"
         ),
     )
     monkeypatch.setattr(
-        bot,
-        "schedule_next_quote_post",
+        bot._runtime_state_helpers.QuoteSchedule,
+        "schedule",
         lambda *_args, **_kwargs: pytest.fail(
             "remote safety exceptions must not schedule a quote retry"
         ),
     )
     monkeypatch.setattr(
-        bot,
-        "set_meme_delay_schedule",
+        bot._daily_meme.MemeSchedule,
+        "set_delay",
         lambda *_args, **_kwargs: pytest.fail(
             "remote safety exceptions must not schedule a meme retry"
         ),
@@ -506,23 +525,12 @@ def test_main_routes_remote_safety_failures_without_error_retry_bookkeeping(
         )
 
     if lane == "quote":
-        monkeypatch.setattr(
-            bot,
-            "post_random_quote",
-            lambda *_args, **_kwargs: raise_safety_failure(),
-        )
-        monkeypatch.setattr(
-            bot,
-            "post_next_meme",
-            lambda _state: pytest.fail("meme lane must not run through the safety latch"),
-        )
+        _patch_quote_runner(monkeypatch, lambda *_args: raise_safety_failure())
+        _patch_meme_runner(monkeypatch, lambda _state: pytest.fail(
+            "meme lane must not run through the safety latch"))
     else:
-        monkeypatch.setattr(
-            bot,
-            "post_random_quote",
-            lambda *_args, **_kwargs: pytest.fail("future quote lane must not run"),
-        )
-        monkeypatch.setattr(bot, "post_next_meme", lambda _state: raise_safety_failure())
+        _patch_quote_runner(monkeypatch, lambda *_args: pytest.fail("future quote lane must not run"))
+        _patch_meme_runner(monkeypatch, lambda _state: raise_safety_failure())
 
     class SafetyBarrierTickComplete(Exception):
         pass
@@ -844,7 +852,8 @@ def test_test_main_tick_stops_after_reply_safety_barrier(
         bot._reply_assembly().reply_receipts().write(sending, confirmed=False)
         return 0, 0
 
-    monkeypatch.setattr(bot, "run_reply_lane_checks_for_tick", trigger_reply_barrier)
+    monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator, "run_reply_lane_checks_for_tick",
+                        lambda _runtime, state, current: trigger_reply_barrier(state, current))
     monkeypatch.setattr(
         bot,
         "wait_for_durable_barrier_before_one_shot_exit",
@@ -925,18 +934,13 @@ def test_production_reply_tick_stops_sibling_lane_on_safety_failure(
     def later_lane(_state: dict) -> str:
         pytest.fail("the sibling reply lane must not run after a safety failure")
 
-    monkeypatch.setattr(
-        bot,
-        "maybe_reply_to_mentions",
+    _patch_reply_lanes(
+        monkeypatch,
         safety_failure if first_lane == "normal" else later_lane,
-    )
-    monkeypatch.setattr(
-        bot,
-        "maybe_reply_to_quote_tweets",
         safety_failure if first_lane == "quote_tweet" else later_lane,
     )
 
-    assert bot.run_reply_lane_checks_for_tick(state, 100) == (0, 0)
+    assert bot._runtime_coordinator().run_reply_lane_checks_for_tick(state, 100) == (0, 0)
     assert bot.ambiguous_remote_post_is_blocking() is True
     assert bot.load_confirmed_reply_receipt() == ("sending", sending)
 
@@ -1047,30 +1051,15 @@ def test_main_reply_safety_failure_reaches_top_of_loop_barrier(
         "safely_process_due_historical_context_obligations",
         context_tick,
     )
-    monkeypatch.setattr(
-        bot,
-        "maybe_reply_to_mentions",
+    _patch_reply_lanes(
+        monkeypatch,
         safety_failure if first_lane == "normal" else later_lane,
-    )
-    monkeypatch.setattr(
-        bot,
-        "maybe_reply_to_quote_tweets",
         safety_failure if first_lane == "quote_tweet" else later_lane,
     )
-    monkeypatch.setattr(
-        bot,
-        "post_random_quote",
-        lambda *_args, **_kwargs: pytest.fail(
-            "main quote lane must not run after a reply safety failure"
-        ),
-    )
-    monkeypatch.setattr(
-        bot,
-        "post_next_meme",
-        lambda _state: pytest.fail(
-            "meme lane must not run after a reply safety failure"
-        ),
-    )
+    _patch_quote_runner(monkeypatch, lambda *_args: pytest.fail(
+        "main quote lane must not run after a reply safety failure"))
+    _patch_meme_runner(monkeypatch, lambda _state: pytest.fail(
+        "meme lane must not run after a reply safety failure"))
 
     class SafetyBarrierTickComplete(Exception):
         pass
@@ -1159,14 +1148,9 @@ def test_test_cycle_reply_safety_failure_stops_later_lane(
     def later_lane(_state: dict) -> str:
         pytest.fail("the sibling reply lane must not run after a safety failure")
 
-    monkeypatch.setattr(
-        bot,
-        "maybe_reply_to_mentions",
+    _patch_reply_lanes(
+        monkeypatch,
         safety_failure if first_lane == "normal" else later_lane,
-    )
-    monkeypatch.setattr(
-        bot,
-        "maybe_reply_to_quote_tweets",
         safety_failure if first_lane == "quote_tweet" else later_lane,
     )
 

@@ -5,12 +5,13 @@ from unittest.mock import Mock
 
 import pytest
 
-from mrs_bot_main_post_assembly import MainPostAssembly
+from mrs_bot_tick_coordination import RuntimeCoordinator, RuntimeErrors, RuntimeSettings
 from tests.helpers.bot_runtime import bot
 
 
 @pytest.fixture
-def tick(monkeypatch):
+def tick():
+    """Bind due-post policy to explicit fake application owners."""
     context = SimpleNamespace(
         current=10_000,
         state={
@@ -25,86 +26,83 @@ def tick(monkeypatch):
         "post_random_quote", "post_next_meme", "save_state",
         "report_bot_health_progress", "log",
     ):
-        value = Mock()
-        setattr(context, name, value)
-        monkeypatch.setattr(bot, name, value)
+        setattr(context, name, Mock())
     context.controls = Mock()
     context.controls.lane_paused.return_value = False
     context.lane_paused = context.controls.lane_paused
-    monkeypatch.setattr(bot, "_runtime_controls_owner", Mock(return_value=context.controls))
     context.cooldowns = Mock()
     context.cooldowns.active.return_value = False
     context.in_api_cooldown = context.cooldowns.active
     context.record_api_error = context.cooldowns.record_error
-    monkeypatch.setattr(bot, "_api_cooldown_owner", Mock(return_value=context.cooldowns))
     context.quote_schedule = Mock()
     context.schedule_next_quote_post = context.quote_schedule.schedule
-    monkeypatch.setattr(bot, "_quote_schedule_owner", Mock(return_value=context.quote_schedule))
     context.meme_schedule = Mock()
     context.set_meme_delay_schedule = context.meme_schedule.set_delay
-    monkeypatch.setattr(MainPostAssembly, "meme_schedule", lambda _assembly: context.meme_schedule)
-    for name in (
-        "lane_paused", "in_api_cooldown", "record_api_error",
-        "schedule_next_quote_post", "set_meme_delay_schedule",
-    ):
-        monkeypatch.setattr(
-            bot,
-            name,
-            Mock(side_effect=AssertionError(f"tick bounced through root {name}")),
+
+    def main_assembly():
+        return SimpleNamespace(
+            quote_runner=lambda: SimpleNamespace(post=context.post_random_quote),
+            meme_runner=lambda: SimpleNamespace(post=context.post_next_meme),
+            meme_schedule=lambda: context.meme_schedule,
         )
-    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", True)
-    monkeypatch.setattr(bot, "MEME_MIN_SECONDS_AFTER_QUOTE_POST", 90)
-    monkeypatch.setattr(
-        bot, "now_epoch", Mock(side_effect=AssertionError("use the tick epoch")),
+
+    context.runtime = RuntimeCoordinator(
+        settings=RuntimeSettings(True, True, True, 0, 60, 60, 10, 90),
+        errors=RuntimeErrors(
+            bot.AmbiguousRemotePostOutcome,
+            bot.UnrecoverableConfirmedReplyPersistenceError,
+            bot.UnrecoverableConfirmedPostPersistenceError,
+            bot.ConfirmedPostLocalPersistenceError,
+            bot.ApiError,
+        ),
+        controls=context.controls, lane_controls=lambda: context.controls,
+        cooldowns=lambda: context.cooldowns,
+        quote_schedule=lambda: context.quote_schedule,
+        reply_assembly=lambda: None, main_post_assembly=main_assembly,
+        now_epoch=lambda: context.current,
+        scheduler_epoch_from_state=lambda state, key, *, current: (0, False),
+        save_state=context.save_state, log=context.log,
+        log_event=lambda *args, **kwargs: None,
+        report_health=context.report_bot_health_progress,
+        resume_media_retirement=lambda: None,
+        resume_source_retirement=lambda **kwargs: None,
+        reconcile_confirmed_transactions=lambda *args: {},
+        ambiguous_remote_post_is_blocking=lambda: False,
+        durable_remote_write_safety_barrier_exists=lambda: True,
+        remote_write_safety_protocol_is_active=lambda: True,
+        process_historical_context=lambda **kwargs: None,
     )
     return context
 
 
 def run_lane(lane, tick):
+    """Run one due lane through the finite runtime's policy owner."""
     if lane == "quote":
-        bot._run_due_quote_post_for_tick(
+        tick.runtime.run_due_quote_post_for_tick(
             tick.lines, tick.images, tick.state, tick.current,
         )
     else:
-        bot._run_due_meme_post_for_tick(tick.state, tick.current)
+        tick.runtime.run_due_meme_post_for_tick(tick.state, tick.current)
 
 
-def test_due_ticks_use_real_schedule_owners_without_root_relays(monkeypatch):
-    current = 10_000
+def test_due_ticks_use_real_schedule_owners_without_root_relays(monkeypatch, tick):
+    current = tick.current
     saves = []
     monkeypatch.setattr(bot, "save_state", lambda state: saves.append(dict(state)))
     monkeypatch.setattr(bot, "POST_SLEEP_MIN", 600)
     monkeypatch.setattr(bot, "POST_SLEEP_MAX", 600)
     monkeypatch.setattr(bot.random, "randint", Mock(return_value=600))
-    quote_schedule = bot._quote_schedule_owner()
-    monkeypatch.setattr(bot, "_quote_schedule_owner", lambda: quote_schedule)
-    controls = Mock()
-    controls.lane_paused.return_value = False
-    cooldowns = Mock()
-    cooldowns.active.return_value = True
-    monkeypatch.setattr(bot, "_runtime_controls_owner", lambda: controls)
-    monkeypatch.setattr(bot, "_api_cooldown_owner", lambda: cooldowns)
-    for name in ("schedule_next_quote_post", "set_meme_delay_schedule"):
-        monkeypatch.setattr(
-            bot,
-            name,
-            Mock(side_effect=AssertionError(f"due tick bounced through {name}")),
-        )
-
+    tick.runtime.quote_schedule = bot._quote_schedule_owner
+    tick.in_api_cooldown.return_value = True
     quote_state = {"next_quote_post_epoch": current}
-    bot._run_due_quote_post_for_tick(set(), set(), quote_state, current)
+    tick.runtime.run_due_quote_post_for_tick(set(), set(), quote_state, current)
     assert quote_state["next_quote_post_epoch"] == current + 600
     assert saves[-1]["next_quote_post_epoch"] == current + 600
 
-    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", True)
-    meme_schedule = bot._main_post_assembly().meme_schedule()
-    monkeypatch.setattr(MainPostAssembly, "meme_schedule", lambda _assembly: meme_schedule)
-    controls.lane_paused.return_value = True
-    meme_state = {
-        "next_meme_post_epoch": current,
-        "last_quote_post_epoch": 0,
-    }
-    bot._run_due_meme_post_for_tick(meme_state, current)
+    tick.meme_schedule = bot._main_post_assembly().meme_schedule()
+    tick.lane_paused.return_value = True
+    meme_state = {"next_meme_post_epoch": current, "last_quote_post_epoch": 0}
+    tick.runtime.run_due_meme_post_for_tick(meme_state, current)
     assert meme_state["next_meme_post_epoch"] == current + 300
     assert meme_state["next_meme_schedule_mode"] == "delayed_runtime_control"
     assert saves[-1]["next_meme_post_epoch"] == current + 300
@@ -123,12 +121,12 @@ def test_future_posts_do_not_check_controls_or_write(lane, tick):
     tick.set_meme_delay_schedule.assert_not_called()
 
 
-def test_disabled_meme_lane_does_not_read_schedule(monkeypatch, tick):
+def test_disabled_meme_lane_does_not_read_schedule(tick):
     class UnreadableState(dict):
         def get(self, *_args):
             pytest.fail("disabled meme lane must not inspect schedule state")
 
-    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", False)
+    tick.runtime.settings = RuntimeSettings(True, True, False, 0, 60, 60, 10, 90)
     tick.state = UnreadableState()
     run_lane("meme", tick)
     tick.lane_paused.assert_not_called()

@@ -901,7 +901,7 @@ def test_interrupted_outer_health_update_cannot_leave_a_write_transaction(
     )
 
     with pytest.raises(KeyboardInterrupt, match="before quote transaction"):
-        bot._run_due_quote_post_for_tick(set(), set(), state, current=1)
+        bot._runtime_coordinator().run_due_quote_post_for_tick(set(), set(), state, current=1)
 
     for receipt_path in (
         bot.MEDIA_UPLOAD_RECEIPT_FILE,

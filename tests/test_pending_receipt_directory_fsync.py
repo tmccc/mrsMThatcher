@@ -1885,7 +1885,8 @@ def test_later_valid_marker_recovery_releases_sigint_once_without_remote_actions
         "safely_process_due_historical_context_obligations",
         remote_lane_reached,
     )
-    monkeypatch.setattr(bot, "run_reply_lane_checks_for_tick", remote_lane_reached)
+    monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator, "run_reply_lane_checks_for_tick",
+                        lambda _runtime, state, current: remote_lane_reached(state, current))
     monkeypatch.setattr(bot, "post_random_quote", remote_lane_reached)
     monkeypatch.setattr(bot, "post_next_meme", remote_lane_reached)
     monkeypatch.setattr(bot, "create_post", remote_lane_reached)
@@ -2062,7 +2063,8 @@ def test_main_rechecks_marker_durability_on_every_blocked_tick(
         "safely_process_due_historical_context_obligations",
         remote_lane_reached,
     )
-    monkeypatch.setattr(bot, "run_reply_lane_checks_for_tick", remote_lane_reached)
+    monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator, "run_reply_lane_checks_for_tick",
+                        lambda _runtime, state, current: remote_lane_reached(state, current))
     monkeypatch.setattr(bot, "post_random_quote", remote_lane_reached)
     monkeypatch.setattr(bot, "post_next_meme", remote_lane_reached)
     monkeypatch.setattr(bot, "create_post", remote_lane_reached)
@@ -2198,7 +2200,8 @@ def test_fresh_process_marker_disappearance_blocks_multiple_real_daemon_ticks(
         "safely_process_due_historical_context_obligations",
         remote_lane_reached,
     )
-    monkeypatch.setattr(bot, "run_reply_lane_checks_for_tick", remote_lane_reached)
+    monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator, "run_reply_lane_checks_for_tick",
+                        lambda _runtime, state, current: remote_lane_reached(state, current))
     monkeypatch.setattr(bot, "post_random_quote", remote_lane_reached)
     monkeypatch.setattr(bot, "post_next_meme", remote_lane_reached)
     monkeypatch.setattr(bot, "create_post", remote_lane_reached)

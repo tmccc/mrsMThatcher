@@ -15,6 +15,7 @@ import os
 import stat
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Callable
 
 
@@ -434,9 +435,15 @@ def configure_main_probe(bot, state_directory: Path) -> tuple[list[str], Callabl
         entries.append("meme")
 
     bot.safely_process_due_historical_context_obligations = historical_context
-    bot.run_reply_lane_checks_for_tick = reply_lane
-    bot.post_random_quote = quote_lane
-    bot.post_next_meme = meme_lane
+    bot._tick_coordination.RuntimeCoordinator.run_reply_lane_checks_for_tick = (
+        lambda _runtime, state, current: reply_lane(state, current)
+    )
+    bot._main_post_assembly_module.MainPostAssembly.quote_runner = (
+        lambda _assembly: SimpleNamespace(post=quote_lane)
+    )
+    bot._main_post_assembly_module.MainPostAssembly.meme_runner = (
+        lambda _assembly: SimpleNamespace(post=meme_lane)
+    )
     bot.create_post = lambda *_args, **_kwargs: entries.append("create_post")
     bot.upload_media = lambda *_args, **_kwargs: entries.append("media")
     bot.x_request = lambda *_args, **_kwargs: entries.append("x")

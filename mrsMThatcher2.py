@@ -6669,158 +6669,53 @@ def schedule_next_quote_post(state: dict, from_epoch: int | None = None, *, save
     return _quote_schedule_owner().schedule(state, from_epoch, save=save)
 
 
-def run_reply_lane_checks_for_tick(
-    state: dict,
-    current: int,
-) -> tuple[int, int]:
-    """Run one reply-lane tick using the check epochs in canonical state."""
-    return _tick_coordination.run_reply_lane_checks_for_tick(
-        state,
-        current,
-        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
-        ENABLE_AUTO_REPLIES=ENABLE_AUTO_REPLIES,
-        ENABLE_QUOTE_TWEET_CHECKS=ENABLE_QUOTE_TWEET_CHECKS,
-        MIN_SECONDS_BETWEEN_REPLIES=MIN_SECONDS_BETWEEN_REPLIES,
-        QUOTE_CHECK_EVERY_SECONDS=QUOTE_CHECK_EVERY_SECONDS,
-        QUOTE_CHECK_SPACING_RETRY_SECONDS=QUOTE_CHECK_SPACING_RETRY_SECONDS,
-        REPLY_CHECK_EVERY_SECONDS=REPLY_CHECK_EVERY_SECONDS,
-        UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
-        ambiguous_remote_post_is_blocking=ambiguous_remote_post_is_blocking,
+def _runtime_coordinator(
+    *,
+    controls: _runtime_control.RuntimeControls | None = None,
+    maintenance_pause_logged: bool = False,
+) -> _tick_coordination.RuntimeCoordinator:
+    """Bind the finite runtime to current process authorities and fresh assemblies."""
+    if controls is None:
+        controls = _runtime_controls_owner()
+    return _tick_coordination.RuntimeCoordinator(
+        settings=_tick_coordination.RuntimeSettings(
+            enable_auto_replies=ENABLE_AUTO_REPLIES,
+            enable_quote_tweet_checks=ENABLE_QUOTE_TWEET_CHECKS,
+            enable_daily_meme_posts=ENABLE_DAILY_MEME_POSTS,
+            minimum_reply_spacing=MIN_SECONDS_BETWEEN_REPLIES,
+            reply_check_interval=REPLY_CHECK_EVERY_SECONDS,
+            quote_check_interval=QUOTE_CHECK_EVERY_SECONDS,
+            quote_spacing_retry=QUOTE_CHECK_SPACING_RETRY_SECONDS,
+            minimum_meme_after_quote=MEME_MIN_SECONDS_AFTER_QUOTE_POST,
+        ),
+        errors=_tick_coordination.RuntimeErrors(
+            ambiguous_post=AmbiguousRemotePostOutcome,
+            unrecoverable_reply=UnrecoverableConfirmedReplyPersistenceError,
+            unrecoverable_main_post=UnrecoverableConfirmedPostPersistenceError,
+            confirmed_main_post=ConfirmedPostLocalPersistenceError,
+            api_error=ApiError,
+        ),
+        controls=controls,
+        lane_controls=_runtime_controls_owner,
+        cooldowns=_api_cooldown_owner,
+        quote_schedule=_quote_schedule_owner,
+        reply_assembly=_reply_assembly,
+        main_post_assembly=_main_post_assembly,
+        now_epoch=now_epoch,
+        scheduler_epoch_from_state=scheduler_epoch_from_state,
+        save_state=save_state,
         log=log,
         log_event=log_event,
-        maybe_reply_to_mentions=maybe_reply_to_mentions,
-        maybe_reply_to_quote_tweets=maybe_reply_to_quote_tweets,
-        save_state=save_state,
-        scheduler_epoch_from_state=scheduler_epoch_from_state,
-    )
-
-
-def maintain_global_remote_write_barrier_tick(
-    *,
-    already_logged: bool,
-) -> tuple[bool, bool]:
-    """Maintain one fail-closed barrier tick and its one-shot logging state."""
-    return _tick_coordination.maintain_global_remote_write_barrier_tick(
-        already_logged=already_logged,
+        report_health=report_bot_health_progress,
+        resume_media_retirement=resume_interrupted_confirmed_media_retirement_if_present,
+        resume_source_retirement=resume_source_receipt_retirement_for_control_snapshot,
+        reconcile_confirmed_transactions=reconcile_confirmed_transactions_before_global_barrier,
         ambiguous_remote_post_is_blocking=ambiguous_remote_post_is_blocking,
         durable_remote_write_safety_barrier_exists=durable_remote_write_safety_barrier_exists,
-        log=log,
         remote_write_safety_protocol_is_active=remote_write_safety_protocol_is_active,
+        process_historical_context=safely_process_due_historical_context_obligations,
+        maintenance_pause_logged=maintenance_pause_logged,
     )
-
-
-def _run_due_quote_post_for_tick(
-    lines_used: set,
-    images_used: set,
-    state: dict,
-    current: int,
-) -> None:
-    """Handle quote timing and retries after the main loop's safety gates."""
-    cooldowns = _api_cooldown_owner()
-    controls = _runtime_controls_owner()
-    quote_schedule = _quote_schedule_owner()
-    next_quote_epoch = int(state.get("next_quote_post_epoch", 0))
-    if current >= next_quote_epoch:
-        log.info("Due to post quote/image")
-
-        if controls.lane_paused("disable_quote_posts"):
-            log.warning("Skipping quote/image post due to runtime control file; retrying in 5 minutes")
-            state["next_quote_post_epoch"] = current + 300
-            save_state(state)
-        elif cooldowns.active(state, scope="write"):
-            log.warning("Skipping quote/image post due to X write API cooldown")
-            quote_schedule.schedule(state, current)
-        else:
-            quote_posted = False
-            report_bot_health_progress("quote_post")
-            try:
-                post_random_quote(lines_used, images_used, state)
-                quote_posted = True
-            except UnrecoverableConfirmedPostPersistenceError:
-                quote_posted = True
-                log.exception(
-                    "Quote/image post was confirmed remotely but no complete durable "
-                    "local representation survived; all remote writes are now blocked"
-                )
-            except ConfirmedPostLocalPersistenceError:
-                quote_posted = True
-                log.exception("Quote/image post was confirmed remotely but local recovery/persistence failed; not scheduling an error retry")
-            except AmbiguousRemotePostOutcome:
-                quote_posted = True
-                log.exception(
-                    "Quote/image remote outcome is ambiguous; the remote-write safety "
-                    "barrier is active and no retry will be scheduled"
-                )
-            except ApiError as e:
-                log.exception("Quote/image posting failed due to API error")
-                cooldowns.record_error(state, e, "x", scope="write")
-            except Exception:
-                log.exception("Quote/image posting failed unexpectedly")
-            report_bot_health_progress("main_loop")
-
-            if not quote_posted:
-                quote_schedule.schedule(state, current)
-    else:
-        log.debug(
-            "Not due to post quote/image. seconds_until_next=%s",
-            max(0, next_quote_epoch - current),
-        )
-
-
-def _run_due_meme_post_for_tick(state: dict, current: int) -> None:
-    """Handle meme timing and retries after the main loop's safety gates."""
-    cooldowns = _api_cooldown_owner()
-    controls = _runtime_controls_owner()
-    if ENABLE_DAILY_MEME_POSTS:
-        meme_schedule = _main_post_assembly().meme_schedule()
-        next_meme_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
-
-        if current >= next_meme_epoch:
-            log.info("Due to post daily meme")
-
-            seconds_since_quote = current - int(state.get("last_quote_post_epoch", 0) or 0)
-
-            if controls.lane_paused("disable_meme_posts"):
-                log.warning("Skipping daily meme post due to runtime control file; retrying in 5 minutes")
-                meme_schedule.set_delay(state, epoch=current + 300, mode="delayed_runtime_control")
-            elif seconds_since_quote < MEME_MIN_SECONDS_AFTER_QUOTE_POST:
-                log.info(
-                    "Meme post due, but delaying because last quote post was %d seconds ago",
-                    seconds_since_quote,
-                )
-                meme_schedule.set_delay(state, epoch=current + 1800, mode="delayed_recent_quote")
-            elif cooldowns.active(state, scope="write"):
-                log.warning("Skipping daily meme post due to X write API cooldown")
-                meme_schedule.set_delay(state, epoch=current + 3600, mode="delayed_write_api_cooldown")
-            else:
-                report_bot_health_progress("meme_post")
-                try:
-                    post_next_meme(state)
-                except UnrecoverableConfirmedPostPersistenceError:
-                    log.exception(
-                        "Daily meme post was confirmed remotely but no complete durable "
-                        "local representation survived; all remote writes are now blocked"
-                    )
-                except ConfirmedPostLocalPersistenceError:
-                    log.exception("Daily meme post was confirmed remotely but local recovery/persistence failed; not scheduling an error retry")
-                except AmbiguousRemotePostOutcome:
-                    log.exception(
-                        "Daily meme remote outcome is ambiguous; the remote-write safety "
-                        "barrier is active and no retry will be scheduled"
-                    )
-                except ApiError as e:
-                    log.exception("Daily meme posting failed due to API error")
-                    cooldowns.record_error(state, e, "x", scope="write")
-                    meme_schedule.set_delay(state, epoch=current + 3600, mode="delayed_api_error")
-                except Exception:
-                    log.exception("Daily meme posting failed unexpectedly")
-                    meme_schedule.set_delay(state, epoch=current + 3600, mode="delayed_exception")
-                report_bot_health_progress("main_loop")
-        else:
-            log.debug(
-                "Not due to post daily meme. seconds_until_next=%s",
-                max(0, next_meme_epoch - current),
-            )
 
 
 def _log_startup_configuration() -> None:
@@ -7015,132 +6910,11 @@ def main() -> None:
     log.info("Bot started successfully")
     report_bot_health_progress("main_loop")
 
-    ambiguity_pause_logged = False
-    maintenance_pause_logged = controls.global_paused()
-    while True:
-        report_bot_health_progress("main_loop", loop_started=True)
-        maintenance_paused = controls.global_paused()
-        if not maintenance_paused:
-            try:
-                resume_interrupted_confirmed_media_retirement_if_present()
-            except Exception:
-                log.critical(
-                    "Interrupted confirmed-media retirement could not be "
-                    "resumed; every remote lane remains blocked",
-                    exc_info=True,
-                )
-        try:
-            resume_source_receipt_retirement_for_control_snapshot(
-                maintenance_paused=maintenance_paused,
-            )
-        except Exception:
-            log.critical(
-                "Interrupted source-receipt retirement could not be resumed; "
-                "all remote lanes remain blocked",
-                exc_info=True,
-            )
-        if not maintenance_paused:
-            try:
-                reconciled = reconcile_confirmed_transactions_before_global_barrier(
-                    lines_used,
-                    images_used,
-                    state,
-                )
-            except Exception:
-                log.critical(
-                    "A locally confirmed remote transaction could not be "
-                    "reconciled before the global barrier; all remote lanes "
-                    "remain blocked",
-                    exc_info=True,
-                )
-            else:
-                if any(reconciled.values()):
-                    log.warning(
-                        "Completed local confirmed-transaction recovery before "
-                        "remote scheduling: %s",
-                        {key: value for key, value in reconciled.items() if value},
-                    )
-
-
-        ambiguity_blocked, ambiguity_pause_logged = (
-            maintain_global_remote_write_barrier_tick(
-                already_logged=ambiguity_pause_logged,
-            )
-        )
-
-        if maintenance_paused:
-            if not maintenance_pause_logged:
-                log.warning(
-                    "Global runtime control pause is active; all remote-write lanes "
-                    "remain idle"
-                )
-            maintenance_pause_logged = True
-            report_bot_health_progress(
-                "paused",
-                paused=True,
-                remote_write_blocked=ambiguity_blocked,
-                loop_completed=True,
-            )
-            sleep(60)
-            continue
-        if maintenance_pause_logged:
-            log.info("Global runtime control pause cleared; resuming scheduled lanes")
-        maintenance_pause_logged = False
-        report_bot_health_progress("main_loop", paused=False)
-
-        if ambiguity_blocked:
-            report_bot_health_progress(
-                "remote_write_blocked",
-                remote_write_blocked=True,
-                loop_completed=True,
-            )
-            sleep(60)
-            continue
-        report_bot_health_progress("main_loop", remote_write_blocked=False)
-
-        current = now_epoch()
-        log.debug("Main loop tick. epoch=%s", current)
-
-        report_bot_health_progress("historical_context")
-        safely_process_due_historical_context_obligations(
-            limit=1,
-            runtime_state=state,
-        )
-        report_bot_health_progress("main_loop")
-        if ambiguous_remote_post_is_blocking():
-            report_bot_health_progress(
-                "remote_write_blocked",
-                remote_write_blocked=True,
-                loop_completed=True,
-            )
-            continue
-
-        report_bot_health_progress("reply_checks")
-        run_reply_lane_checks_for_tick(state, current)
-        report_bot_health_progress("main_loop")
-        if ambiguous_remote_post_is_blocking():
-            report_bot_health_progress(
-                "remote_write_blocked",
-                remote_write_blocked=True,
-                loop_completed=True,
-            )
-            continue
-
-        _run_due_quote_post_for_tick(lines_used, images_used, state, current)
-
-        if ambiguous_remote_post_is_blocking():
-            report_bot_health_progress(
-                "remote_write_blocked",
-                remote_write_blocked=True,
-                loop_completed=True,
-            )
-            continue
-
-        _run_due_meme_post_for_tick(state, current)
-
-        log.debug("Sleeping for 60 seconds")
-        report_bot_health_progress("sleep", loop_completed=True)
-        sleep(60)
+    runtime = _runtime_coordinator(
+        controls=controls,
+        maintenance_pause_logged=controls.global_paused(),
+    )
+    runtime.run_continuously(lines_used, images_used, state, sleep=sleep)
 
 
 # ---------------------------------------------------------------------
@@ -7249,7 +7023,7 @@ def run_test_main_tick() -> int:
         require_established_installation_after_ledger_recovery=require_established_installation_after_ledger_recovery,
         require_production_bootstrap=require_production_bootstrap,
         require_test_mode=require_test_mode,
-        run_reply_lane_checks_for_tick=run_reply_lane_checks_for_tick,
+        run_reply_lane_checks_for_tick=_runtime_coordinator().run_reply_lane_checks_for_tick,
         save_state=save_state,
         scheduler_epoch_from_state=scheduler_epoch_from_state,
         wait_for_durable_barrier_before_one_shot_exit=wait_for_durable_barrier_before_one_shot_exit,

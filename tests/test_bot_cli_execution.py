@@ -36,21 +36,6 @@ DEPENDENCIES = {'run_test_cycle': ['AmbiguousRemotePostOutcome',
                     'require_test_mode',
                     'save_state',
                     'wait_for_durable_barrier_before_one_shot_exit'],
- 'run_test_main_tick': ['acquire_instance_lock',
-                        'ambiguous_remote_post_is_blocking',
-                        'block_if_ambiguous_remote_post',
-                        'load_runtime_state',
-                        'log',
-                        'now_epoch',
-                        'reconcile_runtime_historical_context_state',
-                        'report_bot_health_progress',
-                        'require_established_installation_after_ledger_recovery',
-                        'require_production_bootstrap',
-                        'require_test_mode',
-                        'run_reply_lane_checks_for_tick',
-                        'save_state',
-                        'scheduler_epoch_from_state',
-                        'wait_for_durable_barrier_before_one_shot_exit'],
  'require_test_mode': ['IMPORT_TIME_TEST_MODE', 'log'],
  'wait_for_durable_barrier_before_one_shot_exit': ['durable_remote_write_safety_barrier_exists',
                                                    'log',
@@ -113,7 +98,6 @@ DEPENDENCIES = {'run_test_cycle': ['AmbiguousRemotePostOutcome',
              'sys']}
 
 SIGNATURES = {'run_test_cycle': "() -> 'int'",
- 'run_test_main_tick': "() -> 'int'",
  'require_test_mode': "(command_name: 'str') -> 'bool'",
  'wait_for_durable_barrier_before_one_shot_exit': "(*, lane: 'str') -> 'None'",
  'run_test_post_quote': "() -> 'int'",
@@ -594,8 +578,11 @@ def test_tick_eager_scheduler_reads_health_order_and_barrier_before_completion(m
     state, current, reply_epoch, quote_epoch = {}, object(), object(), object()
     trace = _execution_trace(monkeypatch, state)
     for name in ("report_bot_health_progress", "now_epoch", "scheduler_epoch_from_state",
-                 "run_reply_lane_checks_for_tick", "ambiguous_remote_post_is_blocking"):
+                 "ambiguous_remote_post_is_blocking"):
         monkeypatch.setattr(bot, name, getattr(trace, name))
+    monkeypatch.setattr(bot, "_runtime_coordinator", lambda: SimpleNamespace(
+        run_reply_lane_checks_for_tick=trace.run_reply_lane_checks_for_tick,
+    ))
     trace.now_epoch.return_value = current
     trace.scheduler_epoch_from_state.side_effect = [(reply_epoch, changed[0]), (quote_epoch, changed[1])]
     trace.ambiguous_remote_post_is_blocking.return_value = blocked

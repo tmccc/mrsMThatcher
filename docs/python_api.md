@@ -71,7 +71,7 @@ and AppleDouble files.
 | `mrs_bot_x_pagination.py` | Bounded X pagination and cursor-error classification | Owns ordered page-envelope validation and cursor-message decoding; supplied request/page callbacks, token history, partial results and one invalidation/head recovery retain their original order |
 | `mrs_bot_request_route_values.py` | Endpoint normalization, loopback policy, X route classification and strict JSON request values | `XRequestRoutes` owns configured origin and prepared-path classification without sending. The X request owner receives it directly and calls origin/prepared-route methods without root relays. Fixed endpoint parsing, exact-route recognition and strict payload encoding use their local implementations; current endpoint configuration and exception authority retain their call boundaries |
 | `mrs_bot_x_response_diagnostics.py` | Bounded tweet-create classification, anomaly evidence and error construction | `XCreateDiagnostics` owns classification and canonical JSON/hash emission with fixed local bounds and is called directly by the X request owner. The module constructs ambiguous outcomes from emitted evidence; transport guards and exception authority keep their original timing |
-| `mrs_bot_tick_coordination.py` | Reply-lane priority normalization, scheduled arbitration and blocked-tick coordination | Each reply tick reads and repairs its scheduling epochs from caller state before arbitration; callers supply no duplicate epochs. Priority, spacing, separate saves and barrier checks retain their ordering. Blocked ticks recheck durability and preserve retained SIGINT delivery; no retained runtime dependencies or import-time work |
+| `mrs_bot_tick_coordination.py` | Finite production iteration, reply arbitration and due main-post policy | `RuntimeCoordinator.run_once` sequences recovery, controls, barrier, historical context, replies, quotation and meme work on caller-owned state and history. `run_continuously` only applies its wait outcome. Each reply operation and due main-post operation obtains a fresh assembly; blocked ticks recheck durability and preserve retained SIGINT delivery. Construction and import perform no runtime work. |
 | `mrs_bot_durable_json_io.py` | Canonical receipt bytes, owned state namespace checks, stable reads, atomic JSON publication and receipt creation | No-follow bounded reads use local fixed mode classifiers; receipt parsing and exclusive creation enforce stricter authority rules than ordinary JSON writes. Durable writes include parent fsync. Atomic publication and receipt encoding share one fixed byte-format implementation; strict parsing uses local JSON while retaining current error authority and pre-write validation order |
 | `mrs_bot_state_value_normalisation.py` | `StateValues`: bounded IDs and scalar, epoch, list and map normalization | Nested validation stays in the owner with current diagnostics and epoch policy; higher-level state/receipt policy and persistence use these primitives. Owns fixed numeric operations and the shared bounded tweet-ID parser used directly by mention, receipt and quote-discovery owners |
 | `mrs_bot_state_persistence.py` | State documents, `StateBackups`, and canonical generation publication | Canonical publication calls the composed `StateBackups` and `StateGenerationContext` directly. Backup rotation owns stable copying and temporary path construction; reader checks, lock authority, commit proofs, rotation-before-replacement and the commit-before-latest-backup boundary remain unchanged. Load/save use the fixed value-free state summary directly and generation serialization remains in its owner |
@@ -167,10 +167,10 @@ while original-editorial loading uses the coordinator's analysis cache. Selectio
 uses the shared production RNG and caller-owned history. Disabled editorial
 loading and selection do no work.
 
-The main loop owns lane ordering and global safety checks. Its private
-`_run_due_quote_post_for_tick` and `_run_due_meme_post_for_tick` helpers own
-lane-specific due-time, pause, cooldown and retry decisions. Confirmed or
-ambiguous remote outcomes never schedule an error retry.
+The runtime coordinator owns lane ordering, global safety checks and due-time,
+pause, cooldown and retry decisions. The root retains startup recovery and
+cross-lane confirmed-transaction reconciliation as shared operations.
+Confirmed or ambiguous remote outcomes never schedule an error retry.
 
 ## Conversational Reply Preparation And Delivery
 

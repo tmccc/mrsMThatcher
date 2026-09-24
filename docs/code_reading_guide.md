@@ -24,10 +24,12 @@ Start in [mrsMThatcher2.py](../mrsMThatcher2.py):
 3. `main()` acquires the instance lock, validates the installation, loads state
    and reconciles recovery evidence. `_log_startup_configuration()` contains the
    startup configuration messages; recovery decisions remain in `main()`.
-4. Each scheduler tick checks controls and remote-write barriers, then runs due
-   historical-context work, reply checks, quotation posts and memes. Start with
-   `run_reply_lane_checks_for_tick()`, `_run_due_quote_post_for_tick()` or
-   `_run_due_meme_post_for_tick()` for timing and lane selection.
+4. After startup, `main()` gives its original state and used-history objects to
+   `RuntimeCoordinator.run_continuously()` in
+   [mrs_bot_tick_coordination.py](../mrs_bot_tick_coordination.py).
+   `run_once()` performs one finite iteration: recovery and safety gates,
+   historical context, reply arbitration, quotation and meme posting. Its
+   return value requests a wait in seconds or an immediate next iteration.
 
 ## Three live paths to read first
 
@@ -39,10 +41,9 @@ order where import-time safety or test monkeypatching makes movement risky.
 
 For the normal mention/hot-post path:
 
-1. `run_reply_lane_checks_for_tick()` chooses the lane in
-   [mrs_bot_tick_coordination.py](../mrs_bot_tick_coordination.py), then the
-   root `maybe_reply_to_mentions()` enters `ReplyAssembly.run_normal` with current
-   reply configuration and shared application authorities.
+1. `RuntimeCoordinator.run_reply_lane_checks_for_tick()` chooses the lane and
+   invokes a fresh `ReplyAssembly.run_normal` with current reply configuration
+   and shared application authorities.
 2. [mrs_bot_normal_reply_cycle.py](../mrs_bot_normal_reply_cycle.py) owns
    discovery order, admission, model-call budgets, backlog continuation and
    status mapping. It calls `ReplyContext.build`, `ReplyDrafts.recover` and
@@ -52,8 +53,8 @@ For the normal mention/hot-post path:
 
 For the quote-tweet path:
 
-1. The same tick coordinator selects the quote lane, and root
-   `maybe_reply_to_quote_tweets()` enters `ReplyAssembly.run_quote`.
+1. The same tick coordinator selects the quote lane and invokes a fresh
+   `ReplyAssembly.run_quote`.
 2. [mrs_bot_quote_reply_cycle.py](../mrs_bot_quote_reply_cycle.py) asks its
    `QuoteWatchPosts` owner for watched originals, uses quote discovery, and owns
    candidate ordering, delay/cap checks and quote-lane bookkeeping.

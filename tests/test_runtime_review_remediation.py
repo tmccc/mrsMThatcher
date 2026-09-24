@@ -72,7 +72,7 @@ def test_legacy_future_quote_epoch_repair_is_saved_once_without_poll_loop(monkey
     monkeypatch.setattr(bot, "save_state", save)
     monkeypatch.setattr(bot, "maybe_reply_to_quote_tweets", poll)
     for tick in (current, current + 1, current + 2):
-        bot.run_reply_lane_checks_for_tick(state, tick)
+        bot._runtime_coordinator().run_reply_lane_checks_for_tick(state, tick)
     assert state["last_quote_tweet_check_epoch"] == current
     save.assert_called_once_with(state)
     poll.assert_not_called()
