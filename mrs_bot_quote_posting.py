@@ -180,18 +180,13 @@ def _complete_quote_post(
     images_used: set,
     state: dict,
     *,
-    quote_hash: str,
-    image_basename: str,
+    preparation: _QuotePostPreparation,
     posted_id: str,
     quote_post_epoch: int,
     quote_schedule_fields: dict,
     meme_schedule_fields: dict,
-    tweet: str,
     receipt: dict,
-    line_no: int,
-    image_no: int,
     image_choice: dict,
-    canonical_quote_text: str,
     log: Logger,
     tweets: TweetLookupCache,
     MY_USER_ID: str,
@@ -218,17 +213,17 @@ def _complete_quote_post(
         )
 
     try:
-        lines_used.add(quote_hash)
-        images_used.add(image_basename)
+        lines_used.add(preparation.quote_hash)
+        images_used.add(preparation.image_basename)
         state["last_main_post_id"] = str(posted_id)
         state["last_quote_post_epoch"] = quote_post_epoch
-        state["last_regular_image_filename"] = image_basename
+        state["last_regular_image_filename"] = preparation.image_basename
         apply_state_fields(state, quote_schedule_fields)
         apply_state_fields(state, meme_schedule_fields)
         tweets.store(
             state,
             tweet_id=str(posted_id),
-            text=tweet,
+            text=preparation.tweet,
             author_id=str(MY_USER_ID),
             conversation_id=str(posted_id),
             referenced_tweets=[],
@@ -252,19 +247,19 @@ def _complete_quote_post(
         "main_post_posted",
         lane="quote_image",
         post_id=posted_id,
-        line_no=line_no,
-        image_no=image_no,
-        image_basename=image_basename,
+        line_no=preparation.line_no,
+        image_no=preparation.image_no,
+        image_basename=preparation.image_basename,
         image_hash=image_choice.get("image_hash"),
         image_score=image_choice.get("score"),
-        quote_hash=quote_hash,
+        quote_hash=preparation.quote_hash,
     )
     emit_account_root_posted(
         lane="quote_image",
         post_id=posted_id,
-        public_text=tweet,
-        quote_id=quote_hash,
-        quote_text=canonical_quote_text,
+        public_text=preparation.tweet,
+        quote_id=preparation.quote_hash,
+        quote_text=preparation.canonical_quote_text,
     )
     safely_process_due_historical_context_obligations(
         parent_post_id=str(posted_id),
@@ -352,18 +347,7 @@ def post_random_quote(
             NoViableQuoteImagePair=NoViableQuoteImagePair,
         )
 
-        (
-            line_no,
-            quote_hash,
-            canonical_quote_text,
-            tweet,
-            image_no,
-            image,
-            image_basename,
-            image_made_with_ai,
-            quote_delay,
-            meme_delay,
-        ) = _prepare_quote_post(
+        preparation = _prepare_quote_post(
             quote_choice, image_choice,
             log=log,
             POST_SLEEP_MIN=POST_SLEEP_MIN,
@@ -373,22 +357,22 @@ def post_random_quote(
             ENABLE_DAILY_MEME_POSTS=ENABLE_DAILY_MEME_POSTS,
         )
 
-        media_id = upload_media(image, lane="quote_image")
+        media_id = upload_media(preparation.image, lane="quote_image")
         main_post_attempt = build_main_post_attempt(
             lane="quote_image",
-            text=tweet,
+            text=preparation.tweet,
             media_ids=[media_id],
-            made_with_ai=image_made_with_ai,
+            made_with_ai=preparation.image_made_with_ai,
             selected_identity={
-                "quote_hash": quote_hash,
-                "line_no": line_no,
-                "source_line_number": line_no + 1,
-                "image_basename": image_basename,
-                "image_no": image_no,
+                "quote_hash": preparation.quote_hash,
+                "line_no": preparation.line_no,
+                "source_line_number": preparation.line_no + 1,
+                "image_basename": preparation.image_basename,
+                "image_no": preparation.image_no,
             },
             recovery_plan={
-                "quote_delay_seconds": quote_delay,
-                "meme_delay_seconds": meme_delay,
+                "quote_delay_seconds": preparation.quote_delay,
+                "meme_delay_seconds": preparation.meme_delay,
                 "meme_scheduling_enabled": bool(ENABLE_DAILY_MEME_POSTS),
                 "meme_trigger_after_hour": int(MEME_TRIGGER_AFTER_HOUR),
                 "meme_schedule_version": int(MEME_SCHEDULE_VERSION),
@@ -397,9 +381,9 @@ def post_random_quote(
                     state,
                     schedule_timezone=MAIN_POST_SCHEDULE_TIMEZONE,
                 ),
-                "quote_history_after": sorted(set(lines_used) | {quote_hash}),
+                "quote_history_after": sorted(set(lines_used) | {preparation.quote_hash}),
                 "image_history_after": sorted(
-                    set(images_used) | {image_basename}
+                    set(images_used) | {preparation.image_basename}
                 ),
             },
             attempt_epoch=transaction_preflight_epoch,
@@ -407,7 +391,8 @@ def post_random_quote(
         publication.prepare(main_post_attempt)
         publication.begin_guard()
         posted_id = publication.send(
-            text=tweet, media_id=media_id, made_with_ai=image_made_with_ai,
+            text=preparation.tweet, media_id=media_id,
+            made_with_ai=preparation.image_made_with_ai,
         )
     except BaseException as remote_exc:
         lines_used.clear()
@@ -425,9 +410,9 @@ def post_random_quote(
         quote_post_epoch = publication.read_confirmation_epoch(posted_id)
         context_obligation_receipt = {
             "post_id": str(posted_id),
-            "quote_hash": quote_hash,
+            "quote_hash": preparation.quote_hash,
             "quote_post_epoch": quote_post_epoch,
-            "text": tweet,
+            "text": preparation.tweet,
         }
         receipt = publication.confirm_pending_schedule(posted_id, quote_post_epoch)
         quote_schedule_fields = _confirmed_quote_schedule_fields(receipt)
@@ -474,12 +459,12 @@ def post_random_quote(
                     exc_info=True,
                 )
         try:
-            lines_used.add(quote_hash)
-            images_used.add(image_basename)
+            lines_used.add(preparation.quote_hash)
+            images_used.add(preparation.image_basename)
             state["last_main_post_id"] = str(posted_id)
             if quote_post_epoch is not _RECOVERY_VALUE_UNAVAILABLE:
                 state["last_quote_post_epoch"] = quote_post_epoch
-            state["last_regular_image_filename"] = image_basename
+            state["last_regular_image_filename"] = preparation.image_basename
         except Exception:
             fallback_failures.append("in_memory_regular_post_state")
             log.critical(
@@ -508,7 +493,7 @@ def post_random_quote(
             tweets.store(
                 state,
                 tweet_id=str(posted_id),
-                text=tweet,
+                text=preparation.tweet,
                 author_id=str(MY_USER_ID),
                 conversation_id=str(posted_id),
                 referenced_tweets=[],
@@ -524,8 +509,8 @@ def post_random_quote(
         if not confirmed_regular_emergency_representation_is_complete(
             post_id=str(posted_id),
             post_epoch=quote_post_epoch if quote_post_epoch is not _RECOVERY_VALUE_UNAVAILABLE else None,
-            quote_hash=quote_hash,
-            image_basename=image_basename,
+            quote_hash=preparation.quote_hash,
+            image_basename=preparation.image_basename,
             lines_used=lines_used,
             images_used=images_used,
             state=state,
@@ -598,18 +583,13 @@ def post_random_quote(
 
     _complete_quote_post(
         lines_used, images_used, state,
-        quote_hash=quote_hash,
-        image_basename=image_basename,
+        preparation=preparation,
         posted_id=posted_id,
         quote_post_epoch=quote_post_epoch,
         quote_schedule_fields=quote_schedule_fields,
         meme_schedule_fields=meme_schedule_fields,
-        tweet=tweet,
         receipt=receipt,
-        line_no=line_no,
-        image_no=image_no,
         image_choice=image_choice,
-        canonical_quote_text=canonical_quote_text,
         log=log,
         tweets=tweets,
         MY_USER_ID=MY_USER_ID,

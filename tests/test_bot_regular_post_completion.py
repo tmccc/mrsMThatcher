@@ -24,6 +24,12 @@ def _completion_case(lane, *, fail_at=None, failure=None):
     receipt = {"post_id": "950001", "line_no": 1, "image_no": 2,
                "image_basename": "image.jpg", "quote_hash": "quote", "text": "text"}
     image_choice = {"image_hash": "before-save", "score": 1}
+    preparation = posting._QuotePostPreparation(
+        line_no=1, quote_hash="quote", canonical_quote_text="canonical",
+        tweet="text", image_no=2, image="image.jpg",
+        image_basename="image.jpg", image_made_with_ai=False,
+        quote_delay=0, meme_delay=None,
+    )
     events = []
 
     def stage(name):
@@ -50,10 +56,9 @@ def _completion_case(lane, *, fail_at=None, failure=None):
         tweets = SimpleNamespace(store=Mock(), record_recent_own_post=Mock())
         def invoke():
             return posting._complete_quote_post(
-                lines, images, state, quote_hash="quote", image_basename="image.jpg",
+                lines, images, state, preparation=preparation,
                 posted_id="950001", quote_post_epoch=100, quote_schedule_fields={},
-                meme_schedule_fields={}, tweet="text", receipt=receipt, line_no=1,
-                image_no=2, image_choice=image_choice, canonical_quote_text="canonical",
+                meme_schedule_fields={}, receipt=receipt, image_choice=image_choice,
                 tweets=tweets, MY_USER_ID="123",
                 ConfirmedPostLocalPersistenceError=LocalPersistenceError, **common,
             )
