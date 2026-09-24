@@ -367,6 +367,12 @@ def legacy_whitespace_hash_fixture(
             analytics.apply_discovery(connection, [ledger_record], now=main_time)
     finally:
         connection.close()
+    # Settle SQLite's WAL before snapshots compare exact database bytes.
+    checkpoint = sqlite3.connect(test_paths.database)
+    try:
+        assert checkpoint.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()[0] == 0
+    finally:
+        checkpoint.close()
 
     evidence = {
         "quote_text": quote_text,

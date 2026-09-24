@@ -10,7 +10,23 @@ from PIL import Image
 import semantic_alignment.thatcher_image_hunt as hunt
 
 
-BASELINE = Path("image_analysis.json")
+BASELINE = Path("image_analysis_baseline_69.json")
+
+
+def test_cli_profile_defaults_to_the_frozen_research_baseline(tmp_path, monkeypatch):
+    """Keep the one-off image hunt bound to its original 69-image input."""
+    selected = []
+    monkeypatch.setattr(hunt, "load_project_environment", lambda _path: None)
+    monkeypatch.setattr(
+        hunt, "write_coverage_outputs",
+        lambda baseline, research: selected.append((baseline, research)) or {},
+    )
+
+    assert hunt.main(["profile", "--project-dir", str(tmp_path)]) == 0
+    assert selected == [(
+        tmp_path / "image_analysis_baseline_69.json",
+        tmp_path / "image_discovery_research" / hunt.RUN_ID,
+    )]
 
 
 def test_schema_v3_baseline_and_coverage_profile_are_deterministic():

@@ -3018,7 +3018,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the command-line entry point."""
     args = build_parser().parse_args(argv)
     project_dir = args.project_dir.resolve()
-    baseline_path = (args.baseline or project_dir / "image_analysis.json").resolve()
+    baseline_path = (args.baseline or project_dir / "image_analysis_baseline_69.json").resolve()
     research_dir = (args.research_dir or project_dir / "image_discovery_research" / RUN_ID).resolve()
     load_project_environment(project_dir / "mrsMThatcher.env")
     if args.command == "profile":

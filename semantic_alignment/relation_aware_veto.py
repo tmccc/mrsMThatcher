@@ -503,7 +503,8 @@ def load_image_corpus(
     project_dir: Path, work_dir: Path, packets: Sequence[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Load image corpus."""
-    baseline_path = project_dir / "image_analysis.json"
+    # This trial's 69-image input is fixed even as the live posting catalog grows.
+    baseline_path = project_dir / "image_analysis_baseline_69.json"
     baseline = read_json(baseline_path)
     if baseline.get("schema_version") != 3 or len(baseline.get("items") or {}) != EXPECTED_BASELINE_IMAGES:
         raise RuntimeError("baseline must contain exactly 69 schema-v3 images")
