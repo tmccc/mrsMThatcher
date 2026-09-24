@@ -14,6 +14,7 @@ import mrs_bot_reply_assembly as assembly
 import pytest
 
 import mrs_bot_reply_history as reply_history
+import single_call_reply
 import mrs_bot_reply_state as reply_state
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
@@ -97,7 +98,6 @@ assert 'single_call_reply' not in sys.modules
 def test_root_owner_binds_current_dependencies_and_preserves_original_default(monkeypatch):
     names = {
         "now_epoch": "now_epoch",
-        "quoted_post_reference_id": "quoted_post_reference_id",
         "maximum_state_epoch": "MAX_REASONABLE_STATE_EPOCH",
         "maximum_recent_replies": "MAX_RECENT_ACCOUNT_REPLIES",
         "maximum_same_author_interactions": "MAX_SAME_AUTHOR_INTERACTIONS",
@@ -108,15 +108,16 @@ def test_root_owner_binds_current_dependencies_and_preserves_original_default(mo
     snapshots = []
     for _ in range(2):
         current = {field: object() for field in names}
-        for field in ("now_epoch", "quoted_post_reference_id"):
+        for field in ("now_epoch",):
             current[field] = Mock()
         for field, root_name in names.items():
             monkeypatch.setattr(bot, root_name, current[field])
         owner = bot._reply_assembly()._reply_history_owner()
         assert isinstance(owner, reply_history.ReplyHistory)
         assert all(getattr(owner, field) is value for field, value in current.items())
+        assert owner.quoted_post_reference_id is single_call_reply.quoted_post_reference_id
         assert owner.default_recent_reply_limit == default
-        for field in ("now_epoch", "quoted_post_reference_id"):
+        for field in ("now_epoch",):
             current[field].assert_not_called()
         snapshots.append((owner, current))
     first, first_inputs = snapshots[0]

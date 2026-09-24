@@ -9,6 +9,7 @@ import sys
 from unittest.mock import Mock, call
 
 import mrs_bot_reply_assembly as assembly
+import mrs_bot_reply_context as reply_context
 
 import pytest
 
@@ -103,14 +104,17 @@ def test_queue_recovery_saves_before_sorting_and_keeps_returned_record_reference
         ("save", "save_state"), ("sort", "valid_tweets_sorted_by_id"),
     ):
         original = (
-            bot._reply_assembly()._mention_authority_owner().validate_pending
-            if label == "authority" else getattr(bot, name)
+            bot._reply_assembly().mention_authority().validate_pending
+            if label == "authority" else
+            reply_context.valid_tweets_sorted_by_id if label == "sort" else getattr(bot, name)
         )
         trace.attach_mock(Mock(wraps=original), label)
         if label == "authority":
             patch_reply_owner_method(
                 monkeypatch, authority_owner.MentionAuthority, "validate_pending", trace.authority,
             )
+        elif label == "sort":
+            monkeypatch.setattr(reply_context, name, getattr(trace, label))
         else:
             monkeypatch.setattr(bot, name, getattr(trace, label))
     failure = OSError("queue recovery save failed")
@@ -127,7 +131,9 @@ def test_queue_recovery_saves_before_sorting_and_keeps_returned_record_reference
         assert [row["id"] for row in result] == ["97", "98"]
         assert all(row is state["mention_pending_candidates"][row["id"]] for row in result)
         assert all(row is state["mention_pending_candidates"][row["id"]] for row in trace.sort.call_args.args[0])
-        assert trace.sort.call_args.kwargs == {"context": "durable pending mention"}
+        assert trace.sort.call_args.kwargs == {
+            "context": "durable pending mention", "log": bot.log,
+        }
         saved = json.loads(bot.STATE_FILE.read_text())
         assert set(saved["mention_pending_candidates"]) == {"97", "98"}
         assert saved["mention_backlog_reset_guard"]["head_traversal_started"] is False
@@ -205,7 +211,7 @@ def test_real_pages_keep_media_cache_queue_references_and_final_commit_order(mon
     state = bot.default_state()
     state["last_seen_mention_id"] = "99"
     state[history_key] = ["104"]
-    bot._reply_assembly()._reply_evaluation_owner().record(state, target_id="103", lane="mention", reason="confirmed_no_reply")
+    bot._reply_assembly().reply_evaluations().record(state, target_id="103", lane="mention", reason="confirmed_no_reply")
     old_pending = state["mention_pending_candidates"]
     trace, responses, saved, page_queues = [], [], [], []
     original_request = bot.x_request
@@ -229,7 +235,7 @@ def test_real_pages_keep_media_cache_queue_references_and_final_commit_order(mon
         original = (
             bot._reply_assembly()._mention_queue_owner().advance_watermark
             if label == "watermark" else bot._tweet_lookup_cache_owner().store
-            if label == "cache" else bot._reply_assembly()._reply_evaluation_owner().prune_completed_mentions
+            if label == "cache" else bot._reply_assembly().reply_evaluations().prune_completed_mentions
             if label == "prune" else getattr(bot, name)
         )
 

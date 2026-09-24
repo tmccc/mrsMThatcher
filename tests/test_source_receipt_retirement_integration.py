@@ -674,7 +674,7 @@ NON_SUCCESS_RESTART_DRIVER = textwrap.dedent(
 
         exact._move_exact_to_cleanup = interrupted_move
         if lane == "conversational_reply":
-            bot.remove_confirmed_reply_receipt(source, sending_disposition="definite_non_success")
+            bot._reply_assembly().remove_receipt(source, sending_disposition="definite_non_success")
         else:
             bot.remove_main_post_attempt(source, sending_disposition="definite_non_success")
         raise AssertionError("crash point was not reached")

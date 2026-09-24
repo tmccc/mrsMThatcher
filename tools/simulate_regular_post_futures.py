@@ -524,7 +524,7 @@ def install_hard_guards(bot: Any, writer: PrivateWriter) -> None:
         "write_meme_post_receipt",
         "remove_regular_post_receipt",
         "remove_meme_post_receipt",
-        "remove_confirmed_reply_receipt",
+        "_reply_assembly",
     ):
         setattr(bot, name, forbidden_operation(name))
 

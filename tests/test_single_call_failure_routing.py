@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import single_call_reply as reply_pipeline_module
+
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
 from tests.helpers.reply_fixtures import patch_reply_draft_method, patch_reply_owner_method
@@ -382,7 +384,7 @@ def test_validation_diagnostics_preserve_candidate_and_provider_health_routing(
     patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [])
     monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
-    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", lambda **_kwargs: result)
+    monkeypatch.setattr(reply_pipeline_module, "run_reply_pipeline", lambda **_kwargs: result)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         bot, "log_event", lambda event, **fields: events.append((event, fields)),
@@ -442,7 +444,7 @@ def test_rejected_reply_survives_real_log_to_digest_json_without_becoming_publis
     patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [])
     monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
-    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", lambda **_kwargs: result)
+    monkeypatch.setattr(reply_pipeline_module, "run_reply_pipeline", lambda **_kwargs: result)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     def forbidden(*_args, **_kwargs):
@@ -939,7 +941,7 @@ def test_unknown_incomplete_reason_remains_provider_health_and_retryable(
     patch_reply_owner_method(monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [])
     monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
-    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", lambda **_kwargs: result)
+    monkeypatch.setattr(reply_pipeline_module, "run_reply_pipeline", lambda **_kwargs: result)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import single_call_reply as reply_pipeline_module
+
 from dataclasses import FrozenInstanceError, replace
 import inspect
 from pathlib import Path
@@ -97,8 +99,10 @@ def test_posting_adapter_keeps_current_callback_contract(monkeypatch):
 def test_generation_owner_binds_current_boundaries_without_runtime_access(monkeypatch):
     owners = []
     for index in range(2):
-        current = {field: Mock() for field in OWNER_INPUTS}
-        for field, name in OWNER_INPUTS.items():
+        shared_inputs = OWNER_INPUTS.keys() - {"run_pipeline", "decision_telemetry"}
+        current = {field: Mock() for field in shared_inputs}
+        for field in shared_inputs:
+            name = OWNER_INPUTS[field]
             monkeypatch.setattr(bot, name, current[field])
         monkeypatch.setattr(bot, "MAX_RECENT_ACCOUNT_REPLIES", 10 + index)
         monkeypatch.setattr(bot, "SINGLE_CALL_MODEL", f"current-model-{index}")
@@ -107,6 +111,8 @@ def test_generation_owner_binds_current_boundaries_without_runtime_access(monkey
         monkeypatch.setattr(bot, "now_epoch", current_clock)
         owner = bot._reply_assembly()._reply_generation_owner(cooldowns=cooldowns)
         assert isinstance(owner, generation.ReplyGeneration)
+        assert owner.run_pipeline is reply_pipeline_module.run_reply_pipeline
+        assert owner.decision_telemetry is reply_pipeline_module.decision_telemetry
         for field, value in current.items():
             assert getattr(owner, field) is value
             value.assert_not_called()
@@ -158,7 +164,7 @@ def test_generation_preserves_order_and_references_through_the_current_pipeline(
     trace.history.return_value = (same_author, recent)
     trace.repository.return_value = repository
     trace.transport.return_value = {"response": response_envelope(raw_decision())}
-    trace.pipeline = Mock(wraps=bot.run_single_call_reply_pipeline)
+    trace.pipeline = Mock(wraps=reply_pipeline_module.run_reply_pipeline)
     original_record = generation.ReplyGeneration.record_result
     def record(owner, result, **kwargs):
         trace.record(result, **kwargs)
@@ -168,10 +174,10 @@ def test_generation_preserves_order_and_references_through_the_current_pipeline(
     for root_name, callback in {
         "require_remote_operation_unpaused": trace.pause,
         "reply_evidence_repository": trace.repository,
-        "run_single_call_reply_pipeline": trace.pipeline,
         "log_event": trace.event,
     }.items():
         monkeypatch.setattr(bot, root_name, callback)
+    monkeypatch.setattr(reply_pipeline_module, "run_reply_pipeline", trace.pipeline)
     patch_reply_owner_method(monkeypatch, reply_media.ReplyMedia, "collect", trace.images)
     patch_reply_history_method(monkeypatch, "for_evaluation", trace.history)
     patch_reply_owner_method(monkeypatch, model_transport.ReplyModelTransport, "call", trace.transport)
@@ -222,7 +228,7 @@ def test_history_failure_preserves_pre_image_target_and_propagates_before_provid
     patch_reply_owner_method(monkeypatch, reply_media.ReplyMedia, "collect", trace.images)
     patch_reply_history_method(monkeypatch, "for_evaluation", trace.history)
     monkeypatch.setattr(bot, "reply_evidence_repository", trace.repository)
-    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", trace.pipeline)
+    monkeypatch.setattr(reply_pipeline_module, "run_reply_pipeline", trace.pipeline)
     patch_reply_owner_method(
         monkeypatch, api_cooldowns.ApiCooldowns, "record_error", trace.error,
     )
@@ -304,7 +310,7 @@ def test_evaluation_owns_health_and_telemetry_and_fetches_evidence_per_call(monk
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", Mock())
     patch_reply_history_method(monkeypatch, "for_evaluation", Mock(return_value=([], [])))
     pipeline = Mock(return_value=result)
-    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
+    monkeypatch.setattr(reply_pipeline_module, "run_reply_pipeline", pipeline)
     monkeypatch.setattr(bot, "log_event", events)
     patch_reply_owner_method(
         monkeypatch, api_cooldowns.ApiCooldowns, "record_error", errors,
@@ -397,7 +403,7 @@ def test_media_failure_keeps_original_identity_and_telemetry_before_warning(monk
 
     patch_reply_owner_method(monkeypatch, reply_media.ReplyMedia, "collect", collect)
     monkeypatch.setattr(bot, "log", logger)
-    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
+    monkeypatch.setattr(reply_pipeline_module, "run_reply_pipeline", pipeline)
     patch_reply_history_method(monkeypatch, "for_evaluation", history)
     patch_reply_owner_method(monkeypatch, generation.ReplyGeneration, "record_result", recorded)
     with pytest.raises(RuntimeError) as caught:

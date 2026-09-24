@@ -26,7 +26,6 @@ from tests.helpers.reply_fixtures import unit_confirmed_reply_receipt, patch_twe
 
 
 OWNER_INPUTS = {
-    "pipeline_enabled": "conversational_reply_pipeline_enabled",
     "api_error": "ApiError",
     "invalid_receipt": "InvalidConfirmedReplyReceipt",
     "window_seconds": "CLARIFICATION_REPLY_WINDOW_SECONDS",
@@ -39,6 +38,7 @@ def make_owner():
     """Compose clarification operations with isolated runtime boundaries."""
     def build(**overrides):
         current = {field: getattr(bot, name) for field, name in OWNER_INPUTS.items()}
+        current["pipeline_enabled"] = lambda: bot.single_call_reply.get("enabled") is True
         current["contexts"] = bot._reply_assembly()._reply_context_owner()
         return clarifications.ClarificationReplies(**{**current, **overrides})
     return build
@@ -94,7 +94,7 @@ assert 'requests' not in sys.modules
 def test_owner_composition_binds_current_dependencies_without_calling_them(monkeypatch):
     parameters = inspect.signature(clarifications.ClarificationReplies).parameters
     assert len(parameters) == 6
-    assert parameters.keys() == OWNER_INPUTS.keys() | {"contexts"}
+    assert parameters.keys() == OWNER_INPUTS.keys() | {"contexts", "pipeline_enabled"}
     assert {
         "parent_id", "get_tweet_by_id_cached",
         "api_error_is_permanent_target_failure", "is_our_auto_reply",
@@ -107,10 +107,11 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
         contexts = Mock(spec=bot._reply_context.ReplyContext)
         context_factory = Mock(return_value=contexts)
         monkeypatch.setattr(assembly.ReplyAssembly, "_reply_context_owner", context_factory)
-        owner = bot._reply_assembly()._clarification_reply_owner()
+        owner = bot._reply_assembly().clarification_replies()
         context_factory.assert_called_once_with()
         assert owner.contexts is contexts
         assert isinstance(owner, clarifications.ClarificationReplies)
+        assert owner.pipeline_enabled.__func__ is assembly.ReplyAssembly.pipeline_enabled
         for field, value in current.items():
             assert getattr(owner, field) is value
             value.assert_not_called()
@@ -136,7 +137,7 @@ def test_root_adapters_preserve_arguments_result_identity_and_errors(monkeypatch
         for _ in range(2):
             owner = Mock(spec=clarifications.ClarificationReplies)
             factory = Mock(return_value=owner)
-            monkeypatch.setattr(assembly.ReplyAssembly, "_clarification_reply_owner", factory)
+            monkeypatch.setattr(assembly.ReplyAssembly, "clarification_replies", factory)
             implementation = getattr(owner, method_name)
             result = object()
             implementation.return_value = result
@@ -169,7 +170,7 @@ def test_aliases_share_fixed_objects_and_tokens_use_owned_regex_and_stopwords(mo
     finally:
         stopwords.remove("stage25token")
     assert bot._clarification_tokens is clarifications._clarification_tokens
-    monkeypatch.setattr(assembly.ReplyAssembly, "_clarification_reply_owner", Mock(side_effect=AssertionError("pure tokens built runtime owner")))
+    monkeypatch.setattr(assembly.ReplyAssembly, "clarification_replies", Mock(side_effect=AssertionError("pure tokens built runtime owner")))
     monkeypatch.setattr(clarifications, "CLARIFICATION_TOKEN_RE", re.compile(r"\d+"))
     monkeypatch.setattr(clarifications, "CLARIFICATION_TOKEN_STOPWORDS", {"25"})
     assert owner.tokens("@user99 stage 25 or 26 or 26?") == {"26"}

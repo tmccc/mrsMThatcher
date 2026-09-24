@@ -122,7 +122,7 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
                 if name == "block_if_ambiguous_remote_post" and dep == "load_confirmed_reply_receipt":
                     patch.setattr(
                         assembly.ReplyAssembly,
-                        "_reply_receipts_owner",
+                        "reply_receipts",
                         Mock(return_value=SimpleNamespace(load=value)),
                     )
                 else:
@@ -502,7 +502,7 @@ def _open_preflight(monkeypatch):
         monkeypatch.setattr(bot, name, probe)
     monkeypatch.setattr(
         assembly.ReplyAssembly,
-        "_reply_receipts_owner",
+        "reply_receipts",
         Mock(return_value=SimpleNamespace(load=probes["load_confirmed_reply_receipt"])),
     )
     monkeypatch.setattr(

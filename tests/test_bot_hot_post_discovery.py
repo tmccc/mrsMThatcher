@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import functools
 import inspect
 import json
 from pathlib import Path
@@ -15,6 +16,8 @@ import pytest
 import mrs_bot_hot_post_discovery as discovery
 import mrs_bot_api_cooldowns as api_cooldowns
 import mrs_bot_quote_discovery as quote_discovery
+import mrs_bot_reply_context as reply_context
+import mrs_bot_reply_lane_policy as reply_lane_policy
 import mrs_bot_reply_evaluation_state as evaluation_state
 import mrs_bot_tweet_lookup_cache as tweet_cache_owner
 import mrs_bot_runtime_control as runtime_control
@@ -186,8 +189,14 @@ def test_discovery_keeps_draft_terminal_media_cache_and_save_order_and_reference
     ):
         original = (
             bot._reply_assembly()._reply_draft_owner().clear if label == "clear"
-            else bot._reply_assembly()._reply_evaluation_owner().record if label == "terminal"
+            else bot._reply_assembly().reply_evaluations().record if label == "terminal"
             else bot._tweet_lookup_cache_owner().store if label == "cache"
+            else functools.partial(reply_context.valid_tweets_sorted_by_id, log=bot.log)
+            if label == "sort"
+            else functools.partial(
+                reply_lane_policy.reply_target_is_directly_eligible,
+                MY_USERNAME=bot.MY_USERNAME, MY_USER_ID=bot.MY_USER_ID,
+            ) if label == "eligible"
             else getattr(bot, name)
         )
 
@@ -214,6 +223,23 @@ def test_discovery_keeps_draft_terminal_media_cache_and_save_order_and_reference
             )
         elif label == "media":
             monkeypatch.setattr(discovery, name, callback)
+        elif label == "sort":
+            monkeypatch.setattr(
+                reply_context, name,
+                lambda *args, _callback=callback, **kwargs: _callback(
+                    *args, **{key: value for key, value in kwargs.items() if key != "log"}
+                ),
+            )
+        elif label == "eligible":
+            monkeypatch.setattr(
+                reply_lane_policy, name,
+                lambda tweet, _callback=callback, **_kwargs: _callback(tweet),
+            )
+        elif label == "mark":
+            patch_reply_owner_method(
+                monkeypatch, assembly.ReplyAssembly,
+                "mark_hot_post_reply_skipped", callback,
+            )
         else:
             monkeypatch.setattr(bot, name, callback)
 
@@ -411,7 +437,7 @@ def test_discovery_skips_legacy_quote_only_target_before_eligibility(tmp_path, m
         "referenced_tweets": [{"type": "replied_to", "id": "700"}],
     }], "includes": {}, "_pagination": {}}))
     eligible = Mock(side_effect=AssertionError("confirmed target reached eligibility"))
-    monkeypatch.setattr(bot, "reply_target_is_directly_eligible", eligible)
+    monkeypatch.setattr(bot._reply_lane_policy, "reply_target_is_directly_eligible", eligible)
     assert bot._reply_assembly()._hot_post_discovery_callback()(state) == []
     eligible.assert_not_called()
     assert state["replied_to_ids"] == []

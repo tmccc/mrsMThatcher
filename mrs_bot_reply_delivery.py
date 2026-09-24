@@ -24,6 +24,7 @@ work; runtime bindings are retained only by operation-scoped owners.
 from __future__ import annotations
 
 import logging
+import functools
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
@@ -247,6 +248,54 @@ class ReplyReceipts:
     replace_bound_source: Callable
     mutation_authority: Callable
     current_receipts: Callable[[], ReplyReceipts]
+    retire_current_source_receipt: Callable
+    proved_non_success: type[Exception]
+    reply_not_allowed: Callable[[Exception], bool]
+    rejection_payload: Callable
+    claim_rejection: Callable
+    record_ambiguous: Callable
+    persistence_error: type[Exception]
+
+    def remove(
+        self, receipt: dict, *, sending_disposition: str | None = None,
+        commit_proof=None,
+    ) -> None:
+        """Retire the exact source under the existing state-commit authority."""
+        if receipt.get("lifecycle_state") != "sending" or sending_disposition == "confirmed_state_fallback":
+            from mrs_bot_state_generation import require_commit_proof
+            require_commit_proof(commit_proof)
+            commit_proof.require_receipt(receipt)
+        retire = functools.partial(
+            self.retire_current_source_receipt,
+            commit_proof=commit_proof,
+            **({"disposition": "definite_non_success"}
+               if receipt.get("lifecycle_state") == "sending"
+               and sending_disposition == "definite_non_success" else {}),
+        )
+        return remove_confirmed_reply_receipt(
+            receipt,
+            sending_disposition=sending_disposition,
+            CONFIRMED_REPLY_RECEIPT_FILE=self.path,
+            load_receipt_json_no_follow=self.read_json,
+            InvalidConfirmedReplyReceipt=self.invalid_receipt,
+            retire_current_source_receipt=retire,
+            log=self.log,
+        )
+
+    def retire_rejected(self, receipt: dict, error: Exception) -> None:
+        """Retire a proved target rejection after the caller saved terminal state."""
+        retire_proved_rejected_conversational_reply_receipt(
+            receipt, error,
+            ProvedRemotePostNonSuccess=self.proved_non_success,
+            api_error_is_reply_not_allowed=self.reply_not_allowed,
+            sending_reply_receipt_is_semantically_valid=self.values.sending_is_valid,
+            reply_create_rejection_payload=self.rejection_payload,
+            claim_reply_create_rejection_for_receipt_retirement=self.claim_rejection,
+            CONFIRMED_REPLY_RECEIPT_FILE=self.path,
+            remove_confirmed_reply_receipt=self.remove,
+            record_ambiguous_remote_post=self.record_ambiguous,
+            ConfirmedReplyLocalPersistenceError=self.persistence_error,
+        )
 
     def load(self) -> tuple[str, dict | None]:
         """Load confirmed reply receipt."""

@@ -83,16 +83,20 @@ def test_owner_composition_captures_current_dependencies_without_calling_them(mo
     for _ in range(2):
         current = {field: Mock() for field in OWNER_INPUTS}
         for field, name in OWNER_INPUTS.items():
-            monkeypatch.setattr(bot, name, current[field])
+            if field != "image_mime_types":
+                monkeypatch.setattr(bot, name, current[field])
         owner = bot._reply_assembly()._reply_media_owner()
         assert isinstance(owner, native_media.ReplyMedia)
         for field, value in current.items():
+            if field == "image_mime_types":
+                assert owner.image_mime_types is native_media._REPLY_IMAGE_MIME_TYPES
+                continue
             assert getattr(owner, field) is value
             value.assert_not_called()
         snapshots.append((owner, current))
     first, inputs = snapshots[0]
     assert first is not snapshots[1][0]
-    assert all(getattr(first, field) is value for field, value in inputs.items())
+    assert all(getattr(first, field) is value for field, value in inputs.items() if field != "image_mime_types")
     with pytest.raises(FrozenInstanceError):
         first.maximum_context_photos = 1
 

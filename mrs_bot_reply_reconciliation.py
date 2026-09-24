@@ -299,7 +299,6 @@ class ReplyCompletion:
     apply_state: Callable
     save_state: Callable
     retire_journal: Callable
-    remove_receipt: Callable
     log: logging.Logger
     receipts: ReplyReceipts
     unresolved_sending_receipt: type[Exception]
@@ -325,9 +324,9 @@ class ReplyCompletion:
             post_id=post_id,
         )
         if sending_disposition is None:
-            self.remove_receipt(receipt, commit_proof=commit_proof)
+            self.receipts.remove(receipt, commit_proof=commit_proof)
         else:
-            self.remove_receipt(
+            self.receipts.remove(
                 receipt, sending_disposition=sending_disposition, commit_proof=commit_proof,
             )
 

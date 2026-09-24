@@ -2324,7 +2324,7 @@ completed_mention_watermark_covers_target = _reply_evaluation_state.completed_me
 
 def author_no_reply_epoch_limit() -> int:
     """Return retention sized from the effective runtime quarantine threshold."""
-    return _reply_assembly()._author_quarantine_owner().epoch_limit()
+    return _reply_assembly().author_quarantines().epoch_limit()
 
 
 def prune_author_evaluation_quarantines(
@@ -2333,7 +2333,7 @@ def prune_author_evaluation_quarantines(
     current_epoch: int | None = None,
 ) -> bool:
     """Expire quarantines and discard author strikes outside the live window."""
-    return _reply_assembly()._author_quarantine_owner().prune(state, current_epoch=current_epoch)
+    return _reply_assembly().author_quarantines().prune(state, current_epoch=current_epoch)
 
 
 def active_author_evaluation_quarantine(
@@ -2343,7 +2343,7 @@ def active_author_evaluation_quarantine(
     current_epoch: int | None = None,
 ) -> dict | None:
     """Return an active mention-lane author quarantine, expiring old state first."""
-    return _reply_assembly()._author_quarantine_owner().active(state, author_id, current_epoch=current_epoch)
+    return _reply_assembly().author_quarantines().active(state, author_id, current_epoch=current_epoch)
 
 
 def record_qualifying_author_no_reply(
@@ -2354,7 +2354,7 @@ def record_qualifying_author_no_reply(
     explicit_spam_or_abuse: bool = True,
 ) -> bool:
     """Add one mechanically valid editorial no-reply strike for an author."""
-    return _reply_assembly()._author_quarantine_owner().record_no_reply(
+    return _reply_assembly().author_quarantines().record_no_reply(
         state,
         author_id,
         current_epoch=current_epoch,
@@ -2402,7 +2402,7 @@ def normalise_tweet_cache(value: object, *, path: Path) -> dict[str, dict] | Non
 
 def normalise_mention_pagination(value: object, *, path: Path) -> dict[str, str] | None:
     """Delegate to mention authority with current root dependencies."""
-    return _reply_assembly()._mention_authority_owner().normalise_pagination(value, path=path)
+    return _reply_assembly().mention_authority().normalise_pagination(value, path=path)
 
 
 def normalise_mention_backlog_reset_guard(
@@ -2411,7 +2411,7 @@ def normalise_mention_backlog_reset_guard(
     path: Path,
 ) -> dict[str, object] | None:
     """Delegate to mention authority with current root dependencies."""
-    return _reply_assembly()._mention_authority_owner().normalise_reset_guard(value, path=path)
+    return _reply_assembly().mention_authority().normalise_reset_guard(value, path=path)
 
 
 active_mention_backlog_reset_guard = _mention_authority.active_mention_backlog_reset_guard
@@ -2424,7 +2424,7 @@ def normalise_mention_backlog(
     reset_token_overflow: bool = False,
 ) -> dict | None:
     """Delegate to mention authority with current root dependencies."""
-    return _reply_assembly()._mention_authority_owner().normalise_backlog(value, path=path, reset_token_overflow=reset_token_overflow)
+    return _reply_assembly().mention_authority().normalise_backlog(value, path=path, reset_token_overflow=reset_token_overflow)
 
 
 def canonical_mention_pending_candidates(
@@ -2433,7 +2433,7 @@ def canonical_mention_pending_candidates(
     path: Path,
 ) -> dict[str, dict] | None:
     """Delegate to mention authority with current root dependencies."""
-    return _reply_assembly()._mention_authority_owner().canonical_candidates(value, path=path)
+    return _reply_assembly().mention_authority().canonical_candidates(value, path=path)
 
 
 def _emit_mention_authority_recovery(
@@ -2443,7 +2443,7 @@ def _emit_mention_authority_recovery(
     recovery_events: list[dict[str, object]] | None,
 ) -> None:
     """Delegate to mention authority with current root dependencies."""
-    return _reply_assembly()._mention_authority_owner().emit_recovery(recovery, path=path, recovery_events=recovery_events)
+    return _reply_assembly().mention_authority().emit_recovery(recovery, path=path, recovery_events=recovery_events)
 
 
 _reset_mention_candidate_authority = _mention_authority._reset_mention_candidate_authority
@@ -2457,7 +2457,7 @@ def validate_pending_mention_candidate_authority(
     recovery_events: list[dict[str, object]] | None = None,
 ) -> tuple[bool, bool]:
     """Delegate to mention authority with current root dependencies."""
-    return _reply_assembly()._mention_authority_owner().validate_pending(
+    return _reply_assembly().mention_authority().validate_pending(
         state,
         path=path,
         recover_pending_identity=recover_pending_identity,
@@ -2472,12 +2472,12 @@ def mention_pagination_has_canonical_page_ownership(
     target_id: str,
 ) -> bool:
     """Delegate to mention authority with current root dependencies."""
-    return _reply_assembly()._mention_authority_owner().owns_page(state, pagination, target_id=target_id)
+    return _reply_assembly().mention_authority().owns_page(state, pagination, target_id=target_id)
 
 
 def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dict | None:
     """Validate compact per-author no-reply strike and quarantine records."""
-    return _reply_assembly()._author_quarantine_owner().normalise(value, path=path)
+    return _reply_assembly().author_quarantines().normalise(value, path=path)
 
 
 def validate_meme_schedule_state(state: dict, *, path: Path) -> bool:
@@ -2561,12 +2561,12 @@ def _state_candidate_normalizer() -> functools.partial:
         STATE_MINIMUM_READER_VERSION=STATE_MINIMUM_READER_VERSION,
         default_state=default_state,
         log=log,
-        author_quarantines=_reply_assembly()._author_quarantine_owner(),
+        author_quarantines=_reply_assembly().author_quarantines(),
         normalise_quote_repeated_cursor_suppressions=normalise_quote_repeated_cursor_suppressions,
         tweets=_tweet_lookup_cache_owner(state_values=state_values),
         state_values=state_values,
-        mention_authority=_reply_assembly()._mention_authority_owner(),
-        reply_evaluations=_reply_assembly()._reply_evaluation_owner(),
+        mention_authority=_reply_assembly().mention_authority(),
+        reply_evaluations=_reply_assembly().reply_evaluations(),
         require_compatible_state_reader=require_compatible_state_reader,
         validate_meme_schedule_version_for_candidate=validate_meme_schedule_version_for_candidate,
     )
@@ -2681,12 +2681,12 @@ def save_state(state: dict, *, durable: bool = False) -> StateCommitProof:
 
 def reset_daily_reply_count_if_needed(state: dict) -> None:
     """Reset daily reply count if needed."""
-    return _reply_assembly()._daily_reply_accounting_owner().reset(state)
+    return _reply_assembly().daily_reply_accounting().reset(state)
 
 
 def reset_daily_quote_reply_count_if_needed(state: dict) -> None:
     """Reset daily quote reply count if needed."""
-    return _reply_assembly()._daily_reply_accounting_owner().reset_quotes(state)
+    return _reply_assembly().daily_reply_accounting().reset_quotes(state)
 
 
 daily_author_reply_counts = _daily_reply_accounting.daily_author_reply_counts
@@ -2694,12 +2694,12 @@ daily_author_reply_counts = _daily_reply_accounting.daily_author_reply_counts
 
 def daily_author_reply_count(state: dict, author_id: str) -> int:
     """Return the daily author reply count."""
-    return _reply_assembly()._daily_reply_accounting_owner().author_count(state, author_id)
+    return _reply_assembly().daily_reply_accounting().author_count(state, author_id)
 
 
 def mark_daily_author_replied(state: dict, author_id: str) -> None:
     """Mark daily author replied."""
-    return _reply_assembly()._daily_reply_accounting_owner().mark_author(state, author_id)
+    return _reply_assembly().daily_reply_accounting().mark_author(state, author_id)
 
 
 CLARIFICATION_CUE_RE = _reply_clarifications.CLARIFICATION_CUE_RE
@@ -2712,12 +2712,12 @@ clarification_thread_id = _reply_clarifications.clarification_thread_id
 
 def clarification_thread_is_terminal(state: dict, candidate: dict) -> bool:
     """Delegate clarification behavior to its owner with current dependencies."""
-    return _reply_assembly()._clarification_reply_owner().thread_is_terminal(state, candidate)
+    return _reply_assembly().clarification_replies().thread_is_terminal(state, candidate)
 
 
 def author_used_clarification_recently(state: dict, author_id: str, *, current: int) -> bool:
     """Delegate clarification behavior to its owner with current dependencies."""
-    return _reply_assembly()._clarification_reply_owner().author_used_recently(state, author_id, current=current)
+    return _reply_assembly().clarification_replies().author_used_recently(state, author_id, current=current)
 
 
 _clarification_tokens = _reply_clarifications._clarification_tokens
@@ -2725,7 +2725,7 @@ _clarification_tokens = _reply_clarifications._clarification_tokens
 
 def clarification_reply_context(state: dict, candidate: dict, *, current: int) -> dict | None:
     """Delegate clarification behavior to its owner with current dependencies."""
-    return _reply_assembly()._clarification_reply_owner().context(state, candidate, current=current)
+    return _reply_assembly().clarification_replies().context(state, candidate, current=current)
 
 
 # ---------------------------------------------------------------------
@@ -2750,41 +2750,18 @@ def current_datetime() -> datetime:
 
 
 def parse_x_datetime_to_epoch(value: str | None) -> int | None:
-    """Parse x datetime to epoch."""
-    if not value:
-        return None
-
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        return int(parsed.timestamp())
-    except Exception:
-        log.warning("Could not parse X datetime: %r", value)
-        return None
+    """Parse a provider timestamp for reply context and quote checks."""
+    return _reply_context.parse_x_datetime_to_epoch(value, log=log)
 
 
 def parse_tweet_id(value: object, *, context: str) -> int | None:
-    """Parse tweet ID."""
-    value_str = str(value or "")
-    if not re.fullmatch(r"\d{1,30}", value_str):
-        log.warning("Skipping %s with invalid tweet id=%r", context, value)
-        return None
-    return int(value_str)
+    """Parse a bounded numeric tweet ID with current diagnostics."""
+    return _reply_context.parse_tweet_id(value, context=context, log=log)
 
 
 def valid_tweets_sorted_by_id(tweets: list[dict], *, context: str) -> list[dict]:
-    """Return whether valid tweets sorted by ID."""
-    valid: list[tuple[int, dict]] = []
-    seen_ids: set[int] = set()
-    for tweet in tweets:
-        tweet_id = parse_tweet_id(tweet.get("id"), context=context)
-        if tweet_id is None:
-            continue
-        if tweet_id in seen_ids:
-            log.warning("Dropping duplicate %s tweet id=%s from paged API results", context, tweet_id)
-            continue
-        seen_ids.add(tweet_id)
-        valid.append((tweet_id, tweet))
-    return [tweet for _, tweet in sorted(valid, key=lambda item: item[0])]
+    """Deduplicate and sort a provider page for reply discovery."""
+    return _reply_context.valid_tweets_sorted_by_id(tweets, context=context, log=log)
 
 
 def _api_cooldown_owner() -> _api_cooldowns.ApiCooldowns:
@@ -3551,31 +3528,18 @@ TRANSPORT_SOURCE_VALIDATOR_ID = LANE_SOURCE_VALIDATOR_ID
 
 
 def transport_source_semantic_validator(
-    lane: str,
-    receipt: dict,
-    payload: dict,
+    lane: str, receipt: dict, payload: dict,
 ) -> bool:
-    """Prove that one lane-owned source receipt authorises one tweet body."""
-    return _transport_source_preparation.transport_source_semantic_validator(
-        lane,
-        receipt,
-        payload,
-        main_post_attempt_binds_payload=main_post_attempt_binds_payload,
-        sending_reply_receipt_is_semantically_valid=sending_reply_receipt_is_semantically_valid,
-    )
+    """Validate a registered lane source with current reply rules."""
+    return _reply_assembly().validate_transport_source(lane, receipt, payload)
 
 
 def _legacy_conversational_transport_source_semantic_validator(
-    lane: str,
-    receipt: dict,
-    payload: dict,
+    lane: str, receipt: dict, payload: dict,
 ) -> bool:
-    """Validate a frozen reply source solely for confirmed-journal recovery."""
-    return _transport_source_preparation._legacy_conversational_transport_source_semantic_validator(
-        lane,
-        receipt,
-        payload,
-        _legacy_sending_reply_receipt_is_semantically_valid=_legacy_sending_reply_receipt_is_semantically_valid,
+    """Validate a frozen source only for confirmed journal recovery."""
+    return _reply_assembly().validate_transport_source(
+        lane, receipt, payload, legacy=True,
     )
 
 
@@ -3585,6 +3549,7 @@ def bind_lane_transport_source(
     receipt: dict,
     lane: str,
     payload: dict,
+    transport_source_validator: Callable[[str, dict, dict], bool] | None = None,
 ) -> SourceReceiptBinding:
     """Create the only accepted semantic source binding for a public tweet."""
     return _transport_source_preparation.bind_lane_transport_source(
@@ -3594,7 +3559,9 @@ def bind_lane_transport_source(
         payload=payload,
         TRANSPORT_SOURCE_VALIDATOR_ID=TRANSPORT_SOURCE_VALIDATOR_ID,
         bind_transport_source=bind_transport_source,
-        transport_source_semantic_validator=transport_source_semantic_validator,
+        transport_source_semantic_validator=(
+            transport_source_validator or transport_source_semantic_validator
+        ),
     )
 
 
@@ -3974,7 +3941,7 @@ def _reply_remote_write_barrier(
 ) -> functools.partial:
     """Compose the global write barrier with a direct reply-receipt owner."""
     if receipts is None:
-        receipts = _reply_assembly()._reply_receipts_owner()
+        receipts = _reply_assembly().reply_receipts()
     return functools.partial(
         _remote_write_barriers.block_if_ambiguous_remote_post,
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
@@ -4329,12 +4296,14 @@ def create_post(
     prepared_transport_authority: TransportAuthority | None = None,
     prepared_transport_source: SourceReceiptBinding | None = None,
     on_remote_transaction_started: Callable[[], None] | None = None,
+    reply_receipt_validator: Callable[[dict], bool] | None = None,
+    reply_receipts: _reply_delivery.ReplyReceipts | None = None,
 ) -> dict:
     """Create an X post with transactional ambiguity handling."""
     receipt_values = _main_post_assembly().values()
     receipts = _main_post_assembly().receipts(values=receipt_values)
     remote_write_barrier = (
-        _reply_remote_write_barrier()
+        _reply_remote_write_barrier(receipts=reply_receipts)
         if prepared_conversational_reply_receipt is not None
         else block_if_ambiguous_remote_post
     )
@@ -4358,7 +4327,12 @@ def create_post(
         abort_untransmitted_transport_transaction=abort_untransmitted_transport_transaction,
         arm_transport_transaction=arm_transport_transaction,
         begin_transport_transaction=begin_transport_transaction,
-        bind_lane_transport_source=bind_lane_transport_source,
+        bind_lane_transport_source=(
+            functools.partial(
+                bind_lane_transport_source,
+                transport_source_validator=reply_receipts.transport_validator,
+            ) if reply_receipts is not None else bind_lane_transport_source
+        ),
         block_if_ambiguous_remote_post=remote_write_barrier,
         block_if_remote_write_safety_incident_latched=block_if_remote_write_safety_incident_latched,
         confirm_transport_transaction=confirm_transport_transaction,
@@ -4372,7 +4346,9 @@ def create_post(
         record_ambiguous_remote_post=record_ambiguous_remote_post,
         require_instance_lock_for_remote_write=require_instance_lock_for_remote_write,
         retire_consumed_transport_transaction_after_proved_remote_non_success=retire_consumed_transport_transaction_after_proved_remote_non_success,
-        sending_reply_receipt_is_semantically_valid=sending_reply_receipt_is_semantically_valid,
+        sending_reply_receipt_is_semantically_valid=(
+            reply_receipt_validator or sending_reply_receipt_is_semantically_valid
+        ),
         transaction_mutation_authority=transaction_mutation_authority,
         x_request=x_request,
     )
@@ -6229,161 +6205,169 @@ def is_probably_spam_or_not_worth_replying(text: str) -> bool:
     )
 
 
-def _reply_external_bindings() -> _reply_assembly_module.ReplyExternalBindings:
-    """Capture current external reply settings and service boundaries without I/O."""
-    return _reply_assembly_module.ReplyExternalBindings(
-        QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS=QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS,
-        normalise_quote_repeated_cursor_suppressions=normalise_quote_repeated_cursor_suppressions,
-        quote_repeated_cursor_suppression_record=quote_repeated_cursor_suppression_record,
-        ALWAYS_FETCH_PARENT_FOR_CONTEXT=ALWAYS_FETCH_PARENT_FOR_CONTEXT,
-        AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY=AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
-        AUTHOR_NO_REPLY_QUARANTINE_SECONDS=AUTHOR_NO_REPLY_QUARANTINE_SECONDS,
-        AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD=AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD,
-        AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS=AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS,
-        CLARIFICATION_REPLY_WINDOW_SECONDS=CLARIFICATION_REPLY_WINDOW_SECONDS,
-        ENABLE_HOT_POST_REPLY_CHECKS=ENABLE_HOT_POST_REPLY_CHECKS,
-        EXTRA_QUOTE_WATCH_FILE=EXTRA_QUOTE_WATCH_FILE,
-        HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS=HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS,
-        HOT_POST_REPLY_SEARCH_API_MAX_RESULTS=HOT_POST_REPLY_SEARCH_API_MAX_RESULTS,
-        HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK=HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK,
-        HOT_POST_REPLY_USE_SINCE_ID=HOT_POST_REPLY_USE_SINCE_ID,
-        MAX_EXTRA_QUOTE_WATCH_POSTS=MAX_EXTRA_QUOTE_WATCH_POSTS,
-        MAX_HOT_POST_REPLIES_PER_CHECK=MAX_HOT_POST_REPLIES_PER_CHECK,
-        MAX_REPLY_CONTEXT_PHOTOS=MAX_REPLY_CONTEXT_PHOTOS,
-        MAX_SUPPLIED_IMAGES=MAX_SUPPLIED_IMAGES,
-        MAX_VISIBLE_TEXT_CHARACTERS=MAX_VISIBLE_TEXT_CHARACTERS,
-        MENTIONS_MAX_PAGES_PER_CHECK=MENTIONS_MAX_PAGES_PER_CHECK,
-        MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT=MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT,
-        QUOTE_LOOKUP_API_MAX_RESULTS=QUOTE_LOOKUP_API_MAX_RESULTS,
-        QUOTE_LOOKUP_MAX_PAGES_PER_POST=QUOTE_LOOKUP_MAX_PAGES_PER_POST,
-        QUOTE_POST_LOOKBACK_MAIN_POSTS=QUOTE_POST_LOOKBACK_MAIN_POSTS,
-        REPLY_EVALUATION_MAX_RECORDS=REPLY_EVALUATION_MAX_RECORDS,
-        REPLY_EVALUATION_MIN_RETENTION_SECONDS=REPLY_EVALUATION_MIN_RETENTION_SECONDS,
-        ReplyMediaTransientUnavailable=ReplyMediaTransientUnavailable,
-        ReplyMediaUnavailable=ReplyMediaUnavailable,
-        SINGLE_CALL_MAX_IMAGE_BYTES=SINGLE_CALL_MAX_IMAGE_BYTES,
-        SKIP_REPLIES_TO_OWN_AUTO_REPLIES=SKIP_REPLIES_TO_OWN_AUTO_REPLIES,
-        TEST_MODE=TEST_MODE,
-        THREAD_CONTEXT_MAX_DEPTH=THREAD_CONTEXT_MAX_DEPTH,
-        THREAD_CONTEXT_MAX_NETWORK_FETCHES=THREAD_CONTEXT_MAX_NETWORK_FETCHES,
-        _DEFAULT_REPLY_CONTEXT_POST_MAXIMUM_CHARS=_DEFAULT_REPLY_CONTEXT_POST_MAXIMUM_CHARS,
-        _MentionBacklogContinuationLimit=_MentionBacklogContinuationLimit,
-        _REPLY_IMAGE_MIME_TYPES=_REPLY_IMAGE_MIME_TYPES,
-        api_error_is_invalid_pagination_cursor=api_error_is_invalid_pagination_cursor,
-        bound_visible_conversation=bound_visible_conversation,
-        current_utc_datetime=current_utc_datetime,
-        log_json_debug=log_json_debug,
-        mark_hot_post_reply_skipped=mark_hot_post_reply_skipped,
-        parse_tweet_id=parse_tweet_id,
-        request_timeout=request_timeout,
-        validate_supplied_images=validate_supplied_images,
-        x_paginated_get=x_paginated_get,
-        x_quote_lookup_request=x_quote_lookup_request,
-        x_request=x_request,
-        datetime=datetime,
-        requests=requests,
-        AI_REPLY_HISTORY_MAX_AGE_SECONDS=AI_REPLY_HISTORY_MAX_AGE_SECONDS,
-        AI_REPLY_HISTORY_MAX_RECORDS=AI_REPLY_HISTORY_MAX_RECORDS,
-        AI_REQUEST_RECORD_DIR=AI_REQUEST_RECORD_DIR,
-        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
-        ApiError=ApiError,
-        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
-        ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
-        ContextValidationError=ContextValidationError,
-        ENABLE_AUTO_REPLIES=ENABLE_AUTO_REPLIES,
-        ENABLE_QUOTE_TWEET_CHECKS=ENABLE_QUOTE_TWEET_CHECKS,
-        InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
-        MARK_AI_REPLIES_AS_AI=MARK_AI_REPLIES_AS_AI,
-        MAX_AUTO_REPLIES_PER_DAY=MAX_AUTO_REPLIES_PER_DAY,
-        MAX_MENTIONS_PER_CHECK=MAX_MENTIONS_PER_CHECK,
-        MAX_QUOTE_POSTS_PER_CHECK=MAX_QUOTE_POSTS_PER_CHECK,
-        MAX_QUOTE_REPLIES_PER_DAY=MAX_QUOTE_REPLIES_PER_DAY,
-        MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
-        MAX_RECENT_ACCOUNT_REPLIES=MAX_RECENT_ACCOUNT_REPLIES,
-        MAX_REPLIES_PER_AUTHOR_PER_DAY=MAX_REPLIES_PER_AUTHOR_PER_DAY,
-        MAX_SAME_AUTHOR_INTERACTIONS=MAX_SAME_AUTHOR_INTERACTIONS,
-        MIN_SECONDS_BETWEEN_REPLIES=MIN_SECONDS_BETWEEN_REPLIES,
-        MY_USER_ID=MY_USER_ID,
-        OPENAI_API_KEY=OPENAI_API_KEY,
-        OPENAI_BASE=OPENAI_BASE,
-        PipelineResult=PipelineResult,
-        ProvedRemotePostNonSuccess=ProvedRemotePostNonSuccess,
-        QUOTE_REPLY_DELAY_SECONDS=QUOTE_REPLY_DELAY_SECONDS,
-        REPLY_INCOMING_MAX_CHARS=REPLY_INCOMING_MAX_CHARS,
-        RemoteOperationsPaused=RemoteOperationsPaused,
-        ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
-        ReplyValidationError=ReplyValidationError,
-        SINGLE_CALL_MODEL=SINGLE_CALL_MODEL,
-        SINGLE_CALL_REASONING_EFFORT=SINGLE_CALL_REASONING_EFFORT,
-        SINGLE_CALL_STRATEGY_VERSION=SINGLE_CALL_STRATEGY_VERSION,
-        STATE_FILE=STATE_FILE,
-        StateBackupWriteError=StateBackupWriteError,
-        TRANSPORT_SOURCE_VALIDATOR_ID=TRANSPORT_SOURCE_VALIDATOR_ID,
-        TransportJournalError=TransportJournalError,
-        UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
-        UnresolvedSendingReplyReceipt=UnresolvedSendingReplyReceipt,
-        ValidatedReply=ValidatedReply,
-        _DEFAULT_RECENT_ACCOUNT_REPLY_LIMIT=_DEFAULT_RECENT_ACCOUNT_REPLY_LIMIT,
-        _api_cooldown_owner=_api_cooldown_owner,
-        _legacy_ai_reply_receipt_draft_is_valid=_legacy_ai_reply_receipt_draft_is_valid,
-        _legacy_conversational_transport_source_semantic_validator=_legacy_conversational_transport_source_semantic_validator,
-        _log_validated_single_call_reply=_log_validated_single_call_reply,
-        _receipt_dates_owner=_receipt_dates_owner,
-        _reply_remote_write_barrier=_reply_remote_write_barrier,
-        _runtime_controls_owner=_runtime_controls_owner,
-        _tweet_lookup_cache_owner=_tweet_lookup_cache_owner,
-        api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
-        api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
-        begin_confirmed_post_sigint_deferral=begin_confirmed_post_sigint_deferral,
-        bind_confirmed_transport_source=bind_confirmed_transport_source,
-        conversational_reply_pipeline_enabled=conversational_reply_pipeline_enabled,
-        create_post=create_post,
-        dedupe_reply_candidates=dedupe_reply_candidates,
-        durable_create_receipt_json=durable_create_receipt_json,
-        end_confirmed_post_sigint_deferral=end_confirmed_post_sigint_deferral,
-        inspect_confirmed_transport_transaction=inspect_confirmed_transport_transaction,
-        is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying,
-        journal_path_for_receipt=journal_path_for_receipt,
-        json_file_matches=json_file_matches,
-        latch_confirmed_post_persistence_failure=latch_confirmed_post_persistence_failure,
-        load_receipt_json_no_follow=load_receipt_json_no_follow,
-        log=log,
-        log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
-        log_event=log_event,
-        maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
-        monotonic=monotonic,
-        now_epoch=now_epoch,
-        parse_x_datetime_to_epoch=parse_x_datetime_to_epoch,
-        quoted_post_reference_id=quoted_post_reference_id,
-        receipt_int=receipt_int,
-        receipt_namespace_entry_exists=receipt_namespace_entry_exists,
-        remote_receipt_retirement_is_blocking=remote_receipt_retirement_is_blocking,
-        remove_confirmed_reply_receipt=remove_confirmed_reply_receipt,
-        replace_bound_source_receipt=replace_bound_source_receipt,
-        reply_evidence_repository=reply_evidence_repository,
-        reply_target_is_directly_eligible=reply_target_is_directly_eligible,
-        report_bot_health_progress=report_bot_health_progress,
-        require_remote_operation_unpaused=require_remote_operation_unpaused,
-        retain_sigint_deferral_without_durable_barrier=retain_sigint_deferral_without_durable_barrier,
-        retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
-        retire_proved_rejected_conversational_reply_receipt=retire_proved_rejected_conversational_reply_receipt,
-        run_single_call_reply_pipeline=run_single_call_reply_pipeline,
-        save_state=save_state,
-        single_call_decision_telemetry=single_call_decision_telemetry,
-        single_call_reply=single_call_reply,
-        sleep=sleep,
-        transaction_mutation_authority=transaction_mutation_authority,
-        transport_source_semantic_validator=transport_source_semantic_validator,
-        valid_receipt_epoch=valid_receipt_epoch,
-        valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
-        validate_single_call_persisted_draft=validate_single_call_persisted_draft,
-        verify_lane_transport_source_lineage_if_present=verify_lane_transport_source_lineage_if_present,
-    )
-
-
 def _reply_assembly() -> _reply_assembly_module.ReplyAssembly:
-    """Bind the reply subsystem to current external settings and services."""
-    return _reply_assembly_module.ReplyAssembly(_reply_external_bindings)
+    """Bind current reply policy and shared application authorities."""
+    a = _reply_assembly_module
+    return a.ReplyAssembly(
+        policy=a.ReplyPolicy(
+            QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS=QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS,
+            AI_REPLY_HISTORY_MAX_AGE_SECONDS=AI_REPLY_HISTORY_MAX_AGE_SECONDS,
+            AI_REPLY_HISTORY_MAX_RECORDS=AI_REPLY_HISTORY_MAX_RECORDS,
+            AI_REQUEST_RECORD_DIR=AI_REQUEST_RECORD_DIR,
+            CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
+            normal=_reply_cycle_interfaces.NormalReplyConfig(
+                enabled=ENABLE_AUTO_REPLIES,
+                mark_as_ai=MARK_AI_REPLIES_AS_AI,
+                maximum_daily_replies=MAX_AUTO_REPLIES_PER_DAY,
+                maximum_daily_author_replies=MAX_REPLIES_PER_AUTHOR_PER_DAY,
+                minimum_reply_spacing=MIN_SECONDS_BETWEEN_REPLIES,
+                user_id=MY_USER_ID,
+                maximum_fresh_evaluations=MAX_MENTIONS_PER_CHECK,
+                incoming_max_chars=REPLY_INCOMING_MAX_CHARS,
+            ),
+            quote=_reply_cycle_interfaces.QuoteReplyConfig(
+                enabled=ENABLE_AUTO_REPLIES,
+                mark_as_ai=MARK_AI_REPLIES_AS_AI,
+                maximum_daily_replies=MAX_AUTO_REPLIES_PER_DAY,
+                maximum_daily_author_replies=MAX_REPLIES_PER_AUTHOR_PER_DAY,
+                minimum_reply_spacing=MIN_SECONDS_BETWEEN_REPLIES,
+                user_id=MY_USER_ID,
+                quote_checks_enabled=ENABLE_QUOTE_TWEET_CHECKS,
+                minimum_quote_age_seconds=QUOTE_REPLY_DELAY_SECONDS,
+                maximum_candidates=MAX_QUOTE_POSTS_PER_CHECK,
+                maximum_daily_quote_replies=MAX_QUOTE_REPLIES_PER_DAY,
+            ),
+            MAX_MENTIONS_PER_CHECK=MAX_MENTIONS_PER_CHECK,
+            MAX_QUOTE_POSTS_PER_CHECK=MAX_QUOTE_POSTS_PER_CHECK,
+            MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
+            MAX_RECENT_ACCOUNT_REPLIES=MAX_RECENT_ACCOUNT_REPLIES,
+            MAX_SAME_AUTHOR_INTERACTIONS=MAX_SAME_AUTHOR_INTERACTIONS,
+            MY_USER_ID=MY_USER_ID,
+            OPENAI_API_KEY=OPENAI_API_KEY,
+            OPENAI_BASE=OPENAI_BASE,
+            REPLY_INCOMING_MAX_CHARS=REPLY_INCOMING_MAX_CHARS,
+            SINGLE_CALL_MODEL=SINGLE_CALL_MODEL,
+            SINGLE_CALL_REASONING_EFFORT=SINGLE_CALL_REASONING_EFFORT,
+            SINGLE_CALL_STRATEGY_VERSION=SINGLE_CALL_STRATEGY_VERSION,
+            STATE_FILE=STATE_FILE,
+            TRANSPORT_SOURCE_VALIDATOR_ID=TRANSPORT_SOURCE_VALIDATOR_ID,
+            _DEFAULT_RECENT_ACCOUNT_REPLY_LIMIT=_DEFAULT_RECENT_ACCOUNT_REPLY_LIMIT,
+            single_call_reply=single_call_reply,
+            ALWAYS_FETCH_PARENT_FOR_CONTEXT=ALWAYS_FETCH_PARENT_FOR_CONTEXT,
+            AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY=AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
+            AUTHOR_NO_REPLY_QUARANTINE_SECONDS=AUTHOR_NO_REPLY_QUARANTINE_SECONDS,
+            AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD=AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD,
+            AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS=AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS,
+            CLARIFICATION_REPLY_WINDOW_SECONDS=CLARIFICATION_REPLY_WINDOW_SECONDS,
+            ENABLE_HOT_POST_REPLY_CHECKS=ENABLE_HOT_POST_REPLY_CHECKS,
+            EXTRA_QUOTE_WATCH_FILE=EXTRA_QUOTE_WATCH_FILE,
+            HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS=HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS,
+            HOT_POST_REPLY_SEARCH_API_MAX_RESULTS=HOT_POST_REPLY_SEARCH_API_MAX_RESULTS,
+            HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK=HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK,
+            HOT_POST_REPLY_USE_SINCE_ID=HOT_POST_REPLY_USE_SINCE_ID,
+            MAX_EXTRA_QUOTE_WATCH_POSTS=MAX_EXTRA_QUOTE_WATCH_POSTS,
+            MAX_HOT_POST_REPLIES_PER_CHECK=MAX_HOT_POST_REPLIES_PER_CHECK,
+            MAX_REPLY_CONTEXT_PHOTOS=MAX_REPLY_CONTEXT_PHOTOS,
+            MAX_SUPPLIED_IMAGES=MAX_SUPPLIED_IMAGES,
+            MAX_VISIBLE_TEXT_CHARACTERS=MAX_VISIBLE_TEXT_CHARACTERS,
+            MENTIONS_MAX_PAGES_PER_CHECK=MENTIONS_MAX_PAGES_PER_CHECK,
+            MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT=MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT,
+            QUOTE_LOOKUP_API_MAX_RESULTS=QUOTE_LOOKUP_API_MAX_RESULTS,
+            QUOTE_LOOKUP_MAX_PAGES_PER_POST=QUOTE_LOOKUP_MAX_PAGES_PER_POST,
+            QUOTE_POST_LOOKBACK_MAIN_POSTS=QUOTE_POST_LOOKBACK_MAIN_POSTS,
+            REPLY_EVALUATION_MAX_RECORDS=REPLY_EVALUATION_MAX_RECORDS,
+            REPLY_EVALUATION_MIN_RETENTION_SECONDS=REPLY_EVALUATION_MIN_RETENTION_SECONDS,
+            SINGLE_CALL_MAX_IMAGE_BYTES=SINGLE_CALL_MAX_IMAGE_BYTES,
+            SKIP_REPLIES_TO_OWN_AUTO_REPLIES=SKIP_REPLIES_TO_OWN_AUTO_REPLIES,
+            TEST_MODE=TEST_MODE,
+            THREAD_CONTEXT_MAX_DEPTH=THREAD_CONTEXT_MAX_DEPTH,
+            THREAD_CONTEXT_MAX_NETWORK_FETCHES=THREAD_CONTEXT_MAX_NETWORK_FETCHES,
+            _DEFAULT_REPLY_CONTEXT_POST_MAXIMUM_CHARS=_DEFAULT_REPLY_CONTEXT_POST_MAXIMUM_CHARS,
+            MAX_CONFIRMATION_EPOCH=MAX_CONFIRMATION_EPOCH,
+            MAX_TRUSTED_FACTS=MAX_TRUSTED_FACTS,
+            MIN_CONFIRMATION_EPOCH=MIN_CONFIRMATION_EPOCH,
+            QUOTE_REPEATED_CURSOR_SUPPRESSION_MAX_ENTRIES=QUOTE_REPEATED_CURSOR_SUPPRESSION_MAX_ENTRIES,
+        ),
+        errors=a.ReplyErrors(
+            AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
+            ApiError=ApiError,
+            ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
+            ContextValidationError=ContextValidationError,
+            InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
+            PipelineResult=PipelineResult,
+            ProvedRemotePostNonSuccess=ProvedRemotePostNonSuccess,
+            RemoteOperationsPaused=RemoteOperationsPaused,
+            ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
+            ReplyValidationError=ReplyValidationError,
+            StateBackupWriteError=StateBackupWriteError,
+            TransportJournalError=TransportJournalError,
+            UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
+            UnresolvedSendingReplyReceipt=UnresolvedSendingReplyReceipt,
+            ValidatedReply=ValidatedReply,
+            ReplyMediaTransientUnavailable=ReplyMediaTransientUnavailable,
+            ReplyMediaUnavailable=ReplyMediaUnavailable,
+            _MentionBacklogContinuationLimit=_MentionBacklogContinuationLimit,
+        ),
+        receipt_io=a.ReplyReceiptIO(
+            durable_create_receipt_json=durable_create_receipt_json,
+            json_file_matches=json_file_matches,
+            load_receipt_json_no_follow=load_receipt_json_no_follow,
+            receipt_namespace_entry_exists=receipt_namespace_entry_exists,
+            remote_receipt_retirement_is_blocking=remote_receipt_retirement_is_blocking,
+            replace_bound_source_receipt=replace_bound_source_receipt,
+            retire_current_source_receipt=retire_current_source_receipt,
+            transaction_mutation_authority=transaction_mutation_authority,
+        ),
+        transport=a.ReplyTransport(
+            requests=requests,
+            begin_confirmed_post_sigint_deferral=begin_confirmed_post_sigint_deferral,
+            bind_confirmed_transport_source=bind_confirmed_transport_source,
+            create_post=create_post,
+            end_confirmed_post_sigint_deferral=end_confirmed_post_sigint_deferral,
+            inspect_confirmed_transport_transaction=inspect_confirmed_transport_transaction,
+            journal_path_for_receipt=journal_path_for_receipt,
+            latch_confirmed_post_persistence_failure=latch_confirmed_post_persistence_failure,
+            retain_sigint_deferral_without_durable_barrier=retain_sigint_deferral_without_durable_barrier,
+            retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
+            verify_lane_transport_source_lineage_if_present=verify_lane_transport_source_lineage_if_present,
+            request_timeout=request_timeout,
+            validate_supplied_images=validate_supplied_images,
+            x_paginated_get=x_paginated_get,
+            x_quote_lookup_request=x_quote_lookup_request,
+            x_request=x_request,
+        ),
+        application=a.ReplyApplication(
+            datetime=datetime,
+            _api_cooldown_owner=_api_cooldown_owner,
+            _receipt_dates_owner=_receipt_dates_owner,
+            _reply_remote_write_barrier=_reply_remote_write_barrier,
+            _runtime_controls_owner=_runtime_controls_owner,
+            _tweet_lookup_cache_owner=_tweet_lookup_cache_owner,
+            api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
+            api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
+            log=log,
+            log_event=log_event,
+            monotonic=monotonic,
+            now_epoch=now_epoch,
+            reply_evidence_repository=reply_evidence_repository,
+            report_bot_health_progress=report_bot_health_progress,
+            require_remote_operation_unpaused=require_remote_operation_unpaused,
+            record_ambiguous_remote_post=record_ambiguous_remote_post,
+            main_post_attempt_binds_payload=main_post_attempt_binds_payload,
+            save_state=save_state,
+            sleep=sleep,
+            api_error_is_invalid_pagination_cursor=api_error_is_invalid_pagination_cursor,
+            current_utc_datetime=current_utc_datetime,
+            log_json_debug=log_json_debug,
+        ),
+        current=_reply_assembly,
+        current_reply_config=lambda: single_call_reply,
+        current_identity=lambda: (MY_USERNAME, MY_USER_ID),
+        current_spam_patterns=lambda: SPAMMY_PATTERNS,
+        current_log=lambda: log,
+        current_log_event=lambda: log_event,
+        current_now_epoch=lambda: now_epoch,
+    )
 
 
 pending_ai_reply_draft_key = _reply_drafts.pending_ai_reply_draft_key
@@ -6564,22 +6548,22 @@ def conversational_sending_receipt_from_confirmed(
     remain readable for local reconciliation, but cannot use this function to
     retire a current transport journal.
     """
-    return _reply_assembly()._reply_receipt_values_owner().sending_from_confirmed(confirmed_receipt)
+    return _reply_assembly().sending_receipt_from_confirmed(confirmed_receipt)
 
 
 def sending_reply_receipt_is_semantically_valid(data: dict) -> bool:
     """Return whether a pre-send conversational-reply receipt is complete."""
-    return _reply_assembly()._reply_receipt_values_owner().sending_is_valid(data)
+    return _reply_assembly().sending_receipt_is_valid(data)
 
 
 def _legacy_sending_reply_receipt_is_semantically_valid(data: dict) -> bool:
     """Recognise a frozen sending receipt as a barrier, never send authority."""
-    return _reply_assembly()._reply_receipt_values_owner().legacy_sending_is_valid(data)
+    return _reply_assembly().sending_receipt_is_valid(data, legacy=True)
 
 
 def load_confirmed_reply_receipt() -> tuple[str, dict | None]:
     """Load confirmed reply receipt."""
-    return _reply_assembly()._reply_receipts_owner().load()
+    return _reply_assembly().load_receipt()
 
 
 def promote_sending_reply_receipt(
@@ -6589,9 +6573,8 @@ def promote_sending_reply_receipt(
     confirmation_epoch: int,
 ) -> dict:
     """Atomically promote the exact prepared transaction to confirmed."""
-    return _reply_assembly()._reply_receipts_owner().promote(
-        sending_receipt,
-        reply_post_id=reply_post_id,
+    return _reply_assembly().promote_receipt(
+        sending_receipt, reply_post_id=reply_post_id,
         confirmation_epoch=confirmation_epoch,
     )
 
@@ -6603,44 +6586,15 @@ def _promote_legacy_sending_reply_receipt_from_confirmed_transport(
     confirmation_epoch: int,
 ) -> dict:
     """Promote a frozen source only when its exact journal proves success."""
-    return _reply_assembly()._reply_receipts_owner().promote(
-        sending_receipt,
-        reply_post_id=reply_post_id,
-        confirmation_epoch=confirmation_epoch,
-        legacy_recovery=True,
-    )
-
-
-def remove_confirmed_reply_receipt(
-    receipt: dict,
-    *,
-    sending_disposition: str | None = None,
-    commit_proof=None,
-) -> None:
-    """Retire one exact conversational-reply source receipt."""
-    if receipt.get("lifecycle_state") != "sending" or sending_disposition == "confirmed_state_fallback":
-        from mrs_bot_state_generation import require_commit_proof
-        require_commit_proof(commit_proof)
-        commit_proof.require_receipt(receipt)
-    return _reply_delivery.remove_confirmed_reply_receipt(
-        receipt,
-        sending_disposition=sending_disposition,
-        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
-        load_receipt_json_no_follow=load_receipt_json_no_follow,
-        InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
-        retire_current_source_receipt=functools.partial(
-            retire_current_source_receipt, commit_proof=commit_proof,
-            **({"disposition": "definite_non_success"}
-               if receipt.get("lifecycle_state") == "sending"
-               and sending_disposition == "definite_non_success" else {}),
-        ),
-        log=log,
+    return _reply_assembly().promote_receipt(
+        sending_receipt, reply_post_id=reply_post_id,
+        confirmation_epoch=confirmation_epoch, legacy_recovery=True,
     )
 
 
 def _valid_iso_date(value: object) -> bool:
     """Return whether a value is a canonical calendar date."""
-    return _reply_assembly()._daily_reply_accounting_owner().valid_date(value)
+    return _reply_assembly().daily_reply_accounting().valid_date(value)
 
 
 def _advance_reply_counters_to_confirmation_date(
@@ -6650,7 +6604,7 @@ def _advance_reply_counters_to_confirmation_date(
     include_quote_lane: bool,
 ) -> None:
     """Advance stale daily reply buckets without rolling newer state backward."""
-    return _reply_assembly()._daily_reply_accounting_owner().advance(
+    return _reply_assembly().daily_reply_accounting().advance(
         state,
         confirmation_date,
         include_quote_lane=include_quote_lane,
@@ -6659,26 +6613,7 @@ def _advance_reply_counters_to_confirmation_date(
 
 def reconcile_confirmed_reply_receipt(state: dict) -> bool:
     """Reconcile a confirmed reply without duplicating the remote post."""
-    return _reply_assembly()._reply_completion_owner().reconcile(state)
-
-
-def retire_proved_rejected_conversational_reply_receipt(
-    receipt: dict,
-    error: ProvedRemotePostNonSuccess,
-) -> None:
-    """Retire the exact sending receipt after terminal state is durable."""
-    return _reply_delivery.retire_proved_rejected_conversational_reply_receipt(
-        receipt, error,
-        ProvedRemotePostNonSuccess=ProvedRemotePostNonSuccess,
-        api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
-        sending_reply_receipt_is_semantically_valid=sending_reply_receipt_is_semantically_valid,
-        reply_create_rejection_payload=reply_create_rejection_payload,
-        claim_reply_create_rejection_for_receipt_retirement=claim_reply_create_rejection_for_receipt_retirement,
-        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
-        remove_confirmed_reply_receipt=remove_confirmed_reply_receipt,
-        record_ambiguous_remote_post=record_ambiguous_remote_post,
-        ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
-    )
+    return _reply_assembly().reconcile_receipt(state)
 
 
 # ---------------------------------------------------------------------
@@ -6697,7 +6632,7 @@ def maybe_reply_to_mentions(state: dict) -> str:
 
 def load_extra_quote_watch_post_ids() -> list[str]:
     """Delegate to watched-post selection with current root dependencies."""
-    return _reply_assembly()._quote_watch_posts_owner().load_extra()
+    return _reply_assembly().load_extra_quote_watch_posts()
 
 
 # ---------------------------------------------------------------------

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import single_call_reply as reply_pipeline_module
+
 from tests.helpers.reply_fixtures import patch_reply_owner_method
 
 
@@ -511,7 +513,7 @@ def test_generation_does_not_duplicate_same_author_reply_in_recent_replies(
             local_validation_status="passed",
         )
 
-    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
+    monkeypatch.setattr(reply_pipeline_module, "run_reply_pipeline", pipeline)
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
@@ -579,7 +581,7 @@ def test_generation_excludes_quoted_target_from_same_author_history(
             local_validation_status="passed",
         )
 
-    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
+    monkeypatch.setattr(reply_pipeline_module, "run_reply_pipeline", pipeline)
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
@@ -635,7 +637,7 @@ def test_generation_excludes_quoted_account_reply_from_recent_replies(
             local_validation_status="passed",
         )
 
-    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
+    monkeypatch.setattr(reply_pipeline_module, "run_reply_pipeline", pipeline)
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)

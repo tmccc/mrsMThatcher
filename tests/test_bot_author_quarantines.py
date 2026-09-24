@@ -87,7 +87,7 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
         current = {field: Mock() for field in OWNER_INPUTS}
         for field, name in OWNER_INPUTS.items():
             monkeypatch.setattr(bot, name, current[field])
-        owner = bot._reply_assembly()._author_quarantine_owner()
+        owner = bot._reply_assembly().author_quarantines()
         assert isinstance(owner, quarantines.AuthorQuarantines)
         for field, value in current.items():
             assert getattr(owner, field) is value
@@ -115,7 +115,7 @@ def test_adapters_preserve_defaults_arguments_result_identity_and_errors(monkeyp
         for use_defaults in (True, False):
             owner = Mock(spec=quarantines.AuthorQuarantines)
             factory = Mock(return_value=owner)
-            monkeypatch.setattr(assembly.ReplyAssembly, "_author_quarantine_owner", factory)
+            monkeypatch.setattr(assembly.ReplyAssembly, "author_quarantines", factory)
             implementation = getattr(owner, method_name)
             result = object()
             implementation.return_value = result

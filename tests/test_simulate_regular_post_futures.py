@@ -156,7 +156,7 @@ def test_hard_guards_block_post_upload_reply_lock_and_network(tmp_path: Path) ->
         "write_meme_post_receipt",
         "remove_regular_post_receipt",
         "remove_meme_post_receipt",
-        "remove_confirmed_reply_receipt",
+        "_reply_assembly",
         "atomic_write_json",
         "save_used_set",
         "save_quote_used_hashes",

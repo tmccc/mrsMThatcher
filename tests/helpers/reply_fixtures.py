@@ -97,9 +97,9 @@ def patch_reply_owner_method(monkeypatch, owner_type, method: str, callback) -> 
 
 def patch_reply_receipt_method(monkeypatch, bot, method: str, callback) -> None:
     """Replace one bot's receipt operation while retaining fresh runtime bindings."""
-    owner_factory = bot._reply_assembly()._reply_receipts_owner
+    owner_factory = ReplyAssembly.reply_receipts
 
-    class FixtureReplyReceipts(type(owner_factory())):
+    class FixtureReplyReceipts(type(owner_factory(bot._reply_assembly()))):
         pass
 
     def invoke(_owner, *args, **kwargs):
@@ -108,8 +108,8 @@ def patch_reply_receipt_method(monkeypatch, bot, method: str, callback) -> None:
     setattr(FixtureReplyReceipts, method, invoke)
     monkeypatch.setattr(
         ReplyAssembly,
-        "_reply_receipts_owner",
-        lambda self, **kwargs: FixtureReplyReceipts(**vars(owner_factory(**kwargs))),
+        "reply_receipts",
+        lambda self, **kwargs: FixtureReplyReceipts(**vars(owner_factory(self, **kwargs))),
     )
 
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import single_call_reply as reply_pipeline_module
+
 from dataclasses import FrozenInstanceError
 import json
 from unittest.mock import Mock
@@ -14,6 +16,7 @@ from mrs_bot_reply_cycle_interfaces import (
 import mrs_bot_normal_reply_cycle as normal_cycle
 import mrs_bot_quote_reply_cycle as quote_cycle
 import mrs_bot_reply_generation as generation
+import mrs_bot_reply_delivery as reply_delivery
 from single_call_reply import PipelineResult
 from tests.helpers.reply_fixtures import configure_normal_cycle as configure_normal
 from tests.helpers.reply_fixtures import configure_quote_cycle as configure_quote
@@ -180,7 +183,7 @@ def test_cycles_consume_typed_results_through_durable_outcomes(monkeypatch, lane
             kwargs["receipt_template"], reply_post_id="990",
             confirmation_epoch=bot.now_epoch(),
         )
-        bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
+        bot._reply_assembly().reply_receipts().write(receipt, confirmed=True)
         return {}, receipt
 
     send = Mock(side_effect=post)
@@ -264,7 +267,7 @@ def test_typed_local_failure_keeps_prior_429_cooldown_and_terminal_retirement(mo
     patch_reply_owner_method(
         monkeypatch, bot._reply_native_media.ReplyMedia, "collect", lambda _media: [],
     )
-    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", Mock(return_value=result))
+    monkeypatch.setattr(reply_pipeline_module, "run_reply_pipeline", Mock(return_value=result))
     recorded = Mock(wraps=bot._reply_assembly()._reply_generation_owner().record_result)
     patch_reply_owner_method(monkeypatch, generation.ReplyGeneration, "record_result", recorded)
     run(state)
@@ -331,9 +334,12 @@ def test_shared_finaliser_preserves_order_identity_and_exception_boundaries(monk
     )
     for name, step in (
         ("save_state", "save"),
-        ("retire_lane_transport_journal_if_present", "retire"), ("remove_confirmed_reply_receipt", "remove"),
+        ("retire_lane_transport_journal_if_present", "retire"),
     ):
         monkeypatch.setattr(bot, name, callback(step))
+    patch_reply_owner_method(
+        monkeypatch, reply_delivery.ReplyReceipts, "remove", callback("remove"),
+    )
     if failed_step is None:
         assert bot._reply_assembly()._reply_completion_owner().finalise(state, receipt, target_id="100", quote_reply=quote_reply) == "990"
     else:

@@ -112,9 +112,9 @@ def test_adapters_forward_current_dependencies_references_and_native_errors(monk
                 current = {key: object() for key in dependencies}
                 factories = {
                     "state_values": "_state_values_owner",
-                    "mention_authority": "_mention_authority_owner",
-                    "author_quarantines": "_author_quarantine_owner",
-                    "reply_evaluations": "_reply_evaluation_owner",
+                    "mention_authority": "mention_authority",
+                    "author_quarantines": "author_quarantines",
+                    "reply_evaluations": "reply_evaluations",
                     "tweets": "_tweet_lookup_cache_owner",
                 }
                 for key, value in current.items():
@@ -652,7 +652,7 @@ def test_candidate_shares_one_mention_owner_across_normalization_and_recovery(mo
     owner.canonical_candidates = canonical
     owner.normalise_pagination = normalise_pagination
     owner.validate_pending = validate
-    monkeypatch.setattr(assembly.ReplyAssembly, "_mention_authority_owner", factory)
+    monkeypatch.setattr(assembly.ReplyAssembly, "mention_authority", factory)
     monkeypatch.setattr(bot, "require_compatible_state_reader", reader)
     patch_normalization(monkeypatch, "prune_reply_evaluation_records", prune)
     result = bot.normalise_state_candidate(
@@ -667,7 +667,7 @@ def test_candidate_shares_one_mention_owner_across_normalization_and_recovery(mo
 def test_candidate_mention_owner_failure_stops_before_terminal_pruning(monkeypatch, tmp_path):
     failure = RuntimeError("current mention authority unavailable")
     factory, prune = Mock(side_effect=failure), Mock()
-    monkeypatch.setattr(assembly.ReplyAssembly, "_mention_authority_owner", factory)
+    monkeypatch.setattr(assembly.ReplyAssembly, "mention_authority", factory)
     patch_normalization(monkeypatch, "prune_reply_evaluation_records", prune)
     with pytest.raises(RuntimeError) as caught:
         bot.normalise_state_candidate({"mention_pending_candidates": {}}, path=tmp_path)
@@ -699,7 +699,7 @@ def test_mention_owner_binds_once_before_candidate_reads(monkeypatch, tmp_path, 
                     raise failure
             return super().__getitem__(key)
 
-    monkeypatch.setattr(assembly.ReplyAssembly, "_mention_authority_owner", current)
+    monkeypatch.setattr(assembly.ReplyAssembly, "mention_authority", current)
     state = State(mention_pending_candidates=pending)
     if lookup_fails:
         with pytest.raises(LookupError) as caught:

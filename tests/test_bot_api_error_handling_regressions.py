@@ -14,6 +14,7 @@ from tests.helpers.reply_fixtures import (
     UNIT_REPLY_REPOSITORY,
     unit_reply_context,
 )
+import single_call_reply
 from single_call_reply import PipelineResult
 
 
@@ -33,8 +34,8 @@ def test_three_image_input_failures_leave_openai_breaker_untouched(
         monkeypatch, bot._reply_native_media.ReplyMedia, "collect", unavailable,
     )
     monkeypatch.setattr(
-        bot,
-        "run_single_call_reply_pipeline",
+        single_call_reply,
+        "run_reply_pipeline",
         lambda **_kwargs: pytest.fail("image failure must precede Sol"),
     )
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
@@ -76,8 +77,8 @@ def test_candidate_local_pipeline_failures_leave_openai_breaker_untouched(
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
-        bot,
-        "run_single_call_reply_pipeline",
+        single_call_reply,
+        "run_reply_pipeline",
         lambda **_kwargs: PipelineResult(
             status="operational_failure",
             reason="unit_candidate_local_failure",
@@ -116,8 +117,8 @@ def test_three_provider_failures_activate_openai_breaker(
     monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
-        bot,
-        "run_single_call_reply_pipeline",
+        single_call_reply,
+        "run_reply_pipeline",
         lambda **_kwargs: PipelineResult(
             status="operational_failure",
             reason="provider_request_failed",

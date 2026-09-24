@@ -18,6 +18,7 @@ import pytest
 
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 import mrs_bot_reply_context as reply_context
+import single_call_reply
 from mrs_bot_reply_native_media import ReplyMedia
 from mrs_bot_tweet_lookup_cache import TweetLookupCache
 from tests.helpers.bot_runtime import SCENARIOS, bot
@@ -98,10 +99,12 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
     assert parameters.keys() == OWNER_INPUTS.keys() | {"default_post_maximum_chars", "tweets", "media"}
     assert {"get_tweet_by_id_cached", "prune_tweet_cache", "reply_media_context_for_candidate"}.isdisjoint(parameters)
     snapshots = []
+    reply_helpers = {"parse_tweet_id", "parse_x_datetime_to_epoch", "bound_visible_conversation"}
     for _ in range(2):
         current = {field: Mock() for field in OWNER_INPUTS}
         for field, name in OWNER_INPUTS.items():
-            monkeypatch.setattr(bot, name, current[field])
+            if field not in reply_helpers:
+                monkeypatch.setattr(bot, name, current[field])
         tweets = Mock(spec=TweetLookupCache)
         media = Mock(spec=ReplyMedia)
         tweets_factory = Mock(return_value=tweets)
@@ -117,13 +120,19 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
         assert isinstance(owner, reply_context.ReplyContext)
         assert owner.default_post_maximum_chars == default
         for field, value in current.items():
+            if field in reply_helpers:
+                continue
             assert getattr(owner, field) is value
             value.assert_not_called()
+        assert owner.parse_tweet_id.func is reply_context.parse_tweet_id
+        assert owner.parse_tweet_id.keywords["log"] is current["log"]
+        assert owner.parse_x_datetime_to_epoch.func is reply_context.parse_x_datetime_to_epoch
+        assert owner.bound_visible_conversation is single_call_reply.bound_visible_conversation
         snapshots.append((owner, {**current, "tweets": tweets, "media": media}))
     first, values = snapshots[0]
     assert first is not snapshots[1][0]
     assert first.tweets is not snapshots[1][0].tweets
-    assert all(getattr(first, field) is value for field, value in values.items())
+    assert all(getattr(first, field) is value for field, value in values.items() if field not in reply_helpers)
     with pytest.raises(FrozenInstanceError):
         first.user_id = "different"
 

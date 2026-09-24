@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import single_call_reply as reply_pipeline_module
+
 import copy
 import json
 from datetime import datetime, timezone
@@ -30,7 +32,7 @@ QUERY = "(quotes_of_tweet_id:900) -is:retweet"
 def _install_quote_pages(monkeypatch, *, first_ids=("913", "912"), young_id=None,
                          missing_timestamp=False):
     """Run real discovery against synthetic pages and a controllable clock."""
-    discovery = bot._reply_assembly().get_quote_tweets_for_posts
+    discovery = assembly.ReplyAssembly.get_quote_tweets_for_posts
     original, templates = configure_quote_cycle(monkeypatch)
     lookup = Mock(return_value=original)
     patch_tweet_lookup_method(monkeypatch, "get_cached", lookup)
@@ -400,7 +402,7 @@ def test_quote_owner_handoffs_keep_current_recovery_and_chronological_model_hist
         )
 
     pipeline = Mock(side_effect=evaluate_pipeline)
-    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
+    monkeypatch.setattr(reply_pipeline_module, "run_reply_pipeline", pipeline)
     remote = Mock(return_value={"data": {"id": "950912"}})
     install_receipt_bound_x_request_stub(monkeypatch, remote)
     relays = {}

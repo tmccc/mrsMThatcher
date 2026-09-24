@@ -12,6 +12,7 @@ import pytest
 from tests.helpers.adapter_assertions import assert_adapters_forward_current_dependencies
 
 import mrs_bot_legacy_reply_validation as legacy
+import single_call_reply
 from tests.helpers.legacy_reply_fixtures import (
     CASE_IDS,
     _legacy_case,
@@ -135,6 +136,7 @@ def test_visible_conversation_uses_current_callback_and_preserves_native_empty_r
     context, text = data["reply_context"], data["reply_text"]
     bound = Mock(wraps=bot.bound_visible_conversation)
     monkeypatch.setattr(bot, "bound_visible_conversation", bound)
+    monkeypatch.setattr(single_call_reply, "bound_visible_conversation", bound)
     assert bot._legacy_ai_reply_receipt_draft_is_valid(data, text) is True
     bound.assert_called_once_with(context["visible_conversation"], target_post_id=context["target_id"])
     assert bound.call_args.args[0] is context["visible_conversation"]

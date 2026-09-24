@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import single_call_reply as reply_pipeline_module
+
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
 
 import copy
@@ -305,12 +307,12 @@ def test_receipt_preparation_and_confirmed_state_errors_are_not_transport_errors
     monkeypatch.setattr(assembly.ReplyAssembly, "post_with_current_owners", transport)
     accounted = Mock()
     outcomes = Mock(wraps=bot.log_ai_reply_posting_outcome)
-    cleanup = Mock(wraps=bot.remove_confirmed_reply_receipt)
+    cleanup = Mock()
     patch_reply_owner_method(
         monkeypatch, api_cooldowns.ApiCooldowns, "record_error", accounted,
     )
     monkeypatch.setattr(bot, "log_ai_reply_posting_outcome", outcomes)
-    monkeypatch.setattr(bot, "remove_confirmed_reply_receipt", cleanup)
+    patch_reply_owner_method(monkeypatch, assembly._reply_delivery.ReplyReceipts, "remove", cleanup)
 
     with pytest.raises(RuntimeError) as caught:
         bot.maybe_reply_to_mentions(state)
@@ -339,7 +341,7 @@ def test_legacy_quote_only_target_is_retired_before_normal_eligibility(monkeypat
     )
     eligible = Mock(side_effect=AssertionError("handled target reached eligibility"))
     context = Mock(side_effect=AssertionError("handled target reached context"))
-    monkeypatch.setattr(bot, "reply_target_is_directly_eligible", eligible)
+    monkeypatch.setattr(bot._reply_lane_policy, "reply_target_is_directly_eligible", eligible)
     patch_reply_context_method(monkeypatch, "build", context)
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
@@ -378,7 +380,7 @@ def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_sa
     ):
         original = (
             bot._reply_assembly()._reply_draft_owner().clear if label == "clear"
-            else bot._reply_assembly()._reply_evaluation_owner().record if label == "terminal"
+            else bot._reply_assembly().reply_evaluations().record if label == "terminal"
             else bot._reply_assembly()._mention_queue_owner().mark_seen if label == "seen"
             else getattr(bot, name)
         )
@@ -393,6 +395,11 @@ def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_sa
             patch_reply_owner_method(monkeypatch, evaluation_state.ReplyEvaluations, "record", observe)
         elif label == "seen":
             patch_reply_owner_method(monkeypatch, mention_discovery.MentionQueue, "mark_seen", observe)
+        elif label == "mark":
+            patch_reply_owner_method(
+                monkeypatch, assembly.ReplyAssembly,
+                "maybe_mark_hot_post_reply_skipped", observe,
+            )
         else:
             monkeypatch.setattr(bot, name, observe)
     monkeypatch.setattr(bot, "log_event", lambda event, **kwargs: trace.append((event, None)))
@@ -476,7 +483,7 @@ def test_mixed_quarantine_retirements_are_durable_before_later_context(
 def test_daily_reset_and_confirmed_reconciliation_precede_barrier_when_disabled(monkeypatch):
     _configure_cycle(monkeypatch)
     receipt = unit_confirmed_v4_reply_receipt(confirmation_epoch=bot.now_epoch())
-    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
+    bot._reply_assembly().reply_receipts().write(receipt, confirmed=True)
     state = bot.default_state()
     state.update(daily_reply_date="2000-01-01", daily_reply_count=48)
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", False)
@@ -486,7 +493,7 @@ def test_daily_reset_and_confirmed_reconciliation_precede_barrier_when_disabled(
         ("reconcile", "reconcile_confirmed_reply_receipt"),
     ):
         original = (
-            bot._reply_assembly()._daily_reply_accounting_owner().reset
+            bot._reply_assembly().daily_reply_accounting().reset
             if label == "reset" else bot._reply_assembly()._reply_completion_owner().reconcile
         )
         callback = Mock(wraps=original)
@@ -771,7 +778,7 @@ def test_normal_owner_handoffs_keep_current_recovery_and_chronological_model_his
         )
 
     pipeline = Mock(side_effect=evaluate_pipeline)
-    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
+    monkeypatch.setattr(reply_pipeline_module, "run_reply_pipeline", pipeline)
     patch_reply_owner_method(
         monkeypatch, bot._tweet_lookup_cache.TweetLookupCache, "fetch",
         Mock(return_value=candidate),

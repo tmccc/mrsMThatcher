@@ -41,7 +41,8 @@ For the normal mention/hot-post path:
 
 1. `run_reply_lane_checks_for_tick()` chooses the lane in
    [mrs_bot_tick_coordination.py](../mrs_bot_tick_coordination.py), then the
-   root `maybe_reply_to_mentions()` assembles one set of current owners.
+   root `maybe_reply_to_mentions()` enters `ReplyAssembly.run_normal` with current
+   reply configuration and shared application authorities.
 2. [mrs_bot_normal_reply_cycle.py](../mrs_bot_normal_reply_cycle.py) owns
    discovery order, admission, model-call budgets, backlog continuation and
    status mapping. It calls `ReplyContext.build`, `ReplyDrafts.recover` and
@@ -52,7 +53,7 @@ For the normal mention/hot-post path:
 For the quote-tweet path:
 
 1. The same tick coordinator selects the quote lane, and root
-   `maybe_reply_to_quote_tweets()` assembles its owners.
+   `maybe_reply_to_quote_tweets()` enters `ReplyAssembly.run_quote`.
 2. [mrs_bot_quote_reply_cycle.py](../mrs_bot_quote_reply_cycle.py) asks its
    `QuoteWatchPosts` owner for watched originals, uses quote discovery, and owns
    candidate ordering, delay/cap checks and quote-lane bookkeeping.
@@ -64,16 +65,21 @@ For the quote-tweet path:
 For the posting and durable-state boundary, start with
 `ReplyCycleDelivery.deliver` in
 [mrs_bot_reply_delivery.py](../mrs_bot_reply_delivery.py). It rechecks target
-availability, then its root-supplied posting callback composes send-time receipt
-owners and enters `post_conversational_reply_with_durable_identity`. That flow
+availability, then `ReplyAssembly.post_with_current_owners` composes send-time
+receipt owners and enters `post_conversational_reply_with_durable_identity`. That flow
 publishes the sending receipt before `create_post`; `create_post` owns the
 transport journal/fence and X-create authority. On confirmed transport,
 `ReplyCompletion.finalise` in
 [mrs_bot_reply_reconciliation.py](../mrs_bot_reply_reconciliation.py) applies
 the confirmed receipt, durably saves canonical state, retires the journal, and
-only then removes the source receipt. Ambiguous outcomes preserve their durable
-barriers. This is the boundary to read before changing posting authority or
-persistence ordering.
+only then removes the source receipt through `ReplyReceipts.remove`. Proved target
+rejection is retired by `ReplyReceipts.retire_rejected`, after terminal state is
+durable; it validates the exact receipt and claims transport proof before removal.
+The root retains the sealed transport, exact source retirement, signal deferral
+and global write barrier. `ReplyAssembly` binds current values again for backlog
+continuation, send-time construction and nested receipt reads. Ambiguous outcomes
+preserve their durable barriers. This is the boundary to read before changing
+posting authority or persistence ordering.
 
 Bootstrap composes a fresh `LocalConfiguration` before
 `mrs_bot_runtime_configuration.apply_local_config` loads and applies overrides.

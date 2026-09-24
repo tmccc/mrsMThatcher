@@ -100,7 +100,7 @@ def isolated_simulator_bot(tmp_path: Path, snapshot: Path):
         "acquire_instance_lock", "post_random_quote", "post_next_meme",
         "maybe_reply_to_mentions", "maybe_reply_to_quote_tweets", "write_regular_post_receipt",
         "write_meme_post_receipt", "remove_regular_post_receipt",
-        "remove_meme_post_receipt", "remove_confirmed_reply_receipt", "atomic_write_json", "save_used_set",
+        "remove_meme_post_receipt", "_reply_assembly", "atomic_write_json", "save_used_set",
         "save_quote_used_hashes", "save_image_used_basenames", "save_state",
         "completed_research_quote_hashes", "_quote_candidates_owner",
     }

@@ -271,7 +271,7 @@ def test_returned_lane_status_rechecks_real_receipt_barrier_before_any_update(mo
 
     def lane(current_state):
         assert current_state is state
-        bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=False)
+        bot._reply_assembly().reply_receipts().write(receipt, confirmed=False)
         return bot.NORMAL_CHECK_STATUS_POSTED if priority == "normal" else bot.QUOTE_CHECK_STATUS_POSTED
 
     getattr(trace, priority).side_effect = lane

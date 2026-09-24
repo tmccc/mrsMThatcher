@@ -5,6 +5,7 @@ from __future__ import annotations
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 from mrs_bot_reply_drafts import ReplyDrafts
 from mrs_bot_reply_receipt_values import ReplyReceiptValues
+from mrs_bot_reply_delivery import ReplyReceipts
 from mrs_bot_main_post_assembly import MainPostAssembly
 from mrs_bot_main_post_reconciliation import MainPostRecovery
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
@@ -364,11 +365,11 @@ def test_confirmed_reply_receipt_reconciliation_is_idempotent(
         epoch=fixed_epoch,
     )
 
-    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
+    bot._reply_assembly().reply_receipts().write(receipt, confirmed=True)
     assert bot.reconcile_confirmed_reply_receipt(state) is True
     assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
 
-    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
+    bot._reply_assembly().reply_receipts().write(receipt, confirmed=True)
     assert bot.reconcile_confirmed_reply_receipt(state) is True
 
     assert state["daily_reply_count"] == 1
@@ -1030,7 +1031,7 @@ def test_confirmed_truncated_mention_receipt_reconciles_after_restart_without_x(
         ),
     )
 
-    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
+    bot._reply_assembly().reply_receipts().write(receipt, confirmed=True)
     assert bot.reconcile_confirmed_reply_receipt(state) is True
 
     assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
@@ -1101,7 +1102,7 @@ def test_confirmed_receipt_reconciliation_cannot_authorise_stale_pending_state(
         )),
     )
 
-    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
+    bot._reply_assembly().reply_receipts().write(receipt, confirmed=True)
     assert bot.reconcile_confirmed_reply_receipt(state) is True
 
     restarted = bot.load_state()
@@ -1194,7 +1195,7 @@ def test_receipt_recovery_from_backup_without_page_ownership_is_guarded(
         )),
     )
 
-    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
+    bot._reply_assembly().reply_receipts().write(receipt, confirmed=True)
     assert bot.reconcile_confirmed_reply_receipt(state) is True
 
     restarted = bot.load_state()
@@ -1314,7 +1315,7 @@ def test_prepared_reply_bypass_requires_exact_receipt_text_and_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sending = unit_sending_reply_receipt()
-    bot._reply_assembly()._reply_receipts_owner().write(sending, confirmed=False)
+    bot._reply_assembly().reply_receipts().write(sending, confirmed=False)
     remote_calls = 0
 
     def remote(*_args: object, **_kwargs: object) -> dict[str, object]:
@@ -1371,7 +1372,7 @@ def test_sending_reply_receipt_blocks_each_remote_lane_before_preparation(
     import historical_context_formatter
 
     sending = unit_sending_reply_receipt()
-    bot._reply_assembly()._reply_receipts_owner().write(sending, confirmed=False)
+    bot._reply_assembly().reply_receipts().write(sending, confirmed=False)
     calls: list[str] = []
 
     def prepared(name: str) -> None:
@@ -1903,14 +1904,14 @@ def test_reply_sigint_during_confirmed_promotion_reconciles_without_duplicate(
 
 def test_remove_reply_receipt_refuses_changed_transaction() -> None:
     sending = unit_sending_reply_receipt()
-    bot._reply_assembly()._reply_receipts_owner().write(sending, confirmed=False)
+    bot._reply_assembly().reply_receipts().write(sending, confirmed=False)
     changed = {**sending, "target_id": "101"}
 
     with pytest.raises(
         bot.InvalidConfirmedReplyReceipt,
         match="transaction identity changed",
     ):
-        bot.remove_confirmed_reply_receipt(changed)
+        bot._reply_assembly().remove_receipt(changed)
 
     assert bot.load_confirmed_reply_receipt() == ("sending", sending)
 
@@ -1945,7 +1946,7 @@ def test_final_receipt_cleanup_fsync_failure_latches_every_public_lane(
         path = bot.CONFIRMED_REPLY_RECEIPT_FILE
         receipt = unit_confirmed_reply_receipt()
         bot.atomic_write_json(path, receipt, durable=True)
-        retire = lambda: bot.remove_confirmed_reply_receipt(receipt, commit_proof=proof)
+        retire = lambda: bot._reply_assembly().remove_receipt(receipt, commit_proof=proof)
     else:
         from historical_context_formatter import HistoricalContextReplyStore
 
@@ -2058,9 +2059,9 @@ def test_confirmed_reply_receipt_preserves_ai_draft_after_reconciliation(
         factual=True,
     )
 
-    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
+    bot._reply_assembly().reply_receipts().write(receipt, confirmed=True)
     assert bot.reconcile_confirmed_reply_receipt(state) is True
-    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
+    bot._reply_assembly().reply_receipts().write(receipt, confirmed=True)
     assert bot.reconcile_confirmed_reply_receipt(state) is True
 
     assert len(state["ai_reply_history"]) == 1
@@ -2172,9 +2173,9 @@ def test_confirmed_quote_tweet_reply_receipt_reconciliation_is_idempotent(
         epoch=fixed_epoch,
     )
 
-    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
+    bot._reply_assembly().reply_receipts().write(receipt, confirmed=True)
     assert bot.reconcile_confirmed_reply_receipt(state) is True
-    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
+    bot._reply_assembly().reply_receipts().write(receipt, confirmed=True)
     assert bot.reconcile_confirmed_reply_receipt(state) is True
 
     assert state["daily_reply_count"] == 1
@@ -2203,7 +2204,7 @@ def test_confirmed_reply_receipt_persistence_failure_keeps_receipt(
     state = bot.default_state()
     state["daily_reply_date"] = receipt["daily_reply_date"]
 
-    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
+    bot._reply_assembly().reply_receipts().write(receipt, confirmed=True)
     monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: (_ for _ in ()).throw(OSError("state failed")))
 
     with pytest.raises(bot.ConfirmedReplyLocalPersistenceError):
@@ -2257,7 +2258,9 @@ def test_confirmed_reply_normal_success_uses_durable_state_before_receipt_remova
         state = bot.default_state()
         state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
         monkeypatch.setattr(bot, "save_state", tracking_save_state)
-        monkeypatch.setattr(bot, "remove_confirmed_reply_receipt", tracking_remove_receipt)
+        patch_reply_owner_method(
+            monkeypatch, ReplyReceipts, "remove", tracking_remove_receipt,
+        )
 
         assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_POSTED
         assert receipt_remove_seen is True

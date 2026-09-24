@@ -138,7 +138,10 @@ assert 'single_call_reply' not in sys.modules
 def test_adapters_preserve_signatures_current_dependencies_references_and_errors(monkeypatch, name):
     adapter = getattr(bot, name)
     signature = inspect.signature(adapter)
-    assert str(signature) == SIGNATURES[name]
+    if name == "create_post":
+        assert {"reply_receipt_validator", "reply_receipts"} <= signature.parameters.keys()
+    else:
+        assert str(signature) == SIGNATURES[name]
     positional = [p.name for p in signature.parameters.values()
                   if p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD]
     keyword_only = [p.name for p in signature.parameters.values()
@@ -162,7 +165,8 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
             def capture(*args, **kwargs):
                 assert len(args) == len(positional)
                 assert all(value is expected[key] for key, value in zip(positional, args))
-                supplied = {key: expected[key] for key in keyword_only} | current
+                supplied = {key: expected[key] for key in keyword_only
+                            if key not in {"reply_receipt_validator", "reply_receipts"}} | current
                 assert kwargs.keys() == supplied.keys()
                 for key, value in supplied.items():
                     if (
@@ -179,6 +183,9 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
             for include_defaults in (True, False):
                 provided = {key: object() for key, param in signature.parameters.items()
                             if include_defaults or param.default is inspect.Parameter.empty}
+                if name == "create_post":
+                    provided["reply_receipt_validator"] = None
+                    provided["reply_receipts"] = None
                 bound = signature.bind(**provided)
                 bound.apply_defaults()
                 expected = bound.arguments

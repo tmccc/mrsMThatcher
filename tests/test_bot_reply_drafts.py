@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import single_call_reply as reply_pipeline_module
+
 import copy
 from dataclasses import FrozenInstanceError
 import inspect
@@ -98,7 +100,6 @@ assert 'single_call_reply' not in sys.modules
 
 def test_root_owner_binds_current_dependencies_without_accessing_evidence(monkeypatch):
     names = {
-        "validate_persisted_draft": "validate_single_call_persisted_draft",
         "evidence_repository": "reply_evidence_repository",
         "log_event": "log_event", "log": "log",
         "strategy_version": "SINGLE_CALL_STRATEGY_VERSION", "model": "SINGLE_CALL_MODEL",
@@ -119,6 +120,7 @@ def test_root_owner_binds_current_dependencies_without_accessing_evidence(monkey
         monkeypatch.setattr(assembly.ReplyAssembly, "_reply_generation_owner", generation_factory)
         owner = bot._reply_assembly()._reply_draft_owner()
         assert isinstance(owner, reply_drafts.ReplyDrafts)
+        assert owner.validate_persisted_draft is reply_pipeline_module.validate_persisted_draft
         assert all(getattr(owner, field) is value for field, value in current.items())
         assert owner.history is history and owner.generation is generation
         generation_factory.assert_called_once_with(history=history)
@@ -405,7 +407,7 @@ def test_recovered_duplicate_draft_emits_rule_and_retires_without_provider_call(
     state = {"pending_ai_reply_drafts": {"mention:100": reply.draft_record}}
     events = []
     provider = Mock(side_effect=AssertionError("recovery must not call the model"))
-    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", provider)
+    monkeypatch.setattr(reply_pipeline_module, "run_reply_pipeline", provider)
     monkeypatch.setattr(bot, "log_event", lambda kind, **fields: events.append((kind, fields)))
     result = make_owner().recover(
         state, "100", "mention", context=context,

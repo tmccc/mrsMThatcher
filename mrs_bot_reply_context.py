@@ -20,7 +20,7 @@ import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import timezone
+from datetime import datetime, timezone
 from logging import Logger
 from typing import TYPE_CHECKING
 
@@ -30,6 +30,45 @@ from mrs_bot_tweet_lookup_cache import TweetLookupCache, tweet_text_is_complete
 
 if TYPE_CHECKING:
     from mrs_bot_reply_native_media import ReplyMedia
+
+
+def parse_x_datetime_to_epoch(value: str | None, *, log: Logger) -> int | None:
+    """Parse a provider timestamp, preserving malformed-date diagnostics."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return int(parsed.timestamp())
+    except Exception:
+        log.warning("Could not parse X datetime: %r", value)
+        return None
+
+
+def parse_tweet_id(value: object, *, context: str, log: Logger) -> int | None:
+    """Parse one bounded numeric tweet ID for reply discovery and context."""
+    value_str = str(value or "")
+    if not re.fullmatch(r"\d{1,30}", value_str):
+        log.warning("Skipping %s with invalid tweet id=%r", context, value)
+        return None
+    return int(value_str)
+
+
+def valid_tweets_sorted_by_id(
+    tweets: list[dict], *, context: str, log: Logger,
+) -> list[dict]:
+    """Deduplicate and sort a page of reply candidates by numeric ID."""
+    valid: list[tuple[int, dict]] = []
+    seen_ids: set[int] = set()
+    for tweet in tweets:
+        tweet_id = parse_tweet_id(tweet.get("id"), context=context, log=log)
+        if tweet_id is None:
+            continue
+        if tweet_id in seen_ids:
+            log.warning("Dropping duplicate %s tweet id=%s from paged API results", context, tweet_id)
+            continue
+        seen_ids.add(tweet_id)
+        valid.append((tweet_id, tweet))
+    return [tweet for _, tweet in sorted(valid, key=lambda item: item[0])]
 
 
 def clean_text_for_reply_context(text: str) -> str:

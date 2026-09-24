@@ -77,7 +77,7 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
         current = {field: Mock() for field in OWNER_INPUTS}
         for field, name in OWNER_INPUTS.items():
             monkeypatch.setattr(bot, name, current[field])
-        owner = bot._reply_assembly()._reply_evaluation_owner()
+        owner = bot._reply_assembly().reply_evaluations()
         assert isinstance(owner, evaluation_state.ReplyEvaluations)
         for field, value in current.items():
             assert getattr(owner, field) is value
@@ -250,7 +250,7 @@ def test_quarantine_skip_batch_is_durable_across_real_state_reload(monkeypatch):
     for epoch in (1_999_999_997, 1_999_999_998, 1_999_999_999):
         bot.record_qualifying_author_no_reply(state, "200", current_epoch=epoch)
     save = Mock(wraps=bot.save_state)
-    owner = bot._reply_assembly()._reply_evaluation_owner()
+    owner = bot._reply_assembly().reply_evaluations()
     record = Mock(wraps=owner.record)
     prune = Mock(wraps=owner.prune)
     monkeypatch.setattr(bot, "save_state", save)

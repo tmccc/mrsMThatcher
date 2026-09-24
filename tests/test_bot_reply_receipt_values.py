@@ -106,8 +106,10 @@ def make_owner():
 def test_owner_composition_binds_current_dependencies_without_calling_them(monkeypatch):
     snapshots = []
     for _ in range(2):
-        current = {field: Mock() for field in OWNER_INPUTS}
-        for field, name in OWNER_INPUTS.items():
+        shared_fields = OWNER_INPUTS.keys() - {"valid_receipt_epoch", "legacy_draft_is_valid"}
+        current = {field: Mock() for field in shared_fields}
+        for field in shared_fields:
+            name = OWNER_INPUTS[field]
             monkeypatch.setattr(
                 assembly.ReplyAssembly if field == "drafts" else bot,
                 name,
@@ -115,6 +117,14 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
             )
         owner = bot._reply_assembly()._reply_receipt_values_owner()
         assert isinstance(owner, values.ReplyReceiptValues)
+        assert owner.valid_receipt_epoch.func is assembly._receipt_primitives.valid_receipt_epoch
+        assert owner.valid_receipt_epoch.keywords == {
+            "MIN_CONFIRMATION_EPOCH": bot.MIN_CONFIRMATION_EPOCH,
+            "MAX_CONFIRMATION_EPOCH": bot.MAX_CONFIRMATION_EPOCH,
+        }
+        assert owner.legacy_draft_is_valid.func is (
+            assembly._legacy_reply_validation._legacy_ai_reply_receipt_draft_is_valid
+        )
         for field, value in current.items():
             assert getattr(owner, field) is value
             if field != "drafts":

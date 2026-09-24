@@ -352,7 +352,7 @@ def test_unsafe_receipt_namespace_is_never_absent_or_overwritten(
             attempt_epoch=CONFIRMATION_EPOCH,
             target_id="880001",
         )
-        writer = lambda: bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=False)
+        writer = lambda: bot._reply_assembly().reply_receipts().write(receipt, confirmed=False)
 
     if entry_type == "dangling_symlink":
         path.symlink_to(path.with_name("missing-target"))

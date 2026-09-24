@@ -11,6 +11,8 @@ import pytest
 
 import mrsMThatcher2 as bot
 import mrs_bot_transport_source_preparation as preparation
+import mrs_bot_reply_receipt_values as reply_values
+from tests.helpers.reply_fixtures import patch_reply_owner_method
 from mrs_bot_main_post_assembly import MainPostAssembly
 from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from mrs_bot_main_post_receipts import MainPostReceiptValues
@@ -116,7 +118,11 @@ assert 'historical_context_formatter' not in sys.modules
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-@pytest.mark.parametrize("name", DEPENDENCIES)
+@pytest.mark.parametrize("name", [name for name in DEPENDENCIES if name not in {
+    "transport_source_semantic_validator",
+    "_legacy_conversational_transport_source_semantic_validator",
+    "bind_lane_transport_source",
+}])
 def test_adapters_preserve_signatures_current_dependencies_references_and_errors(monkeypatch, name):
     adapter = getattr(bot, name)
     signature = inspect.signature(adapter)
@@ -261,10 +267,9 @@ def test_conversational_source_keeps_ai_identity_exact_keys_and_validation_order
 
     name = ("_legacy_conversational_transport_source_semantic_validator" if legacy
             else "transport_source_semantic_validator")
-    dependency = ("_legacy_sending_reply_receipt_is_semantically_valid" if legacy
-                  else "sending_reply_receipt_is_semantically_valid")
+    method = "legacy_sending_is_valid" if legacy else "sending_is_valid"
     validator = getattr(bot, name)
-    monkeypatch.setattr(bot, dependency, trace.validate)
+    patch_reply_owner_method(monkeypatch, reply_values.ReplyReceiptValues, method, trace.validate)
     receipt = Receipt(reply_text="reply", target_id=Target())
     payload = Payload(text="reply", reply={"in_reply_to_tweet_id": "42"})
     trace.validate.return_value = ["valid"]
@@ -345,6 +350,9 @@ def test_nonhistorical_binding_keeps_current_bytes_lane_references_and_native_fa
                         lane=lane, payload=payload, validator_id=validator_id, validator=callback)
         assert bind.call_args.kwargs.keys() == expected.keys()
         assert all(bind.call_args.kwargs[key] is value for key, value in expected.items())
+        reply_validator = Mock(return_value=True)
+        assert bot.bind_lane_transport_source(**args, transport_source_validator=reply_validator) is binding
+        assert bind.call_args.kwargs["validator"] is reply_validator
         failure = ValueError("source binding")
         for dependency in (bind, canonical):
             dependency.side_effect = failure

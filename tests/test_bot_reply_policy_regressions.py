@@ -1046,7 +1046,7 @@ def test_recent_reply_evaluations_survive_nominal_cap(
         for target_id, epoch in (("a", 950), ("b", 960), ("c", 970))
     }
 
-    bot._reply_assembly()._reply_evaluation_owner().prune(state, current_epoch=1000)
+    bot._reply_assembly().reply_evaluations().prune(state, current_epoch=1000)
 
     assert list(state["reply_evaluation_records"]) == ["a", "b", "c"]
     assert any("retaining all protected records" in warning for warning in warnings)
@@ -1064,7 +1064,7 @@ def test_old_reply_evaluation_overflow_prunes_oldest_first(
         }
     }
 
-    bot._reply_assembly()._reply_evaluation_owner().prune(state, current_epoch=1000)
+    bot._reply_assembly().reply_evaluations().prune(state, current_epoch=1000)
 
     assert list(state["reply_evaluation_records"]) == ["c", "d", "e"]
 
@@ -1087,8 +1087,8 @@ def test_reply_evaluation_ties_are_deterministic(
         }
     }
 
-    bot._reply_assembly()._reply_evaluation_owner().prune(first, current_epoch=1000)
-    bot._reply_assembly()._reply_evaluation_owner().prune(second, current_epoch=1000)
+    bot._reply_assembly().reply_evaluations().prune(first, current_epoch=1000)
+    bot._reply_assembly().reply_evaluations().prune(second, current_epoch=1000)
 
     assert list(first["reply_evaluation_records"]) == ["b", "c"]
     assert first["reply_evaluation_records"] == second["reply_evaluation_records"]
@@ -1106,7 +1106,7 @@ def test_recorded_terminal_reply_evaluation_remains_replay_protection(
             for target_id, epoch in (("oldest", 1), ("older", 2))
         }
     }
-    bot._reply_assembly()._reply_evaluation_owner().record(
+    bot._reply_assembly().reply_evaluations().record(
         state,
         target_id="newest",
         lane="mention",

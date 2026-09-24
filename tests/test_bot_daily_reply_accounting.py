@@ -73,7 +73,7 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
         monkeypatch.setattr(bot, "log", current["log"])
         dates_factory = Mock(return_value=current["dates"])
         monkeypatch.setattr(bot, "_receipt_dates_owner", dates_factory)
-        owner = bot._reply_assembly()._daily_reply_accounting_owner()
+        owner = bot._reply_assembly().daily_reply_accounting()
         assert isinstance(owner, accounting.DailyReplyAccounting)
         for name, value in current.items():
             assert getattr(owner, name) is value
@@ -102,7 +102,7 @@ def test_root_adapters_preserve_arguments_result_identity_and_errors(monkeypatch
         for _ in range(2):
             owner = Mock(spec=accounting.DailyReplyAccounting)
             factory = Mock(return_value=owner)
-            monkeypatch.setattr(assembly.ReplyAssembly, "_daily_reply_accounting_owner", factory)
+            monkeypatch.setattr(assembly.ReplyAssembly, "daily_reply_accounting", factory)
             implementation = getattr(owner, method_name)
             result = object()
             implementation.return_value = result
@@ -129,7 +129,7 @@ def test_accounting_uses_receipt_dates_without_root_date_relays(monkeypatch):
             name,
             Mock(side_effect=AssertionError(f"accounting bounced through {name}")),
         )
-    owner = bot._reply_assembly()._daily_reply_accounting_owner()
+    owner = bot._reply_assembly().daily_reply_accounting()
     state = {"daily_reply_date": "stale", "daily_reply_count": 4}
     owner.reset(state)
     expected = bot.datetime.fromtimestamp(

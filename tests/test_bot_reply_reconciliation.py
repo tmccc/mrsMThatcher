@@ -80,7 +80,7 @@ assert 'single_call_reply' not in sys.modules
 COMPLETION_INPUTS = {
     "receipt_path": "CONFIRMED_REPLY_RECEIPT_FILE", "persistence_error": "ConfirmedReplyLocalPersistenceError",
     "save_state": "save_state",
-    "retire_journal": "retire_lane_transport_journal_if_present", "remove_receipt": "remove_confirmed_reply_receipt",
+    "retire_journal": "retire_lane_transport_journal_if_present",
     "log": "log",
     "unresolved_sending_receipt": "UnresolvedSendingReplyReceipt", "invalid_receipt": "InvalidConfirmedReplyReceipt",
     "verify_lineage": "verify_lane_transport_source_lineage_if_present",
@@ -127,19 +127,27 @@ def test_completion_owner_binds_current_authorities_without_runtime_access(monke
 
 
 def test_emergency_adapter_binds_current_owners_and_preserves_arguments_and_errors(monkeypatch):
-    adapter = bot._reply_assembly().emergency_representation_is_complete
+    adapter = lambda receipt, state: bot._reply_assembly().emergency_representation_is_complete(receipt, state)
     implementation = Mock(return_value=object())
     parameters = inspect.signature(reconciliation.confirmed_reply_emergency_representation_is_complete).parameters
     assert {
         "pending_ai_reply_draft_key", "confirmed_reply_receipt_is_semantically_valid",
         "conversational_reply_confirmation_epoch",
     }.isdisjoint(parameters)
-    dependencies = parameters.keys() - {"receipt", "state", "has_target_draft", "receipt_values"}
+    dependencies = parameters.keys() - {"receipt", "state", "has_target_draft", "receipt_values", "receipt_int"}
     monkeypatch.setattr(reconciliation, "confirmed_reply_emergency_representation_is_complete", implementation)
-    factory = Mock(wraps=bot._reply_assembly()._reply_draft_owner)
-    values_factory = Mock(wraps=bot._reply_assembly()._reply_receipt_values_owner)
-    monkeypatch.setattr(assembly.ReplyAssembly, "_reply_draft_owner", factory)
-    monkeypatch.setattr(assembly.ReplyAssembly, "_reply_receipt_values_owner", values_factory)
+    draft_impl = assembly.ReplyAssembly._reply_draft_owner
+    values_impl = assembly.ReplyAssembly._reply_receipt_values_owner
+    factory = Mock(side_effect=lambda owner, **kwargs: draft_impl(owner, **kwargs))
+    values_factory = Mock(side_effect=lambda owner, **kwargs: values_impl(owner, **kwargs))
+    monkeypatch.setattr(
+        assembly.ReplyAssembly, "_reply_draft_owner",
+        lambda owner, **kwargs: factory(owner, **kwargs),
+    )
+    monkeypatch.setattr(
+        assembly.ReplyAssembly, "_reply_receipt_values_owner",
+        lambda owner, **kwargs: values_factory(owner, **kwargs),
+    )
     receipt, state, owners, value_owners = {}, {}, [], []
     for index in range(2):
         current = {name: object() for name in dependencies}
@@ -154,12 +162,13 @@ def test_emergency_adapter_binds_current_owners_and_preserves_arguments_and_erro
         assert values_factory.call_count == index + 1
         args, supplied = implementation.call_args
         assert args[0] is receipt and args[1] is state
-        assert supplied.keys() == {*current, "has_target_draft", "receipt_values"}
+        assert supplied.keys() == {*current, "has_target_draft", "receipt_values", "receipt_int"}
         assert all(supplied[name] is value for name, value in current.items())
+        assert supplied["receipt_int"] is assembly._receipt_primitives.receipt_int
         callback = supplied["has_target_draft"]
         assert callback.__func__ is reply_drafts.ReplyDrafts.has_target
         assert callback.__self__.evidence_repository is evidence
-        values_factory.assert_called_with(drafts=callback.__self__)
+        assert values_factory.call_args.kwargs == {"drafts": callback.__self__}
         evidence.assert_not_called()
         owners.append(callback.__self__)
         values = supplied["receipt_values"]
@@ -195,7 +204,7 @@ def test_confirmation_and_authority_precede_counter_reset_and_clarification_conf
         ("confirmation", reply_receipt_values.ReplyReceiptValues, "confirmation_epoch",
          bot._reply_assembly()._reply_receipt_values_owner().confirmation_epoch),
         ("authority", mention_authority.MentionAuthority, "validate_pending",
-         bot._reply_assembly()._mention_authority_owner().validate_pending),
+         bot._reply_assembly().mention_authority().validate_pending),
         ("cache", tweet_lookup.TweetLookupCache, "store",
          bot._tweet_lookup_cache_owner().store),
     ):
@@ -208,7 +217,7 @@ def test_confirmation_and_authority_precede_counter_reset_and_clarification_conf
         )
     trace.clear = Mock(wraps=bot._reply_assembly()._reply_draft_owner().clear_target)
     patch_reply_draft_method(monkeypatch, "clear_target", trace.clear)
-    trace.advance = Mock(wraps=bot._reply_assembly()._daily_reply_accounting_owner().advance)
+    trace.advance = Mock(wraps=bot._reply_assembly().daily_reply_accounting().advance)
     patch_accounting_method(monkeypatch, "advance", trace.advance)
     trace.authority.return_value = (False, False)
     with pytest.raises(bot.InvalidConfirmedReplyReceipt, match="bounded pending-candidate"):
@@ -251,7 +260,7 @@ def test_accounting_calls_preserve_positions_snapshots_and_native_failures(monke
         state["replied_to_quote_post_ids"] = [target_id]
     owner = Mock(spec=daily_accounting.DailyReplyAccounting)
     factory = Mock(return_value=owner)
-    monkeypatch.setattr(assembly.ReplyAssembly, "_daily_reply_accounting_owner", factory)
+    monkeypatch.setattr(assembly.ReplyAssembly, "daily_reply_accounting", factory)
     trace = Mock()
     trace.attach_mock(owner.advance, "advance")
     trace.attach_mock(owner.record_confirmed, "record")
@@ -324,9 +333,9 @@ def test_application_keeps_queue_draft_pagination_and_cache_reference_order(monk
     trace = Mock()
     for label, owner_type, method, original in (
         ("authority", mention_authority.MentionAuthority, "validate_pending",
-         bot._reply_assembly()._mention_authority_owner().validate_pending),
+         bot._reply_assembly().mention_authority().validate_pending),
         ("ownership", mention_authority.MentionAuthority, "owns_page",
-         bot._reply_assembly()._mention_authority_owner().owns_page),
+         bot._reply_assembly().mention_authority().owns_page),
         ("remove", mention_discovery.MentionQueue, "remove_pending",
          bot._reply_assembly()._mention_queue_owner().remove_pending),
     ):
@@ -515,11 +524,11 @@ def test_clarification_application_keeps_call_order_references_and_resolved_iden
     epoch = receipt["confirmation_epoch"]
     owner = Mock(spec=reply_clarifications.ClarificationReplies)
     factory = Mock(return_value=owner)
-    monkeypatch.setattr(assembly.ReplyAssembly, "_clarification_reply_owner", factory)
+    monkeypatch.setattr(assembly.ReplyAssembly, "clarification_replies", factory)
     trace = Mock()
     trace.attach_mock(owner.assert_no_conflict, "check")
     trace.attach_mock(owner.record_completed, "record")
-    trace.advance = Mock(wraps=bot._reply_assembly()._daily_reply_accounting_owner().advance)
+    trace.advance = Mock(wraps=bot._reply_assembly().daily_reply_accounting().advance)
     patch_accounting_method(monkeypatch, "advance", trace.advance)
     patch_reply_owner_method(monkeypatch, tweet_lookup.TweetLookupCache, "store", trace.cache)
     monkeypatch.setattr(
@@ -570,7 +579,7 @@ def test_application_skips_clarification_operations_for_non_mapping_values(monke
     receipt = unit_confirmed_reply_receipt(lane="hot_post_reply")
     receipt["clarification_reply"] = clarification
     owner = Mock(spec=reply_clarifications.ClarificationReplies)
-    monkeypatch.setattr(assembly.ReplyAssembly, "_clarification_reply_owner", Mock(return_value=owner))
+    monkeypatch.setattr(assembly.ReplyAssembly, "clarification_replies", Mock(return_value=owner))
     bot._reply_assembly()._confirmed_reply_state_applier()(bot.default_state(), receipt)
     owner.assert_no_conflict.assert_not_called()
     owner.record_completed.assert_not_called()
@@ -631,10 +640,12 @@ def test_reconciliation_preserves_commit_order_references_and_failure_causes(mon
         ("lineage", "verify_lane_transport_source_lineage_if_present"),
         ("save", "save_state"),
         ("retire", "retire_lane_transport_journal_if_present"),
-        ("remove", "remove_confirmed_reply_receipt"),
         ("log", "log"),
     ):
         monkeypatch.setattr(bot, name, getattr(trace, label))
+    patch_reply_owner_method(
+        monkeypatch, reply_delivery.ReplyReceipts, "remove", trace.remove,
+    )
     for relay in ("load_confirmed_reply_receipt",):
         monkeypatch.setattr(
             bot, relay, Mock(side_effect=AssertionError(f"obsolete root relay used: {relay}")),
@@ -744,7 +755,7 @@ def test_emergency_catches_only_current_confirmation_error_inside_its_try(monkey
     trace.validate.side_effect = None
     trace.confirmation.side_effect = None
     trace.confirmation.return_value = receipt["reply_epoch"]
-    monkeypatch.setattr(bot, "receipt_int", Mock(side_effect=invalid))
+    monkeypatch.setattr(assembly._receipt_primitives, "receipt_int", Mock(side_effect=invalid))
     with pytest.raises(CurrentInvalidReceipt) as caught:
         bot._reply_assembly().emergency_representation_is_complete(receipt, state)
     assert caught.value is invalid

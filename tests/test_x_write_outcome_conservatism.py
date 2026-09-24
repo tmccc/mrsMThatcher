@@ -604,7 +604,7 @@ def test_pause_after_tweet_authority_consumption_is_prospective_and_confirms_onc
     """A pause cannot retroactively cancel a durably committed tweet attempt."""
 
     receipt = unit_sending_v4_reply_receipt(text="unit reply")
-    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=False)
+    bot._reply_assembly().reply_receipts().write(receipt, confirmed=False)
     pause_active = False
     consume_calls = 0
     request_calls = 0
@@ -681,7 +681,7 @@ def test_pause_after_tweet_authority_consumption_is_prospective_and_confirms_onc
         post_id=details.post_id,
         commit_proof=proof,
     )
-    bot.remove_confirmed_reply_receipt(confirmed, commit_proof=proof)
+    bot._reply_assembly().remove_receipt(confirmed, commit_proof=proof)
     assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
     assert not Path(details.journal_path).exists()
     assert not bot.fence_path_for_journal(Path(details.journal_path)).exists()
@@ -808,7 +808,7 @@ def test_public_post_has_no_health_io_inside_durable_transaction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     receipt = unit_sending_v4_reply_receipt(text="transaction ordering")
-    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=False)
+    bot._reply_assembly().reply_receipts().write(receipt, confirmed=False)
     events: list[str] = []
     real_begin = bot.begin_transport_transaction
     real_arm = bot.arm_transport_transaction
@@ -1538,7 +1538,7 @@ def test_valid_x_create_response_confirms_without_anomaly_or_mutation(
         target_id="100",
         text="Valid fixture reply.",
     )
-    bot._reply_assembly()._reply_receipts_owner().write(sending, confirmed=False)
+    bot._reply_assembly().reply_receipts().write(sending, confirmed=False)
     decoded = {
         "data": {
             "edit_history_tweet_ids": ["123456789"],
@@ -3475,7 +3475,7 @@ def test_deleted_mention_reply_is_terminal_without_transport_barriers_or_quota(
         post_id="900001",
         commit_proof=proof,
     )
-    bot.remove_confirmed_reply_receipt(confirmed, commit_proof=proof)
+    bot._reply_assembly().remove_receipt(confirmed, commit_proof=proof)
     assert remote_calls == ["GET /2/tweets/100", "POST /2/tweets", "later"]
     assert bot.ambiguous_remote_post_is_blocking() is False
 
@@ -3668,20 +3668,20 @@ def test_proved_rejection_receipt_retirement_failure_is_terminal_but_fails_close
         _existing_reply_target_then_deleted_create("100"),
     )
     claimed_proofs: list[object] = []
-    real_claim = bot.claim_reply_create_rejection_for_receipt_retirement
+    real_claim = error_semantics.claim_reply_create_rejection_for_receipt_retirement
 
     def capture_claim(proof: object, **kwargs: object) -> bool:
         claimed_proofs.append(proof)
         return real_claim(proof, **kwargs)
 
     monkeypatch.setattr(
-        bot,
+        error_semantics,
         "claim_reply_create_rejection_for_receipt_retirement",
         capture_claim,
     )
     monkeypatch.setattr(
-        bot,
-        "remove_confirmed_reply_receipt",
+        bot._reply_delivery.ReplyReceipts,
+        "remove",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             OSError("injected sending receipt retirement failure")
         ),
@@ -3725,7 +3725,7 @@ def test_proved_rejection_missing_receipt_at_claim_latches_terminal_barrier(
         _existing_reply_target_then_deleted_create("100"),
     )
     captured_proofs: list[object] = []
-    real_claim = bot.claim_reply_create_rejection_for_receipt_retirement
+    real_claim = error_semantics.claim_reply_create_rejection_for_receipt_retirement
 
     def remove_before_claim(proof: object, **kwargs: object) -> bool:
         captured_proofs.append(proof)
@@ -3733,7 +3733,7 @@ def test_proved_rejection_missing_receipt_at_claim_latches_terminal_barrier(
         return real_claim(proof, **kwargs)
 
     monkeypatch.setattr(
-        bot,
+        error_semantics,
         "claim_reply_create_rejection_for_receipt_retirement",
         remove_before_claim,
     )
@@ -3820,7 +3820,7 @@ def test_proved_rejection_cannot_retire_replaced_same_target_receipt(
         bot.ConfirmedReplyLocalPersistenceError,
         match="retirement unresolved",
     ):
-        bot.retire_proved_rejected_conversational_reply_receipt(
+        bot._reply_assembly().retire_rejected_receipt(
             replacement,
             caught.value,
         )
@@ -4452,7 +4452,7 @@ def test_conversational_success_retires_journal_only_after_state_commit(
         post_id="980001",
         commit_proof=proof,
     )
-    bot.remove_confirmed_reply_receipt(confirmed, commit_proof=proof)
+    bot._reply_assembly().remove_receipt(confirmed, commit_proof=proof)
 
     assert not journal_path.exists()
     assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
@@ -4542,7 +4542,7 @@ def test_made_with_ai_generic_400_never_triggers_second_create(
 
     monkeypatch.setattr(bot.requests, "request", generic_400_with_field_name)
     receipt = unit_sending_reply_receipt(text="unit reply")
-    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=False)
+    bot._reply_assembly().reply_receipts().write(receipt, confirmed=False)
 
     with pytest.raises(bot.AmbiguousRemotePostOutcome):
         bot.create_post(

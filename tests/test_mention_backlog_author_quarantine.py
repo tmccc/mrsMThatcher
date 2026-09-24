@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 import mrsMThatcher2 as bot
+import mrs_bot_reply_lane_policy as reply_lane_policy
 import mrs_log_digest as digest
 from single_call_reply import ValidatedReply
 from tests.helpers.mention_fixtures import (
@@ -1776,7 +1777,10 @@ def test_quarantine_does_not_credit_deterministic_gate_overlap(
         local_filter_calls.append(text)
         return local_spam_rejection
 
-    monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", local_filter)
+    monkeypatch.setattr(
+        reply_lane_policy, "is_probably_spam_or_not_worth_replying",
+        lambda text, **_settings: local_filter(text),
+    )
     patch_reply_owner_method(
         monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda *_args, **_kwargs: pytest.fail(
@@ -1827,7 +1831,7 @@ def test_completed_watermark_prunes_sustained_quarantine_terminal_volume() -> No
         for target_id in range(1, count + 1)
     }
 
-    bot._reply_assembly()._reply_evaluation_owner().prune(state, current_epoch=current)
+    bot._reply_assembly().reply_evaluations().prune(state, current_epoch=current)
 
     assert state["reply_evaluation_records"] == {}
 
@@ -1849,7 +1853,7 @@ def test_incomplete_backlog_quarantine_terminal_volume_stays_bounded() -> None:
         for target_id in range(1, count + 1)
     }
 
-    bot._reply_assembly()._reply_evaluation_owner().prune(state, current_epoch=current)
+    bot._reply_assembly().reply_evaluations().prune(state, current_epoch=current)
 
     assert len(state["reply_evaluation_records"]) == bot.REPLY_EVALUATION_MAX_RECORDS
     assert "1" not in state["reply_evaluation_records"]
@@ -1986,7 +1990,7 @@ def test_stale_traversal_disposes_covered_and_deduplicated_candidates(
         "105": mention(105, 205),
     }
     state["replied_to_ids"] = ["100"]
-    bot._reply_assembly()._reply_evaluation_owner().record(
+    bot._reply_assembly().reply_evaluations().record(
         state,
         target_id="98",
         lane="mention",
@@ -2459,7 +2463,7 @@ def test_new_mentions_after_backlog_are_fetched_and_duplicates_are_not_reevaluat
     state = bot.default_state()
     state["last_seen_mention_id"] = "99"
     first = bot._reply_assembly()._mention_discovery_callback()(state)
-    bot._reply_assembly()._reply_evaluation_owner().record(
+    bot._reply_assembly().reply_evaluations().record(
         state, target_id="105", lane="mention", reason="confirmed_no_reply"
     )
     retire_all_pending(state)
@@ -2584,7 +2588,7 @@ def test_repeated_token_persists_every_page_and_resets_after_queue_drains(
     restarted = bot.load_state()
     assert [row["id"] for row in bot._reply_assembly()._mention_discovery_callback()(restarted)] == ["103", "105"]
     assert len(requests) == 2
-    bot._reply_assembly()._reply_evaluation_owner().record(
+    bot._reply_assembly().reply_evaluations().record(
         restarted,
         target_id="105",
         lane="mention",

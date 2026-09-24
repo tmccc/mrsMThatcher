@@ -188,13 +188,14 @@ def test_cycle_binds_current_age_inputs_on_each_invocation(monkeypatch):
         parser = Mock(return_value=2_000_000_000)
         monkeypatch.setattr(bot, "QUOTE_REPLY_DELAY_SECONDS", threshold)
         monkeypatch.setattr(bot, "now_epoch", clock)
-        monkeypatch.setattr(bot, "parse_x_datetime_to_epoch", parser)
+        monkeypatch.setattr(context_owner, "parse_x_datetime_to_epoch", lambda value, **_kwargs: parser(value))
         assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+        assert age_check.call_args.kwargs["parse_x_datetime_to_epoch"].func is context_owner.parse_x_datetime_to_epoch
         assert age_check.call_args.kwargs == {
             "QUOTE_REPLY_DELAY_SECONDS": threshold,
             "log": bot.log,
             "now_epoch": clock,
-            "parse_x_datetime_to_epoch": parser,
+            "parse_x_datetime_to_epoch": age_check.call_args.kwargs["parse_x_datetime_to_epoch"],
         }
     assert age_check.call_count == 2
 
@@ -274,13 +275,13 @@ def test_markers_preserve_bounded_and_durable_lists_and_mutation_before_failure(
 def test_both_daily_resets_and_confirmed_reconciliation_precede_barrier_when_disabled(monkeypatch):
     _configure_cycle(monkeypatch)
     receipt = unit_confirmed_v4_reply_receipt(lane="quote_tweet", confirmation_epoch=bot.now_epoch())
-    bot._reply_assembly()._reply_receipts_owner().write(receipt, confirmed=True)
+    bot._reply_assembly().reply_receipts().write(receipt, confirmed=True)
     state = bot.default_state()
     state.update(daily_reply_date="2000-01-01", daily_reply_count=48,
                  daily_quote_reply_date="2000-01-01", daily_quote_reply_count=12)
     monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", False)
     trace = Mock()
-    accounting = bot._reply_assembly()._daily_reply_accounting_owner()
+    accounting = bot._reply_assembly().daily_reply_accounting()
     resets = {
         "reset_daily_reply_count_if_needed": "reset",
         "reset_daily_quote_reply_count_if_needed": "reset_quotes",
@@ -461,7 +462,7 @@ def test_quote_scan_keeps_fixed_ledgers_but_shares_newly_classified_spam_authors
     save = Mock(wraps=save_with_snapshot)
     trace.attach_mock(save, "save")
     monkeypatch.setattr(bot, "save_state", save)
-    monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", classify)
+    monkeypatch.setattr(bot._reply_lane_policy, "is_probably_spam_or_not_worth_replying", lambda text, **_kwargs: classify(text))
     patch_reply_owner_method(monkeypatch, generation_owner.ReplyGeneration, "evaluate", generate)
     monkeypatch.setattr(bot, "MAX_QUOTE_POSTS_PER_CHECK", 2)
 
@@ -741,7 +742,7 @@ def test_context_failures_retire_in_order_before_later_model_work(
         ("skip", "mark_quote_tweet_skipped"),
     ):
         original_callback = (
-            bot._reply_assembly()._reply_evaluation_owner().record if label == "terminal"
+            bot._reply_assembly().reply_evaluations().record if label == "terminal"
             else cycle.mark_quote_tweet_skipped if label == "skip"
             else bot._reply_assembly()._reply_generation_owner().record_result
         )

@@ -841,7 +841,7 @@ def test_test_main_tick_stops_after_reply_safety_barrier(
     )
 
     def trigger_reply_barrier(*_args: object, **_kwargs: object) -> tuple[int, int]:
-        bot._reply_assembly()._reply_receipts_owner().write(sending, confirmed=False)
+        bot._reply_assembly().reply_receipts().write(sending, confirmed=False)
         return 0, 0
 
     monkeypatch.setattr(bot, "run_reply_lane_checks_for_tick", trigger_reply_barrier)
@@ -917,7 +917,7 @@ def test_production_reply_tick_stops_sibling_lane_on_safety_failure(
     )
 
     def safety_failure(_state: dict) -> str:
-        bot._reply_assembly()._reply_receipts_owner().write(sending, confirmed=False)
+        bot._reply_assembly().reply_receipts().write(sending, confirmed=False)
         if issubclass(failure_type, bot.ApiError):
             raise failure_type("reply safety failure", service="x")
         raise failure_type("reply safety failure")
@@ -1032,7 +1032,7 @@ def test_main_reply_safety_failure_reaches_top_of_loop_barrier(
     def safety_failure(_state: dict) -> str:
         nonlocal clock_must_not_run, reply_attempts
         reply_attempts += 1
-        bot._reply_assembly()._reply_receipts_owner().write(sending, confirmed=False)
+        bot._reply_assembly().reply_receipts().write(sending, confirmed=False)
         clock_must_not_run = True
         if issubclass(failure_type, bot.ApiError):
             raise failure_type("reply safety failure", service="x")
@@ -1151,7 +1151,7 @@ def test_test_cycle_reply_safety_failure_stops_later_lane(
     )
 
     def safety_failure(_state: dict) -> str:
-        bot._reply_assembly()._reply_receipts_owner().write(sending, confirmed=False)
+        bot._reply_assembly().reply_receipts().write(sending, confirmed=False)
         if issubclass(failure_type, bot.ApiError):
             raise failure_type("reply safety failure", service="x")
         raise failure_type("reply safety failure")
