@@ -76,6 +76,8 @@ class ReplyPolicy:
     MAX_RECENT_ACCOUNT_REPLIES: int
     MAX_SAME_AUTHOR_INTERACTIONS: int
     MY_USER_ID: str
+    MY_USERNAME: str
+    SPAMMY_PATTERNS: list[str]
     OPENAI_API_KEY: str
     OPENAI_BASE: str
     REPLY_INCOMING_MAX_CHARS: int
@@ -217,12 +219,6 @@ class ReplyAssembly:
         self, *, policy: ReplyPolicy, errors: ReplyErrors,
         receipt_io: ReplyReceiptIO, transport: ReplyTransport,
         application: ReplyApplication, current: Callable[[], ReplyAssembly],
-        current_reply_config: Callable[[], dict[str, object]],
-        current_identity: Callable[[], tuple[str, str]],
-        current_spam_patterns: Callable[[], list[str]],
-        current_log: Callable[[], logging.Logger],
-        current_log_event: Callable,
-        current_now_epoch: Callable[[], Callable[[], int]],
     ) -> None:
         """Retain one operation's policy and shared authorities."""
         self.policy = policy
@@ -231,35 +227,28 @@ class ReplyAssembly:
         self.transport = transport
         self.application = application
         self.current = current
-        self.current_reply_config = current_reply_config
-        self.current_identity = current_identity
-        self.current_spam_patterns = current_spam_patterns
-        self.current_log = current_log
-        self.current_log_event = current_log_event
-        self.current_now_epoch = current_now_epoch
 
     def pipeline_enabled(self) -> bool:
         """Read the current reply strategy switch from the shared config reference."""
-        return self.current_reply_config().get("enabled") is True
+        return self.policy.single_call_reply.get("enabled") is True
 
     def reply_target_is_directly_eligible(self, tweet: dict) -> bool:
         """Check current account identity against one reply target."""
-        username, user_id = self.current_identity()
         return _reply_lane_policy.reply_target_is_directly_eligible(
-            tweet, MY_USERNAME=username, MY_USER_ID=user_id,
+            tweet, MY_USERNAME=self.policy.MY_USERNAME, MY_USER_ID=self.policy.MY_USER_ID,
         )
 
     def spam_or_not_worth_replying(self, text: str) -> bool:
         """Apply the current shared spam patterns to one candidate."""
         return _reply_lane_policy.is_probably_spam_or_not_worth_replying(
-            text, SPAMMY_PATTERNS=self.current_spam_patterns(),
-            log=self.current_log(),
+            text, SPAMMY_PATTERNS=self.policy.SPAMMY_PATTERNS,
+            log=self.application.log,
         )
 
     def dedupe_candidates(self, mentions: list[dict], hot_posts: list[dict]) -> list[dict]:
         """Merge candidates under current diagnostics."""
         return _hot_post_discovery.dedupe_reply_candidates(
-            mentions, hot_posts, log=self.current_log(),
+            mentions, hot_posts, log=self.application.log,
         )
 
     def posting_outcome(
@@ -271,7 +260,7 @@ class ReplyAssembly:
             reply=reply, status=status, lane=lane, target_id=target_id,
             failure_reason=failure_reason,
             **({"reply_post_id": reply_post_id} if reply_post_id is not None else {}),
-            log_event=self.current_log_event(),
+            log_event=self.application.log_event,
         )
 
     def log_validated_reply(
@@ -280,7 +269,7 @@ class ReplyAssembly:
         """Log only bounded metadata for a validated reply."""
         return _observability._log_validated_single_call_reply(
             target_description=target_description, target_id=target_id,
-            reply=reply, log=self.current_log(),
+            reply=reply, log=self.application.log,
         )
 
     def mark_hot_post_reply_skipped(
@@ -290,8 +279,8 @@ class ReplyAssembly:
         """Record a hot-post skip through the reply discovery owner."""
         return _hot_post_discovery.mark_hot_post_reply_skipped(
             state, reply_id, reason=reason, original_post_id=original_post_id,
-            retryable=retryable, log_event=self.current_log_event(),
-            now_epoch=self.current_now_epoch(),
+            retryable=retryable, log_event=self.application.log_event,
+            now_epoch=self.application.now_epoch,
         )
 
     def maybe_mark_hot_post_reply_skipped(

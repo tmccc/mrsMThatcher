@@ -30,6 +30,7 @@ from tests.helpers.bot_fixtures import (
     install_receipt_bound_x_request_stub,
 )
 from tests.helpers.reply_fixtures import (
+    UnitReplyEvidenceRepository,
     patch_tweet_lookup_method,
     UNIT_REPLY_REPOSITORY,
     patch_reply_owner_method,
@@ -2050,6 +2051,8 @@ def test_confirmed_reply_receipt_preserves_ai_draft_after_reconciliation(
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
     state = bot.default_state()
     state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
+    repository = UnitReplyEvidenceRepository()
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: repository)
     receipt = unit_confirmed_reply_receipt(
         target_id="100",
         reply_post_id="900000",
@@ -2057,6 +2060,7 @@ def test_confirmed_reply_receipt_preserves_ai_draft_after_reconciliation(
         text="People moved from East Germany towards West Germany in November 1989.",
         epoch=fixed_epoch,
         factual=True,
+        repository=repository,
     )
 
     bot._reply_assembly().reply_receipts().write(receipt, confirmed=True)

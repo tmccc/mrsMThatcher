@@ -34,10 +34,13 @@ Start in [mrsMThatcher2.py](../mrsMThatcher2.py):
 ## Three live paths to read first
 
 The root labels operational authority, runtime assembly and compatibility API
-sections explicitly. Its private assembly suppliers and owner factories bind
-current dependencies for each operation. Follow the caller to see whether it
-uses an assembly directly or a root adapter; composition can still obtain
-fresh dependencies from the root without re-entering a scheduler function.
+sections explicitly. `_reply_assembly()` binds policy values and application
+callbacks for one operation. The policy retains mutable configuration and spam
+pattern references; the application retains the logger, event callback and clock
+function without sampling time. Root entry points construct a new assembly for
+the next operation. Follow the caller to see whether it uses an assembly directly
+or a root adapter; send and backlog continuation explicitly request a fresh
+assembly without re-entering a scheduler function.
 
 For the normal mention/hot-post path:
 
