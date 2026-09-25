@@ -34,20 +34,22 @@ Start in [mrsMThatcher2.py](../mrsMThatcher2.py):
 ## Three live paths to read first
 
 The root labels operational authority, runtime assembly and compatibility API
-sections explicitly. Its private `_..._owner()` functions build current,
-invocation-scoped dependency graphs; adjacent public adapters are not evidence
-that production returns through the root. Definitions remain in their existing
-order where import-time safety or test monkeypatching makes movement risky.
+sections explicitly. Its private assembly suppliers and owner factories bind
+current dependencies for each operation. Follow the caller to see whether it
+uses an assembly directly or a root adapter; composition can still obtain
+fresh dependencies from the root without re-entering a scheduler function.
 
 For the normal mention/hot-post path:
 
 1. `RuntimeCoordinator.run_reply_lane_checks_for_tick()` chooses the lane and
    invokes a fresh `ReplyAssembly.run_normal` with current reply configuration
    and shared application authorities.
-2. [mrs_bot_normal_reply_cycle.py](../mrs_bot_normal_reply_cycle.py) owns
-   discovery order, admission, model-call budgets, backlog continuation and
-   status mapping. It calls `ReplyContext.build`, `ReplyDrafts.recover` and
+2. [mrs_bot_normal_reply_cycle.py](../mrs_bot_normal_reply_cycle.py) owns each
+   pass's discovery order, admission, model-call budget and status mapping. It
+   calls `ReplyContext.build`, `ReplyDrafts.recover` and
    `ReplyGeneration.evaluate` directly; a recovered draft makes no model call.
+   When a drained pending queue needs another backlog pass, it returns a
+   continuation to `ReplyAssembly.run_normal()`.
 3. A valid reply is durably drafted, copied into a sending-receipt template,
    and handed to the shared `ReplyCycleDelivery` boundary described below.
 
@@ -60,14 +62,14 @@ For the quote-tweet path:
    candidate ordering, delay/cap checks and quote-lane bookkeeping.
 3. It calls `ReplyContext.build_quote`, `ReplyDrafts.recover` and
    `ReplyGeneration.evaluate` directly, then enters the same delivery boundary.
-   The public root context, draft and generation helpers are compatibility APIs,
-   not steps in either live cycle.
 
 For the posting and durable-state boundary, start with
 `ReplyCycleDelivery.deliver` in
 [mrs_bot_reply_delivery.py](../mrs_bot_reply_delivery.py). It rechecks target
-availability, then `ReplyAssembly.post_with_current_owners` composes send-time
-receipt owners and enters `post_conversational_reply_with_durable_identity`. That flow
+availability, then `ReplyAssembly.post_with_current_owners` uses its `current`
+supplier to call `_post_with_bound_owners` on a fresh assembly. That method
+composes send-time receipt owners and enters
+`post_conversational_reply_with_durable_identity`. That flow
 publishes the sending receipt before `create_post`; `create_post` owns the
 transport journal/fence and X-create authority. On confirmed transport,
 `ReplyCompletion.finalise` in
@@ -77,26 +79,24 @@ only then removes the source receipt through `ReplyReceipts.remove`. Proved targ
 rejection is retired by `ReplyReceipts.retire_rejected`, after terminal state is
 durable; it validates the exact receipt and claims transport proof before removal.
 The root retains the sealed transport, exact source retirement, signal deferral
-and global write barrier. `ReplyAssembly` binds current values again for backlog
-continuation, send-time construction and nested receipt reads. Ambiguous outcomes
+and global write barrier. `ReplyAssembly` obtains a fresh assembly through its
+root-supplied `current` factory for backlog continuation and send-time
+construction; nested receipt reads also bind current values. Ambiguous outcomes
 preserve their durable barriers. This is the boundary to read before changing
 posting authority or persistence ordering.
 
 Bootstrap composes a fresh `LocalConfiguration` before
 `mrs_bot_runtime_configuration.apply_local_config` loads and applies overrides.
-The application owner calls `load_overrides` directly; the public
+`apply_local_config` calls `LocalConfiguration.load_overrides` directly; the public
 `load_validated_local_config_overrides` adapter remains compatible but is not on
-the production application path. `apply_local_config` retains 5 injected
-parameters, with the former loader callback replaced by the typed owner. Stable
-file inspection, complete validation and exception identity stay in
-`LocalConfiguration`; namespace mutation and logging stay in runtime
-configuration.
+the production application path. Stable file inspection, complete validation
+and exception identity stay in `LocalConfiguration`; namespace mutation and
+logging stay in runtime configuration.
 
 Each OAuth X request similarly receives fresh `XRequestRoutes` and
 `XCreateDiagnostics` owners. Request execution calls route origin/prepared-route
 classification and create-response classification/emission directly, while the
-public route and diagnostic adapters remain available. The implementation entry
-point has 39 total parameters (32 injected), down from 41 (34). Authentication,
+public route and diagnostic adapters remain available. Authentication,
 provider execution, validated error responses, transport authority and pre-send
 pause/receipt controls remain explicit boundaries. Route preparation and origin
 selection retain the current Requests capability; anomaly bytes, hashes, clock
@@ -104,13 +104,11 @@ sampling, canonical logging and exception construction keep their existing
 order and scope. Hand-off tests block all obsolete route/diagnostic relays while
 exercising the real adjacent owners for confirmed and anomalous responses.
 
-The final root-composition audit deliberately retains callbacks that carry
-fresh authority or side-effect timing: runtime-control snapshots, receipt and
+The root retains callbacks that carry fresh authority or side-effect timing:
+runtime-control snapshots, receipt and
 journal loading/retirement, durable state/history writes, provider transport,
 remote-write barriers and proof-gated removal. The local self-test also keeps
-its public loader callback as a non-production diagnostic boundary. Replacing
-those edges would require broader ownership or semantic redesign, so they are
-not treated as a zero-root-name target.
+its public loader callback as a non-production diagnostic boundary.
 
 For a conversational reply, read the lane owner first, then follow the step you
 need. A recovered draft can bypass model evaluation.
@@ -151,10 +149,11 @@ need. A recovered draft can bypass model evaluation.
 | Pre-send availability, delivery and read/write failure routing | `ReplyCycleDelivery.deliver` in [mrs_bot_reply_delivery.py](../mrs_bot_reply_delivery.py); terminal bookkeeping and status mapping stay in each lane |
 | Save draft, prepare receipt, send and commit confirmation | [mrs_bot_reply_preparation.py](../mrs_bot_reply_preparation.py), [mrs_bot_reply_delivery.py](../mrs_bot_reply_delivery.py), [mrs_bot_reply_reconciliation.py](../mrs_bot_reply_reconciliation.py) |
 
-For an ordinary quotation post, the root composes one `ImageSelection` graph at
-invocation entry. It shares one `AssetMetadata` with `QuoteCandidates`,
-`UsedHistory` and `OriginalEditorial`; the history owner also shares that
-`QuoteCandidates`. `ImageSelection.choose_pair` performs bounded quotation
+For an ordinary quotation post, `MainPostAssembly.quote_runner()` obtains an
+`ImageSelection` graph from the root-supplied selection factory. It shares one
+`AssetMetadata` with `QuoteCandidates`, `UsedHistory` and `OriginalEditorial`;
+the history owner also shares that `QuoteCandidates`.
+`ImageSelection.choose_pair` performs bounded quotation
 retries and calls `QuoteCandidates.choose` and `ImageSelection.choose_matched`
 directly. Regular posting uses the same selection owner for the legacy-history
 gate and all image-cycle recovery passes. The public metadata, history,
@@ -174,57 +173,36 @@ rows. `QuotePostRunner._prepare` converts the chosen source to `made_with_ai`,
 then binds that value in the main-post attempt and sends it through
 `MainPostPublication` to `create_post`'s request payload.
 
-This graph binds current paths, policy, clocks, exceptions and external
-boundaries on every root invocation without reading files during construction.
-`AssetMetadata` remains at 9 constructor dependencies (2 callback-typed).
-Direct composition reduces `QuoteCandidates` from 16 dependencies (7
-callback-typed) to 13 (3), `UsedHistory` from 12 (5) to 11 (2),
-`OriginalEditorial` from 13 (2) to 12 (0), and `ImageSelection` from 20 (11) to
-16 (2). The regular-post implementation entry point now has 43 total parameters
-(40 injected): the selection owner and the shared main-post receipt/value/cache
-owners replace their former root relays. Hand-off tests block the obsolete
-relays while exercising real metadata validation, source-verified migration,
-editorial comparison, bounded pair recovery and receipt hand-offs.
+The assembly also binds receipt values, storage, publication and recovery for
+the `QuotePostRunner`. Construction does not read image files or start a
+transaction; selection, metadata verification and image-cycle recovery occur
+when the runner posts.
 
-Daily meme posting similarly receives one invocation-scoped `MemeCatalog` and
-`MemeSchedule`: selection, summary construction, same-day checks and fallback
-scheduling call those owners directly. Main-post receipt application uses a
-current `MemeSchedule` for legacy date projection and quote-anchored fallback;
-due-post ticks and reconciled regular-receipt repair call `MemeSchedule` and
-`QuoteSchedule` directly. The public catalogue and scheduling adapters remain
-available outside these internal paths. `MemeCatalog`, `MemeSchedule` and
-`QuoteSchedule` retain 4, 13 and 5 constructor dependencies respectively. The
-daily-meme implementation entry point falls from 46 parameters (45 injected)
-to 42 (41), and regular receipt application now has 9 (5).
+`MainPostAssembly.meme_runner()` binds `MemeCatalog`, `MemeSchedule`, receipt
+owners, publication and recovery for `DailyMemeRunner`. Selection, summaries,
+same-day checks and fallback scheduling call the catalog and schedule owners.
+Main-post receipt application uses a current `MemeSchedule` for legacy date
+projection and quote-anchored fallback; due-post ticks and reconciled
+regular-receipt repair call `MemeSchedule` and `QuoteSchedule` directly.
 
-At each quote or meme invocation the root composes one `MainPostReceiptValues`,
-one `MainPostReceipts`, one `TweetLookupCache` and one `MainPostPublication`.
-Publication, transport preparation, `create_post`, confirmation persistence and
-regular/meme reconciliation call those typed owners directly for attempt
-validation, payload binding, storage, finalization, materialization and cache
-updates. Later operations still use `current()` so policy is rebound at the
-same boundaries as before. Public root adapters remain compatible, and the
-proof-gated `remove_main_post_attempt`, `remove_regular_post_receipt` and
-`remove_meme_post_receipt` functions remain the only retirement authorities.
-
-`MainPostPublication` now has 21 constructor dependencies (down from 23),
-`MainPostReceipts` has 17 (down from 19), and `MainPostReceiptValues` and
-`TweetLookupCache` remain at 10 and 14. Transport preparation falls from 7 to 6
-total parameters, confirmation promotion from 25 to 23, and `create_post` from
-38 total parameters (28 injected) to 36 (26). Regular and meme reconciliation
-fall from 19 to 18 and 13 to 12 parameters respectively. Hand-off tests make
-the obsolete root relays raise while exercising adjacent real owners; transport,
-journal, persistence, proof and remote-write boundaries remain explicit.
+`MainPostPublication` publishes the prepared attempt, binds transport, sends
+through `create_post`, and retains partial confirmation progress. The quote and
+meme runners own their lane-specific rollback, schedule projections and
+emergency recovery; `MainPostRecovery` handles receipt application and restart
+replay. `MainPostAssembly` obtains current policy through its `current()`
+supplier at later binding points. Its proof-gated `remove_attempt`,
+`remove_regular` and `remove_meme` methods delegate exact receipt retirement
+through `MainPostReceipts` and the root's source-retirement authority. Runner
+and recovery paths call these assembly methods directly; the public root
+removal functions also delegate to them. Transport, journal, persistence,
+proof and remote-write boundaries remain explicit.
 
 Conversational receipt composition shares one current `ReceiptDates` across
 `ReplyReceiptValues`, `DailyReplyAccounting` and confirmed-state application.
-London daily-cap conversion therefore bypasses the public date adapters while
-ambient `epoch_date_str` and receipt-bound main-post timezone conversion remain
-separate. `DailyReplyAccounting` stays at 2 constructor dependencies but drops
-its callback-typed dependency from 1 to 0. Construction remains inert: file
-catalogues, clocks, random draws and state saves begin only in invoked methods.
-Hand-off tests make obsolete relays raise while exercising real owners, DST/date
-conversion, same-day guards, retry scheduling and receipt accounting.
+London daily-cap conversion uses the shared date owner, while ambient
+`epoch_date_str` and receipt-bound main-post timezone conversion remain
+separate. Construction remains inert: file catalogues, clocks, random draws
+and state saves begin only in invoked methods.
 
 [mrs_bot_reply_cycle_interfaces.py](../mrs_bot_reply_cycle_interfaces.py) describes
 the settings and callback groups supplied to both reply lanes, and re-exports
@@ -236,63 +214,51 @@ deferred in-memory pruning;
 `quarantine_retirements_pending` tracks bookkeeping still needing a durable save.
 These are different obligations even when they arise from the same candidate.
 
-The root creates the relevant state owners once per lane invocation.
-Private lane helpers use those owners directly;
-backlog continuation re-enters the current root callback and receives fresh
-owners. Clocks, date reads and durable saves still occur at their original
-operation boundaries.
+`ReplyAssembly` builds a `NormalReplyCycle` runner for each pass and shares its
+state owners within that pass. `ReplyAssembly.run_normal()` coordinates
+successive passes when a runner returns `ContinueNormalReplyPass`: it carries
+forward the fresh-evaluation count and hot-post-fetch suppression flag, then
+obtains a fresh assembly through its
+`current` supplier for continuation. That supplier is bound to the root's
+`_reply_assembly` factory; continuation does not recursively call the root's
+scheduler-facing `maybe_reply_to_mentions` function. Clocks, date reads and
+durable saves still occur at their operation boundaries.
 
 Both reply cycles receive `ReplyContext`, `TweetLookupCache`, `ReplyGeneration`,
 `ReplyHistory`, `ApiCooldowns` and `RuntimeControls` directly. Follow
 `build`/`build_quote`, `get_cached`/`store`, `evaluate`/`record_result`,
-`recovery_replies`, `active`/`record_error` and `lane_paused` in those owners;
-the cycles no longer call their root compatibility relays. The hand-off tests in
-`tests/test_bot_normal_reply_cycle.py` and `tests/test_quote_pending_candidates.py`
-exercise these owners together with
-the relays blocked, including current history for recovery and chronological
-history for model context. The root still composes current provider, policy and
-persistence dependencies at each invocation.
+`recovery_replies`, `active`/`record_error` and `lane_paused` in those owners.
+`ReplyAssembly` supplies the current provider, policy and persistence
+dependencies when it builds each runner; current history serves recovery and
+chronological history serves model context.
 
 Discovery uses the same hand-off rule. `MentionQueue` receives
 `MentionAuthority`; mention discovery receives `TweetLookupCache` and
 `ReplyEvaluations`; hot-post discovery receives those two owners plus
 `QuoteWatchPosts`, `ApiCooldowns` and `RuntimeControls`; and the quote cycle calls
 `QuoteWatchPosts.lookup` directly.
-Each composition shares its invocation's `TweetLookupCache` with nested
-watched-post selection.
-The normal-cycle root composes the two discovery operations from the real module
-functions, so public `get_mentions` and `get_hot_post_reply_candidates` adapters
-remain compatible but are outside the cycle path. X transport and pagination
-remain callbacks, and backlog continuation still re-enters the root to acquire
-fresh owners. The corresponding discovery entry points have 20 and 25 total
-parameters; mention discovery drops from 20 to 19 injected dependencies, while
-hot-post discovery keeps 24 injected dependencies but replaces five callback
-relays with typed owners. `MentionQueue` and `QuoteWatchPosts` each retain five
-and six constructor fields respectively, with one fewer callback-typed field.
+Each composition shares its pass's `TweetLookupCache` with nested watched-post
+selection. `ReplyAssembly` binds the mention and hot-post discovery operations
+from their modules when it builds the normal runner. X transport and pagination
+remain supplied callbacks; a continuation receives fresh discovery owners
+through the assembly supplier.
 
 `ReplyGeneration` in turn receives `ReplyMedia`, `ReplyHistory`,
 `ReplyModelTransport` and `ApiCooldowns` directly. Its evaluation path calls
 `collect`, `for_evaluation`, `call`, `error`, `active` and `record_error` on
-those owners; the public root adapters
-`collect_reply_images`, `openai_responses_reply_call` and `_openai_api_error`
-remain available for compatibility but are not on either production reply path.
-The generation constructor has 15 dependencies (5 callback-typed), down from 20
-(11 callback-typed). The normal and quote cycle implementation entry points now
-have 38 and 34 total parameters respectively (37 and 33 injected dependencies),
-so backlog re-entry and lane-local policy remain explicit rather than moving
-into generation. Their hand-off tests block
-the obsolete relays while exercising actual media and history operations and the
-bound model-transport method.
+those owners. `ReplyAssembly` binds generation for each runner; lane policy and
+backlog continuation stay with the runner and assembly.
 
-Each reply-cycle root shares one `ApiCooldowns` instance with generation,
-delivery and nested hot-post discovery. The normal cycle likewise shares one
-`RuntimeControls` instance with hot-post discovery; the quote cycle receives a
-fresh control owner. `ReplyCycleDelivery` calls cooldown error routing directly,
+Each reply runner shares one `ApiCooldowns` instance with generation and
+delivery; the normal runner also shares it with nested hot-post discovery. The
+normal runner shares one `RuntimeControls` instance with hot-post discovery;
+the quote runner receives a fresh control owner. `ReplyCycleDelivery` calls
+cooldown error routing directly,
 while its posting callback still binds send-time dependencies afresh. Runtime
 state loading calls `ApiCooldowns.clear_expired` directly, and startup/main-loop
-control checks call `RuntimeControls` directly. Public cooldown/control adapters
-remain compatible. `require_remote_operation_unpaused`, instance-lock checks,
-provider transport and remote-write authorities remain operational boundaries.
+control checks call `RuntimeControls` directly.
+`require_remote_operation_unpaused`, instance-lock checks, provider transport
+and remote-write authorities remain operational boundaries.
 
 Private lane steps distinguish `SkipReplyCandidate` from
 `FinishReplyCheck(status)`, and carry `PreparedReplyContext` through preparation
@@ -320,16 +286,10 @@ the way through each lane. `ReplyDrafts` calls `ReplyHistory` and
 calls `ReplyReceipts`, `ReplyCompletion`, `TweetLookupCache` and receipt values;
 confirmed application calls `MentionAuthority`, `MentionQueue`, `ReplyDrafts`,
 `TweetLookupCache` and `ReplyHistory`. Receipt-aware global barriers are composed
-directly rather than loading through the public receipt adapter. Public root
-entry points retain their names and behavior.
-
-`ReplyDrafts` remains at 12 constructor dependencies while callback-typed fields
-fall from 5 to 3. `ReplyReceiptValues` remains at 7 and falls from 4 to 3;
-`ReplyReceipts` remains 18 (11 callback-typed); `ReplyCompletion` remains 11 and
-falls from 6 callbacks to 5; `ReplyCycleDelivery` falls from 18 dependencies
-(11 callback-typed) to 17 (6). Confirmed-state application falls from 20 total
-parameters to 17 by replacing eight relays with five typed owners. Construction
-remains inert, while each root invocation binds current runtime dependencies.
+directly rather than loading through a root receipt adapter. `ReplyAssembly`
+binds these owners for each runner and at send or reconciliation boundaries.
+Construction remains inert; the root continues to supply current runtime
+authorities where the assembly needs them.
 
 `prepare_sending_template` checks current send authority before receipt I/O and
 preserves reviewed nested objects in a fresh outer mapping. Current and frozen
@@ -355,23 +315,15 @@ Lookup tests patch `fetch` on the owner; `restore_tweet_lookup_fetch` restores i
 real transport operation when an isolated test server supplies the response.
 `ReplyContext` receives a current `TweetLookupCache` owner and calls `prune` and
 `get_cached` directly for parent traversal and directly quoted posts. The
-context-to-lookup hand-off test in `tests/test_bot_reply_context.py` blocks the
-root lookup/pruning relays while exercising cache identity, bounded parent
-fetches and transient media refresh. Normal and quote cycles receive this owner
-directly; the old root context builders and their method-level helper adapters
-are no longer APIs. `ReplyContext` also receives `ReplyMedia` directly and calls
-`context` for both normal and quote preparation; the root
-`reply_media_context_for_candidate` adapter remains public but is outside both
-production reply paths. Its constructor remains at 19 dependencies while its
-callback-typed fields fall from 7 to 6.
+normal and quote runners receive this owner through `ReplyAssembly`, which
+also supplies `ReplyMedia` to `ReplyContext` for both preparation paths. The
+root retains the tweet-cache access and provider boundaries it supplies to
+the assembly.
 
 `ClarificationReplies` receives one current `ReplyContext` and uses its parent,
-own-reply and nested tweet-cache operations directly. The obsolete root
-`get_immediate_parent_id` and `is_our_auto_reply` method adapters have been
-retired; the separate `get_tweet_by_id_cached` cache adapter remains outside
-clarification evaluation. Its constructor falls from 9 dependencies (6
-callback-typed) to 6 (2 callback-typed). Refresh tests install traps under the
-retired names while exercising the real context-to-cache hand-off.
+own-reply and nested tweet-cache operations directly. The root's separate
+`get_tweet_by_id_cached` cache adapter remains available for other callers;
+clarification evaluation uses its composed context owner.
 
 State loading, public candidate normalization and state publication each compose
 current `StateValues`, `AuthorQuarantines`, `ReplyEvaluations`,
@@ -385,15 +337,9 @@ after the commit proof and retains its distinct failure handling. Public state,
 cache and backup adapters remain compatible but are outside these internal
 paths.
 
-The candidate-normalization implementation falls from 17 total parameters (13
-injected) to 16 (12), replacing six callback/factory dependencies with five
-typed owners. `TweetLookupCache`, `StateValues`, `AuthorQuarantines`,
-`ReplyEvaluations`, `MentionAuthority`, `StateBackups` and
-`StateGenerationContext` have 14, 2, 8, 6, 5, 8 and 5 constructor fields
-respectively. The persistence entry point falls from 14 total parameters (12
-injected) to 13 (11), replacing three root relays with two owners. Hand-off tests
-block the obsolete normalization, cache epoch, backup and generation-context
-relays while exercising real loading, validation and durable publication.
+Read `StateValues` and the candidate normalizer for field validation, then
+`StateGenerationContext` and `StateBackups` for canonical publication and
+backup ordering.
 
 Quote discovery saves fetched candidates in `quote_pending_candidates` before
 advancing recent-search cursors. Pending work is returned before further search,
@@ -405,8 +351,8 @@ The discovery-to-cycle restart, candidate-budget and posting hand-offs are teste
 in `tests/test_quote_pending_candidates.py`.
 Watched-original selection seeds the recent-own-post index through
 `TweetLookupCache` directly on every lookup. Fresh watch-file reads keep their
-original timing; the public watched-post adapters remain available for callers
-and compatibility tests but are not used by reply-cycle discovery.
+original timing. The root retains a watched-post loader for self-test use;
+reply-cycle discovery uses `ReplyAssembly`'s `QuoteWatchPosts` owner.
 
 For a change to saved-draft behaviour, start with `ReplyDrafts`. Its `store`,
 `recover` and `receipt_draft_is_valid` methods call its own `validate` method;
@@ -424,12 +370,11 @@ candidate bookkeeping and saving.
 `handled_reply_target_ids` returns a fresh set of normal and legacy quote
 targets for normal/hot-post admission. It keeps durable ledgers separate and is
 not confirmation evidence.
-The root's `_reply_draft_owner()` binds current dependencies without loading
-evidence. `_reply_cycle_persistence()` creates one owner per cycle invocation
-and supplies its bound `recover`, `store`, `clear` and `retire_ineligible` methods alongside the
-existing durable-save callback. Root draft functions remain compatibility entry
-points. Draft behaviour tests live in `tests/test_bot_reply_drafts.py`; cycle
-tests retain budget, save-order and terminal-retirement checks.
+`ReplyAssembly._reply_draft_owner()` binds current dependencies without loading
+evidence. Its `_reply_cycle_persistence()` supplies bound `recover`, `store`,
+`clear` and `retire_ineligible` methods alongside the durable-save callback
+for each runner. Draft behaviour tests live in `tests/test_bot_reply_drafts.py`;
+cycle tests retain budget, save-order and terminal-retirement checks.
 
 For a change to which previous replies influence a candidate, start with
 `ReplyHistory`. Its `for_evaluation` operation selects recent replies and prior
@@ -439,9 +384,9 @@ recovery. Both share the owner's
 filtering and exclusion rules. `record_confirmation` builds a confirmed record,
 removes duplicates and applies retention limits. Reconciliation invokes it after
 caching the reply and before confirmation telemetry, and continues to control
-durable saves and receipt retirement. The root binds current clocks and limits
-through `_reply_history_owner()`; root history helpers remain compatibility
-entry points. Direct behaviour tests live in `tests/test_bot_reply_history.py`.
+durable saves and receipt retirement. `ReplyAssembly._reply_history_owner()`
+binds the current clocks and limits for each runner. Direct behaviour tests
+live in `tests/test_bot_reply_history.py`.
 
 ## Digest input, analysis and reporting
 
