@@ -1,8 +1,9 @@
 """Asset metadata loading, merging, identity checks and catalog discovery.
 
-Explicit calls read the supplied quote/image/meme metadata and discover image
-paths. The coordinator supplies current configuration, helpers, logger and stale
-image exception; it retains eligibility, selection, cache and persistence
+Explicit calls read the supplied quote/image/meme metadata and discover regular
+original-glob images plus PNGs in the same configured directory. The coordinator
+supplies current configuration, helpers, logger and stale image exception; it
+retains eligibility, selection, cache and persistence
 responsibilities. AssetMetadata binds current external inputs per operation and
 may be shared by the candidate, history, editorial and image-selection owners
 for one root call. It uses its owned loaders/overrides directly. Pure
@@ -190,7 +191,7 @@ class AssetMetadata:
     def load_image(
         self,
     ) -> dict | None:
-        """Load metadata for the original-image corpus."""
+        """Load metadata for the regular quotation-image corpus."""
         return self.load_image_file(self.image_file, label="image analysis")
 
     def quote_for_hash(
@@ -233,17 +234,31 @@ class AssetMetadata:
                     expected_source_sha,
                 )
 
-    def image_paths(
-        self,
-    ) -> list[str]:
-        """Return only original images, even when the configured glob is broad."""
+    def original_image_paths(self) -> list[str]:
+        """Return the sorted legacy glob pool used to prove numeric history."""
         images = self.glob(self.image_glob)
         images.sort()
         return [
             path for path in images
             if Path(path).is_file()
+            and Path(path).suffix.lower() in {".jpg", ".jpeg", ".png"}
             and generated_image_origin_quote_hash(Path(path).name) is None
         ]
+
+    def image_paths(
+        self,
+    ) -> list[str]:
+        """Discover original-glob images and PNGs in the same regular directory."""
+        images = set(self.original_image_paths())
+        image_dir = Path(self.image_glob).parent
+        if image_dir.is_dir():
+            images.update(
+                str(path) for path in image_dir.iterdir()
+                if path.is_file()
+                and path.suffix.lower() == ".png"
+                and generated_image_origin_quote_hash(path.name) is None
+            )
+        return sorted(images)
 
     def image_for_basename(
         self,

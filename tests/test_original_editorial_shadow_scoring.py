@@ -442,6 +442,51 @@ def test_original_editorial_selection_excludes_generated_asset_from_broad_glob(
     assert payload["eligible_original_count"] == 1
 
 
+def test_editorial_selection_retains_arbitrary_png_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image_dir = tmp_path / "images"
+    image_dir.mkdir()
+    original = image_dir / "t01.jpg"
+    generated = image_dir / "other.PnG"
+    original.write_bytes(b"original")
+    generated.write_bytes(b"generated")
+    editorial_file = tmp_path / "editorial.json"
+    _write_editorial_file(editorial_file, [original])
+    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
+    monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", True)
+    monkeypatch.setattr(bot, "ORIGINAL_EDITORIAL_ANALYSIS_FILE", str(editorial_file))
+    monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_ANALYSIS_CACHE", {})
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 10))
+    monkeypatch.setattr(
+        asset_metadata.AssetMetadata,
+        "load_image",
+        lambda _owner: image_analysis_for_paths(
+            [original, generated],
+            {
+                original.name: {"description": "original"},
+                generated.name: {"description": "generated"},
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "score_image_for_quote",
+        lambda _quote, analysis, _idf: (
+            10.0 if analysis["description"] == "generated" else 1.0,
+            {"topics": 0.0},
+            True,
+        ),
+    )
+
+    bot.validate_original_editorial_shadow_startup()
+    chosen = bot.choose_matched_unused_image(set(), _basic_quote(), {})
+    assert chosen["basename"] == generated.name
+    assert chosen["image_source"] == "generated"
+    assert "original_editorial_adjustment" not in chosen
+
+
 def test_shadow_digest_parses_and_renders_changed_winner() -> None:
     payload = {
         "quote_hash": "a" * 64,

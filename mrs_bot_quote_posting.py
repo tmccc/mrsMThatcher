@@ -5,6 +5,8 @@ prepared content and publication progress remain local to ``post``. The runner
 keeps quote-specific rollback and emergency branches; ``MainPostPublication``
 owns the durable send, and ``MainPostRecovery`` owns receipt completion. Imports
 perform no runtime work or configuration access.
+Preparation turns the selected image's generated source into the existing
+``made_with_ai`` value shared by the attempt and requested payload.
 """
 
 from __future__ import annotations

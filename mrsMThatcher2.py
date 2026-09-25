@@ -649,6 +649,7 @@ if TEST_MODE and path_is_same_or_child(BASE_DIR, PRODUCTION_BASE_DIR):
     sys.exit(2)
 
 LINES_FILE = BASE_DIR / "mrsMThatcher.txt"
+# Original photograph match; AssetMetadata also discovers adjacent PNG files.
 IMAGE_GLOB = str(BASE_DIR / "images/t*")
 QUOTE_ANALYSIS_FILE = BASE_DIR / "quote_analysis.json"
 IMAGE_ANALYSIS_FILE = BASE_DIR / "image_analysis.json"
@@ -6823,7 +6824,7 @@ def main() -> None:
 
     _log_startup_configuration()
 
-    images_at_start = glob(IMAGE_GLOB)
+    images_at_start = current_image_paths()
     log.info("Images found at startup=%d", len(images_at_start))
 
     if ENABLE_DAILY_MEME_POSTS:

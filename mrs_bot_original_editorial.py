@@ -1,7 +1,7 @@
 """Original-editorial metadata validation, scoring and winner application.
 
 The bot supplies current configuration, vocabulary, cache and AssetMetadata.
-Fixed tag/list normalization and generated-image identity come from their owners.
+Fixed tag/list normalization and legacy generated-name exclusion come from their owners.
 Only explicit loader calls read metadata and discover/hash images; enabled
 startup/selection calls emit the existing logs through the supplied logger.
 OriginalEditorial binds these current boundaries without runtime work, then calls
@@ -182,6 +182,8 @@ class OriginalEditorial:
         """Validate original editorial item."""
         if generated_image_origin_quote_hash(basename):
             raise ValueError(f"generated-style basename is not allowed in original editorial analysis: {basename}")
+        if Path(basename).suffix.lower() == ".png":
+            raise ValueError(f"PNG basename is not allowed in original editorial analysis: {basename}")
         if basename not in image_by_name:
             raise ValueError(f"original editorial image is not present in current image corpus: {basename}")
         expected_sha = str(entry.get("sha256") or "")
@@ -243,7 +245,9 @@ class OriginalEditorial:
             missing_originals = sorted(
                 basename
                 for basename in image_by_name
-                if not generated_image_origin_quote_hash(basename) and basename not in result
+                if not generated_image_origin_quote_hash(basename)
+                and Path(basename).suffix.lower() != ".png"
+                and basename not in result
             )
             if missing_originals:
                 raise ValueError(f"missing original editorial analysis for current image(s): {', '.join(missing_originals[:5])}")

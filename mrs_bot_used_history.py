@@ -5,6 +5,8 @@ QuoteCandidates to UsedHistory. Load/save and source-verified migrations call
 owned operations directly. Pure coercion/sorting and fixed JSON, hashing, regex
 and basename transforms stay local. The shared image-normalization leaf also
 supports the historical simulator's deliberately different corpus proof.
+Numeric image indices require both complete metadata and unchanged original-glob
+ordering; expanded PNG discovery cannot silently remap them.
 No caller history is retained and import performs no runtime work.
 """
 from __future__ import annotations
@@ -181,12 +183,12 @@ class UsedHistory:
         return self.quote_used_history_has_legacy_indices(images_used)
 
     def image_corpus_verified_for_legacy_migration(self, images: list[str], image_analysis: dict | None) -> bool:
-        """Return the image corpus verified for legacy migration."""
+        """Prove metadata completeness and the unchanged legacy index order."""
         if not isinstance(image_analysis, dict):
             return False
         expected = set(str(name) for name in (image_analysis.get("path_index") or {}).keys())
         visible = {Path(path).name for path in images}
-        return bool(expected) and visible == expected
+        return bool(expected) and visible == expected and images == self.metadata.original_image_paths()
 
     def load_image_used_basenames(self, images: list[str]) -> set:
         """Load image used basenames."""

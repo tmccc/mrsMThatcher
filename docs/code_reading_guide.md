@@ -133,7 +133,7 @@ need. A recovered draft can bypass model evaluation.
 | Verified tweet lookup, cache refresh and recent own-post index | `TweetLookupCache` in [mrs_bot_tweet_lookup_cache.py](../mrs_bot_tweet_lookup_cache.py) |
 | Verified normal context and two-turn quote context | `ReplyContext.build` and `build_quote` in [mrs_bot_reply_context.py](../mrs_bot_reply_context.py) |
 | Original-image editorial metadata, concepts and bounded score adjustments | `OriginalEditorial` in [mrs_bot_original_editorial.py](../mrs_bot_original_editorial.py) |
-| Quote/image/meme metadata, overrides and verified asset lookup | `AssetMetadata` in [mrs_bot_asset_metadata.py](../mrs_bot_asset_metadata.py) |
+| Quote/image/meme metadata, regular-image discovery and verified asset lookup | `AssetMetadata` in [mrs_bot_asset_metadata.py](../mrs_bot_asset_metadata.py) |
 | Eligible-image cycles, verified selection and choice diagnostics | `ImageSelection` in [mrs_bot_image_selection.py](../mrs_bot_image_selection.py) |
 | Native photo selection, retrieval and byte validation | `ReplyMedia` in [mrs_bot_reply_native_media.py](../mrs_bot_reply_native_media.py) |
 | Read, write, quote and provider cooldowns | `ApiCooldowns` in [mrs_bot_api_cooldowns.py](../mrs_bot_api_cooldowns.py) |
@@ -160,6 +160,19 @@ directly. Regular posting uses the same selection owner for the legacy-history
 gate and all image-cycle recovery passes. The public metadata, history,
 editorial, quote-selection, image-selection and pair-selection adapters remain
 available, but are outside this internal path.
+
+`AssetMetadata.image_paths` combines the existing original-image glob with
+case-insensitive PNG files in its configured directory, deduplicates paths and
+excludes legacy `tg_<64-hex-quote-hash>` assets. A discovered file must match
+the `image_analysis.json` path index, content hash and per-image analysis before
+it can pass calendar and quotation eligibility. Numeric image histories are
+migrated only when the complete metadata corpus and unchanged old glob order
+are proven; basename histories continue through the normal cycle rules.
+`ImageSelection.choose_matched` labels selected PNGs `generated` and other
+photographs `original`. Original editorial adjustments apply only to original
+rows. `QuotePostRunner._prepare` converts the chosen source to `made_with_ai`,
+then binds that value in the main-post attempt and sends it through
+`MainPostPublication` to `create_post`'s request payload.
 
 This graph binds current paths, policy, clocks, exceptions and external
 boundaries on every root invocation without reading files during construction.

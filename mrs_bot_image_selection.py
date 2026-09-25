@@ -1,4 +1,4 @@
-"""Original-image selection for regular and experimental posts.
+"""Regular quotation-image selection for original photographs and PNGs.
 
 The coordinator supplies current typed owners, settings, exception classes and logger.
 Fixed topic weighting, calendar eligibility and diagnostics use the scoring owner.
@@ -204,7 +204,7 @@ class ImageSelection:
                     "score": score,
                     "components": components,
                     "cycle_reset": cycle_reset,
-                    "image_source": "original",
+                    "image_source": "generated" if Path(path).suffix.lower() == ".png" else "original",
                     "origin_quote_hash": None,
                     "origin_quote_match": False,
                     "origin_quote_boost": 0.0,

@@ -381,6 +381,7 @@ project, but is not a production runtime dependency:
 - `semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/runtime_eligible_quote_manifest.json`
 - `semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json`
 - `images/t*.jpg`
+- PNG files in `images/` (including uppercase and mixed-case extensions)
 - `final_posting_queue_top90_as_is/images/*`
 - `final_posting_queue_top90_as_is/renamed_png_v3_top90_posting_queue.json`
 
@@ -396,14 +397,28 @@ The tracked image assets are the runtime assets used by `mrsMThatcher2.py`.
 Larger source/research meme directories such as `memes/`, `meme_hunt_001/`,
 and `meme_shortlist*/` are intentionally ignored.
 
-## Retired Generated-Image Runtime
+## Regular Quotation-Image Pool
 
-Regular posts select from the original `images/t*.jpg` pool. The generated-image
-pool, origin-quote boost, spacing rule and generated-identity policy have been
-removed from the bot runtime. Retired generated-image local configuration keys
-are ignored, so an existing configuration cannot re-enable them.
+Regular posts discover the existing original images through the `images/t*`
+glob and also discover every file with a case-insensitive `.png` suffix in that
+same configured regular-image directory. Overlapping matches appear once. The
+legacy `tg_<64-hex-quote-hash>` assets remain excluded. Every candidate still
+requires an `image_analysis.json` `path_index` entry, matching content hash and
+valid per-image analysis before seasonal and quotation matching can select it.
+Used-image history remains basename based; legacy numeric history is migrated
+only when the old glob ordering and complete analysed corpus are proven.
 
-Existing generated images, audit metadata and historical records are preserved.
+Within this regular pool, a case-insensitive `.png` suffix means `image_source`
+is `generated`; other selected photographs remain `original`. Quotation
+preparation turns `generated` into the existing `made_with_ai=True` value, which
+is bound in the prepared main-post attempt and final X request payload. This
+filename convention does not classify incoming reply media, unrelated uploads
+or daily memes. The retired quote-bound generated-image pool, origin-quote
+boost, spacing rule and generated-identity policy remain removed from the bot
+runtime. Retired generated-image local configuration keys are ignored.
+
+Existing quote-bound generated images, audit metadata and historical records
+are preserved.
 The standalone review apps, audit tools and offline future-post simulator remain
 available. The simulator's generated-image experiments use dedicated offline
 helpers under `tools/`; they do not enable generated-image selection in the bot.

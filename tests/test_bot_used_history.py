@@ -470,17 +470,24 @@ def test_quote_normalization_retains_hash_rules_mapping_and_drops_invalid_entrie
     assert raw == ["A" * 64, "b" * 64, "1", "invalid", -3]
 
 
-def test_image_corpus_proof_requires_exact_nonempty_names_and_preserves_native_errors(monkeypatch):
+def test_image_corpus_proof_requires_exact_nonempty_names_and_legacy_order(tmp_path, monkeypatch):
     paths = Mock(side_effect=Path)
     patch_history_dependency(monkeypatch, "Path", paths)
     assert bot.image_corpus_verified_for_legacy_migration(object(), None) is False
     paths.assert_not_called()
+    originals = [tmp_path / "t01.jpg", tmp_path / "t02.jpg"]
+    for path in originals:
+        path.write_bytes(path.name.encode("utf-8"))
+    monkeypatch.setattr(bot, "IMAGE_GLOB", str(tmp_path / "t*"))
+    original_paths = [str(path) for path in originals]
     for images, analysis, expected in [
         ([], {}, False),
         (["/synthetic/a.jpg"], {}, False),
         (["/synthetic/a.jpg"], {"path_index": {"a.jpg": "hash", "b.jpg": "hash"}}, False),
-        (["/synthetic/a.jpg", "/elsewhere/a.jpg"], {"path_index": {"a.jpg": "ignored"}}, True),
-        (["/synthetic/1"], {"path_index": {1: "ignored"}}, True),
+        (original_paths, {"path_index": {"t01.jpg": "hash", "t02.jpg": "hash"}}, True),
+        (list(reversed(original_paths)), {"path_index": {"t01.jpg": "hash", "t02.jpg": "hash"}}, False),
+        (["/synthetic/a.jpg", "/elsewhere/a.jpg"], {"path_index": {"a.jpg": "ignored"}}, False),
+        (["/synthetic/1"], {"path_index": {1: "ignored"}}, False),
     ]:
         assert bot.image_corpus_verified_for_legacy_migration(images, analysis) is expected
     with pytest.raises(AttributeError):

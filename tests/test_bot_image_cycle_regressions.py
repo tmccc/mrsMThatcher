@@ -23,6 +23,7 @@ from tests.helpers.bot_fixtures import (
     image_analysis_for_paths,
     configure_simple_quote_post,
     mock_confirmed_main_post,
+    install_receipt_bound_x_request_stub,
     write_image_analysis,
 )
 
@@ -542,6 +543,51 @@ def test_original_regular_image_posts_without_made_with_ai(
     assert create_calls[0]["made_with_ai"] is False
     assert state["original_regular_posts_since_generated_image"] == 0
     assert "GENERATED_IMAGE_SPACING_STATE_UPDATED" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "chosen_name,other_name,made_with_ai",
+    [
+        ("arbitrary.PnG", "t01.jpg", True),
+        ("t01.jpg", "arbitrary.PnG", False),
+    ],
+)
+def test_regular_catalog_choice_binds_prepared_attempt_and_requested_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    chosen_name: str,
+    other_name: str,
+    made_with_ai: bool,
+) -> None:
+    actual_create_post = bot.create_post
+    lines_used, images_used, state, _paths = configure_image_cycle_post(
+        tmp_path,
+        monkeypatch,
+        image_analyses={"t01.jpg": portrait_analysis(), "arbitrary.PnG": portrait_analysis()},
+        quote_analyses={0: {"seasonality": {"hard_exclude_outside_windows": False}}},
+        quotes=["One quotation."],
+    )
+    images_used.add(other_name)
+    observed = []
+
+    def local_transport(method: str, path: str, **kwargs: object) -> dict:
+        status, attempt = bot.load_regular_post_receipt()
+        assert status == "sending" and attempt is not None
+        observed.append((method, path, attempt, kwargs["json"]))
+        return {"data": {"id": "950001"}}
+
+    monkeypatch.setattr(bot, "create_post", actual_create_post)
+    install_receipt_bound_x_request_stub(monkeypatch, local_transport)
+    bot.post_random_quote(lines_used, images_used, state)
+
+    assert len(observed) == 1
+    method, path, attempt, payload = observed[0]
+    assert (method, path) == ("POST", "/2/tweets")
+    assert attempt["selected_identity"]["image_basename"] == chosen_name
+    assert attempt["made_with_ai"] is made_with_ai
+    assert payload == bot.main_post_attempt_payload(attempt)
+    assert payload.get("made_with_ai") is (True if made_with_ai else None)
+    assert state["last_regular_image_filename"] == chosen_name
 
 
 def test_failed_regular_post_attempt_preserves_legacy_counter(

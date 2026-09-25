@@ -314,11 +314,12 @@ def test_strong_in_window_quote_weight_exceeds_ordinary_weight() -> None:
     assert bot.quote_candidate_weight(strong, today_mm_dd="12-20")[0] > bot.quote_candidate_weight(ordinary, today_mm_dd="12-20")[0]
 
 
-def test_image_used_history_integer_entries_migrate_to_basenames(tmp_path: Path) -> None:
+def test_image_used_history_integer_entries_migrate_to_basenames(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     paths = [tmp_path / "t01.jpg", tmp_path / "t02.jpg"]
     for path in paths:
         path.write_bytes(path.name.encode("utf-8"))
     images = [str(path) for path in paths]
+    monkeypatch.setattr(bot, "IMAGE_GLOB", str(tmp_path / "t*"))
 
     migrated, changed = bot.normalise_image_used_basenames({0, 1}, images, image_analysis_for_paths(paths))
 
@@ -326,11 +327,12 @@ def test_image_used_history_integer_entries_migrate_to_basenames(tmp_path: Path)
     assert changed is True
 
 
-def test_image_used_history_mixed_entries_migrate_and_preserve_missing_basenames(tmp_path: Path) -> None:
+def test_image_used_history_mixed_entries_migrate_and_preserve_missing_basenames(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     paths = [tmp_path / "t01.jpg", tmp_path / "t02.jpg"]
     for path in paths:
         path.write_bytes(path.name.encode("utf-8"))
     images = [str(path) for path in paths]
+    monkeypatch.setattr(bot, "IMAGE_GLOB", str(tmp_path / "t*"))
 
     migrated, changed = bot.normalise_image_used_basenames({0, "t02.jpg", "missing.jpg"}, images, image_analysis_for_paths(paths))
 
