@@ -74,7 +74,7 @@ SIGNATURES = {'remote_write_transport_journal_paths': "() -> 'tuple[Path, ...]'"
                                "'dict') -> 'SourceReceiptBinding'",
  'block_if_unrelated_receipt_appeared_for_tweet_transport': "(expected_receipt_path: 'Path') -> 'None'",
  'block_if_unrelated_receipt_appeared_for_media_transport': "() -> 'None'",
- 'prepare_main_tweet_transport': "(attempt: 'dict') -> 'tuple[dict, SourceReceiptBinding, "
+ 'prepare_main_tweet_transport': "(attempt: 'SendingMainPostAttempt') -> 'tuple[AttemptingMainPostAttempt, SourceReceiptBinding, "
                                  "TransportAuthority]'",
  'validate_confirmed_media_upload_metadata': "(confirmation: 'ConfirmedMediaUpload') -> 'None'"}
 
@@ -108,7 +108,7 @@ assert 'requests' not in sys.modules
 assert 'single_call_reply' not in sys.modules
 assert 'transaction_mutation_authority' not in sys.modules
 assert mrs_bot_transport_source_preparation.bind_lane_transport_source.__annotations__['return'] == 'SourceReceiptBinding'
-assert mrs_bot_transport_source_preparation.prepare_main_tweet_transport.__annotations__['return'] == 'tuple[dict, SourceReceiptBinding, TransportAuthority]'
+assert mrs_bot_transport_source_preparation.prepare_main_tweet_transport.__annotations__['return'] == 'tuple[AttemptingMainPostAttempt, SourceReceiptBinding, TransportAuthority]'
 assert 'historical_context_formatter' not in sys.modules
 """
     result = subprocess.run(

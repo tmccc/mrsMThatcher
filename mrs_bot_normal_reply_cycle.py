@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from mrs_bot_runtime_state_helpers import append_unique_durable
 
@@ -29,12 +29,17 @@ from mrs_bot_reply_cycle_interfaces import (
     NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN,
     NORMAL_CHECK_STATUS_SKIPPED_SPACING,
     FinishReplyCheck,
+    LogReplyEvent,
+    LogReplyPostingOutcome,
+    LogValidatedReply,
+    MarkHotPostSkipped,
     NormalReplyConfig,
     PreparedReplyContext,
     ReplyCandidateDiscovery,
     ReplyCycleDelivery,
     ReplyCyclePersistence,
     SkipReplyCandidate,
+    SortRawTweets,
 )
 from mrs_bot_reply_delivery import ReplyDeliveryStop
 from mrs_bot_reply_evaluation_state import (
@@ -46,8 +51,11 @@ from mrs_bot_reply_preparation import (
     persist_validated_reply_draft,
 )
 from mrs_bot_reply_state import handled_reply_target_ids, retire_ineligible_reply_draft
+from mrs_bot_reply_outcomes import outcome_disposition
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import ConfirmedReplyReceipt, ReplyContextData, ReplyMediaContext
+    from mrsMThatcher2 import ApiError as ApiErrorValue
     from mrs_bot_api_cooldowns import ApiCooldowns
     from mrs_bot_mention_discovery import MentionQueue
     from mrs_bot_author_quarantines import AuthorQuarantines
@@ -59,14 +67,14 @@ if TYPE_CHECKING:
     from mrs_bot_reply_history import ReplyHistory
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
     from mrs_bot_runtime_control import RuntimeControls
-    from single_call_reply import PipelineResult, ValidatedReply as ValidatedReplyValue
+    from single_call_reply import PipelineOutcome, PipelineResult, ValidatedReply as ValidatedReplyValue
 
 
 @dataclass(frozen=True)
 class _ReplyCandidate:
     """Keep the original candidate and its once-read identity/source attribution."""
 
-    mention: dict
+    mention: dict[str, Any]
     mention_id: str
     author_id: str
     incoming_text: str
@@ -86,7 +94,7 @@ class _ReplyCycleProgress:
 
     def prune_quarantine_retirement_batch(
         self,
-        state: dict,
+        state: dict[str, Any],
         reply_evaluations: ReplyEvaluations,
     ) -> None:
         """Prune the pending batch before its caller durably saves the state."""
@@ -98,7 +106,7 @@ class _ReplyCycleProgress:
 
     def flush_quarantine_retirements(
         self,
-        state: dict,
+        state: dict[str, Any],
         reply_evaluations: ReplyEvaluations,
         persistence: ReplyCyclePersistence,
     ) -> None:
@@ -126,38 +134,40 @@ class NormalReplyCycle:
         *,
         delivery: ReplyCycleDelivery,
         author_quarantines: AuthorQuarantines,
-        ApiError: type[Exception],
+        ApiError: type[ApiErrorValue],
         config: NormalReplyConfig,
-        PipelineResult: type,
+        PipelineResult: type[PipelineResult],
         RemoteOperationsPaused: type[Exception],
         ReplyEvidenceUnavailable: type[Exception],
         SINGLE_CALL_STRATEGY_VERSION: str,
-        ValidatedReply: type,
-        _log_validated_single_call_reply: Callable,
+        ValidatedReply: type[ValidatedReplyValue],
+        _log_validated_single_call_reply: LogValidatedReply,
         generation: ReplyGeneration,
         reply_contexts: ReplyContext,
         tweets: TweetLookupCache,
         clarifications: ClarificationReplies,
         persistence: ReplyCyclePersistence,
-        conversational_reply_pipeline_enabled: Callable,
+        conversational_reply_pipeline_enabled: Callable[[], bool],
         accounting: DailyReplyAccounting,
-        dedupe_reply_candidates: Callable,
+        dedupe_reply_candidates: Callable[
+            [list[dict[str, Any]], list[dict[str, Any]]], list[dict[str, Any]]
+        ],
         get_hot_post_reply_candidates: ReplyCandidateDiscovery,
         get_mentions: ReplyCandidateDiscovery,
         cooldowns: ApiCooldowns,
-        is_probably_spam_or_not_worth_replying: Callable,
+        is_probably_spam_or_not_worth_replying: Callable[[str], bool],
         controls: RuntimeControls,
         log: Logger,
-        log_ai_reply_posting_outcome: Callable,
-        log_event: Callable,
+        log_ai_reply_posting_outcome: LogReplyPostingOutcome,
+        log_event: LogReplyEvent,
         mention_queue: MentionQueue,
-        maybe_mark_hot_post_reply_skipped: Callable,
-        now_epoch: Callable,
+        maybe_mark_hot_post_reply_skipped: MarkHotPostSkipped,
+        now_epoch: Callable[[], int],
         reply_evaluations: ReplyEvaluations,
         history: ReplyHistory,
-        reply_evidence_repository: Callable,
-        reply_target_is_directly_eligible: Callable,
-        valid_tweets_sorted_by_id: Callable,
+        reply_evidence_repository: Callable[[], object],
+        reply_target_is_directly_eligible: Callable[[dict[str, Any]], bool],
+        valid_tweets_sorted_by_id: SortRawTweets,
     ) -> None:
         """Bind stable collaborators for one normal reply pass."""
         self.delivery = delivery
@@ -201,7 +211,7 @@ class NormalReplyCycle:
 
     def run(
         self,
-        state: dict,
+        state: dict[str, Any],
         *,
         _fresh_mention_ai_evaluations: int = 0,
         _skip_hot_post_fetch: bool = False,
@@ -416,15 +426,15 @@ class NormalReplyCycle:
                 return evaluation_result.status
             if isinstance(evaluation_result, SkipReplyCandidate):
                 continue
-            reply_text = evaluation_result.reply
-
-            if not reply_text:
+            disposition = outcome_disposition(evaluation_result)
+            if disposition != "ready" or evaluation_result.status != "reply":
                 outcome = self._retire_or_defer_no_reply(
                     state, candidate, evaluation_result, current
                 )
                 if isinstance(outcome, FinishReplyCheck):
                     return outcome.status
                 continue
+            reply_text = evaluation_result.reply
 
             receipt_template = self._prepare_reply_receipt(
                 state, candidate, reply_text, reply_context, clarification
@@ -463,7 +473,7 @@ class NormalReplyCycle:
 
     def _candidate_is_eligible(
         self,
-        state: dict,
+        state: dict[str, Any],
         candidate: _ReplyCandidate,
         replied_to_ids: set[str],
         progress: _ReplyCycleProgress,
@@ -585,9 +595,9 @@ class NormalReplyCycle:
 
     def _author_allows_evaluation(
         self,
-        state: dict,
+        state: dict[str, Any],
         candidate: _ReplyCandidate,
-        clarification: dict | None,
+        clarification: dict[str, Any] | None,
         current: int,
         progress: _ReplyCycleProgress,
     ) -> bool:
@@ -697,7 +707,7 @@ class NormalReplyCycle:
         return True
 
     def _prepare_reply_context(
-        self, state: dict, candidate: _ReplyCandidate, clarification: dict | None
+        self, state: dict[str, Any], candidate: _ReplyCandidate, clarification: dict[str, Any] | None
     ) -> PreparedReplyContext | SkipReplyCandidate | FinishReplyCheck:
         """Build canonical context and media, preserving the narrow context error boundary."""
         try:
@@ -789,12 +799,12 @@ class NormalReplyCycle:
 
     def _evaluate_reply(
         self,
-        state: dict,
+        state: dict[str, Any],
         candidate: _ReplyCandidate,
-        reply_context: dict,
-        media_context: object,
+        reply_context: ReplyContextData,
+        media_context: ReplyMediaContext | None,
         progress: _ReplyCycleProgress,
-    ) -> PipelineResult | SkipReplyCandidate | FinishReplyCheck:
+    ) -> PipelineOutcome | SkipReplyCandidate | FinishReplyCheck:
         """Recover or generate a draft, charging only fresh mention model evaluations."""
         evaluation = self.persistence.recover(
             state,
@@ -870,9 +880,9 @@ class NormalReplyCycle:
 
     def _retire_or_defer_no_reply(
         self,
-        state: dict,
+        state: dict[str, Any],
         candidate: _ReplyCandidate,
-        evaluation: PipelineResult,
+        evaluation: PipelineOutcome,
         current: int,
     ) -> SkipReplyCandidate | FinishReplyCheck:
         """Distinguish terminal local/editorial outcomes from retryable evaluation failures."""
@@ -910,7 +920,7 @@ class NormalReplyCycle:
             self.mention_queue.mark_seen(state, candidate.mention)
             self.persistence.save(state, durable=True)
             return SkipReplyCandidate()
-        if evaluation.status != "no_reply":
+        if outcome_disposition(evaluation) != "no_reply":
             self.log.warning(
                 "Deferring %s %s after operational reply failure reason=%s",
                 candidate.source,
@@ -952,12 +962,12 @@ class NormalReplyCycle:
 
     def _prepare_reply_receipt(
         self,
-        state: dict,
+        state: dict[str, Any],
         candidate: _ReplyCandidate,
-        reply_text: object,
-        reply_context: dict,
-        clarification: dict | None,
-    ) -> dict | FinishReplyCheck:
+        reply_text: ValidatedReplyValue,
+        reply_context: ReplyContextData,
+        clarification: dict[str, Any] | None,
+    ) -> dict[str, Any] | FinishReplyCheck:
         """Persist the validated draft and bind receipt provenance before transport handling."""
         if not isinstance(reply_text, self.ValidatedReply):
             self.log.error(
@@ -1033,7 +1043,7 @@ class NormalReplyCycle:
 
     def _retire_terminal_target(
         self,
-        state: dict,
+        state: dict[str, Any],
         candidate: _ReplyCandidate,
         replied_to_ids: set[str],
         reply_text: ValidatedReplyValue,
@@ -1074,12 +1084,12 @@ class NormalReplyCycle:
 
     def _deliver_reply(
         self,
-        state: dict,
+        state: dict[str, Any],
         candidate: _ReplyCandidate,
         replied_to_ids: set[str],
         reply_text: ValidatedReplyValue,
-        receipt_template: dict,
-    ) -> dict | FinishReplyCheck:
+        receipt_template: dict[str, Any],
+    ) -> ConfirmedReplyReceipt | FinishReplyCheck:
         """Deliver through the shared boundary, retaining normal-lane retirement and statuses."""
 
         def retire_terminal_target(failure_reason: str) -> None:
@@ -1122,7 +1132,7 @@ class NormalReplyCycle:
         return outcome
 
     def _finalise_confirmed_reply(
-        self, state: dict, candidate: _ReplyCandidate, receipt: dict
+        self, state: dict[str, Any], candidate: _ReplyCandidate, receipt: ConfirmedReplyReceipt
     ) -> str:
         """Finish the shared confirmation transaction and report this lane's success."""
         own_reply_id = self.delivery.finalise(

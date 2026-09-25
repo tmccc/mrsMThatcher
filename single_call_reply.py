@@ -20,7 +20,9 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Literal, Mapping, Protocol, Sequence, TypeAlias, TypedDict, cast
+
+from mrs_bot_reply_outcomes import ReplyDisposition, outcome_disposition, _unsupported_outcome
 
 from single_call_reply_grounding import MAX_FACTUAL_CLAIMS, canonical_time_context, grounding_errors
 from single_call_reply_images import verify_complete_image
@@ -30,6 +32,10 @@ from single_call_reply_validation import (
     normalise_validation_error_codes,
     rejected_reply_text_fields,
 )
+
+if TYPE_CHECKING:
+    from mrs_bot_core_contracts import CurrentReplyDraft
+    from reply_evidence import EvidenceRepository
 
 
 STRATEGY_VERSION = "single-sol-reply-20260904"
@@ -353,7 +359,178 @@ class PipelineResult:
     rejected_reply_text_character_count: int | None = None
 
 
-ModelTransport = Callable[..., Mapping[str, Any]]
+class PipelineTelemetry(Protocol):
+    """Shared accounting carried by every checked evaluation outcome."""
+
+    @property
+    def reason(self) -> str:
+        """Expose the checked reason value."""
+        ...
+
+    @property
+    def model_call_count(self) -> int:
+        """Expose the checked model_call_count value."""
+        ...
+
+    @property
+    def error_category(self) -> str | None:
+        """Expose the checked error_category value."""
+        ...
+
+    @property
+    def reply_kind(self) -> str | None:
+        """Expose the checked reply_kind value."""
+        ...
+
+    @property
+    def reason_code(self) -> str | None:
+        """Expose the checked reason_code value."""
+        ...
+
+    @property
+    def provider_status_code(self) -> int | None:
+        """Expose the checked provider_status_code value."""
+        ...
+
+    @property
+    def provider_reset_epoch(self) -> int | None:
+        """Expose the checked provider_reset_epoch value."""
+        ...
+
+    @property
+    def provider_retry_after_seconds(self) -> int | None:
+        """Expose the checked provider_retry_after_seconds value."""
+        ...
+
+    @property
+    def provider_request_attempt_count(self) -> int:
+        """Expose the checked provider_request_attempt_count value."""
+        ...
+
+    @property
+    def provider_usage(self) -> dict[str, int]:
+        """Expose provider usage counters without copying the source mapping."""
+        ...
+
+    @property
+    def provider_response_id(self) -> str | None:
+        """Expose the provider response identity when one exists."""
+        ...
+
+    @property
+    def provider_latency_ms(self) -> int | None:
+        """Expose measured provider latency when one exists."""
+        ...
+
+    @property
+    def call_id(self) -> str | None:
+        """Expose the current call identity when one exists."""
+        ...
+
+
+class ReplyReady(PipelineTelemetry, Protocol):
+    """Successful local decision with a validated reply value."""
+
+    @property
+    def status(self) -> Literal["reply"]:
+        """Expose the checked status value."""
+        ...
+
+    @property
+    def reply(self) -> ValidatedReply:
+        """Expose the checked reply value."""
+        ...
+
+
+class NoReply(PipelineTelemetry, Protocol):
+    """Successful editorial decision to remain silent."""
+
+    @property
+    def status(self) -> Literal["no_reply"]:
+        """Expose the checked status value."""
+        ...
+
+    @property
+    def reply(self) -> None:
+        """Expose the checked reply value."""
+        ...
+
+
+class EvaluationFailed(PipelineTelemetry, Protocol):
+    """Operational or local evaluation failure with no approved reply."""
+
+    @property
+    def status(self) -> Literal["operational_failure"]:
+        """Expose the checked status value."""
+        ...
+
+    @property
+    def reply(self) -> None:
+        """Expose the checked reply value."""
+        ...
+
+
+class PipelineDisabled(PipelineTelemetry, Protocol):
+    """Pipeline was disabled before a provider request."""
+
+    @property
+    def status(self) -> Literal["disabled"]:
+        """Expose the checked status value."""
+        ...
+
+    @property
+    def reply(self) -> None:
+        """Expose the checked reply value."""
+        ...
+
+
+class DraftDiscarded(PipelineTelemetry, Protocol):
+    """An obsolete or invalid historical draft was discarded."""
+
+    @property
+    def status(self) -> Literal["draft_discarded"]:
+        """Expose the checked status value."""
+        ...
+
+    @property
+    def reply(self) -> None:
+        """Expose the checked reply value."""
+        ...
+
+
+PipelineOutcome: TypeAlias = (
+    ReplyReady | NoReply | EvaluationFailed | PipelineDisabled | DraftDiscarded
+)
+
+def checked_pipeline_outcome(result: PipelineResult) -> PipelineOutcome:
+    """Narrow a real result in place after checking its coupled status and reply.
+
+    The same frozen dataclass object is returned.  This keeps injected result
+    classes, telemetry identity and dataclass serialisation compatible.
+    """
+    if result.status == "reply" and isinstance(result.reply, ValidatedReply):
+        return cast(ReplyReady, result)
+    if result.reply is None:
+        if result.status == "no_reply":
+            return cast(NoReply, result)
+        if result.status == "operational_failure":
+            return cast(EvaluationFailed, result)
+        if result.status == "disabled":
+            return cast(PipelineDisabled, result)
+        if result.status == "draft_discarded":
+            return cast(DraftDiscarded, result)
+    raise ValueError("single-call result has an unsupported status/reply combination")
+
+
+class ModelTransport(Protocol):
+    """The operation-bound provider transport used for one Responses request."""
+
+    def __call__(
+        self, *, request: dict[str, Any], timeout_seconds: int,
+        lane: str, target_id: str,
+    ) -> Mapping[str, Any]:
+        """Send one checked request with the exact production keywords."""
+        ...
 
 
 def utc_now() -> str:
@@ -683,7 +860,7 @@ def _trusted_facts(
     context: Mapping[str, Any],
     visible: Sequence[Mapping[str, str]],
     quoted_subject: Mapping[str, str] | None,
-    repository: object,
+    repository: EvidenceRepository,
 ) -> tuple[list[dict[str, str]], dict[str, dict[str, str]]]:
     # Resolve quotation identity from the same canonical text the model sees;
     # Internal history must not steer fact selection.  A separately labelled
@@ -730,7 +907,7 @@ def _trusted_facts(
     return compact_fact_records(records)
 
 
-def _fact_source_record(repository: object, identity: object) -> dict | None:
+def _fact_source_record(repository: object, identity: object) -> dict[str, Any] | None:
     """Resolve local account authority and corpus evidence identically on recovery."""
 
     if identity == _ACCOUNT_FACT_RECORD["evidence_id"]:
@@ -897,7 +1074,7 @@ def _image_context(
 def build_model_payload(
     *,
     context: Mapping[str, Any],
-    repository: object,
+    repository: EvidenceRepository,
     same_author_interactions: Sequence[Mapping[str, str]] = (),
     recent_account_replies: Sequence[object] = (),
     supplied_images: Sequence[Mapping[str, Any]] = (),
@@ -1930,7 +2107,7 @@ def validate_persisted_draft(
     context: Mapping[str, Any],
     repository: object,
     recent_account_replies: Sequence[object] = (),
-) -> dict[str, Any]:
+) -> CurrentReplyDraft:
     """Revalidate only the current strategy's durable draft without a model call."""
 
     draft_fields = set(draft) if isinstance(draft, dict) else set()
@@ -2115,10 +2292,30 @@ def validate_persisted_draft(
         # draft hash and optional call ID have already passed validation.
         exc.persisted_draft_call_id = draft.get("call_id")
         raise
-    return copy.deepcopy(draft)
+    # Field set, exact hash, bindings and the reconstructed local reply have
+    # all been checked above.  Keep the same validated dictionary representation.
+    return cast("CurrentReplyDraft", copy.deepcopy(draft))
 
 
-def _result_counts(payload: Mapping[str, Any] | None) -> dict[str, int]:
+class _ResultCounts(TypedDict):
+    """Counters always supplied together by the model payload builder."""
+
+    visible_turn_count: int
+    visible_character_count: int
+    same_author_interaction_count: int
+    recent_conversational_reply_count: int
+    trusted_fact_count: int
+
+
+class _TransportMetadata(TypedDict):
+    """Validated optional provider timing values from one transport response."""
+
+    provider_status_code: int | None
+    provider_reset_epoch: int | None
+    provider_retry_after_seconds: int | None
+
+
+def _result_counts(payload: Mapping[str, Any] | None) -> _ResultCounts:
     if payload is None:
         return {
             "visible_turn_count": 0,
@@ -2149,25 +2346,25 @@ def run_reply_pipeline(
     *,
     context: Mapping[str, Any],
     config: Mapping[str, Any],
-    repository: object,
+    repository: EvidenceRepository,
     transport: ModelTransport,
     same_author_interactions: Sequence[Mapping[str, str]] = (),
     recent_account_replies: Sequence[object] = (),
     supplied_images: Sequence[Mapping[str, Any]] = (),
     visual_description: object = None,
-) -> PipelineResult:
+) -> PipelineOutcome:
     """Make one authoritative Sol decision or return an operational failure."""
 
     config_errors = validate_config(config)
     if config_errors:
-        return PipelineResult(
+        return checked_pipeline_outcome(PipelineResult(
             status="operational_failure",
             reason="invalid_config",
             error_category="configuration",
             local_validation_status="failed",
-        )
+        ))
     if config.get("enabled") is not True:
-        return PipelineResult(status="disabled", reason="pipeline_disabled")
+        return checked_pipeline_outcome(PipelineResult(status="disabled", reason="pipeline_disabled"))
     payload: dict[str, Any] | None = None
     fact_map: dict[str, dict[str, str]] = {}
     images: list[dict[str, Any]] = []
@@ -2185,14 +2382,14 @@ def run_reply_pipeline(
             payload, supplied_images=images
         )
     except (ContextValidationError, TypeError, ValueError, UnicodeError) as exc:
-        return PipelineResult(
+        return checked_pipeline_outcome(PipelineResult(
             status="operational_failure",
             reason="model_input_validation_failed",
             error_category="context_validation",
             local_validation_status="failed",
             supplied_image_count=len(images),
             **_result_counts(payload),
-        )
+        ))
     counts = _result_counts(payload)
     payload_hash = value_sha256(payload)
     try:
@@ -2221,7 +2418,7 @@ def run_reply_pipeline(
             # provider/connection failure.  An unlabelled exception is a local
             # transport-boundary defect, not evidence that OpenAI is unhealthy.
             error_category = "transport_internal"
-        return PipelineResult(
+        return checked_pipeline_outcome(PipelineResult(
             status="operational_failure",
             reason="provider_request_failed",
             error_category=error_category,
@@ -2255,7 +2452,7 @@ def run_reply_pipeline(
                 else None
             ),
             **counts,
-        )
+        ))
     if not isinstance(transport_result, Mapping):
         transport_result = {}
     raw_response = transport_result.get("response", transport_result)
@@ -2267,7 +2464,7 @@ def run_reply_pipeline(
     transport_status = transport_result.get("provider_status_code")
     transport_reset = transport_result.get("provider_reset_epoch")
     transport_retry_after = transport_result.get("provider_retry_after_seconds")
-    transport_metadata = {
+    transport_metadata: _TransportMetadata = {
         "provider_status_code": (
             transport_status
             if type(transport_status) is int and 100 <= transport_status <= 599
@@ -2299,7 +2496,7 @@ def run_reply_pipeline(
             if isinstance(exc, ReplyValidationError)
             else None
         )
-        return PipelineResult(
+        return checked_pipeline_outcome(PipelineResult(
             status="operational_failure",
             reason="model_response_validation_failed",
             error_category=str(getattr(exc, "category", "local_validation")),
@@ -2323,9 +2520,9 @@ def run_reply_pipeline(
             call_id=(call_id if isinstance(call_id, str) and call_id else None),
             **transport_metadata,
             **counts,
-        )
+        ))
     if output["decision"] == "no_reply":
-        return PipelineResult(
+        return checked_pipeline_outcome(PipelineResult(
             status="no_reply",
             reason=str(output["reason_code"]),
             decision="no_reply",
@@ -2343,7 +2540,7 @@ def run_reply_pipeline(
             call_id=(call_id if isinstance(call_id, str) and call_id else None),
             **transport_metadata,
             **counts,
-        )
+        ))
     try:
         draft = create_durable_draft(
             output=output,
@@ -2354,7 +2551,7 @@ def run_reply_pipeline(
             call_id=(call_id if isinstance(call_id, str) and call_id else None),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return PipelineResult(
+        return checked_pipeline_outcome(PipelineResult(
             status="operational_failure",
             reason="durable_draft_creation_failed",
             error_category="draft_validation",
@@ -2373,7 +2570,7 @@ def run_reply_pipeline(
             call_id=(call_id if isinstance(call_id, str) and call_id else None),
             **transport_metadata,
             **counts,
-        )
+        ))
     metadata = {
         "strategy_version": STRATEGY_VERSION,
         "reply_kind": output["reply_kind"],
@@ -2386,7 +2583,7 @@ def run_reply_pipeline(
         "call_id": call_id if isinstance(call_id, str) and call_id else None,
     }
     reply = ValidatedReply(str(output["reply"]), draft, metadata)
-    return PipelineResult(
+    return checked_pipeline_outcome(PipelineResult(
         status="reply",
         reason="useful_reply",
         decision="reply",
@@ -2405,7 +2602,7 @@ def run_reply_pipeline(
         call_id=(call_id if isinstance(call_id, str) and call_id else None),
         **transport_metadata,
         **counts,
-    )
+    ))
 
 
 def decision_telemetry(result: PipelineResult) -> dict[str, Any]:
@@ -2416,11 +2613,11 @@ def decision_telemetry(result: PipelineResult) -> dict[str, Any]:
         if result.status in {"reply", "no_reply"}
         else "operational" if result.status == "operational_failure" else "disabled"
     )
-    rejected_text = (
-        rejected_reply_text_fields(
+    rejected_text: dict[str, object] = (
+        dict(rejected_reply_text_fields(
             result.rejected_reply_text,
             character_count=result.rejected_reply_text_character_count,
-        )
+        ))
         if result.status == "operational_failure"
         and result.error_category in {"schema_validation", "local_validation"}
         and result.local_validation_status == "failed"

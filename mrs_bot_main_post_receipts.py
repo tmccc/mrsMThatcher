@@ -17,9 +17,17 @@ from __future__ import annotations
 import copy
 import hashlib
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Any, TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from mrs_bot_core_contracts import (
+        AttemptingMainPostAttempt, AttemptingMemeMainPostAttempt,
+        AttemptingQuoteMainPostAttempt, CurrentMemePostReceipt,
+        CurrentRegularPostReceipt, PendingMainPostReceipt,
+    )
 
 from mrs_bot_main_post_attempt_values import (
     MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS,
@@ -65,7 +73,9 @@ class MainPostReceiptValues:
             ),
         )
 
-    def confirmed_matches_attempt(self, receipt: dict, attempt: dict) -> bool:
+    def confirmed_matches_attempt(
+        self, receipt: Mapping[str, Any], attempt: Mapping[str, Any],
+    ) -> bool:
         """Return whether a confirmed receipt promotes one exact attempt."""
         return confirmed_receipt_matches_main_attempt(
             receipt,
@@ -75,7 +85,7 @@ class MainPostReceiptValues:
             ),
         )
 
-    def attempt_binds_payload(self, attempt: dict, payload: dict) -> bool:
+    def attempt_binds_payload(self, attempt: dict[str, Any], payload: dict[str, Any]) -> bool:
         """Return whether an attempt authorises exactly one remote payload."""
         return main_post_attempt_binds_payload(
             attempt,
@@ -87,12 +97,12 @@ class MainPostReceiptValues:
 
     def build_pending(
         self,
-        attempt: dict,
+        attempt: AttemptingMainPostAttempt,
         *,
         post_id: str,
         confirmation_epoch: int,
         image_summary: str = "",
-    ) -> dict:
+    ) -> PendingMainPostReceipt:
         """Build a confirmed receipt while refreshing each validation policy."""
         return build_confirmed_pending_schedule_receipt(
             attempt,
@@ -345,7 +355,7 @@ class MainPostReceiptValues:
         )
 
 
-    def regular_is_valid(self, data: dict) -> bool:
+    def regular_is_valid(self, data: Mapping[str, Any]) -> bool:
         """Return whether a regular-post receipt is internally consistent."""
         schema_version = data.get("schema_version")
         if type(schema_version) is not int or schema_version not in {1, 2, 3}:
@@ -427,7 +437,7 @@ class MainPostReceiptValues:
         ):
             return False
         if next_meme_epoch:
-            if schema_version == 3 and schedule_version < 1:
+            if schema_version == 3 and cast(int, schedule_version) < 1:
                 return False
             if not self.valid_epoch(next_meme_epoch):
                 return False
@@ -508,7 +518,7 @@ class MainPostReceiptValues:
                     expected_lane="quote_image",
                 )
                 or self.current().materialize_regular(
-                    pending,
+                    cast("PendingMainPostReceipt", pending),
                     _validate_result=False,
                 )
                 != data
@@ -542,6 +552,7 @@ class MainPostReceiptValues:
         attempt = data.get("source_attempt")
         if (
             not self.current().attempt_is_valid(attempt)
+            or not isinstance(attempt, dict)
             or attempt.get("lifecycle_state") != "attempting"
             # Older attempts remain readable as conservative restart barriers,
             # but their bytes did not bind a calendar zone.  They therefore cannot
@@ -563,7 +574,9 @@ class MainPostReceiptValues:
         return lane in {"quote_image", "daily_meme"}
 
 
-    def materialize_regular(self, pending: dict, *, _validate_result: bool = True) -> dict:
+    def materialize_regular(
+        self, pending: PendingMainPostReceipt, *, _validate_result: bool = True,
+    ) -> CurrentRegularPostReceipt:
         """Build a full regular receipt solely from its durable bound plan."""
         if not self.current().pending_is_valid(
             pending,
@@ -572,7 +585,7 @@ class MainPostReceiptValues:
             raise self.invalid_regular_receipt(
                 "Invalid confirmed regular pending-schedule receipt"
             )
-        attempt = pending["source_attempt"]
+        attempt = cast("AttemptingQuoteMainPostAttempt", pending["source_attempt"])
         selected = attempt["selected_identity"]
         plan = attempt["recovery_plan"]
         quote_post_epoch = int(pending["confirmation_epoch"])
@@ -612,7 +625,7 @@ class MainPostReceiptValues:
                 and not already_anchored
             ):
                 next_meme_post_epoch = (
-                    quote_post_epoch + int(plan["meme_delay_seconds"])
+                    quote_post_epoch + int(cast(int, plan["meme_delay_seconds"]))
                 )
                 next_meme_schedule_mode = "after_first_quote_after_midday"
                 next_meme_schedule_date = quote_date
@@ -654,10 +667,12 @@ class MainPostReceiptValues:
             raise self.invalid_regular_receipt(
                 "Bound regular schedule produced an invalid confirmed receipt"
             )
-        return receipt
+        return cast("CurrentRegularPostReceipt", receipt)
 
 
-    def materialize_meme(self, pending: dict, *, _validate_result: bool = True) -> dict:
+    def materialize_meme(
+        self, pending: PendingMainPostReceipt, *, _validate_result: bool = True,
+    ) -> CurrentMemePostReceipt:
         """Build a full meme receipt solely from its durable bound plan."""
         if not self.current().pending_is_valid(
             pending,
@@ -666,7 +681,7 @@ class MainPostReceiptValues:
             raise self.invalid_meme_receipt(
                 "Invalid confirmed meme pending-schedule receipt"
             )
-        attempt = pending["source_attempt"]
+        attempt = cast("AttemptingMemeMainPostAttempt", pending["source_attempt"])
         selected = attempt["selected_identity"]
         plan = attempt["recovery_plan"]
         meme_post_epoch = int(pending["confirmation_epoch"])
@@ -704,10 +719,10 @@ class MainPostReceiptValues:
             raise self.invalid_meme_receipt(
                 "Bound meme schedule produced an invalid confirmed receipt"
             )
-        return receipt
+        return cast("CurrentMemePostReceipt", receipt)
 
 
-    def meme_is_valid(self, data: dict) -> bool:
+    def meme_is_valid(self, data: Mapping[str, Any]) -> bool:
         """Return whether a meme-post receipt is internally consistent."""
         schema_version = data.get("schema_version")
         if type(schema_version) is not int or schema_version not in {1, 2}:
@@ -778,7 +793,7 @@ class MainPostReceiptValues:
                     expected_lane="daily_meme",
                 )
                 or self.current().materialize_meme(
-                    pending,
+                    cast("PendingMainPostReceipt", pending),
                     _validate_result=False,
                 )
                 != data

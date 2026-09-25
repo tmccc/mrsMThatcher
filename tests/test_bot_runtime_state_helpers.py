@@ -25,7 +25,7 @@ DEPENDENCIES = {'default_state': ['STATE_MINIMUM_READER_VERSION'],
  'apply_state_fields': [],
  'prepare_test_main_post_state': ['ENABLE_DAILY_MEME_POSTS', 'meme_schedule']}
 
-SIGNATURES = {'default_state': "() -> 'dict'",
+SIGNATURES = {'default_state': "() -> 'BotState'",
  'append_unique_capped': "(values: 'object', item: 'object', max_items: 'int') -> 'list[str]'",
  'append_unique_durable': "(values: 'object', item: 'object') -> 'list[str]'",
  'scheduler_epoch_from_state': "(state: 'dict', key: 'str', *, current: 'int | None' = None) -> "
@@ -69,7 +69,7 @@ assert 'mrsMThatcher2' not in sys.modules
 assert 'requests' not in sys.modules
 assert 'single_call_reply' not in sys.modules
 assert 'transaction_mutation_authority' not in sys.modules
-assert mrs_bot_runtime_state_helpers.default_state.__annotations__['return'] == 'dict'
+assert mrs_bot_runtime_state_helpers.default_state.__annotations__['return'] == 'BotState'
 assert mrs_bot_runtime_state_helpers.scheduler_epoch_from_state.__annotations__['current'] == 'int | None'
 assert 'historical_context_formatter' not in sys.modules
 """

@@ -13,6 +13,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import ReplyContextData
     from mrs_bot_reply_cycle_interfaces import ReplyCyclePersistence
     from single_call_reply import ValidatedReply as ValidatedReplyValue
 
@@ -22,7 +23,7 @@ def persist_validated_reply_draft(
     target_id: str,
     candidate_source: str,
     reply_text: ValidatedReplyValue,
-    reply_context: dict,
+    reply_context: ReplyContextData,
     *,
     SINGLE_CALL_STRATEGY_VERSION: str,
     persistence: ReplyCyclePersistence,
@@ -60,7 +61,7 @@ def persist_validated_reply_draft(
     return True
 
 
-def build_sending_reply_receipt(receipt_fields: dict, reply_context: dict) -> dict:
+def build_sending_reply_receipt(receipt_fields: dict, reply_context: ReplyContextData) -> dict:
     """Add the common sending schema and independent context/draft snapshots.
 
     The lane builds its identity fields only after the durable draft save. Keep

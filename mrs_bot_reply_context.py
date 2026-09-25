@@ -18,26 +18,46 @@ import hashlib
 import html
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from logging import Logger
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal, Protocol, cast
 
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 from mrs_bot_tweet_lookup_cache import TweetLookupCache, tweet_text_is_complete
 
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import RawTweet, ReplyContextData, ReplyRole, VisibleReplyTurn
+    from mrsMThatcher2 import ApiError
     from mrs_bot_reply_native_media import ReplyMedia
 
 
-def parse_x_datetime_to_epoch(value: str | None, *, log: Logger) -> int | None:
+class ParseTweetId(Protocol):
+    """Parse one untrusted provider identity with its diagnostic label."""
+
+    def __call__(self, value: object, *, context: str) -> int | None:
+        """Return the bounded numeric identity or None."""
+        ...
+
+
+class BoundVisibleConversation(Protocol):
+    """Bound verified turns while preserving the final target identity."""
+
+    def __call__(
+        self, turns: Sequence[Mapping[str, Any]], *, target_post_id: str,
+    ) -> list[dict[str, str]]:
+        """Return canonical bounded turns with role and text keys."""
+        ...
+
+
+def parse_x_datetime_to_epoch(value: object, *, log: Logger) -> int | None:
     """Parse a provider timestamp, preserving malformed-date diagnostics."""
     if not value:
         return None
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(cast(str, value).replace("Z", "+00:00"))
         return int(parsed.timestamp())
     except Exception:
         log.warning("Could not parse X datetime: %r", value)
@@ -54,10 +74,10 @@ def parse_tweet_id(value: object, *, context: str, log: Logger) -> int | None:
 
 
 def valid_tweets_sorted_by_id(
-    tweets: list[dict], *, context: str, log: Logger,
-) -> list[dict]:
+    tweets: list[RawTweet], *, context: str, log: Logger,
+) -> list[RawTweet]:
     """Deduplicate and sort a page of reply candidates by numeric ID."""
-    valid: list[tuple[int, dict]] = []
+    valid: list[tuple[int, RawTweet]] = []
     seen_ids: set[int] = set()
     for tweet in tweets:
         tweet_id = parse_tweet_id(tweet.get("id"), context=context, log=log)
@@ -79,14 +99,14 @@ def clean_text_for_reply_context(text: str) -> str:
     return text.strip()
 
 
-def tweet_context_text(tweet: dict) -> str:
+def tweet_context_text(tweet: RawTweet) -> str:
     """Return the tweet context text."""
-    cleaned = clean_text_for_reply_context(tweet.get("text", ""))
+    cleaned = clean_text_for_reply_context(cast(str, tweet.get("text", "")))
 
     if cleaned:
         return cleaned
 
-    image_summary = clean_text_for_reply_context(tweet.get("image_summary", ""))
+    image_summary = clean_text_for_reply_context(cast(str, tweet.get("image_summary", "")))
     if image_summary:
         return f"[Image/meme summary: {image_summary}]"
 
@@ -109,7 +129,7 @@ def trim_context_text(text: str, max_chars: int) -> str:
     return prefix + "..."
 
 
-def _direct_quote_id(candidate: dict) -> str | None:
+def _direct_quote_id(candidate: RawTweet) -> str | None:
     """Return the candidate's one valid directly quoted post identity."""
 
     references = candidate.get("referenced_tweets", []) or []
@@ -128,27 +148,27 @@ def _direct_quote_id(candidate: dict) -> str | None:
 class ReplyContext:
     """Build verified context using current external boundaries and explicit state."""
 
-    api_error: type[Exception]
-    parse_tweet_id: Callable
+    api_error: type[ApiError]
+    parse_tweet_id: ParseTweetId
     maximum_parent_depth: int
     maximum_parent_network_fetches: int
-    is_permanent_target_failure: Callable
+    is_permanent_target_failure: Callable[[Exception], bool]
     tweets: TweetLookupCache
     log: Logger
-    log_json_debug: Callable
+    log_json_debug: Callable[[str, object], None]
     user_id: str
-    parse_x_datetime_to_epoch: Callable
+    parse_x_datetime_to_epoch: Callable[[object], int | None]
     always_fetch_parent: bool
     context_validation_error: type[Exception]
     incoming_maximum_chars: int
     maximum_visible_chars: int
     skip_own_auto_replies: bool
-    bound_visible_conversation: Callable
-    current_utc_datetime: Callable
+    bound_visible_conversation: BoundVisibleConversation
+    current_utc_datetime: Callable[[], datetime]
     media: ReplyMedia
     default_post_maximum_chars: int
 
-    def parent_id(self, tweet: dict) -> str | None:
+    def parent_id(self, tweet: RawTweet) -> str | None:
         """Return immediate parent ID."""
         referenced_tweets = tweet.get("referenced_tweets", [])
         if referenced_tweets is None:
@@ -167,9 +187,9 @@ class ReplyContext:
 
         return None
 
-    def parent_chain(self, mention: dict, state: dict) -> list[dict]:
+    def parent_chain(self, mention: RawTweet, state: dict[str, object]) -> list[RawTweet]:
         """Build bounded earlier-thread context for a reply candidate."""
-        chain: list[dict] = []
+        chain: list[RawTweet] = []
         seen_ids: set[str] = set()
         network_fetches = 0
 
@@ -221,25 +241,26 @@ class ReplyContext:
 
         return chain
 
-    def is_our_auto_reply(self, tweet: dict | None, state: dict) -> bool:
+    def is_our_auto_reply(self, tweet: RawTweet | None, state: dict[str, object]) -> bool:
         """Return whether a post is one of this account's conversational replies."""
 
         if not tweet or str(tweet.get("author_id")) != str(self.user_id):
             return False
         return str(tweet.get("id")) in {
-            str(value) for value in state.get("own_auto_reply_ids", [])
+            str(value) for value in cast(Iterable[object], state.get("own_auto_reply_ids", []))
         }
 
     def post(
         self,
-        tweet: dict,
+        tweet: RawTweet,
         *,
         principal_author_id: str,
         maximum_chars: int,
-    ) -> dict[str, str]:
+    ) -> VisibleReplyTurn:
         """Return one bounded visible post with its canonical participant role."""
 
         author_id = str(tweet.get("author_id") or "")
+        role: Literal["account", "user", "other_user"]
         if author_id == str(self.user_id):
             role = "account"
         elif author_id and author_id == str(principal_author_id):
@@ -297,15 +318,15 @@ class ReplyContext:
 
     def directly_quoted_tweet(
         self,
-        candidate: dict,
-        state: dict,
+        candidate: RawTweet,
+        state: dict[str, object],
         *,
         include_media: bool = True,
-    ) -> dict | None:
+    ) -> RawTweet | None:
         """Return one directly quoted post with native media metadata when available."""
 
         references = candidate.get("referenced_tweets", []) or []
-        for reference in references:
+        for reference in cast(Iterable[object], references):
             if not isinstance(reference, dict) or reference.get("type") != "quoted":
                 continue
             quoted_id = str(reference.get("id") or "")
@@ -329,11 +350,11 @@ class ReplyContext:
 
     def quoted_post(
         self,
-        candidate: dict,
-        state: dict,
+        candidate: RawTweet,
+        state: dict[str, object],
         *,
         principal_author_id: str,
-    ) -> dict[str, str] | None:
+    ) -> VisibleReplyTurn | None:
         """Return one directly quoted post for local fact retrieval."""
 
         quoted = self.directly_quoted_tweet(candidate, state)
@@ -346,7 +367,7 @@ class ReplyContext:
         )
         return post if post["post_id"] and post["text"] else None
 
-    def parent_path_is_contiguous(self, path: list[dict], target: dict) -> bool:
+    def parent_path_is_contiguous(self, path: list[RawTweet], target: RawTweet) -> bool:
         """Return whether every retained turn directly parents the next turn."""
 
         complete = [*path, target]
@@ -356,10 +377,10 @@ class ReplyContext:
             for index in range(1, len(complete))
         )
 
-    def parent_path_is_chronological(self, path: list[dict], target: dict) -> bool:
+    def parent_path_is_chronological(self, path: list[RawTweet], target: RawTweet) -> bool:
         """Reject a verified parent path whose available timestamps run forward."""
 
-        def verified_created_epoch(post: dict) -> int | None:
+        def verified_created_epoch(post: RawTweet) -> int | None:
             epoch = self.parse_x_datetime_to_epoch(post.get("created_at"))
             cached_epoch = post.get("cached_epoch")
             # ``cache_tweet`` historically supplied the observation time when X
@@ -383,14 +404,14 @@ class ReplyContext:
 
     def _visible_parent_turns(
         self,
-        chain: list[dict],
-        mention: dict,
+        chain: list[RawTweet],
+        mention: RawTweet,
         *,
         mention_id: str,
         author_id: str,
-    ) -> list[dict[str, str]] | None:
+    ) -> list[VisibleReplyTurn] | None:
         """Render the usable parent suffix and target without copying post rows."""
-        visible: list[dict[str, str]] = []
+        visible: list[VisibleReplyTurn] = []
         for tweet in chain:
             post = self.post(
                 tweet,
@@ -418,8 +439,8 @@ class ReplyContext:
 
     def _parent_path_is_usable(
         self,
-        chain: list[dict],
-        mention: dict,
+        chain: list[RawTweet],
+        mention: RawTweet,
         *,
         mention_id: str,
         root_id: str,
@@ -455,7 +476,7 @@ class ReplyContext:
             return False
         return True
 
-    def build(self, mention: dict, state: dict) -> PreparedReplyContext | None:
+    def build(self, mention: RawTweet, state: dict[str, object]) -> PreparedReplyContext | None:
         """Build the verified parent-contiguous canonical single-call context."""
 
         mention_id = str(mention.get("id") or "")
@@ -469,7 +490,7 @@ class ReplyContext:
             self.log.warning("Reply candidate lacks usable identity or text target_id=%s", mention_id)
             return None
 
-        chain: list[dict] = []
+        chain: list[RawTweet] = []
         if self.always_fetch_parent:
             chain = self.parent_chain(mention, state)
 
@@ -554,7 +575,7 @@ class ReplyContext:
         visible = [
             {
                 "post_id": turn["post_id"],
-                "author_role": turn["role"],
+                "author_role": cast("ReplyRole", turn["role"]),
                 "text": turn["text"],
             }
             for turn in bounded_visible
@@ -567,7 +588,7 @@ class ReplyContext:
             target_id=mention_id,
             quoted_candidate=quoted_candidate,
         )
-        context: dict[str, object] = {
+        context: ReplyContextData = {
             "target_id": mention_id,
             "thread_id": root_id,
             "root_post_id": root_id,
@@ -599,8 +620,8 @@ class ReplyContext:
 
     def build_quote(
         self,
-        original_tweet: dict,
-        quote_tweet: dict,
+        original_tweet: RawTweet,
+        quote_tweet: RawTweet,
     ) -> PreparedReplyContext:
         """Build canonical text and quoted-subject context for a quote-tweet."""
 
@@ -612,7 +633,7 @@ class ReplyContext:
             principal_author_id=author_id,
             maximum_chars=self.incoming_maximum_chars,
         )
-        original_turn = {
+        original_turn: VisibleReplyTurn = {
             "post_id": original_id,
             "author_role": "account",
             "text": trim_context_text(
@@ -620,9 +641,9 @@ class ReplyContext:
                 max(1, self.maximum_visible_chars - len(target_turn["text"])),
             ),
         }
-        visible_turns = [target_turn]
-        quoted_post = None
-        parent_thread = []
+        visible_turns: list[VisibleReplyTurn] = [target_turn]
+        quoted_post: VisibleReplyTurn | None = None
+        parent_thread: list[VisibleReplyTurn] = []
         if original_turn["text"]:
             visible_turns.insert(0, original_turn)
             quoted_post = copy.deepcopy(original_turn)
@@ -631,15 +652,15 @@ class ReplyContext:
             visible_turns,
             target_post_id=target_id,
         )
-        visible = [
+        visible: list[VisibleReplyTurn] = [
             {
                 "post_id": turn["post_id"],
-                "author_role": turn["role"],
+                "author_role": cast("ReplyRole", turn["role"]),
                 "text": turn["text"],
             }
             for turn in bounded_visible
         ]
-        context: dict[str, object] = {
+        context: ReplyContextData = {
             "target_id": target_id,
             "thread_id": str(
                 quote_tweet.get("conversation_id") or target_id

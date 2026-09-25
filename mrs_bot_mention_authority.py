@@ -19,12 +19,17 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
+from typing import TYPE_CHECKING, TypeGuard, cast
 
+if TYPE_CHECKING:
+    from mrs_bot_core_contracts import MentionPagination
 from mrs_bot_state_value_normalisation import bounded_tweet_id_value
 from mrs_bot_reply_evaluation_state import terminal_reply_evaluation
 
 
-def mention_pagination_provenance_is_valid(value: object) -> bool:
+def mention_pagination_provenance_is_valid(
+    value: object,
+) -> TypeGuard[MentionPagination]:
     """Validate the exact mention continuation bound to a reply receipt."""
     if not isinstance(value, dict):
         return False
@@ -122,7 +127,7 @@ class MentionAuthority:
                 path,
             )
             return None
-        return candidate
+        return cast(dict[str, str], candidate)
 
     def normalise_reset_guard(self, value: object, *, path: Path) -> dict[str, object] | None:
         """Validate the watermark guard installed when mention provenance is reset."""
@@ -591,4 +596,4 @@ def mention_receipt_pagination(
             "Refusing to post a reply whose mention pagination "
             "provenance no longer matches durable state"
         )
-    return copy.deepcopy(pagination)
+    return cast(dict[str, str], copy.deepcopy(pagination))

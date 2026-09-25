@@ -6,14 +6,11 @@ module performs no runtime work at import and retains no runtime authority.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Protocol
+from logging import Logger
+from typing import Any
 
 
-class _BarrierLogger(Protocol):
-    def critical(self, message: str, *args: object, **kwargs: object) -> None: ...
-
-
-def _safe_barrier_log(log: _BarrierLogger, message: str, *args: object, **kwargs: object) -> None:
+def _safe_barrier_log(log: Logger, message: str, *args: object, **kwargs: object) -> None:
     try:
         log.critical(message, *args, **kwargs)
     except Exception:
@@ -245,7 +242,7 @@ def wait_for_durable_barrier_before_one_shot_exit(
     *,
     lane: str,
     durable_remote_write_safety_barrier_exists: Callable[[], bool],
-    log: _BarrierLogger,
+    log: Logger,
     remote_write_safety_incident_is_latched: Callable[[], bool],
     sleep: Callable[[int], None],
 ) -> None:

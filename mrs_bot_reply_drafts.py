@@ -14,19 +14,33 @@ from __future__ import annotations
 
 import copy
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol
 
 from single_call_reply_validation import (
+    RejectedReplyTextFields,
     normalise_validation_error_codes,
     rejected_reply_text_fields,
 )
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import CurrentReplyDraft, ReplyContextData
+    from reply_evidence import EvidenceRepository
     from mrs_bot_reply_generation import ReplyGeneration
     from mrs_bot_reply_history import ReplyHistory
-    from single_call_reply import PipelineResult
+    from single_call_reply import PipelineOutcome, PipelineResult, ValidatedReply
+
+
+class ValidateCurrentDraft(Protocol):
+    """Recheck an untrusted draft against current context and evidence."""
+
+    def __call__(
+        self, draft: object, *, context: Mapping[str, Any],
+        repository: object, recent_account_replies: Sequence[object] = (),
+    ) -> CurrentReplyDraft:
+        """Return the same schema-four record shape only after validation."""
+        ...
 
 
 def pending_ai_reply_draft_key(target_id: object, candidate_source: object) -> str:
@@ -44,16 +58,16 @@ def _target_draft_sources(candidate_source: str) -> set[str]:
 class ReplyDrafts:
     """Keep current draft rules together without retaining caller state."""
 
-    validate_persisted_draft: Callable
-    evidence_repository: Callable
+    validate_persisted_draft: ValidateCurrentDraft
+    evidence_repository: Callable[[], EvidenceRepository]
     history: ReplyHistory
     generation: ReplyGeneration
-    log_event: Callable
+    log_event: Callable[..., None]
     log: logging.Logger
     strategy_version: str
     model: str
-    result_type: type
-    reply_type: type
+    result_type: type[PipelineResult]
+    reply_type: type[ValidatedReply]
     evidence_unavailable: type[Exception]
     validation_error: type[Exception]
 
@@ -61,9 +75,9 @@ class ReplyDrafts:
         self,
         draft: object,
         *,
-        context: dict[str, object],
-        recent_replies: list[object] | None = None,
-    ) -> dict:
+        context: Mapping[str, object],
+        recent_replies: Sequence[object] | None = None,
+    ) -> CurrentReplyDraft:
         """Validate only a current single-call durable reply draft."""
 
         return self.validate_persisted_draft(
@@ -75,12 +89,12 @@ class ReplyDrafts:
 
     def store(
         self,
-        state: dict,
+        state: dict[str, object],
         target_id: str,
         candidate_source: str,
         reply: str,
         *,
-        context: dict[str, object],
+        context: ReplyContextData,
     ) -> bool:
         """Store a draft only after checking it against current confirmed replies."""
 
@@ -120,11 +134,11 @@ class ReplyDrafts:
     def _local_validation_failure_result(
         self,
         record: object,
-        context: dict[str, object],
+        context: ReplyContextData,
         *,
-        recent_replies: list[object] | None,
+        recent_replies: Sequence[object] | None,
         validation_codes: tuple[str, ...],
-        rejected_text: dict[str, object],
+        rejected_text: RejectedReplyTextFields,
         call_id: str | None,
     ) -> PipelineResult:
         """Build zero-call failure diagnostics with validated draft identity."""
@@ -165,12 +179,12 @@ class ReplyDrafts:
 
     def recover(
         self,
-        state: dict,
+        state: dict[str, object],
         target_id: str,
         candidate_source: str,
         *,
-        context: dict[str, object],
-        recent_replies: list[object] | None = None,
+        context: ReplyContextData,
+        recent_replies: Sequence[object] | None = None,
     ) -> PipelineResult | None:
         """Return a recovered decision, a discarded/failed draft result, or no draft.
 
@@ -279,9 +293,28 @@ class ReplyDrafts:
             call_id=validated.get("call_id"),
         )
 
+    def recover_checked(
+        self,
+        state: dict[str, object],
+        target_id: str,
+        candidate_source: str,
+        *,
+        context: ReplyContextData,
+        recent_replies: Sequence[object] | None = None,
+    ) -> PipelineOutcome | None:
+        """Narrow the canonical recovery result for the live reply cycles."""
+        result = self.recover(
+            state, target_id, candidate_source,
+            context=context, recent_replies=recent_replies,
+        )
+        if result is None:
+            return None
+        from single_call_reply import checked_pipeline_outcome
+        return checked_pipeline_outcome(result)
+
     def clear(
         self,
-        state: dict,
+        state: dict[str, object],
         target_id: str,
         candidate_source: str,
     ) -> None:
@@ -294,7 +327,7 @@ class ReplyDrafts:
         if not drafts:
             state.pop("pending_ai_reply_drafts", None)
 
-    def retire_ineligible(self, state: dict, target_id: str, candidate_source: str) -> None:
+    def retire_ineligible(self, state: dict[str, object], target_id: str, candidate_source: str) -> None:
         """Log and clear a mapping-shaped draft after preflight rejects its target."""
         drafts = state.get("pending_ai_reply_drafts", {})
         pending_key = pending_ai_reply_draft_key(target_id, candidate_source)
@@ -316,7 +349,7 @@ class ReplyDrafts:
             self.log_event("single_call_reply_posting_outcome", **fields)
             self.clear(state, target_id, candidate_source)
 
-    def receipt_draft_is_valid(self, data: dict, text: object) -> bool:
+    def receipt_draft_is_valid(self, data: dict[str, object], text: object) -> bool:
         """Return whether a receipt carries a valid current single-call draft."""
 
         context = data.get("reply_context")
@@ -329,12 +362,12 @@ class ReplyDrafts:
             return False
         return validated["proposed_reply"] == text
 
-    def clear_target(self, state: dict, target_id: str, candidate_source: str) -> None:
+    def clear_target(self, state: dict[str, object], target_id: str, candidate_source: str) -> None:
         """Retire every lane's draft after one public reply confirms this target."""
         for source in _target_draft_sources(candidate_source):
             self.clear(state, target_id, source)
 
-    def has_target(self, state: dict, target_id: str, candidate_source: str) -> bool:
+    def has_target(self, state: dict[str, object], target_id: str, candidate_source: str) -> bool:
         """Check whether any lane still carries a draft for a confirmed target."""
         drafts = state.get("pending_ai_reply_drafts")
         pending_keys = {

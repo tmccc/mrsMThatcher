@@ -7,7 +7,7 @@ call. Import performs no runtime work and retains no runtime authority.
 """
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING, cast
 from pathlib import Path
 
 from mrs_bot_post_creation import validate_media_upload_payload_metadata
@@ -16,6 +16,9 @@ from mrs_bot_durable_json_io import canonical_atomic_json_bytes
 
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import AttemptingMainPostAttempt, SendingMainPostAttempt
+    from remote_write_transport_journal import SourceReceiptBinding, TransportAuthority
+    from remote_media_upload_receipt import ConfirmedMediaUpload
     from mrs_bot_main_post_receipt_storage import MainPostReceipts
     from mrs_bot_main_post_receipts import MainPostReceiptValues
 
@@ -271,14 +274,14 @@ def block_if_unrelated_receipt_appeared_for_media_transport(
 
 
 def prepare_main_tweet_transport(
-    attempt: dict,
+    attempt: SendingMainPostAttempt,
     *,
     receipts: MainPostReceipts,
     receipt_values: MainPostReceiptValues,
     TransportJournalError: Any,
     begin_transport_transaction: Any,
     bind_lane_transport_source: Any,
-) -> tuple[dict, SourceReceiptBinding, TransportAuthority]:
+) -> tuple[AttemptingMainPostAttempt, SourceReceiptBinding, TransportAuthority]:
     """Publish a prepared tweet owner before retiring confirmed media state."""
 
     if (
@@ -306,13 +309,14 @@ def prepare_main_tweet_transport(
         receipt_path=path,
         source_binding=source,
     )
-    attempt.clear()
-    attempt.update(attempting)
-    return attempt, source, authority
+    mutable_attempt = cast(dict[str, Any], attempt)
+    mutable_attempt.clear()
+    mutable_attempt.update(attempting)
+    return cast("AttemptingMainPostAttempt", attempt), source, authority
 
 
 def validate_confirmed_media_upload_metadata(
-    confirmation: ConfirmedMediaUpload,
+    confirmation: object,
     *,
     ConfirmedMediaUpload: Any,
     MediaUploadReceiptError: Any,

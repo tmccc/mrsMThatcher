@@ -13,6 +13,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from logging import Logger
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
+    from mrs_bot_state_generation import StateCommitProof
 
 from mrs_bot_observability import state_debug_summary
 
@@ -106,14 +111,14 @@ def load_state(
     STATE_PREVIOUS_READER_COMPATIBILITY_FENCES: tuple[dict, ...],
     STATE_READER_COMPATIBILITY_FENCE: dict,
     UnsafeDurableStateNamespace: type[Exception],
-    default_state: Callable[..., dict],
+    default_state: Callable[[], BotState],
     log: Logger,
     log_event: Callable[..., None],
     log_json_debug: Callable[..., None],
-    normalise_state_candidate: Callable[..., dict | None],
+    normalise_state_candidate: Callable[..., BotState | None],
     read_stable_owned_json_bytes_no_follow: Callable[..., tuple[bool, bytes | None]],
     require_compatible_state_reader: Callable[..., int],
-    save_state: Callable[..., None],
+    save_state: Callable[..., StateCommitProof],
 ) -> dict:
     """Load, validate, and recover runtime state from durable storage."""
     from mrs_bot_state_generation import (
@@ -209,7 +214,7 @@ def load_state(
         if normalised is not None:
             candidate_recoveries[candidate] = recovery_events
             candidate_generations[candidate] = (sequence, canonical_bytes(strict_document(data)))
-        return normalised
+        return cast(dict, normalised) if normalised is not None else None
 
     latest_backup_path = STATE_FILE.with_name(f"{STATE_FILE.name}.bak1")
     primary = load_candidate(STATE_FILE, reject_legacy=True)
@@ -295,23 +300,27 @@ def load_state(
             candidate: recovered for candidate, recovered in repairable_candidates.items()
             if candidate_generations[candidate][0]
         }
+        selected_candidate: Path | None
         if modern_repairable:
-            candidate = _select_latest_generation(modern_repairable, candidate_generations)
-            recovered = modern_repairable[candidate]
+            selected_candidate = _select_latest_generation(modern_repairable, candidate_generations)
+            recovered = modern_repairable[selected_candidate]
         else:
             require_unambiguous_legacy_documents(repairable_candidates, STATE_FILE)
-            candidate = next(iter(repairable_candidates), None)
-            recovered = repairable_candidates.get(candidate)
-        if candidate is not None and recovered is not None:
+            selected_candidate = next(iter(repairable_candidates), None)
+            recovered = (
+                repairable_candidates.get(selected_candidate)
+                if selected_candidate is not None else None
+            )
+        if selected_candidate is not None and recovered is not None:
             log.warning(
                 "Recovered state candidate %s by discarding corrupt pending "
                 "mention identity and requiring a head refetch",
-                candidate,
+                selected_candidate,
             )
             _emit_candidate_recoveries(
-                candidate, candidate_recoveries.get(candidate, []), log=log, log_event=log_event,
+                selected_candidate, candidate_recoveries.get(selected_candidate, []), log=log, log_event=log_event,
             )
-            persist_candidate_recoveries(candidate, recovered)
+            persist_candidate_recoveries(selected_candidate, recovered)
             log_json_debug("Loaded state summary", state_debug_summary(recovered))
             return recovered
         message = "Existing state file(s) found but no usable state or backup; refusing to start with empty state"
@@ -319,4 +328,4 @@ def load_state(
         raise RuntimeError(message)
 
     log.error("No state file or backup found; using default state")
-    return default_state()
+    return cast(dict, default_state())

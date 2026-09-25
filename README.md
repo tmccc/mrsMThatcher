@@ -1,6 +1,9 @@
 # MrsMThatcher Bot
 
-Supported runtime and full-suite platform: CPython 3.10 on Linux (x86-64).
+Current default runtime and full-suite platform: CPython 3.12 on Linux (x86-64).
+The typed production core retains the previously documented Python 3.10
+compatibility target; `mypy-core.ini` checks that target. The complete suite in
+this worktree is run with the host's CPython 3.12 interpreter.
 Production locking requires Linux open-file-description locks (`F_OFD_SETLK`
 and `F_OFD_GETLK`), `flock`, an accessible `/proc/self/fdinfo`, and AF_UNIX
 abstract sockets. These protections are mandatory; other operating systems are
@@ -84,6 +87,48 @@ MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q \
 ```
 
 Do not run serial and parallel suites concurrently in the same checkout.
+
+## Typed production core
+
+Install `requirements-dev.txt` in a development environment and use its Python
+interpreter for the single production-core checker and its contract examples:
+
+```bash
+python3 -m mypy --config-file mypy-core.ini
+python3 tools/check_core_typing_examples.py
+```
+
+`mypy-core.ini` is the exact list of checked production files. It checks the
+actual root factories in `mrsMThatcher2.py`, both reply lanes and their assembly,
+generation, draft, delivery and completion modules, main-post assembly,
+publication, attempt/receipt owners and quote/meme runners, runtime coordination,
+and the state loading boundary. The value, runner, publication and runtime
+coordinator modules named in the configuration's per-module section have strict
+function and generic checks; the remaining selected legacy modules have their
+annotated bodies checked. Application imports outside that selected list are
+followed for their signatures without making unrelated offline, native media,
+transport and locking implementations strict. Those specialised authorities remain runtime
+boundaries. The configuration does not use `ignore_errors`,
+`ignore_missing_imports`, or `follow_imports=skip`.
+
+`mrs_bot_core_contracts.py` describes normalised state, verified reply contexts,
+current and historical drafts, and the distinct reply and main-post receipt
+shapes. Raw JSON and provider values start as untrusted objects; existing
+state normalisation, draft validation and receipt validators establish the
+internal shapes. `single_call_reply.py` narrows its existing `PipelineResult`
+instance into reply-ready, no-reply, operational-failure, disabled or
+draft-discarded alternatives. The reply and main-post receipt loaders return
+tagged outcomes for absence, invalid data and the supported sending,
+pending-schedule or confirmed stages. Current materialised main-post receipts
+are distinct from smaller historical validated forms.
+
+To add an evaluation outcome, extend `PipelineOutcome`, validate its status and
+payload in `checked_pipeline_outcome`, and handle it in
+`mrs_bot_reply_outcomes.outcome_disposition`;
+the `NoReturn` exhaustiveness check and negative typing fixture catch omissions.
+Static shapes describe an in-memory guarantee at one boundary. File rereads,
+remote success, source identity and durable retirement still require the
+existing runtime validation and transaction proofs.
 
 When running the broad suite through an agent, use a detached session: the suite
 can outlast the command session's time limit. Capture output in a log and save

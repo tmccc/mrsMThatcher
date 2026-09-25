@@ -17,20 +17,37 @@ runtime state. Root constant names directly alias these same objects.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from mrs_bot_reply_native_media import _REPLY_IMAGE_MIME_TYPES
 from single_call_reply_validation import normalise_validation_error_codes
 
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import ReplyContextData, ReplyMediaContext
     from mrs_bot_api_cooldowns import ApiCooldowns
     from mrs_bot_reply_history import ReplyHistory
     from mrs_bot_reply_model_transport import ReplyModelTransport
     from mrs_bot_reply_native_media import ReplyMedia
-    from single_call_reply import PipelineResult
+    from reply_evidence import EvidenceRepository
+    from single_call_reply import ModelTransport, PipelineOutcome, PipelineResult, ValidatedReply
+
+
+class RunReplyPipeline(Protocol):
+    """The exact model-facing callback bound by ReplyAssembly."""
+
+    def __call__(
+        self, *, context: ReplyContextData, config: Mapping[str, Any],
+        repository: EvidenceRepository, transport: ModelTransport,
+        same_author_interactions: Sequence[Mapping[str, str]],
+        recent_account_replies: Sequence[object],
+        supplied_images: Sequence[Mapping[str, Any]],
+        visual_description: object,
+    ) -> PipelineOutcome:
+        """Evaluate one candidate without constructing a remote-write authority."""
+        ...
 
 
 _OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES = frozenset(
@@ -69,7 +86,7 @@ def log_ai_reply_posting_outcome(
     target_id: str,
     failure_reason: str,
     reply_post_id: str = '',
-    log_event: Callable,
+    log_event: Callable[..., None],
 ) -> None:
     """Emit a bounded posting outcome without model inputs or reasoning."""
 
@@ -105,7 +122,7 @@ def _is_openai_provider_health_failure(category: object) -> bool:
 
 
 def _is_terminal_candidate_local_failure(
-    outcome: PipelineResult | dict[str, object],
+    outcome: PipelineResult | PipelineOutcome | dict[str, object],
 ) -> bool:
     """Return whether one permanent local failure should retire its candidate."""
 
@@ -122,18 +139,18 @@ class ReplyGeneration:
 
     media: ReplyMedia
     remote_operations_paused: type[Exception]
-    result_type: type
+    result_type: type[PipelineResult]
     log: logging.Logger
     history: ReplyHistory
-    require_remote_operation_unpaused: Callable
-    run_pipeline: Callable
+    require_remote_operation_unpaused: Callable[[str], None]
+    run_pipeline: RunReplyPipeline
     config: dict[str, object]
-    evidence_repository: Callable
+    evidence_repository: Callable[[], EvidenceRepository]
     model_transport: ReplyModelTransport
     cooldowns: ApiCooldowns
-    reply_type: type
-    decision_telemetry: Callable
-    log_event: Callable
+    reply_type: type[ValidatedReply]
+    decision_telemetry: Callable[[PipelineResult], dict[str, object]]
+    log_event: Callable[..., None]
     strategy_version: str
 
     is_provider_health_failure = staticmethod(_is_openai_provider_health_failure)
@@ -184,16 +201,19 @@ class ReplyGeneration:
             self.log_event("single_call_reply_provider_usage", **usage_fields)
 
     def evaluate(
-        self, context: dict[str, object], media_context: dict | None = None, *,
-        state: dict,
-    ) -> PipelineResult:
+        self, context: ReplyContextData, media_context: ReplyMediaContext | None = None, *,
+        state: dict[str, object],
+    ) -> PipelineOutcome:
         """Return the authoritative decision, retaining local and provider dispositions."""
 
         lane = str(context.get("lane") or "")
         target_id = str(context.get("target_id") or "")
         if self.cooldowns.active(state, scope="openai"):
-            return self.result_type(status="operational_failure", reason="openai_cooldown",
-                                  error_category="provider_cooldown", model_call_count=0)
+            from single_call_reply import checked_pipeline_outcome
+            return checked_pipeline_outcome(self.result_type(
+                status="operational_failure", reason="openai_cooldown",
+                error_category="provider_cooldown", model_call_count=0,
+            ))
         visible_turns = [
             turn
             for turn in (context.get("visible_conversation") or [])
@@ -225,10 +245,11 @@ class ReplyGeneration:
             visual_description=context.get("visual_description"),
         )
         self._record_provider_health(state, result, lane=lane, target_id=target_id)
+        # The closed outcome view retains the exact PipelineResult dataclass.
         if result.status == "operational_failure":
-            self.record_result(result, lane=lane, target_id=target_id)
+            self.record_result(cast("PipelineResult", result), lane=lane, target_id=target_id)
             return result
-        self.record_result(result, lane=lane, target_id=target_id)
+        self.record_result(cast("PipelineResult", result), lane=lane, target_id=target_id)
         if result.status in {"disabled", "no_reply"}:
             return result
         if result.status != "reply" or not isinstance(result.reply, self.reply_type):
@@ -239,11 +260,11 @@ class ReplyGeneration:
     def _media_failure_result(
         self,
         exc: Exception,
-        visible_turns: list[dict],
+        visible_turns: Sequence[Mapping[str, object]],
         *,
         lane: str,
         target_id: str,
-    ) -> PipelineResult:
+    ) -> PipelineOutcome:
         """Classify failed material-image collection before any provider work."""
         error_category = (
             "image_transport"
@@ -270,12 +291,14 @@ class ReplyGeneration:
             lane,
             exc,
         )
-        return result
+        from single_call_reply import checked_pipeline_outcome
+        return checked_pipeline_outcome(result)
 
     def _record_provider_health(
-        self, state: dict, result: PipelineResult, *, lane: str, target_id: str,
+        self, state: dict[str, object], result: PipelineOutcome | PipelineResult, *, lane: str, target_id: str,
     ) -> None:
         """Account for provider health before decision telemetry can fail."""
+        status_code: int | None
         if result.provider_status_code == 429 and result.status != "operational_failure":
             message = "single-call reply recovered after rate limit"
             category = "provider_http_429"

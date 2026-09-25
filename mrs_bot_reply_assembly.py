@@ -6,12 +6,12 @@ Construction binds dependencies without reading state, clocks, files or provider
 from __future__ import annotations
 import functools
 from dataclasses import dataclass
-from collections.abc import Callable
-from datetime import datetime
+from collections.abc import Callable, Mapping, Sequence
+from datetime import datetime as DateTime
 from pathlib import Path
 from types import ModuleType
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol
 import mrs_bot_reply_drafts as _reply_drafts
 import mrs_bot_reply_history as _reply_history
 import mrs_bot_reply_generation as _reply_generation
@@ -42,21 +42,78 @@ import mrs_bot_hot_post_discovery as _hot_post_discovery
 import mrs_bot_quote_discovery as _quote_discovery
 import mrs_bot_runtime_control as _runtime_control
 
-def _single_call_reply():
+class PipelineModule(Protocol):
+    """Lazily loaded pure pipeline functions used in production assembly."""
+
+    def run_reply_pipeline(
+        self, *, context: Mapping[str, Any], config: Mapping[str, Any],
+        repository: EvidenceRepository, transport: ModelTransport,
+        same_author_interactions: Sequence[Mapping[str, str]] = (),
+        recent_account_replies: Sequence[object] = (),
+        supplied_images: Sequence[Mapping[str, Any]] = (),
+        visual_description: object = None,
+    ) -> PipelineOutcome:
+        """Return the one-call model decision."""
+        ...
+
+    def validate_persisted_draft(
+        self, draft: object, *, context: Mapping[str, Any],
+        repository: object, recent_account_replies: Sequence[object] = (),
+    ) -> CurrentReplyDraft:
+        """Validate one current draft before reuse."""
+        ...
+
+    def decision_telemetry(self, result: PipelineResult) -> dict[str, Any]:
+        """Project bounded decision telemetry."""
+        ...
+
+    def quoted_post_reference_id(self, context: Mapping[str, Any]) -> str | None:
+        """Read one canonical quoted post reference."""
+        ...
+
+    def bound_visible_conversation(
+        self, turns: Sequence[Mapping[str, Any]], *, target_post_id: str,
+    ) -> list[dict[str, str]]:
+        """Bound a verified visible conversation."""
+        ...
+
+
+class RejectionProofModule(Protocol):
+    """Sealed rejection proof operations loaded at retirement time."""
+
+    def reply_create_rejection_payload(
+        self, proof: object,
+    ) -> dict[str, Any] | None:
+        """Return the bounded rejected payload, when a proof is registered."""
+        ...
+
+    def claim_reply_create_rejection_for_receipt_retirement(
+        self, proof: object, *, target_id: str, receipt_path: Path,
+        receipt: Mapping[str, Any],
+    ) -> bool:
+        """Consume one exact transport-retired rejection proof."""
+        ...
+
+
+def _single_call_reply() -> PipelineModule:
     """Load the pure pipeline module only when an operation needs it."""
     import single_call_reply
     return single_call_reply
 
 
-def _rejection_proofs():
+def _rejection_proofs() -> RejectionProofModule:
     """Load sealed proof authority at the invoked receipt boundary."""
     import x_api_error_semantics
     return x_api_error_semantics
 
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import ConfirmedReplyReceipt, CurrentReplyDraft, ReplyReceiptLoad
     from mrs_bot_reply_context import ReplyContext
+    from mrsMThatcher2 import ApiError, ProvedRemotePostNonSuccess as ProvedNonSuccessValue
+    from mrs_bot_state_generation import StateCommitProof
     from reply_evidence import EvidenceRepository
+    from single_call_reply import ModelTransport, PipelineOutcome, PipelineResult, ValidatedReply
 
 
 @dataclass(frozen=True)
@@ -128,13 +185,13 @@ class ReplyPolicy:
 class ReplyErrors:
     """Canonical runtime types and exception identities."""
 
-    AmbiguousRemotePostOutcome: type[Exception]
-    ApiError: type[Exception]
+    AmbiguousRemotePostOutcome: type[ApiError]
+    ApiError: type[ApiError]
     ConfirmedReplyLocalPersistenceError: type[Exception]
     ContextValidationError: type[Exception]
     InvalidConfirmedReplyReceipt: type[Exception]
-    PipelineResult: type
-    ProvedRemotePostNonSuccess: type[Exception]
+    PipelineResult: type[PipelineResult]
+    ProvedRemotePostNonSuccess: type[ProvedNonSuccessValue]
     RemoteOperationsPaused: type[Exception]
     ReplyEvidenceUnavailable: type[Exception]
     ReplyValidationError: type[Exception]
@@ -142,7 +199,7 @@ class ReplyErrors:
     TransportJournalError: type[Exception]
     UnrecoverableConfirmedReplyPersistenceError: type[Exception]
     UnresolvedSendingReplyReceipt: type[Exception]
-    ValidatedReply: type
+    ValidatedReply: type[ValidatedReply]
     ReplyMediaTransientUnavailable: type[Exception]
     ReplyMediaUnavailable: type[Exception]
     _MentionBacklogContinuationLimit: type[Exception]
@@ -188,7 +245,7 @@ class ReplyTransport:
 class ReplyApplication:
     """Shared state, clocks, cache, controls and observability."""
 
-    datetime: type[datetime]
+    datetime: type[DateTime]
     _api_cooldown_owner: Callable[[], _api_cooldowns.ApiCooldowns]
     _receipt_dates_owner: Callable[[], _receipt_primitives.ReceiptDates]
     _reply_remote_write_barrier: Callable
@@ -205,10 +262,10 @@ class ReplyApplication:
     require_remote_operation_unpaused: Callable
     record_ambiguous_remote_post: Callable[[dict], None]
     main_post_attempt_binds_payload: Callable
-    save_state: Callable
+    save_state: _reply_cycle_interfaces.SaveReplyState
     sleep: Callable[[float], None]
     api_error_is_invalid_pagination_cursor: Callable[[Exception], bool]
-    current_utc_datetime: Callable[[], datetime]
+    current_utc_datetime: Callable[[], DateTime]
     log_json_debug: Callable
 
 
@@ -232,7 +289,7 @@ class ReplyAssembly:
         """Read the current reply strategy switch from the shared config reference."""
         return self.policy.single_call_reply.get("enabled") is True
 
-    def reply_target_is_directly_eligible(self, tweet: dict) -> bool:
+    def reply_target_is_directly_eligible(self, tweet: dict[str, Any]) -> bool:
         """Check current account identity against one reply target."""
         return _reply_lane_policy.reply_target_is_directly_eligible(
             tweet, MY_USERNAME=self.policy.MY_USERNAME, MY_USER_ID=self.policy.MY_USER_ID,
@@ -245,7 +302,7 @@ class ReplyAssembly:
             log=self.application.log,
         )
 
-    def dedupe_candidates(self, mentions: list[dict], hot_posts: list[dict]) -> list[dict]:
+    def dedupe_candidates(self, mentions: list[dict[str, Any]], hot_posts: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Merge candidates under current diagnostics."""
         return _hot_post_discovery.dedupe_reply_candidates(
             mentions, hot_posts, log=self.application.log,
@@ -273,7 +330,7 @@ class ReplyAssembly:
         )
 
     def mark_hot_post_reply_skipped(
-        self, state: dict, reply_id: str, *, reason: str = "unspecified",
+        self, state: dict[str, Any], reply_id: str, *, reason: str = "unspecified",
         original_post_id: str | None = None, retryable: bool | None = None,
     ) -> None:
         """Record a hot-post skip through the reply discovery owner."""
@@ -284,7 +341,7 @@ class ReplyAssembly:
         )
 
     def maybe_mark_hot_post_reply_skipped(
-        self, state: dict, candidate: dict, reason: str = "unspecified",
+        self, state: dict[str, Any], candidate: dict[str, Any], reason: str = "unspecified",
     ) -> None:
         """Record a skipped hot-post candidate through the same owner."""
         return _hot_post_discovery.maybe_mark_hot_post_reply_skipped(
@@ -458,7 +515,7 @@ class ReplyAssembly:
             persistence_error=e.ConfirmedReplyLocalPersistenceError,
         )
 
-    def emergency_representation_is_complete(self, receipt: dict, state: dict) -> bool:
+    def emergency_representation_is_complete(self, receipt: dict[str, Any], state: dict[str, Any]) -> bool:
         """Check whether the current state durably represents a confirmed reply."""
         p, e, io, t, a = self.policy, self.errors, self.receipt_io, self.transport, self.application
         drafts = self._reply_draft_owner()
@@ -472,14 +529,14 @@ class ReplyAssembly:
         )
 
     def observed_confirmation_epoch(
-        self, receipt: dict, confirmation_epoch: int | None = None
+        self, receipt: dict[str, Any], confirmation_epoch: int | None = None
     ) -> int:
         """Resolve a recovered reply's confirmation time with current receipt rules."""
         return self._reply_receipt_values_owner().observed_confirmation_epoch(
             receipt, confirmation_epoch
         )
 
-    def sending_receipt_is_valid(self, receipt: dict, *, legacy: bool = False) -> bool:
+    def sending_receipt_is_valid(self, receipt: dict[str, Any], *, legacy: bool = False) -> bool:
         """Validate a current or historical sending receipt at this operation boundary."""
         values = self._reply_receipt_values_owner()
         return (
@@ -487,12 +544,12 @@ class ReplyAssembly:
             if legacy else values.sending_is_valid(receipt)
         )
 
-    def sending_receipt_from_confirmed(self, receipt: dict) -> dict:
+    def sending_receipt_from_confirmed(self, receipt: dict[str, Any]) -> dict[str, Any]:
         """Recover the exact sending value from a current confirmed receipt."""
         return self._reply_receipt_values_owner().sending_from_confirmed(receipt)
 
     def validate_transport_source(
-        self, lane: str, receipt: dict, payload: dict, *, legacy: bool = False,
+        self, lane: str, receipt: dict[str, Any], payload: dict[str, Any], *, legacy: bool = False,
     ) -> bool:
         """Inspect a registered source using current reply validation rules."""
         values = self._reply_receipt_values_owner()
@@ -507,27 +564,27 @@ class ReplyAssembly:
             sending_reply_receipt_is_semantically_valid=values.sending_is_valid,
         )
 
-    def load_receipt(self) -> tuple[str, dict | None]:
+    def load_receipt(self) -> ReplyReceiptLoad:
         """Load one reply receipt with current nested validation settings."""
         return self.reply_receipts().load()
 
     def promote_receipt(
-        self, sending: dict, *, reply_post_id: str,
+        self, sending: dict[str, Any], *, reply_post_id: str,
         confirmation_epoch: int, legacy_recovery: bool = False,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Promote one exact current or recovered transport source."""
         return self.reply_receipts().promote(
             sending, reply_post_id=reply_post_id,
             confirmation_epoch=confirmation_epoch, legacy_recovery=legacy_recovery,
         )
 
-    def reconcile_receipt(self, state: dict) -> bool:
+    def reconcile_receipt(self, state: dict[str, Any]) -> bool:
         """Complete a saved confirmation under current state and receipt authority."""
         return self._reply_completion_owner().reconcile(state)
 
     def remove_receipt(
-        self, receipt: dict, *, sending_disposition: str | None = None,
-        commit_proof=None,
+        self, receipt: dict[str, Any], *, sending_disposition: str | None = None,
+        commit_proof: StateCommitProof | None = None,
     ) -> None:
         """Retire an exact receipt under the supplied commit authority."""
         return self.reply_receipts().remove(
@@ -535,7 +592,7 @@ class ReplyAssembly:
             commit_proof=commit_proof,
         )
 
-    def retire_rejected_receipt(self, receipt: dict, error: Exception) -> None:
+    def retire_rejected_receipt(self, receipt: dict[str, Any], error: Exception) -> None:
         """Retire a proved rejection after the caller made terminal state durable."""
         self.reply_receipts().retire_rejected(receipt, error)
 
@@ -553,7 +610,7 @@ class ReplyAssembly:
         mention_queue: _mention_discovery.MentionQueue | None = None,
         tweets: _tweet_lookup_cache.TweetLookupCache | None = None,
         history: _reply_history.ReplyHistory | None = None,
-    ) -> functools.partial:
+    ) -> Callable[[dict[str, Any], dict[str, Any]], None]:
         """Compose current typed owners for one confirmed-state application."""
         p, e, io, t, a = self.policy, self.errors, self.receipt_io, self.transport, self.application
         if dates is None:
@@ -645,13 +702,13 @@ class ReplyAssembly:
     def post_with_current_owners(
         self,
         *,
-        state: dict,
-        receipt_template: dict,
+        state: dict[str, Any],
+        receipt_template: dict[str, Any],
         reply_text: str,
         reply_to_id: str,
         made_with_ai: bool,
         lane: str,
-    ):
+    ) -> tuple[dict[str, Any], ConfirmedReplyReceipt]:
         """Refresh send-time settings and authorities before publication."""
         return self.current()._post_with_bound_owners(
             state=state, receipt_template=receipt_template, reply_text=reply_text,
@@ -659,9 +716,9 @@ class ReplyAssembly:
         )
 
     def _post_with_bound_owners(
-        self, *, state: dict, receipt_template: dict, reply_text: str,
+        self, *, state: dict[str, Any], receipt_template: dict[str, Any], reply_text: str,
         reply_to_id: str, made_with_ai: bool, lane: str,
-    ):
+    ) -> tuple[dict[str, Any], ConfirmedReplyReceipt]:
         """Compose one publication transaction from current owners."""
         p, e, io, t, a = self.policy, self.errors, self.receipt_io, self.transport, self.application
         drafts = self._reply_draft_owner()
@@ -728,7 +785,7 @@ class ReplyAssembly:
             drafts = self._reply_draft_owner()
         return _reply_cycle_interfaces.ReplyCyclePersistence(
             save=a.save_state,
-            recover=drafts.recover,
+            recover=drafts.recover_checked,
             store=drafts.store,
             clear=drafts.clear,
             retire_ineligible=drafts.retire_ineligible,
@@ -883,11 +940,11 @@ class ReplyAssembly:
             valid_tweets_sorted_by_id=functools.partial(_reply_context.valid_tweets_sorted_by_id, log=a.log),
         )
 
-    def run_quote(self, state: dict) -> str:
+    def run_quote(self, state: dict[str, Any]) -> str:
         """Run a quote check through a freshly constructed runner."""
         return self.quote_runner().run(state)
 
-    def run_normal(self, state: dict) -> str:
+    def run_normal(self, state: dict[str, Any]) -> str:
         """Rebuild a fresh normal runner for each backlog continuation pass."""
         fresh_evaluations = 0
         skip_hot_post_fetch = False
@@ -1127,8 +1184,8 @@ class ReplyAssembly:
         )
 
     def get_quote_tweets_for_posts(
-        self, post_ids: list[str], state: dict | None = None
-    ) -> dict[str, list[dict]]:
+        self, post_ids: list[str], state: dict[str, Any] | None = None
+    ) -> dict[str, list[dict[str, Any]]]:
         """Search watched originals together using current root dependencies."""
         p, e, io, t, a = self.policy, self.errors, self.receipt_io, self.transport, self.application
         return _quote_discovery.get_quote_tweets_for_posts(
@@ -1143,8 +1200,8 @@ class ReplyAssembly:
         )
 
     def get_quote_tweets_for_post(
-        self, post_id: str, state: dict | None = None,
-    ) -> list[dict]:
+        self, post_id: str, state: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
         """Discover quotes for one original with current external boundaries."""
         p, e, io, t, a = self.policy, self.errors, self.receipt_io, self.transport, self.application
         cursor_record = functools.partial(

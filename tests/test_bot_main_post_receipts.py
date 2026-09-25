@@ -96,11 +96,11 @@ def patch_receipt_operation(monkeypatch, name, callback):
         ),
         (
             "materialize_bound_regular_schedule_receipt",
-            "(pending: 'dict', *, _validate_result: 'bool' = True) -> 'dict'",
+            "(pending: 'PendingMainPostReceipt', *, _validate_result: 'bool' = True) -> 'CurrentRegularPostReceipt'",
         ),
         (
             "materialize_bound_meme_schedule_receipt",
-            "(pending: 'dict', *, _validate_result: 'bool' = True) -> 'dict'",
+            "(pending: 'PendingMainPostReceipt', *, _validate_result: 'bool' = True) -> 'CurrentMemePostReceipt'",
         ),
         ("meme_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'"),
     ],

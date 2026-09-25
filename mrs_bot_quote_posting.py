@@ -12,17 +12,18 @@ Preparation turns the selected image's generated source into the existing
 from __future__ import annotations
 
 import random
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
-from typing import NamedTuple, TYPE_CHECKING
+from typing import Any, NamedTuple, TYPE_CHECKING, cast
 
 from mrs_bot_regular_post_completion import complete_regular_post_persistence
 from mrs_bot_runtime_state_helpers import apply_state_fields
 
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import CurrentRegularPostReceipt, PendingMainPostReceipt
     from mrs_bot_image_selection import ImageSelection
     from mrs_bot_main_post_publication import MainPostPublication
     from mrs_bot_main_post_receipt_storage import MainPostReceipts
@@ -37,12 +38,12 @@ if TYPE_CHECKING:
 _RECOVERY_VALUE_UNAVAILABLE = object()
 
 
-def _confirmed_quote_schedule_fields(receipt: dict) -> dict:
+def _confirmed_quote_schedule_fields(receipt: CurrentRegularPostReceipt) -> dict:
     """Project the confirmed quote schedule before reading its meme schedule."""
     return {"next_quote_post_epoch": int(receipt["next_quote_post_epoch"])}
 
 
-def _confirmed_meme_schedule_fields(receipt: dict) -> dict:
+def _confirmed_meme_schedule_fields(receipt: CurrentRegularPostReceipt) -> dict:
     """Project a regular post's optional meme schedule with its bound anchor."""
     return {
         "next_meme_post_epoch": int(receipt.get("next_meme_post_epoch", 0) or 0),
@@ -185,9 +186,9 @@ class QuotePostRunner:
 
     def _complete_post(
         self, lines_used: set, images_used: set, state: dict,
-        *, preparation: _QuotePostPreparation, posted_id: str,
+        *, preparation: _QuotePostPreparation, posted_id: object,
         quote_post_epoch: int, quote_schedule_fields: dict,
-        meme_schedule_fields: dict, receipt: dict, image_choice: dict,
+        meme_schedule_fields: dict, receipt: CurrentRegularPostReceipt, image_choice: dict,
     ) -> None:
         """Persist confirmed state and retire recovery authority before final events."""
         log = self.application.log
@@ -217,7 +218,8 @@ class QuotePostRunner:
             )
             tweets.record_recent_own_post(state, str(posted_id))
             self.recovery.complete_regular(
-                lines_used, images_used, state, receipt, posted_id=str(posted_id),
+                lines_used, images_used, state, cast(dict[str, Any], receipt),
+                posted_id=str(posted_id),
             )
         except Exception as exc:
             log.critical("Confirmed regular quote/image post_id=%s but protected local persistence failed", posted_id, exc_info=True)
@@ -373,7 +375,10 @@ class QuotePostRunner:
                 "quote_post_epoch": quote_post_epoch,
                 "text": preparation.tweet,
             }
-            receipt = publication.confirm_pending_schedule(posted_id, quote_post_epoch)
+            receipt = cast(
+                "CurrentRegularPostReceipt",
+                publication.confirm_pending_schedule(posted_id, quote_post_epoch),
+            )
             quote_schedule_fields = _confirmed_quote_schedule_fields(receipt)
             meme_schedule_fields = _confirmed_meme_schedule_fields(receipt)
         except BaseException as receipt_exc:
@@ -406,7 +411,7 @@ class QuotePostRunner:
             if publication.pending_available:
                 try:
                     fallback_receipt = receipt_values.current().materialize_regular(
-                        publication.pending_receipt
+                        cast("PendingMainPostReceipt", publication.pending_receipt)
                     )
                     quote_schedule_fields = _confirmed_quote_schedule_fields(fallback_receipt)
                     meme_schedule_fields = _confirmed_meme_schedule_fields(fallback_receipt)
@@ -432,7 +437,7 @@ class QuotePostRunner:
                 )
             if quote_schedule_fields is not _RECOVERY_VALUE_UNAVAILABLE:
                 try:
-                    apply_state_fields(state, quote_schedule_fields)
+                    apply_state_fields(state, cast(dict[str, Any], quote_schedule_fields))
                 except Exception:
                     fallback_failures.append("quote_schedule_state")
                     log.critical(
@@ -441,7 +446,7 @@ class QuotePostRunner:
                     )
             if meme_schedule_fields is not _RECOVERY_VALUE_UNAVAILABLE:
                 try:
-                    apply_state_fields(state, meme_schedule_fields)
+                    apply_state_fields(state, cast(dict[str, Any], meme_schedule_fields))
                 except Exception:
                     fallback_failures.append("meme_schedule_state")
                     log.critical(
@@ -462,7 +467,9 @@ class QuotePostRunner:
             except Exception:
                 log.critical("Emergency in-memory cache/recent update failed after confirmed regular post", exc_info=True)
             from mrs_bot_state_generation import record_receipt_commit
-            record_receipt_commit(state, publication.attempt)
+            record_receipt_commit(
+                state, cast(Mapping[str, Any], publication.attempt)
+            )
             persistence = emergency_persist_confirmed_regular_post(lines_used, images_used, state)
             failures = [*fallback_failures, *persistence.failures]
             if not confirmed_regular_emergency_representation_is_complete(
@@ -545,8 +552,8 @@ class QuotePostRunner:
             preparation=preparation,
             posted_id=posted_id,
             quote_post_epoch=quote_post_epoch,
-            quote_schedule_fields=quote_schedule_fields,
-            meme_schedule_fields=meme_schedule_fields,
+            quote_schedule_fields=cast(dict[str, Any], quote_schedule_fields),
+            meme_schedule_fields=cast(dict[str, Any], meme_schedule_fields),
             receipt=receipt,
             image_choice=image_choice,
         )

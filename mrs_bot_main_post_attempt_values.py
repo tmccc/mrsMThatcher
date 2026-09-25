@@ -10,9 +10,21 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import logging
 
-from collections.abc import Callable
-from typing import Any
+from collections.abc import Callable, Mapping
+from typing import Any, TYPE_CHECKING, Protocol, cast
+
+if TYPE_CHECKING:
+    from mrs_bot_core_contracts import PendingMainPostReceipt, SendingMainPostAttempt
+
+
+class RandomBytes(Protocol):
+    """Only the random-byte operation used to create an attempt identity."""
+
+    def urandom(self, size: int) -> bytes:
+        """Return bytes from the operation-bound source."""
+        ...
 
 from mrs_bot_receipt_primitives import valid_post_id
 
@@ -32,7 +44,7 @@ BOUND_MEME_SCHEDULE_STATE_KEYS = {
 MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS = 31 * 24 * 60 * 60
 
 
-def canonical_remote_post_payload_sha256(payload: dict) -> str:
+def canonical_remote_post_payload_sha256(payload: Mapping[str, object]) -> str:
     """Return the stable identity of one exact X create payload."""
     encoded = json.dumps(
         payload,
@@ -43,9 +55,9 @@ def canonical_remote_post_payload_sha256(payload: dict) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def main_post_attempt_payload(attempt: dict) -> dict:
+def main_post_attempt_payload(attempt: Mapping[str, object]) -> dict[str, object]:
     """Reconstruct the exact remote payload bound by a main-post attempt."""
-    payload: dict = {}
+    payload: dict[str, object] = {}
     text = str(attempt.get("text") or "")
     media_ids = attempt.get("media_ids")
     reply_to_id = str(attempt.get("reply_to_id") or "")
@@ -61,13 +73,13 @@ def main_post_attempt_payload(attempt: dict) -> dict:
 
 
 def bound_meme_schedule_state(
-    state: dict,
+    state: Mapping[str, Any],
     *,
     schedule_timezone: str | None = None,
     MAIN_POST_SCHEDULE_TIMEZONE: str,
     MEME_SCHEDULE_VERSION: int,
-    safe_bound_schedule_date_str: Callable[..., str | None],
-) -> dict:
+    safe_bound_schedule_date_str: Callable[[int, str], str | None],
+) -> dict[str, object]:
     """Capture the exact meme-schedule inputs bound before a regular X write."""
     next_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
     next_mode = str(state.get("next_meme_schedule_mode", "") or "")
@@ -107,8 +119,8 @@ def bound_meme_schedule_state_is_valid(
     MAIN_POST_SCHEDULE_TIMEZONE: str,
     MEME_SCHEDULE_MODES: set[str],
     MEME_SCHEDULE_VERSION: int,
-    safe_bound_schedule_date_str: Callable[..., str | None],
-    valid_receipt_epoch: Callable[..., bool],
+    safe_bound_schedule_date_str: Callable[[int, str], str | None],
+    valid_receipt_epoch: Callable[[int], bool],
 ) -> bool:
     """Return whether a pre-send meme-schedule snapshot is self-consistent."""
     if not isinstance(value, dict) or set(value) != BOUND_MEME_SCHEDULE_STATE_KEYS:
@@ -168,10 +180,10 @@ def bound_meme_schedule_state_is_valid(
 
 
 def main_post_attempt_binds_payload(
-    attempt: dict,
-    payload: dict,
+    attempt: Mapping[str, Any],
+    payload: Mapping[str, object],
     *,
-    current_main_post_attempt_is_semantically_valid: Callable[..., bool],
+    current_main_post_attempt_is_semantically_valid: Callable[[object], bool],
 ) -> bool:
     """Return whether an attempt authorises exactly one remote payload."""
     return bool(
@@ -186,7 +198,7 @@ def main_post_attempt_binds_payload(
 def current_main_post_attempt_is_semantically_valid(
     data: object,
     *,
-    main_post_attempt_is_semantically_valid: Callable[..., bool],
+    main_post_attempt_is_semantically_valid: Callable[[object], bool],
 ) -> bool:
     """Return whether an attempt belongs to the current writable generation."""
 
@@ -203,18 +215,18 @@ def build_main_post_attempt(
     text: str,
     media_ids: list[str],
     made_with_ai: bool,
-    selected_identity: dict,
-    recovery_plan: dict,
+    selected_identity: dict[str, object],
+    recovery_plan: dict[str, object],
     attempt_epoch: int | None = None,
     MAIN_POST_SCHEDULE_TIMEZONE: str,
-    current_main_post_attempt_is_semantically_valid: Callable[..., bool],
-    now_epoch: Callable[..., int],
-    os: Any,
-) -> dict:
+    current_main_post_attempt_is_semantically_valid: Callable[[object], bool],
+    now_epoch: Callable[[], int],
+    os: RandomBytes,
+) -> SendingMainPostAttempt:
     """Build a durable pre-send identity for one main-post transaction."""
     if lane not in {"quote_image", "daily_meme"}:
         raise ValueError(f"Unsupported main-post lane: {lane}")
-    payload: dict = {}
+    payload: dict[str, object] = {}
     if text:
         payload["text"] = str(text)
     payload["media"] = {"media_ids": [str(value) for value in media_ids]}
@@ -245,14 +257,14 @@ def build_main_post_attempt(
     }
     if not current_main_post_attempt_is_semantically_valid(attempt):
         raise RuntimeError("Internal error: generated main-post attempt is invalid")
-    return attempt
+    return cast("SendingMainPostAttempt", attempt)
 
 
 def confirmed_receipt_matches_main_attempt(
-    receipt: dict,
-    attempt: dict,
+    receipt: Mapping[str, Any],
+    attempt: Mapping[str, Any],
     *,
-    main_post_attempt_is_semantically_valid: Callable[..., bool],
+    main_post_attempt_is_semantically_valid: Callable[[object], bool],
 ) -> bool:
     """Return whether a confirmed receipt atomically promotes one attempt."""
     if (
@@ -288,15 +300,15 @@ def confirmed_receipt_matches_main_attempt(
 
 
 def build_confirmed_pending_schedule_receipt(
-    attempt: dict,
+    attempt: Mapping[str, Any],
     *,
     post_id: str,
     confirmation_epoch: int,
     image_summary: str = '',
     confirmed_pending_schedule_receipt_is_semantically_valid: Callable[..., bool],
-    main_post_attempt_is_semantically_valid: Callable[..., bool],
-    valid_receipt_epoch: Callable[..., bool],
-) -> dict:
+    main_post_attempt_is_semantically_valid: Callable[[object], bool],
+    valid_receipt_epoch: Callable[[int], bool],
+) -> PendingMainPostReceipt:
     """Build a versioned confirmed receipt without deriving local schedules."""
     if (
         not main_post_attempt_is_semantically_valid(attempt)
@@ -323,14 +335,14 @@ def build_confirmed_pending_schedule_receipt(
         raise RuntimeError(
             "Internal error: confirmed pending-schedule receipt is invalid"
         )
-    return pending
+    return cast("PendingMainPostReceipt", pending)
 
 
 def confirmation_epoch_for_main_attempt(
-    attempt: dict,
+    attempt: Mapping[str, Any],
     observed_epoch: int,
     *,
-    log: Any,
+    log: logging.Logger,
 ) -> int:
     """Return a confirmation epoch which cannot precede its durable attempt."""
     attempt_epoch = int(attempt["attempt_epoch"])

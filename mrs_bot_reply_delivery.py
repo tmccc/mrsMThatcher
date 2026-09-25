@@ -25,15 +25,21 @@ from __future__ import annotations
 
 import logging
 import functools
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from mrs_bot_durable_json_io import canonical_atomic_json_bytes
 
 if TYPE_CHECKING:
+    from mrsMThatcher2 import ApiError as ApiErrorValue, ProvedRemotePostNonSuccess
+    from mrs_bot_core_contracts import (
+        ConfirmedReplyReceipt, HistoricalConfirmedReplyReceipt,
+        HistoricalSendingReplyReceipt, LegacyCurrentConfirmedReplyReceipt,
+        LegacyCurrentSendingReplyReceipt, ReplyReceiptLoad, SendingReplyReceipt,
+    )
     from mrs_bot_api_cooldowns import ApiCooldowns
     from mrs_bot_reply_cycle_interfaces import PostReply, SaveReplyState
     from mrs_bot_reply_receipt_values import ReplyReceiptValues
@@ -67,7 +73,7 @@ class ReplyCycleDelivery:
     remote_operations_paused: type[Exception]
     api_error: type[Exception]
     confirmed_local_failure: type[Exception]
-    proved_non_success: type[Exception]
+    proved_non_success: type[ProvedRemotePostNonSuccess]
     unrecoverable_confirmed: type[Exception]
     reply_not_allowed: Callable
     save_state: SaveReplyState
@@ -75,7 +81,7 @@ class ReplyCycleDelivery:
     posting_outcome: Callable
     cooldowns: ApiCooldowns
 
-    def load_receipt(self) -> tuple[str, dict | None]:
+    def load_receipt(self) -> ReplyReceiptLoad:
         """Load through the cycle-bound receipt owner."""
         return self.receipts.load()
 
@@ -92,7 +98,7 @@ class ReplyCycleDelivery:
         return self.tweets.target_is_available(target_id)
 
     def finalise(
-        self, state: dict, receipt: dict, *, target_id: str, quote_reply: bool,
+        self, state: dict, receipt: ConfirmedReplyReceipt, *, target_id: str, quote_reply: bool,
     ) -> str:
         """Finalise through the cycle-bound completion owner."""
         return self.completion.finalise(
@@ -103,7 +109,7 @@ class ReplyCycleDelivery:
         self,
         state: dict,
         target_id: str,
-        reply_text: object,
+        reply_text: str,
         receipt_template: dict,
         *,
         lane: str,
@@ -111,7 +117,7 @@ class ReplyCycleDelivery:
         read_error_scope: str,
         mark_as_ai: bool,
         retire_terminal_target: Callable[[str], None],
-    ) -> dict | ReplyDeliveryStop:
+    ) -> ConfirmedReplyReceipt | ReplyDeliveryStop:
         """Recheck, send and route delivery failures without owning lane bookkeeping.
 
         Terminal retirement before sending stays inside the transport exception
@@ -249,7 +255,7 @@ class ReplyReceipts:
     mutation_authority: Callable
     current_receipts: Callable[[], ReplyReceipts]
     retire_current_source_receipt: Callable
-    proved_non_success: type[Exception]
+    proved_non_success: type[ProvedRemotePostNonSuccess]
     reply_not_allowed: Callable[[Exception], bool]
     rejection_payload: Callable
     claim_rejection: Callable
@@ -257,7 +263,7 @@ class ReplyReceipts:
     persistence_error: type[Exception]
 
     def remove(
-        self, receipt: dict, *, sending_disposition: str | None = None,
+        self, receipt: Mapping[str, Any], *, sending_disposition: str | None = None,
         commit_proof=None,
     ) -> None:
         """Retire the exact source under the existing state-commit authority."""
@@ -297,7 +303,7 @@ class ReplyReceipts:
             ConfirmedReplyLocalPersistenceError=self.persistence_error,
         )
 
-    def load(self) -> tuple[str, dict | None]:
+    def load(self) -> ReplyReceiptLoad:
         """Load confirmed reply receipt."""
         try:
             present, data = self.read_json(
@@ -319,9 +325,9 @@ class ReplyReceipts:
             )
             return "invalid", None
         if self.values.sending_is_valid(data):
-            return "sending", data
+            return "sending", cast("SendingReplyReceipt | HistoricalSendingReplyReceipt", data)
         if self.values.legacy_sending_is_valid(data):
-            return "legacy_sending", data
+            return "legacy_sending", cast("LegacyCurrentSendingReplyReceipt | HistoricalSendingReplyReceipt", data)
         if not (
             self.values.confirmed_is_valid(data)
             or self.values.legacy_confirmed_is_valid(data)
@@ -331,7 +337,10 @@ class ReplyReceipts:
                 self.path,
             )
             return "invalid", data
-        return "valid", data
+        return "valid", cast(
+            "ConfirmedReplyReceipt | HistoricalConfirmedReplyReceipt | LegacyCurrentConfirmedReplyReceipt",
+            data,
+        )
 
     def write(self, receipt: dict, *, confirmed: bool) -> None:
         """Publish a validated sending or confirmed receipt without overwriting recovery.
@@ -462,7 +471,7 @@ class ReplyReceipts:
 
 
 def remove_confirmed_reply_receipt(
-    receipt: dict,
+    receipt: Mapping[str, Any],
     *,
     sending_disposition: str | None = None,
     CONFIRMED_REPLY_RECEIPT_FILE: Path,
@@ -517,9 +526,9 @@ def remove_confirmed_reply_receipt(
 
 def retire_proved_rejected_conversational_reply_receipt(
     receipt: dict,
-    error: ProvedRemotePostNonSuccess,
+    error: Exception,
     *,
-    ProvedRemotePostNonSuccess: type[Exception],
+    ProvedRemotePostNonSuccess: type[ProvedRemotePostNonSuccess],
     api_error_is_reply_not_allowed: Callable,
     sending_reply_receipt_is_semantically_valid: Callable,
     reply_create_rejection_payload: Callable,
@@ -596,7 +605,7 @@ def post_conversational_reply_with_durable_identity(
     receipts: Callable[[], ReplyReceipts],
     begin_confirmed_post_sigint_deferral: Callable,
     create_post: Callable,
-    AmbiguousRemotePostOutcome: type[Exception],
+    AmbiguousRemotePostOutcome: type[ApiErrorValue],
     end_confirmed_post_sigint_deferral: Callable,
     cooldowns: ApiCooldowns,
     save_state: Callable,
@@ -604,8 +613,8 @@ def post_conversational_reply_with_durable_identity(
     RemoteOperationsPaused: type[Exception],
     remove_confirmed_reply_receipt: Callable,
     ConfirmedReplyLocalPersistenceError: type[Exception],
-    ProvedRemotePostNonSuccess: type[Exception],
-    ApiError: type[Exception],
+    ProvedRemotePostNonSuccess: type[ProvedRemotePostNonSuccess],
+    ApiError: type[ApiErrorValue],
     inspect_confirmed_transport_transaction: Callable,
     journal_path_for_receipt: Callable,
     StateBackupWriteError: type[Exception],
@@ -616,7 +625,7 @@ def post_conversational_reply_with_durable_identity(
     retain_sigint_deferral_without_durable_barrier: Callable,
     UnrecoverableConfirmedReplyPersistenceError: type[Exception],
     completion: ReplyCompletion,
-) -> tuple[dict, dict]:
+) -> tuple[dict, ConfirmedReplyReceipt]:
     """Create a conversational reply and durably bind its remote identity.
 
     A controlled SIGINT is deferred from the first remote-create instruction
@@ -768,6 +777,9 @@ def post_conversational_reply_with_durable_identity(
                     "Refusing to apply an invalid confirmed reply representation"
                 )
             completion.apply_state(state, receipt)
+            # Backup failures expose proof metadata dynamically; the existing
+            # exact file and retirement authorities validate it before removal.
+            commit_proof: Any
             try:
                 commit_proof = completion.commit(state, receipt_template)
             except StateBackupWriteError as exc:
@@ -843,4 +855,4 @@ def post_conversational_reply_with_durable_identity(
         ) from receipt_error
 
     end_confirmed_post_sigint_deferral(sigint_guard)
-    return response, receipt
+    return response, cast("ConfirmedReplyReceipt", receipt)

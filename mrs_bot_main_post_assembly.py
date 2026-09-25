@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import functools
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from mrs_bot_main_post_attempt_values import (
     bound_meme_schedule_state as capture_bound_meme_schedule_state,
@@ -50,6 +50,15 @@ from mrs_bot_quote_posting import QuotePostRunner
 from mrs_bot_receipt_primitives import valid_post_id
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import (
+        AttemptingMainPostAttempt, MainPostAttempt, MainPostLane,
+        PendingMainPostReceipt, SendingMainPostAttempt,
+    )
+    from mrsMThatcher2 import (
+        ApiError, ConfirmedPendingScheduleDurabilityUncertain,
+        NoViableQuoteImagePair,
+    )
+    from remote_write_transport_journal import SourceReceiptBinding, TransportAuthority
     from mrs_bot_daily_meme import MemeCatalog, MemeSchedule
     from mrs_bot_image_selection import ImageSelection
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
@@ -93,15 +102,15 @@ class MainPostErrors:
     unresolved_regular: type[Exception]
     unresolved_meme: type[Exception]
     invalid_confirmed_reply: type[Exception]
-    ambiguous_outcome: type[Exception]
-    confirmed_pending_uncertain: type[Exception]
+    ambiguous_outcome: type[ApiError]
+    confirmed_pending_uncertain: type[ConfirmedPendingScheduleDurabilityUncertain]
     confirmed_local_failure: type[Exception]
     unrecoverable_confirmed: type[Exception]
     state_backup_failure: type[Exception]
     transport_journal_failure: type[Exception]
     bound_source_transition_failure: type[Exception]
     corrupt_used_history: type[Exception]
-    no_viable_quote_pair: type[Exception]
+    no_viable_quote_pair: type[NoViableQuoteImagePair]
     media_upload_receipt_error: type[Exception]
 
 
@@ -252,10 +261,16 @@ class MainPostAssembly:
             current=lambda: self.current().receipts(),
         )
 
-    def build_attempt(self, **kwargs) -> dict:
+    def build_attempt(
+        self, *, lane: str, text: str, media_ids: list[str], made_with_ai: bool,
+        selected_identity: dict[str, object], recovery_plan: dict[str, object],
+        attempt_epoch: int | None = None,
+    ) -> SendingMainPostAttempt:
         """Build a pre-send attempt using settings bound at this call."""
         return build_main_post_attempt(
-            **kwargs,
+            lane=lane, text=text, media_ids=media_ids, made_with_ai=made_with_ai,
+            selected_identity=selected_identity, recovery_plan=recovery_plan,
+            attempt_epoch=attempt_epoch,
             MAIN_POST_SCHEDULE_TIMEZONE=self.policy.schedule_timezone,
             current_main_post_attempt_is_semantically_valid=self.values().current_attempt_is_valid,
             now_epoch=self.application.now_epoch,
@@ -278,7 +293,9 @@ class MainPostAssembly:
             safe_bound_schedule_date_str=self.application.safe_bound_schedule_date,
         )
 
-    def prepare_transport(self, attempt: dict):
+    def prepare_transport(
+        self, attempt: SendingMainPostAttempt,
+    ) -> tuple[AttemptingMainPostAttempt, SourceReceiptBinding, TransportAuthority]:
         """Promote the attempt and bind its exact sealed X transport source."""
         values = self.values()
         return prepare_main_tweet_transport(
@@ -290,7 +307,10 @@ class MainPostAssembly:
             bind_lane_transport_source=self.transport.bind_lane_transport_source,
         )
 
-    def handoff_media(self, attempt: dict, transport_authority: object) -> None:
+    def handoff_media(
+        self, attempt: AttemptingMainPostAttempt,
+        transport_authority: TransportAuthority,
+    ) -> None:
         """Retire confirmed media only beneath its prepared tweet authority."""
         t, p, e = self.transport, self.policy, self.errors
 
@@ -354,7 +374,7 @@ class MainPostAssembly:
             quote_schedule=self.application.quote_schedule(),
         )
 
-    def remove_attempt(self, attempt: dict, *, sending_disposition: str, commit_proof=None) -> None:
+    def remove_attempt(self, attempt: Mapping[str, Any], *, sending_disposition: str, commit_proof=None) -> None:
         """Retire exactly one attempt under its required proof or disposition."""
         if sending_disposition == "confirmed_state_fallback":
             from mrs_bot_state_generation import require_commit_proof
@@ -396,9 +416,9 @@ class MainPostAssembly:
         )
 
     def promote_pending(
-        self, attempt: dict, *, post_id: str, confirmation_epoch: int,
+        self, attempt: AttemptingMainPostAttempt, *, post_id: str, confirmation_epoch: int,
         image_summary: str = "",
-    ) -> dict:
+    ) -> PendingMainPostReceipt:
         """Bind a confirmed remote identity before fallible schedule work."""
         values = self.values()
         p, e, io, t, a = (
@@ -431,22 +451,49 @@ class MainPostAssembly:
         )
 
     def publication(
-        self, lane: str, *, receipts: MainPostReceipts, values: MainPostReceiptValues,
+        self, lane: MainPostLane, *, receipts: MainPostReceipts, values: MainPostReceiptValues,
     ) -> MainPostPublication:
         """Bind one publication and its partial progress for one transaction."""
         p, e, t, a = self.policy, self.errors, self.transport, self.application
+
+        def prepare_transport(
+            attempt: SendingMainPostAttempt,
+        ) -> tuple[AttemptingMainPostAttempt, SourceReceiptBinding, TransportAuthority]:
+            return self.current().prepare_transport(attempt)
+
+        def handoff_media(
+            attempt: AttemptingMainPostAttempt, authority: TransportAuthority,
+        ) -> None:
+            self.current().handoff_media(attempt, authority)
+
+        def retire_attempt(
+            attempt: MainPostAttempt, *, sending_disposition: str,
+        ) -> None:
+            self.current().remove_attempt(
+                attempt, sending_disposition=sending_disposition,
+            )
+
+        def promote_pending(
+            attempt: AttemptingMainPostAttempt, *, post_id: str,
+            confirmation_epoch: int, image_summary: str = "",
+        ) -> PendingMainPostReceipt:
+            return self.current().promote_pending(
+                attempt, post_id=post_id, confirmation_epoch=confirmation_epoch,
+                image_summary=image_summary,
+            )
+
         return MainPostPublication(
             lane=lane,
             receipt_path=p.regular_receipt_file if lane == "quote_image" else p.meme_receipt_file,
             log=a.log,
             receipts=receipts,
             receipt_values=values,
-            prepare_transport=lambda *args, **kwargs: self.current().prepare_transport(*args, **kwargs),
-            handoff_media=lambda *args, **kwargs: self.current().handoff_media(*args, **kwargs),
+            prepare_transport=prepare_transport,
+            handoff_media=handoff_media,
             begin_sigint=t.begin_sigint,
             create_post=t.create_post,
             proves_non_success=t.proves_non_success,
-            retire_attempt=lambda *args, **kwargs: self.current().remove_attempt(*args, **kwargs),
+            retire_attempt=retire_attempt,
             end_sigint=t.end_sigint,
             ambiguous_outcome=e.ambiguous_outcome,
             incident_latched=t.incident_latched,
@@ -454,7 +501,7 @@ class MainPostAssembly:
             retain_sigint=t.retain_sigint,
             inspect_confirmation=t.inspect_confirmation,
             journal_path=t.journal_path,
-            promote_pending=lambda *args, **kwargs: self.current().promote_pending(*args, **kwargs),
+            promote_pending=promote_pending,
             run_stage=(
                 (lambda stage, operation: run_daily_meme_stage(
                     stage, operation, log=a.log, log_event=a.log_event,

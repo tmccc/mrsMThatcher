@@ -22,9 +22,15 @@ if globals().get("_LIFECYCLE_AUTHORITY_ACQUIRED", False):
     raise RuntimeError("Refusing to reload mrsMThatcher2 after lifecycle authority was acquired")
 _LIFECYCLE_AUTHORITY_ACQUIRED = False
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, SupportsFloat, SupportsIndex, cast
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import (
+        AttemptingMainPostAttempt, BotState, CurrentMemePostReceipt,
+        CurrentRegularPostReceipt, MemePostReceipt, MemeReceiptLoad,
+        PendingMainPostReceipt, RegularPostReceipt, RegularReceiptLoad,
+        ReplyReceiptLoad, SendingMainPostAttempt,
+    )
     from mrs_bot_state_generation import StateCommitProof
     from mrs_bot_main_post_confirmation_persistence import RegularPostPersistenceResult
 
@@ -36,6 +42,7 @@ import math
 import os
 import sys
 from collections.abc import Mapping
+from types import FrameType
 from email.utils import parsedate_to_datetime
 from urllib.parse import urlsplit, urlunsplit
 
@@ -148,7 +155,7 @@ def _effective_request_timeout_before_runtime_configuration(raw: object) -> floa
     """Derive the effective request timeout without changing runtime globals."""
 
     try:
-        value = float(raw)
+        value = float(cast(str | SupportsFloat | SupportsIndex, raw))
     except (TypeError, ValueError):
         return 60.0
     if not math.isfinite(value) or value <= 0 or value > 60.0:
@@ -1427,7 +1434,7 @@ class ReplyEvidenceUnavailable(RuntimeError):
 
 _PRODUCTION_BOOTSTRAPPED = False
 _HISTORICAL_CONTEXT_SEMANTIC_GATE: object | None = None
-_HISTORICAL_CONTEXT_CORPUS_SNAPSHOT: tuple[dict, dict] | None = None
+_HISTORICAL_CONTEXT_CORPUS_SNAPSHOT: tuple[dict, set[str]] | None = None
 _HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON: str | None = None
 _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON: str | None = None
 _REPLY_EVIDENCE_REPOSITORY: object | None = None
@@ -2061,7 +2068,7 @@ class AmbiguousRemotePostOutcome(ApiError):
         response_body_sha256: str | None = None,
         diagnostic_sha256: str | None = None,
         diagnostic_event: str | None = None,
-        **kwargs: object,
+        **kwargs: Any,
     ) -> None:
         """Retain optional compact evidence for response-bound anomalies."""
 
@@ -2080,7 +2087,7 @@ class ProvedRemotePostNonSuccess(ApiError):
         message: str,
         *,
         remote_non_success_proof: DeterministicReplyCreateRejectionProof,
-        **kwargs: object,
+        **kwargs: Any,
     ) -> None:
         """Bind the exception to one classifier-issued registered proof."""
 
@@ -2263,7 +2270,7 @@ def save_used_set(path: Path, value: set, *, durable: bool = False) -> None:
     return _used_history_owner().save_used_set(path, value, durable=durable)
 
 
-def default_state() -> dict:
+def default_state() -> BotState:
     """Build a new runtime-state document with safe defaults."""
     return _runtime_state_helpers.default_state(
         STATE_MINIMUM_READER_VERSION=STATE_MINIMUM_READER_VERSION,
@@ -2543,7 +2550,7 @@ def normalise_state_candidate(
     path: Path,
     recovery_events: list[dict[str, object]] | None = None,
     recover_pending_identity: bool = False,
-) -> dict | None:
+) -> BotState | None:
     """Normalise state candidate."""
     return _state_candidate_normalizer()(
         state,
@@ -2573,9 +2580,9 @@ def _state_candidate_normalizer() -> functools.partial:
     )
 
 
-def load_state() -> dict:
+def load_state() -> BotState:
     """Load, validate, and recover runtime state from durable storage."""
-    return _state_loading.load_state(
+    loaded = _state_loading.load_state(
         STATE_BACKUP_COUNT=STATE_BACKUP_COUNT,
         STATE_FILE=STATE_FILE,
         STATE_MINIMUM_READER_VERSION=STATE_MINIMUM_READER_VERSION,
@@ -2591,6 +2598,9 @@ def load_state() -> dict:
         require_compatible_state_reader=require_compatible_state_reader,
         save_state=save_state,
     )
+    # The loader returns only the default or a normalised candidate; it keeps
+    # raw dictionary operations local so unknown persisted fields survive.
+    return cast("BotState", loaded)
 
 
 def scheduler_epoch_from_state(state: dict, key: str, *, current: int | None = None) -> tuple[int, bool]:
@@ -2893,10 +2903,16 @@ if _X_REQUEST_PROVIDER_RELOAD_RECORD_STATE == "unconfigured":
         raise RuntimeError(
             "Configured X request authority changed during module import"
         )
+    def _frozen_x_create_configuration(
+        _url: str = f"{x_request_base_url('POST', '/2/tweets')}/2/tweets",
+        _auth: object = AUTH,
+        _timeout: Timeout = request_timeout(),
+    ) -> tuple[str, object, object]:
+        """Return the exact import-time X request configuration snapshot."""
+        return _url, _auth, _timeout
+
     _install_configured_x_request_provider(
-        lambda _url=f"{x_request_base_url('POST', '/2/tweets')}/2/tweets",
-        _auth=AUTH,
-        _timeout=request_timeout(): (_url, _auth, _timeout),
+        _frozen_x_create_configuration,
         owner_module=sys.modules[__name__],
         reload_fingerprint=_CURRENT_X_REQUEST_PROVIDER_RELOAD_FINGERPRINT,
     )
@@ -3707,7 +3723,8 @@ def recover_state_receipt_commit_proof(receipt_path: Path):
     if not inspection.valid:
         raise RuntimeError("interrupted receipt retirement has no stable marker")
     state = load_state()
-    entry = state.get("_confirmed_receipt_commits", {}).get(inspection.expected_sha256)
+    commits = cast(dict[str, object], state.get("_confirmed_receipt_commits", {}))
+    entry = commits.get(inspection.expected_sha256)
     if not isinstance(entry, dict):
         raise RuntimeError("interrupted retirement is not bound to a committed state generation")
     files = []
@@ -3723,7 +3740,7 @@ def recover_state_receipt_commit_proof(receipt_path: Path):
             if entry.get(key) not in history:
                 raise RuntimeError("interrupted regular receipt has no matching durable used history")
             files.append((path, data))
-    proof = save_state(state, durable=True)
+    proof = save_state(cast(dict, state), durable=True)
     return protect_history_files(proof, tuple(files)) if files else proof
 
 
@@ -3995,9 +4012,9 @@ class ConfirmedPostSigintDeferral:
         """Capture the prior handler and initialise the deferred-signal state."""
         self.previous_handler = signal.getsignal(signal.SIGINT)
         self.pending = False
-        self.pending_frame: object | None = None
+        self.pending_frame: FrameType | None = None
 
-    def handle(self, _signum: int, frame: object | None) -> None:
+    def handle(self, _signum: int, frame: FrameType | None) -> None:
         """Record a pending SIGINT without interrupting the durability window."""
         self.pending = True
         self.pending_frame = frame
@@ -4791,7 +4808,7 @@ def valid_receipt_basename(value: object) -> bool:
     )
 
 
-def canonical_remote_post_payload_sha256(payload: dict) -> str:
+def canonical_remote_post_payload_sha256(payload: Mapping[str, object]) -> str:
     """Return the stable identity of one exact X create payload."""
     return _main_post_attempt_values.canonical_remote_post_payload_sha256(payload)
 
@@ -4804,10 +4821,10 @@ MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS = _main_post_attempt_values.MAIN_POST_
 
 
 def bound_meme_schedule_state(
-    state: dict,
+    state: Mapping[str, Any],
     *,
     schedule_timezone: str | None = None,
-) -> dict:
+) -> dict[str, object]:
     """Capture the exact meme-schedule inputs bound before a regular X write."""
     return _main_post_attempt_values.bound_meme_schedule_state(
         state,
@@ -4949,7 +4966,9 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
     return _main_post_assembly().values().attempt_is_valid(data)
 
 
-def main_post_attempt_binds_payload(attempt: dict, payload: dict) -> bool:
+def main_post_attempt_binds_payload(
+    attempt: dict[str, Any], payload: dict[str, Any],
+) -> bool:
     """Return whether an attempt authorises exactly one remote payload."""
     return _main_post_assembly().values().attempt_binds_payload(attempt, payload)
 
@@ -4965,10 +4984,10 @@ def build_main_post_attempt(
     text: str,
     media_ids: list[str],
     made_with_ai: bool,
-    selected_identity: dict,
-    recovery_plan: dict,
+    selected_identity: dict[str, object],
+    recovery_plan: dict[str, object],
     attempt_epoch: int | None = None,
-) -> dict:
+) -> SendingMainPostAttempt:
     """Build a durable pre-send identity for one main-post transaction."""
     return _main_post_assembly().build_attempt(
         lane=lane,
@@ -4992,8 +5011,8 @@ def write_main_post_attempt(attempt: dict) -> None:
 
 
 def prepare_main_tweet_transport(
-    attempt: dict,
-) -> tuple[dict, SourceReceiptBinding, TransportAuthority]:
+    attempt: SendingMainPostAttempt,
+) -> tuple[AttemptingMainPostAttempt, SourceReceiptBinding, TransportAuthority]:
     """Publish a prepared tweet owner before retiring confirmed media state."""
     receipt_values = _main_post_assembly().values()
     return _transport_source_preparation.prepare_main_tweet_transport(
@@ -5038,7 +5057,9 @@ def handoff_confirmed_media_upload_to_main_attempt(
     )
 
 
-def mark_main_post_attempt_attempting(attempt: dict) -> dict:
+def mark_main_post_attempt_attempting(
+    attempt: SendingMainPostAttempt,
+) -> AttemptingMainPostAttempt:
     """Atomically consume one sending authorisation before remote transmission."""
     return _main_post_assembly().receipts().mark_attempting(attempt)
 
@@ -5055,7 +5076,9 @@ def remove_main_post_attempt(
     )
 
 
-def confirmed_receipt_matches_main_attempt(receipt: dict, attempt: dict) -> bool:
+def confirmed_receipt_matches_main_attempt(
+    receipt: Mapping[str, Any], attempt: Mapping[str, Any],
+) -> bool:
     """Return whether a confirmed receipt atomically promotes one attempt."""
     return _main_post_assembly().values().confirmed_matches_attempt(
         receipt, attempt,
@@ -5074,12 +5097,12 @@ def confirmed_pending_schedule_receipt_is_semantically_valid(
 
 
 def build_confirmed_pending_schedule_receipt(
-    attempt: dict,
+    attempt: AttemptingMainPostAttempt,
     *,
     post_id: str,
     confirmation_epoch: int,
     image_summary: str = "",
-) -> dict:
+) -> PendingMainPostReceipt:
     """Build a versioned confirmed receipt without deriving local schedules."""
     return _main_post_assembly().values().build_pending(
         attempt,
@@ -5089,7 +5112,7 @@ def build_confirmed_pending_schedule_receipt(
     )
 
 
-def confirmation_epoch_for_main_attempt(attempt: dict, observed_epoch: int) -> int:
+def confirmation_epoch_for_main_attempt(attempt: Mapping[str, Any], observed_epoch: int) -> int:
     """Return a confirmation epoch which cannot precede its durable attempt."""
     return _main_post_attempt_values.confirmation_epoch_for_main_attempt(
         attempt,
@@ -5099,12 +5122,12 @@ def confirmation_epoch_for_main_attempt(attempt: dict, observed_epoch: int) -> i
 
 
 def promote_main_post_attempt_to_confirmed_pending_schedule(
-    attempt: dict,
+    attempt: AttemptingMainPostAttempt,
     *,
     post_id: str,
     confirmation_epoch: int,
     image_summary: str = "",
-) -> dict:
+) -> PendingMainPostReceipt:
     """Atomically bind a confirmed remote identity before fallible local work."""
     return _main_post_assembly().promote_pending(
         attempt,
@@ -5115,10 +5138,10 @@ def promote_main_post_attempt_to_confirmed_pending_schedule(
 
 
 def materialize_bound_regular_schedule_receipt(
-    pending: dict,
+    pending: PendingMainPostReceipt,
     *,
     _validate_result: bool = True,
-) -> dict:
+) -> CurrentRegularPostReceipt:
     """Build a full regular receipt solely from its durable bound plan."""
     return _main_post_assembly().values().materialize_regular(
         pending, _validate_result=_validate_result,
@@ -5126,10 +5149,10 @@ def materialize_bound_regular_schedule_receipt(
 
 
 def materialize_bound_meme_schedule_receipt(
-    pending: dict,
+    pending: PendingMainPostReceipt,
     *,
     _validate_result: bool = True,
-) -> dict:
+) -> CurrentMemePostReceipt:
     """Build a full meme receipt solely from its durable bound plan."""
     return _main_post_assembly().values().materialize_meme(
         pending, _validate_result=_validate_result,
@@ -5137,8 +5160,8 @@ def materialize_bound_meme_schedule_receipt(
 
 
 def finalize_confirmed_pending_schedule_receipt(
-    pending: dict,
-) -> dict:
+    pending: PendingMainPostReceipt,
+) -> CurrentRegularPostReceipt | CurrentMemePostReceipt:
     """Atomically replace one pending schedule with its complete local receipt."""
     return _main_post_assembly().receipts().finalize_pending(pending)
 
@@ -5153,7 +5176,7 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
     return _main_post_assembly().values().regular_is_valid(data)
 
 
-def load_regular_post_receipt() -> tuple[str, dict | None]:
+def load_regular_post_receipt() -> RegularReceiptLoad:
     """Load regular post receipt."""
     return _main_post_assembly().receipts().load_regular()
 
@@ -5173,7 +5196,7 @@ def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
     return _main_post_assembly().values().meme_is_valid(data)
 
 
-def load_meme_post_receipt() -> tuple[str, dict | None]:
+def load_meme_post_receipt() -> MemeReceiptLoad:
     """Load meme post receipt."""
     return _main_post_assembly().receipts().load_meme()
 
@@ -6558,7 +6581,7 @@ def _legacy_sending_reply_receipt_is_semantically_valid(data: dict) -> bool:
     return _reply_assembly().sending_receipt_is_valid(data, legacy=True)
 
 
-def load_confirmed_reply_receipt() -> tuple[str, dict | None]:
+def load_confirmed_reply_receipt() -> ReplyReceiptLoad:
     """Load confirmed reply receipt."""
     return _reply_assembly().load_receipt()
 

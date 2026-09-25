@@ -16,6 +16,10 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mrs_bot_state_generation import StateCommitProof
 
 
 @dataclass(frozen=True)
@@ -31,7 +35,7 @@ class ApiCooldowns:
     maximum_openai_errors: int
     maximum_x_errors: int
     reply_not_allowed: Callable[[Exception], bool]
-    save_state: Callable[[dict], None]
+    save_state: Callable[[dict], StateCommitProof]
 
     def active(self, state: dict, *, scope: str = 'api') -> bool:
         """Return the in API cooldown."""

@@ -66,7 +66,7 @@ def test_adapter_forwards_all_current_dependencies_and_original_return(monkeypat
         "require_compatible_state_reader", "save_state",
     )
     adapter = bot.load_state
-    assert str(inspect.signature(adapter)) == "() -> 'dict'"
+    assert str(inspect.signature(adapter)) == "() -> 'BotState'"
     assert tuple(inspect.signature(loading.load_state).parameters) == dependencies
     monkeypatch.setattr(bot, "Path", object())  # Postponed/local annotations only.
     for _ in range(2):

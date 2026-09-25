@@ -18,15 +18,17 @@ from datetime import datetime
 from logging import Logger
 from typing import TYPE_CHECKING, Any
 
+
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_api_cooldowns import ApiCooldowns
     from mrs_bot_daily_meme import MemeSchedule
 
 
 def default_state(
     *,
-    STATE_MINIMUM_READER_VERSION: Any,
-) -> dict:
+    STATE_MINIMUM_READER_VERSION: int,
+) -> BotState:
     """Build a new runtime-state document with safe defaults."""
     return {
         "minimum_reader_version": STATE_MINIMUM_READER_VERSION,

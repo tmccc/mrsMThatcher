@@ -8,13 +8,14 @@ hold the instance/state lock across selection, migration and publication.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 import hashlib
 import json
 import os
 from pathlib import Path
 import stat
+from typing import Any
 
 
 GENERATION_KEY = '_state_generation'
@@ -123,7 +124,7 @@ def receipt_commit_records_are_valid(commits: object) -> bool:
     )
 
 
-def record_receipt_commit(state: dict, receipt: dict) -> None:
+def record_receipt_commit(state: dict, receipt: Mapping[str, Any]) -> None:
     """Bind exact receipt retirement to the state which records its confirmed effect.
 
     This durable identity collection is intentionally never truncated. The whole
@@ -152,7 +153,7 @@ class StateCommitProof:
     protected_files: tuple[StateCommitProof, ...] = ()
     receipt_digests: frozenset[str] = frozenset()
 
-    def require_receipt(self, receipt: dict) -> None:
+    def require_receipt(self, receipt: Mapping[str, object]) -> None:
         """Require this exact source receipt's confirmed effect in the sealed state."""
         digest = hashlib.sha256(canonical_bytes(receipt) + b'\n').hexdigest()
         if digest not in self.receipt_digests:

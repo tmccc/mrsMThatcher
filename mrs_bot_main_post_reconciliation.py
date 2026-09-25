@@ -7,11 +7,11 @@ application boundary. This module performs no runtime work at import.
 """
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from mrs_bot_regular_post_completion import complete_regular_post_persistence
 
@@ -19,6 +19,7 @@ from mrs_bot_receipt_primitives import receipt_int, valid_post_id
 
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import AttemptingMainPostAttempt
     from mrs_bot_daily_meme import MemeSchedule
     from mrs_bot_main_post_receipt_storage import MainPostReceipts
     from mrs_bot_main_post_receipts import MainPostReceiptValues
@@ -148,30 +149,37 @@ def reconcile_meme_post_receipt(
     verify_lane_transport_source_lineage_if_present: Any,
 ) -> bool:
     """Reconcile a durable meme receipt without duplicating a remote post."""
-    status, receipt = receipts.current().load_meme()
-    if status == "absent":
+    loaded = receipts.current().load_meme()
+    if loaded[0] == "absent":
         return False
-    if status == "sending":
+    if loaded[0] == "sending":
         log.critical(
             "A meme post was interrupted with an uncertain remote outcome; "
             "leaving its sending receipt as a global manual-reconciliation barrier"
         )
         return False
-    if receipt is not None and status in {"pending_schedule", "valid"}:
+    if loaded[0] == "pending_schedule":
+        receipt: Mapping[str, Any] = loaded[1]
         verify_lane_transport_source_lineage_if_present(
             receipt_path=MEME_POST_RECEIPT_FILE,
             receipt=receipt,
             lane="daily_meme",
             post_id=str(receipt.get("post_id") or ""),
         )
-    if status == "pending_schedule" and receipt is not None:
         log.warning(
             "Finalising local schedule for already-confirmed meme post_id=%s",
             receipt.get("post_id"),
         )
-        receipt = receipts.current().finalize_pending(receipt)
-        status = "valid"
-    if status == "invalid" or receipt is None:
+        receipt = receipts.current().finalize_pending(loaded[1])
+    elif loaded[0] == "valid":
+        receipt = loaded[1]
+        verify_lane_transport_source_lineage_if_present(
+            receipt_path=MEME_POST_RECEIPT_FILE,
+            receipt=receipt,
+            lane="daily_meme",
+            post_id=str(receipt.get("post_id") or ""),
+        )
+    else:
         raise InvalidMemePostReceipt(f"Invalid meme-post receipt blocks the bot: {MEME_POST_RECEIPT_FILE}")
     log.warning(
         "Reconciling confirmed meme post receipt post_id=%s meme=%s",
@@ -346,7 +354,7 @@ def confirmed_regular_emergency_representation_is_complete(
     state_post_epoch = receipt_int(state.get("last_quote_post_epoch"))
     try:
         pending = receipt_values.current().build_pending(
-            main_post_attempt,
+            cast("AttemptingMainPostAttempt", main_post_attempt),
             post_id=str(post_id),
             confirmation_epoch=int(post_epoch or 0),
         )
@@ -403,7 +411,7 @@ def confirmed_meme_emergency_representation_is_complete(
     )
     try:
         pending = receipt_values.current().build_pending(
-            main_post_attempt,
+            cast("AttemptingMainPostAttempt", main_post_attempt),
             post_id=str(post_id),
             confirmation_epoch=int(post_epoch or 0),
             image_summary=image_summary,
@@ -472,30 +480,37 @@ def reconcile_regular_post_receipt(
     verify_lane_transport_source_lineage_if_present: Any,
 ) -> bool:
     """Reconcile a durable regular-post receipt without duplicating a remote post."""
-    status, receipt = receipts.current().load_regular()
-    if status == "absent":
+    loaded = receipts.current().load_regular()
+    if loaded[0] == "absent":
         return False
-    if status == "sending":
+    if loaded[0] == "sending":
         log.critical(
             "A regular post was interrupted with an uncertain remote outcome; "
             "leaving its sending receipt as a global manual-reconciliation barrier"
         )
         return False
-    if receipt is not None and status in {"pending_schedule", "valid"}:
+    if loaded[0] == "pending_schedule":
+        receipt: Mapping[str, Any] = loaded[1]
         verify_lane_transport_source_lineage_if_present(
             receipt_path=REGULAR_POST_RECEIPT_FILE,
             receipt=receipt,
             lane="quote_image",
             post_id=str(receipt.get("post_id") or ""),
         )
-    if status == "pending_schedule" and receipt is not None:
         log.warning(
             "Finalising local schedule for already-confirmed regular post_id=%s",
             receipt.get("post_id"),
         )
-        receipt = receipts.current().finalize_pending(receipt)
-        status = "valid"
-    if status == "invalid" or receipt is None:
+        receipt = receipts.current().finalize_pending(loaded[1])
+    elif loaded[0] == "valid":
+        receipt = loaded[1]
+        verify_lane_transport_source_lineage_if_present(
+            receipt_path=REGULAR_POST_RECEIPT_FILE,
+            receipt=receipt,
+            lane="quote_image",
+            post_id=str(receipt.get("post_id") or ""),
+        )
+    else:
         raise InvalidRegularPostReceipt(f"Invalid regular-post receipt blocks main posting: {REGULAR_POST_RECEIPT_FILE}")
     log.warning(
         "Reconciling confirmed regular quote/image post receipt post_id=%s quote_hash=%s image=%s",
@@ -523,7 +538,7 @@ def reconcile_regular_post_receipt(
         )
 
     complete_regular_post_persistence(
-        lines_used, images_used, state, receipt,
+        lines_used, images_used, state, cast(dict[str, Any], receipt),
         save_regular_post_protected_state=save_regular_post_protected_state,
         enqueue_historical_context_obligation=enqueue_historical_context_obligation,
         retire_transport_journal=retire_transport_journal,

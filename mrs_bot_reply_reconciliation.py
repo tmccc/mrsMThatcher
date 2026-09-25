@@ -23,10 +23,11 @@ from __future__ import annotations
 
 import copy
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import datetime as DateTime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from mrs_bot_runtime_state_helpers import append_unique_capped, append_unique_durable
 from mrs_bot_reply_state import mark_quote_tweet_replied
@@ -37,6 +38,7 @@ from mrs_bot_mention_authority import (
 )
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import ConfirmedReplyReceipt
     from mrs_bot_reply_clarifications import ClarificationReplies
     from mrs_bot_daily_reply_accounting import DailyReplyAccounting
     from mrs_bot_mention_authority import MentionAuthority
@@ -65,7 +67,7 @@ def apply_confirmed_reply_receipt(
     drafts: ReplyDrafts,
     tweets: TweetLookupCache,
     MY_USER_ID: str,
-    datetime: type,
+    datetime: type[DateTime],
     history: ReplyHistory,
     clarifications: ClarificationReplies,
     log_event: Callable,
@@ -283,7 +285,7 @@ def _mention_pagination_to_preserve(
             "Preserving active mention pagination for a legacy confirmed "
             "reply receipt without transaction-bound provenance"
         )
-    return preserved
+    return cast(dict[str, str], preserved)
 
 
 @dataclass(frozen=True)
@@ -305,14 +307,14 @@ class ReplyCompletion:
     invalid_receipt: type[Exception]
     verify_lineage: Callable
 
-    def commit(self, state: dict, receipt: dict) -> StateCommitProof:
+    def commit(self, state: dict, receipt: Mapping[str, Any]) -> StateCommitProof:
         """Record this receipt in caller state and return its durable commit proof."""
         from mrs_bot_state_generation import record_receipt_commit
         record_receipt_commit(state, receipt)
         return self.save_state(state, durable=True)
 
     def retire(
-        self, receipt: dict, *, post_id: str, commit_proof: StateCommitProof,
+        self, receipt: Mapping[str, Any], *, post_id: str, commit_proof: StateCommitProof,
         sending_disposition: str | None = None,
     ) -> None:
         """Retire the journal before the source receipt with the same commit proof."""
@@ -331,7 +333,7 @@ class ReplyCompletion:
             )
 
     def finalise(
-        self, state: dict, receipt: dict, *, target_id: str, quote_reply: bool,
+        self, state: dict, receipt: ConfirmedReplyReceipt, *, target_id: str, quote_reply: bool,
     ) -> str:
         """Commit a new confirmation, then retire its exact recovery records.
 
@@ -366,19 +368,20 @@ class ReplyCompletion:
 
     def reconcile(self, state: dict) -> bool:
         """Reconcile a confirmed reply without duplicating the remote post."""
-        status, receipt = self.receipts.load()
-        if status == "absent":
+        loaded = self.receipts.load()
+        if loaded[0] == "absent":
             return False
-        if status in {"sending", "legacy_sending"} and receipt is not None:
+        if loaded[0] in {"sending", "legacy_sending"} and loaded[1] is not None:
             raise self.unresolved_sending_receipt(
                 "A conversational reply was interrupted after its durable sending "
                 "receipt was written; manual reconciliation is required before any "
                 "remote write"
             )
-        if status == "invalid" or receipt is None:
+        if loaded[0] != "valid" or loaded[1] is None:
             raise self.invalid_receipt(
                 f"Invalid confirmed-reply receipt blocks auto-reply processing: {self.receipt_path}"
             )
+        receipt = loaded[1]
 
         self.verify_lineage(
             receipt_path=self.receipt_path,

@@ -8,11 +8,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING, cast
 
 from mrs_bot_durable_json_io import canonical_atomic_json_bytes
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import AttemptingMainPostAttempt, PendingMainPostReceipt
     from mrs_bot_main_post_receipt_storage import MainPostReceipts
     from mrs_bot_main_post_receipts import MainPostReceiptValues
     from mrs_bot_state_generation import StateCommitProof
@@ -37,7 +38,7 @@ def atomic_json_file_exactly_matches(
 
 
 def promote_main_post_attempt_to_confirmed_pending_schedule(
-    attempt: dict,
+    attempt: AttemptingMainPostAttempt,
     *,
     post_id: str,
     confirmation_epoch: int,
@@ -61,7 +62,7 @@ def promote_main_post_attempt_to_confirmed_pending_schedule(
     replace_bound_source_receipt: Any,
     transaction_mutation_authority: Any,
     transport_source_semantic_validator: Any,
-) -> dict:
+) -> PendingMainPostReceipt:
     """Atomically bind a confirmed remote identity before fallible local work."""
     pending = receipt_values.current().build_pending(
         attempt,
@@ -268,7 +269,7 @@ def emergency_persist_confirmed_regular_post(
             log.critical("Emergency persistence component failed after confirmed regular post: %s", name, exc_info=True)
     if not failures:
         try:
-            proof = protect_history_files(proof, (
+            proof = protect_history_files(cast("StateCommitProof", proof), (
                 (LINES_USED_FILE, canonical_bytes(sorted({str(item) for item in lines_used})) + b'\n'),
                 (IMAGES_USED_FILE, canonical_bytes(sorted({str(item) for item in images_used})) + b'\n'),
             ))

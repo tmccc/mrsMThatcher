@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from mrs_bot_runtime_state_helpers import append_unique_capped
 from mrs_bot_reply_state import (
@@ -29,14 +29,19 @@ from mrs_bot_reply_cycle_interfaces import (
     QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN,
     QUOTE_CHECK_STATUS_SKIPPED_SPACING,
     FinishReplyCheck,
+    LogReplyEvent,
+    LogReplyPostingOutcome,
+    LogValidatedReply,
     PreparedReplyContext,
     QuoteReplyConfig,
     QuoteTweetDiscovery,
     ReplyCycleDelivery,
     ReplyCyclePersistence,
     SkipReplyCandidate,
+    SortRawTweets,
 )
 from mrs_bot_reply_delivery import ReplyDeliveryStop
+from mrs_bot_reply_outcomes import outcome_disposition
 from mrs_bot_reply_evaluation_state import terminal_reply_evaluation
 from mrs_bot_reply_preparation import (
     build_sending_reply_receipt,
@@ -44,6 +49,8 @@ from mrs_bot_reply_preparation import (
 )
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import ConfirmedReplyReceipt, ReplyContextData
+    from mrsMThatcher2 import ApiError as ApiErrorValue
     from mrs_bot_api_cooldowns import ApiCooldowns
     from mrs_bot_daily_reply_accounting import DailyReplyAccounting
     from mrs_bot_reply_evaluation_state import ReplyEvaluations
@@ -53,16 +60,16 @@ if TYPE_CHECKING:
     from mrs_bot_quote_discovery import QuoteWatchPosts
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
     from mrs_bot_runtime_control import RuntimeControls
-    from single_call_reply import PipelineResult, ValidatedReply as ValidatedReplyValue
+    from single_call_reply import PipelineOutcome, PipelineResult, ValidatedReply as ValidatedReplyValue
 
 
 def quote_tweet_is_old_enough(
-    quote_tweet: dict,
+    quote_tweet: dict[str, Any],
     *,
     QUOTE_REPLY_DELAY_SECONDS: int,
     log: Logger,
-    now_epoch: Callable,
-    parse_x_datetime_to_epoch: Callable,
+    now_epoch: Callable[[], int],
+    parse_x_datetime_to_epoch: Callable[[object], int | None],
 ) -> bool:
     """Return whether quote tweet is old enough."""
     created_epoch = parse_x_datetime_to_epoch(quote_tweet.get("created_at"))
@@ -86,7 +93,7 @@ def quote_tweet_is_old_enough(
 
 
 def quote_tweet_directly_quotes_original(
-    quote_tweet: dict,
+    quote_tweet: dict[str, Any],
     original_post_id: str,
 ) -> bool:
     """
@@ -112,7 +119,7 @@ def quote_tweet_directly_quotes_original(
     return False
 
 
-def quote_author_profile_text(quote_tweet: dict) -> str:
+def quote_author_profile_text(quote_tweet: dict[str, Any]) -> str:
     """Return the quote author profile text."""
     user = quote_tweet.get("_author_user", {}) or {}
 
@@ -137,7 +144,7 @@ def quote_author_profile_text(quote_tweet: dict) -> str:
 
 
 def mark_quote_spam_author(
-    state: dict,
+    state: dict[str, Any],
     author_id: str,
     *,
     log: Logger,
@@ -168,7 +175,7 @@ class _QuoteScanHistory:
     replied_to_ids: frozenset[str]
 
     @classmethod
-    def capture(cls, state: dict) -> _QuoteScanHistory:
+    def capture(cls, state: dict[str, Any]) -> _QuoteScanHistory:
         """Snapshot each ledger in admission order without retaining caller state."""
 
         return cls(
@@ -190,7 +197,7 @@ class _QuoteScanHistory:
 class _QuoteCandidate:
     """Keep the candidate and its identity/text as first read during iteration."""
 
-    tweet: dict
+    tweet: dict[str, Any]
     quote_id: str
     author_id: str
     text: str
@@ -203,36 +210,36 @@ class QuoteReplyCycle:
         self,
         *,
         delivery: ReplyCycleDelivery,
-        ApiError: type[Exception],
+        ApiError: type[ApiErrorValue],
         ContextValidationError: type[Exception],
         config: QuoteReplyConfig,
-        PipelineResult: type,
+        PipelineResult: type[PipelineResult],
         RemoteOperationsPaused: type[Exception],
         ReplyEvidenceUnavailable: type[Exception],
         SINGLE_CALL_STRATEGY_VERSION: str,
-        ValidatedReply: type,
-        _log_validated_single_call_reply: Callable,
+        ValidatedReply: type[ValidatedReplyValue],
+        _log_validated_single_call_reply: LogValidatedReply,
         generation: ReplyGeneration,
-        api_error_is_permanent_target_failure: Callable,
+        api_error_is_permanent_target_failure: Callable[[Exception], bool],
         watch_posts: QuoteWatchPosts,
         reply_contexts: ReplyContext,
         tweets: TweetLookupCache,
         persistence: ReplyCyclePersistence,
-        conversational_reply_pipeline_enabled: Callable,
+        conversational_reply_pipeline_enabled: Callable[[], bool],
         accounting: DailyReplyAccounting,
         get_quote_tweets_for_posts: QuoteTweetDiscovery,
         cooldowns: ApiCooldowns,
-        is_probably_spam_or_not_worth_replying: Callable,
+        is_probably_spam_or_not_worth_replying: Callable[[str], bool],
         controls: RuntimeControls,
         log: Logger,
-        log_ai_reply_posting_outcome: Callable,
-        log_event: Callable,
-        now_epoch: Callable,
-        parse_x_datetime_to_epoch: Callable,
+        log_ai_reply_posting_outcome: LogReplyPostingOutcome,
+        log_event: LogReplyEvent,
+        now_epoch: Callable[[], int],
+        parse_x_datetime_to_epoch: Callable[[object], int | None],
         reply_evaluations: ReplyEvaluations,
         history: ReplyHistory,
-        reply_evidence_repository: Callable,
-        valid_tweets_sorted_by_id: Callable,
+        reply_evidence_repository: Callable[[], object],
+        valid_tweets_sorted_by_id: SortRawTweets,
     ) -> None:
         """Bind stable collaborators for one quote reply pass."""
         self.delivery = delivery
@@ -273,7 +280,7 @@ class QuoteReplyCycle:
         self.reply_evidence_repository = reply_evidence_repository
         self.valid_tweets_sorted_by_id = valid_tweets_sorted_by_id
 
-    def run(self, state: dict) -> str:
+    def run(self, state: dict[str, Any]) -> str:
         """Process eligible quote-tweet candidates under all reply limits."""
         self.log.info("Starting quote-tweet reply check")
         # Finish an exact confirmed local transaction before the unresolved-
@@ -433,7 +440,6 @@ class QuoteReplyCycle:
                 evaluation = self._evaluate_reply(candidate, prepared, state)
                 if isinstance(evaluation, FinishReplyCheck):
                     return evaluation.status
-                reply_text = evaluation.reply
                 decision = self._resolve_reply_evaluation(
                     candidate.quote_id, evaluation, state
                 )
@@ -441,6 +447,11 @@ class QuoteReplyCycle:
                     return decision.status
                 if isinstance(decision, SkipReplyCandidate):
                     continue
+
+                disposition = outcome_disposition(evaluation)
+                if disposition != "ready" or evaluation.status != "reply":
+                    raise ValueError("reply evaluation passed resolution without a reply")
+                reply_text = evaluation.reply
 
                 receipt_template = self._prepare_reply_receipt(
                     candidate, original_post_id, reply_text, reply_context, state
@@ -461,8 +472,8 @@ class QuoteReplyCycle:
         return QUOTE_CHECK_STATUS_CHECKED
 
     def _lookup_quote_candidates(
-        self, original_post_id: str, state: dict, quote_tweets: list[dict]
-    ) -> tuple[dict, list] | SkipReplyCandidate | FinishReplyCheck:
+        self, original_post_id: str, state: dict[str, Any], quote_tweets: list[dict[str, Any]]
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]] | SkipReplyCandidate | FinishReplyCheck:
         """Fetch context for an original with discovered quotes, preserving failure routing."""
         try:
             original_tweet = self.tweets.get_cached(original_post_id, state)
@@ -542,7 +553,7 @@ class QuoteReplyCycle:
         self,
         candidate: _QuoteCandidate,
         original_post_id: str,
-        state: dict,
+        state: dict[str, Any],
         scan_history: _QuoteScanHistory,
     ) -> bool:
         """Apply identity, relationship and age gates against the cycle's original snapshots."""
@@ -640,8 +651,8 @@ class QuoteReplyCycle:
         self,
         candidate: _QuoteCandidate,
         original_post_id: str,
-        original_tweet: dict,
-        state: dict,
+        original_tweet: dict[str, Any],
+        state: dict[str, Any],
         quote_spam_author_ids: set[str],
     ) -> bool:
         """Check cleaned text and author limits, retaining cap context and newly found spam."""
@@ -726,7 +737,7 @@ class QuoteReplyCycle:
         return True
 
     def _prepare_reply_context(
-        self, candidate: _QuoteCandidate, original_post_id: str, state: dict
+        self, candidate: _QuoteCandidate, original_post_id: str, state: dict[str, Any]
     ) -> PreparedReplyContext | SkipReplyCandidate | FinishReplyCheck:
         """Refetch media, cache the quote and build context before charging its candidate budget."""
         quote_tweet = candidate.tweet
@@ -830,8 +841,8 @@ class QuoteReplyCycle:
         return prepared
 
     def _evaluate_reply(
-        self, candidate: _QuoteCandidate, prepared: PreparedReplyContext, state: dict
-    ) -> PipelineResult | FinishReplyCheck:
+        self, candidate: _QuoteCandidate, prepared: PreparedReplyContext, state: dict[str, Any]
+    ) -> PipelineOutcome | FinishReplyCheck:
         """Check evidence and recover or generate a draft with the original exception boundaries."""
         reply_context = prepared.context
         quote_id = candidate.quote_id
@@ -895,7 +906,7 @@ class QuoteReplyCycle:
         return evaluation
 
     def _resolve_reply_evaluation(
-        self, quote_id: str, evaluation: PipelineResult, state: dict
+        self, quote_id: str, evaluation: PipelineOutcome, state: dict[str, Any]
     ) -> SkipReplyCandidate | FinishReplyCheck | None:
         """Retire terminal decisions, defer retryable failures, or allow a validated reply through."""
         reply_text = evaluation.reply
@@ -920,7 +931,7 @@ class QuoteReplyCycle:
                 mark_quote_tweet_skipped(state, quote_id)
                 self.persistence.save(state, durable=True)
                 return SkipReplyCandidate()
-            if evaluation.status != "no_reply":
+            if outcome_disposition(evaluation) != "no_reply":
                 self.log.warning(
                     "Deferring quote tweet %s after operational reply "
                     "failure reason=%s",
@@ -961,9 +972,9 @@ class QuoteReplyCycle:
         candidate: _QuoteCandidate,
         original_post_id: str,
         reply_text: ValidatedReplyValue,
-        reply_context: dict,
-        state: dict,
-    ) -> dict | FinishReplyCheck:
+        reply_context: ReplyContextData,
+        state: dict[str, Any],
+    ) -> dict[str, Any] | FinishReplyCheck:
         """Persist the validated draft before copying and binding its sending receipt."""
         quote_tweet = candidate.tweet
         quote_id = candidate.quote_id
@@ -1011,7 +1022,7 @@ class QuoteReplyCycle:
 
     def _retire_terminal_target(
         self,
-        state: dict,
+        state: dict[str, Any],
         quote_id: str,
         reply_text: ValidatedReplyValue,
         *,
@@ -1048,9 +1059,9 @@ class QuoteReplyCycle:
         self,
         quote_id: str,
         reply_text: ValidatedReplyValue,
-        receipt_template: dict,
-        state: dict,
-    ) -> dict | FinishReplyCheck:
+        receipt_template: dict[str, Any],
+        state: dict[str, Any],
+    ) -> ConfirmedReplyReceipt | FinishReplyCheck:
         """Deliver through the shared boundary, retaining quote-lane retirement and statuses."""
 
         def retire_terminal_target(failure_reason: str) -> None:
@@ -1094,8 +1105,8 @@ class QuoteReplyCycle:
         self,
         candidate: _QuoteCandidate,
         original_post_id: str,
-        receipt: dict,
-        state: dict,
+        receipt: ConfirmedReplyReceipt,
+        state: dict[str, Any],
     ) -> str:
         """Finish the shared confirmation transaction and report this lane's success."""
         quote_id = candidate.quote_id

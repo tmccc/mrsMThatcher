@@ -13,9 +13,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
+from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from mrs_bot_request_route_values import endpoint_is_loopback
+
+if TYPE_CHECKING:
+    from mrs_bot_core_contracts import ReplyMediaContext
 
 
 _REPLY_IMAGE_MIME_TYPES = {
@@ -65,8 +69,8 @@ class ReplyMedia:
     maximum_image_bytes: int
     image_mime_types: set[str]
     log: Logger
-    media_unavailable: type
-    media_transient_unavailable: type
+    media_unavailable: type[Exception]
+    media_transient_unavailable: type[Exception]
     test_mode: bool
     require_remote_operation_unpaused: Callable
     requests: object
@@ -148,7 +152,7 @@ class ReplyMedia:
         lane: str,
         target_id: str,
         quoted_candidate: dict | None = None,
-    ) -> dict:
+    ) -> ReplyMediaContext:
         """Prioritise target photos, then photos from the directly quoted post."""
 
         target_photos, target_expected = self.candidate_photos(candidate)
@@ -264,7 +268,7 @@ class ReplyMedia:
             raise self.media_unavailable("candidate image URL is outside the trusted X media origin")
         return url
 
-    def collect(self, media_context: dict | None) -> list[dict[str, object]]:
+    def collect(self, media_context: object) -> list[dict[str, object]]:
         """Collect up to two already-identified native X images with hard bounds."""
 
         if not isinstance(media_context, dict):

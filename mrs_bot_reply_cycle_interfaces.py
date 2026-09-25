@@ -11,15 +11,18 @@ re-exported from its inert behavior owner.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
+
 
 # Compatibility import: the delivery boundary owns its executable routing.
-from mrs_bot_reply_delivery import ReplyCycleDelivery
+from mrs_bot_reply_delivery import ReplyCycleDelivery as ReplyCycleDelivery
 
 if TYPE_CHECKING:
-    from single_call_reply import PipelineResult
+    from mrs_bot_core_contracts import ConfirmedReplyReceipt, ReplyContextData, ReplyMediaContext
+    from mrs_bot_state_generation import StateCommitProof
+    from single_call_reply import PipelineOutcome
 
 
 NORMAL_CHECK_STATUS_CHECKED = "checked"
@@ -55,8 +58,8 @@ class FinishReplyCheck:
 class PreparedReplyContext:
     """Canonical model/persistence context and separately collected native media."""
 
-    context: dict[str, object]
-    media_context: dict | None
+    context: ReplyContextData
+    media_context: ReplyMediaContext | None
 
 
 @dataclass(frozen=True)
@@ -92,31 +95,31 @@ class QuoteReplyConfig(ReplyCycleConfig):
 class SaveReplyState(Protocol):
     """Persist the original caller state, optionally requiring durability."""
 
-    def __call__(self, state: dict, *, durable: bool = False) -> None: ...
+    def __call__(self, state: dict[str, object], *, durable: bool = False) -> StateCommitProof: ...
 
 
 class RecoverReplyDraft(Protocol):
     """Recover an explicit decision without a provider call."""
 
     def __call__(
-        self, state: dict, target_id: str, candidate_source: str, *,
-        context: dict[str, object], recent_replies: list[object] | None = None,
-    ) -> PipelineResult | None: ...
+        self, state: dict[str, object], target_id: str, candidate_source: str, *,
+        context: ReplyContextData, recent_replies: Sequence[object] | None = None,
+    ) -> PipelineOutcome | None: ...
 
 
 class StoreReplyDraft(Protocol):
     """Validate and store a pending draft in caller state."""
 
     def __call__(
-        self, state: dict, target_id: str, candidate_source: str, reply: str, *,
-        context: dict[str, object],
+        self, state: dict[str, object], target_id: str, candidate_source: str, reply: str, *,
+        context: ReplyContextData,
     ) -> bool: ...
 
 
 class ReplyCandidateDiscovery(Protocol):
-    """Return the current ordered candidates for one normal-lane source."""
+    """Return an untrusted provider page; context building validates its values."""
 
-    def __call__(self, state: dict) -> list[dict]: ...
+    def __call__(self, state: dict[str, object]) -> list[dict[str, Any]]: ...
 
 
 class QuoteTweetDiscovery(Protocol):
@@ -125,8 +128,48 @@ class QuoteTweetDiscovery(Protocol):
     def __call__(
         self,
         post_ids: list[str],
-        state: dict | None = None,
-    ) -> dict[str, list[dict]]: ...
+        state: dict[str, object] | None = None,
+    ) -> dict[str, list[dict[str, Any]]]: ...
+
+
+class LogReplyEvent(Protocol):
+    """Emit one bounded event with named values."""
+
+    def __call__(self, event: str, **fields: object) -> None: ...
+
+
+class LogValidatedReply(Protocol):
+    """Report validated reply metadata without retaining its prose."""
+
+    def __call__(
+        self, *, target_description: str, target_id: str, reply: object,
+    ) -> None: ...
+
+
+class LogReplyPostingOutcome(Protocol):
+    """Emit one posting result with the optional remote identity."""
+
+    def __call__(
+        self, *, reply: str, status: str, lane: str, target_id: str,
+        failure_reason: str, reply_post_id: str | None = None,
+    ) -> None: ...
+
+
+class SortRawTweets(Protocol):
+    """Deduplicate and order one untrusted provider page."""
+
+    def __call__(
+        self, tweets: list[dict[str, Any]], *, context: str,
+    ) -> list[dict[str, Any]]: ...
+
+
+class MarkHotPostSkipped(Protocol):
+    """Record a candidate skip against the mutable live state."""
+
+    def __call__(
+        self, state: dict[str, Any], candidate: dict[str, Any],
+        reason: str = "unspecified",
+    ) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -136,30 +179,30 @@ class ReplyCyclePersistence:
     save: SaveReplyState
     recover: RecoverReplyDraft
     store: StoreReplyDraft
-    clear: Callable[[dict, str, str], None]
-    retire_ineligible: Callable[[dict, str, str], None]
+    clear: Callable[[dict[str, object], str, str], None]
+    retire_ineligible: Callable[[dict[str, object], str, str], None]
 
 
 class EvaluateReply(Protocol):
     """Return the entire model/local evaluation and its accounting metadata."""
 
     def __call__(
-        self, context: dict[str, object], media_context: dict | None = None, *, state: dict,
-    ) -> PipelineResult: ...
+        self, context: ReplyContextData, media_context: ReplyMediaContext | None = None, *, state: dict[str, object],
+    ) -> PipelineOutcome: ...
 
 
 class PostReply(Protocol):
     """Publish and durably bind the remote identity to its receipt."""
 
     def __call__(
-        self, *, state: dict, receipt_template: dict, reply_text: str,
+        self, *, state: dict[str, object], receipt_template: dict[str, object], reply_text: str,
         reply_to_id: str, made_with_ai: bool, lane: str,
-    ) -> tuple[dict, dict]: ...
+    ) -> tuple[dict[str, object], ConfirmedReplyReceipt]: ...
 
 
 class FinaliseReply(Protocol):
     """Commit a confirmation and retire recovery records before lane reporting."""
 
     def __call__(
-        self, state: dict, receipt: dict, *, target_id: str, quote_reply: bool,
+        self, state: dict[str, object], receipt: ConfirmedReplyReceipt, *, target_id: str, quote_reply: bool,
     ) -> str: ...

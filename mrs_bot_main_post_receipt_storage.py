@@ -11,16 +11,23 @@ adapter. Importing the module performs no runtime work.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING, cast
 
 from mrs_bot_durable_json_io import canonical_atomic_json_bytes
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import (
+        AttemptingMainPostAttempt, HistoricalMainPostAttempt, MainPostAttempt,
+        CurrentMemePostReceipt, CurrentRegularPostReceipt, MemePostReceipt, SendingMainPostAttempt,
+        MemeReceiptLoad, PendingMainPostReceipt, RegularPostReceipt,
+        RegularReceiptLoad,
+    )
     from mrs_bot_main_post_receipts import MainPostReceiptValues
+    from mrsMThatcher2 import ApiError as ApiErrorValue
 
 
 @dataclass(frozen=True)
@@ -36,7 +43,7 @@ class MainPostReceipts:
     log: Logger
     receipt_namespace_entry_exists: Callable[..., bool]
     remote_receipt_retirement_is_blocking: Callable[..., bool]
-    AmbiguousRemotePostOutcome: type[Exception]
+    AmbiguousRemotePostOutcome: type[ApiErrorValue]
     replace_exact_source_receipt_document: Callable[..., None]
     transaction_mutation_authority: Callable[..., object]
     load_receipt_json_no_follow: Callable[[Path], tuple[bool, object | None]]
@@ -47,7 +54,7 @@ class MainPostReceipts:
 
     def attempt_path(
         self,
-        attempt: dict,
+        attempt: Mapping[str, Any],
     ) -> Path:
         """Return the receipt path which owns one main-post attempt."""
         lane = str(attempt.get("lane") or "")
@@ -59,7 +66,7 @@ class MainPostReceipts:
 
     def write_attempt(
         self,
-        attempt: dict,
+        attempt: Mapping[str, Any],
     ) -> None:
         """Durably record a main-post transaction before its X create request."""
         if (
@@ -101,8 +108,8 @@ class MainPostReceipts:
 
     def mark_attempting(
         self,
-        attempt: dict,
-    ) -> dict:
+        attempt: SendingMainPostAttempt,
+    ) -> AttemptingMainPostAttempt:
         """Atomically consume one sending authorisation before remote transmission."""
         if (
             not self.values().current_attempt_is_valid(attempt)
@@ -141,11 +148,11 @@ class MainPostReceipts:
             attempting["attempt_id"],
             path,
         )
-        return attempting
+        return cast("AttemptingMainPostAttempt", attempting)
 
     def remove_attempt(
         self,
-        attempt: dict,
+        attempt: Mapping[str, Any],
         *,
         sending_disposition: str,
         retire_current_source_receipt: Callable[..., None],
@@ -194,8 +201,8 @@ class MainPostReceipts:
 
     def finalize_pending(
         self,
-        pending: dict,
-    ) -> dict:
+        pending: PendingMainPostReceipt,
+    ) -> CurrentRegularPostReceipt | CurrentMemePostReceipt:
         """Atomically replace one pending schedule with its complete local receipt."""
         if not self.values().pending_is_valid(pending):
             raise RuntimeError("Refusing to finalise an invalid pending receipt")
@@ -211,13 +218,13 @@ class MainPostReceipts:
                 "Confirmed pending-schedule receipt changed before finalisation"
             )
         if attempt["lane"] == "quote_image":
-            receipt = self.values().materialize_regular(pending)
+            regular_receipt = self.values().materialize_regular(pending)
+            self.current().write_regular(regular_receipt)
+            receipt: CurrentRegularPostReceipt | CurrentMemePostReceipt = regular_receipt
         else:
-            receipt = self.values().materialize_meme(pending)
-        if attempt["lane"] == "quote_image":
-            self.current().write_regular(receipt)
-        else:
-            self.current().write_meme(receipt)
+            meme_receipt = self.values().materialize_meme(pending)
+            self.current().write_meme(meme_receipt)
+            receipt = meme_receipt
         self.log.warning(
             "Finalised confirmed pending-schedule receipt lane=%s post_id=%s path=%s",
             attempt["lane"],
@@ -228,7 +235,7 @@ class MainPostReceipts:
 
     def _write_main_post_receipt(
         self,
-        receipt: dict,
+        receipt: Mapping[str, Any],
         *,
         lane_name: str,
         expected_lane: str,
@@ -282,8 +289,8 @@ class MainPostReceipts:
             )
             if status == "pending_schedule" and current is not None:
                 if (
-                    self.values().materialize_regular(current)
-                    if expected_lane == "quote_image" else self.values().materialize_meme(current)
+                    self.values().materialize_regular(cast("PendingMainPostReceipt", current))
+                    if expected_lane == "quote_image" else self.values().materialize_meme(cast("PendingMainPostReceipt", current))
                 ) != receipt:
                     raise unresolved_receipt_error(
                         "Refusing a schedule result which does not match the durable "
@@ -309,7 +316,9 @@ class MainPostReceipts:
             if (
                 status != "sending"
                 or attempt is None
-                or not self.values().confirmed_matches_attempt(receipt, attempt)
+                or not self.values().confirmed_matches_attempt(
+                    receipt, cast(Mapping[str, Any], attempt),
+                )
             ):
                 raise unresolved_receipt_error(
                     f"Refusing to overwrite an unresolved {lane_name}-post receipt: "
@@ -338,7 +347,7 @@ class MainPostReceipts:
 
     def write_regular(
         self,
-        receipt: dict,
+        receipt: Mapping[str, Any],
     ) -> None:
         """Write regular post receipt."""
         self._write_main_post_receipt(
@@ -355,7 +364,7 @@ class MainPostReceipts:
 
     def load_regular(
         self,
-    ) -> tuple[str, dict | None]:
+    ) -> RegularReceiptLoad:
         """Load regular post receipt."""
         try:
             present, data = self.load_receipt_json_no_follow(self.REGULAR_POST_RECEIPT_FILE)
@@ -366,7 +375,7 @@ class MainPostReceipts:
             return "absent", None
         if isinstance(data, dict) and self.values().attempt_is_valid(data):
             if data.get("lane") == "quote_image":
-                return "sending", data
+                return "sending", cast("MainPostAttempt | HistoricalMainPostAttempt", data)
             self.log.critical(
                 "A meme attempt was stored in the regular-post receipt path: %s",
                 self.REGULAR_POST_RECEIPT_FILE,
@@ -376,7 +385,7 @@ class MainPostReceipts:
             data,
             expected_lane="quote_image",
         ):
-            return "pending_schedule", data
+            return "pending_schedule", cast("PendingMainPostReceipt", data)
         if (
             not isinstance(data, dict)
             or type(data.get("schema_version")) is not int
@@ -395,11 +404,11 @@ class MainPostReceipts:
                 self.REGULAR_POST_RECEIPT_FILE,
             )
             return "invalid", None
-        return "valid", data
+        return "valid", cast("RegularPostReceipt", data)
 
     def remove_regular(
         self,
-        receipt: dict,
+        receipt: Mapping[str, Any],
         *,
         retire_current_source_receipt: Callable[..., None],
     ) -> None:
@@ -413,7 +422,7 @@ class MainPostReceipts:
 
     def write_meme(
         self,
-        receipt: dict,
+        receipt: Mapping[str, Any],
     ) -> None:
         """Write meme post receipt."""
         self._write_main_post_receipt(
@@ -430,7 +439,7 @@ class MainPostReceipts:
 
     def load_meme(
         self,
-    ) -> tuple[str, dict | None]:
+    ) -> MemeReceiptLoad:
         """Load meme post receipt."""
         try:
             present, data = self.load_receipt_json_no_follow(self.MEME_POST_RECEIPT_FILE)
@@ -441,7 +450,7 @@ class MainPostReceipts:
             return "absent", None
         if isinstance(data, dict) and self.values().attempt_is_valid(data):
             if data.get("lane") == "daily_meme":
-                return "sending", data
+                return "sending", cast("MainPostAttempt | HistoricalMainPostAttempt", data)
             self.log.critical(
                 "A regular-post attempt was stored in the meme receipt path: %s",
                 self.MEME_POST_RECEIPT_FILE,
@@ -451,7 +460,7 @@ class MainPostReceipts:
             data,
             expected_lane="daily_meme",
         ):
-            return "pending_schedule", data
+            return "pending_schedule", cast("PendingMainPostReceipt", data)
         if (
             not isinstance(data, dict)
             or data.get("schema_version") not in {1, 2}
@@ -469,11 +478,11 @@ class MainPostReceipts:
                 self.MEME_POST_RECEIPT_FILE,
             )
             return "invalid", None
-        return "valid", data
+        return "valid", cast("MemePostReceipt", data)
 
     def remove_meme(
         self,
-        receipt: dict,
+        receipt: Mapping[str, Any],
         *,
         retire_current_source_receipt: Callable[..., None],
     ) -> None:

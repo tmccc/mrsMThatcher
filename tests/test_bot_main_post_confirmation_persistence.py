@@ -100,7 +100,7 @@ def test_public_signatures_and_current_adapter_references(monkeypatch, name):
     signatures = {
         "atomic_json_file_exactly_matches": "(path: 'Path', value: 'object') -> 'bool'",
         "promote_main_post_attempt_to_confirmed_pending_schedule": (
-            "(attempt: 'dict', *, post_id: 'str', confirmation_epoch: 'int', image_summary: 'str' = '') -> 'dict'"
+            "(attempt: 'AttemptingMainPostAttempt', *, post_id: 'str', confirmation_epoch: 'int', image_summary: 'str' = '') -> 'PendingMainPostReceipt'"
         ),
         "save_regular_post_protected_state": (
             "(lines_used: 'set', images_used: 'set', state: 'dict', *, durable: 'bool') -> 'StateCommitProof'"

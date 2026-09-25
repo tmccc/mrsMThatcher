@@ -10,7 +10,7 @@ boundaries supplied by the root. Import performs no runtime work.
 from __future__ import annotations
 
 import copy
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any, TYPE_CHECKING
 from pathlib import Path
 
@@ -683,7 +683,7 @@ def create_post(
 
 
 def handoff_confirmed_media_upload_to_main_attempt(
-    attempt: dict,
+    attempt: Mapping[str, Any],
     transport_authority: TransportAuthority,
     *,
     receipts: MainPostReceipts,

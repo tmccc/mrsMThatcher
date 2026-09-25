@@ -18,11 +18,12 @@ from collections.abc import Callable
 import hashlib
 from logging import Logger
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from mrs_bot_state_generation import receipt_commit_records_are_valid
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_author_quarantines import AuthorQuarantines
     from mrs_bot_state_value_normalisation import StateValues
     from mrs_bot_mention_authority import MentionAuthority
@@ -162,7 +163,7 @@ def normalise_state_candidate(
     recover_pending_identity: bool = False,
     MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT: int,
     STATE_MINIMUM_READER_VERSION: int,
-    default_state: Callable[..., dict],
+    default_state: Callable[[], BotState],
     log: Logger,
     author_quarantines: AuthorQuarantines,
     normalise_quote_repeated_cursor_suppressions: Callable[..., tuple[dict[str, dict[str, object]], int]],
@@ -172,7 +173,7 @@ def normalise_state_candidate(
     reply_evaluations: ReplyEvaluations,
     require_compatible_state_reader: Callable[..., int],
     validate_meme_schedule_version_for_candidate: Callable[..., bool],
-) -> dict | None:
+) -> BotState | None:
     """Normalise state candidate."""
     minimum_reader_version = require_compatible_state_reader(state, path=path)
     commits = state.get('_confirmed_receipt_commits', {})
@@ -240,7 +241,10 @@ def normalise_state_candidate(
         "quote_api_cooldown_until_epoch",
     }
 
-    normalised = default_state()
+    # This owner deliberately performs dynamic clear/update/repair operations
+    # and preserves unknown JSON fields.  Recover the precise state shape only
+    # after the existing normalisation algorithm has accepted the candidate.
+    normalised = cast(dict, default_state())
     normalised.update(state)
     normalised["minimum_reader_version"] = max(
         minimum_reader_version,
@@ -421,4 +425,4 @@ def normalise_state_candidate(
 
     author_quarantines.prune(normalised)
 
-    return normalised
+    return cast("BotState", normalised)

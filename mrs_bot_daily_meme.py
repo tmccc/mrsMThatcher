@@ -11,17 +11,18 @@ from __future__ import annotations
 
 import random
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from logging import Logger
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from mrs_bot_runtime_state_helpers import apply_state_fields
 
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import CurrentMemePostReceipt, PendingMainPostReceipt
     from mrs_bot_main_post_publication import MainPostPublication
     from mrs_bot_main_post_reconciliation import MainPostRecovery
     from mrs_bot_main_post_assembly import (MainPostPolicy, MainPostErrors, MainPostTransport, MainPostApplication)
@@ -35,7 +36,7 @@ if TYPE_CHECKING:
 _RECOVERY_VALUE_UNAVAILABLE = object()
 
 
-def _confirmed_meme_schedule_fields(receipt: dict) -> dict:
+def _confirmed_meme_schedule_fields(receipt: CurrentMemePostReceipt) -> dict:
     """Project a confirmed meme's required schedule fields in their read order."""
     return {
         "next_meme_post_epoch": int(receipt["next_meme_post_epoch"]),
@@ -618,8 +619,11 @@ class DailyMemeRunner:
         meme_schedule_fields = _RECOVERY_VALUE_UNAVAILABLE
         try:
             meme_post_epoch = publication.read_confirmation_epoch(posted_id)
-            receipt = publication.confirm_pending_schedule(
-                posted_id, meme_post_epoch, image_summary=image_summary,
+            receipt = cast(
+                "CurrentMemePostReceipt",
+                publication.confirm_pending_schedule(
+                    posted_id, meme_post_epoch, image_summary=image_summary,
+                ),
             )
             meme_schedule_fields = _confirmed_meme_schedule_fields(receipt)
         except BaseException as receipt_exc:
@@ -661,7 +665,7 @@ class DailyMemeRunner:
             try:
                 if publication.pending_available:
                     fallback_receipt = receipt_values.current().materialize_meme(
-                        publication.pending_receipt
+                        cast("PendingMainPostReceipt", publication.pending_receipt)
                     )
                     meme_schedule_fields = _confirmed_meme_schedule_fields(fallback_receipt)
                 state["last_main_post_id"] = str(posted_id)
@@ -671,7 +675,7 @@ class DailyMemeRunner:
                 posted.add(meme_path.name)
                 state["posted_meme_filenames"] = sorted(posted)
                 if meme_schedule_fields is not _RECOVERY_VALUE_UNAVAILABLE:
-                    apply_state_fields(state, meme_schedule_fields)
+                    apply_state_fields(state, cast(dict[str, Any], meme_schedule_fields))
                 try:
                     tweets.store(
                         state,
@@ -687,7 +691,9 @@ class DailyMemeRunner:
                 except Exception:
                     log.critical("Emergency in-memory cache/recent update failed after confirmed meme post", exc_info=True)
                 from mrs_bot_state_generation import record_receipt_commit
-                record_receipt_commit(state, publication.attempt)
+                record_receipt_commit(
+                    state, cast(Mapping[str, Any], publication.attempt)
+                )
                 commit_proof = save_state(state, durable=True)
                 emergency_state_write_succeeded = True
                 emergency_state_complete = confirmed_meme_emergency_representation_is_complete(
@@ -699,7 +705,7 @@ class DailyMemeRunner:
                 )
             except Exception as emergency_exc:
                 if isinstance(emergency_exc, StateBackupWriteError) and json_file_matches(STATE_FILE, state, commit_proof=getattr(emergency_exc, "commit_proof", None)):
-                    commit_proof = emergency_exc.commit_proof
+                    commit_proof = getattr(emergency_exc, "commit_proof")
                     emergency_state_write_succeeded = True
                     emergency_state_complete = confirmed_meme_emergency_representation_is_complete(
                         post_id=str(posted_id),

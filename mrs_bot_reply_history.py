@@ -11,9 +11,10 @@ retirement. Import and construction perform no runtime access.
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from mrs_bot_receipt_primitives import valid_string_post_id
 
@@ -29,7 +30,7 @@ def _confirmed_history_sort_key(row: dict) -> tuple[int, int]:
     return (int(row["reply_epoch"]), int(str(row["reply_post_id"])))
 
 
-def _reply_target_epoch(context: dict[str, object]) -> int | None:
+def _reply_target_epoch(context: Mapping[str, object]) -> int | None:
     value = context.get("target_created_at")
     if not isinstance(value, str) or not value:
         return None
@@ -128,7 +129,7 @@ class ReplyHistory:
             for row in rows[-bounded_limit:]
         ] if bounded_limit else []
 
-    def context_excluded_post_ids(self, context: dict[str, object]) -> set[str]:
+    def context_excluded_post_ids(self, context: Mapping[str, Any]) -> set[str]:
         """Return every current subject identity excluded from history fields."""
 
         excluded_post_ids = {
@@ -152,7 +153,7 @@ class ReplyHistory:
         self,
         state: dict,
         *,
-        context: dict[str, object],
+        context: Mapping[str, Any],
     ) -> list[dict[str, str]]:
         """Return current confirmed prose used only to revalidate an unsent draft."""
 
@@ -171,7 +172,7 @@ class ReplyHistory:
             target_id=str(context.get("target_id") or ""),
             before_epoch=before_epoch,
         )
-        by_reply_id = {
+        by_reply_id: dict[str, Mapping[str, Any]] = {
             str(row.get("post_id") or ""): row
             for row in recent
             if isinstance(row, dict)
@@ -292,7 +293,7 @@ class ReplyHistory:
         self,
         state: dict,
         *,
-        context: dict[str, object],
+        context: Mapping[str, object],
         target_id: str,
     ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
         """Return same-author interactions and other prose before the target post."""

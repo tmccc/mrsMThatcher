@@ -8,6 +8,16 @@ projected.
 
 from __future__ import annotations
 
+from typing import TypedDict
+
+
+class RejectedReplyTextFields(TypedDict):
+    """Bounded text diagnostics shared with decision telemetry."""
+
+    rejected_reply_text: str | None
+    rejected_reply_text_status: str
+    rejected_reply_text_character_count: int | None
+
 
 SCHEMA_VALIDATION_ERROR_CODES = frozenset({
     "output_not_text",
@@ -56,13 +66,13 @@ MAX_REJECTED_REPLY_TEXT_CHARACTERS = 4_000
 
 def rejected_reply_text_fields(
     value: object, *, character_count: object = None,
-) -> dict[str, str | int | None]:
+) -> RejectedReplyTextFields:
     """Return exact bounded reply text and its original character count.
 
     Invalid or absent text is unavailable. A valid original count preserves
     truncation when an already bounded diagnostic is projected by the digest.
     """
-    unavailable = {
+    unavailable: RejectedReplyTextFields = {
         "rejected_reply_text": None,
         "rejected_reply_text_status": "unavailable",
         "rejected_reply_text_character_count": None,

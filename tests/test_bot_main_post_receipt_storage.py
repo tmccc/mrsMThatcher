@@ -79,14 +79,14 @@ assert 'mrs_bot_main_post_receipts' not in sys.modules
     [
         ("main_post_attempt_path", "attempt_path", "(attempt: 'dict') -> 'Path'"),
         ("write_main_post_attempt", "write_attempt", "(attempt: 'dict') -> 'None'"),
-        ("mark_main_post_attempt_attempting", "mark_attempting", "(attempt: 'dict') -> 'dict'"),
+        ("mark_main_post_attempt_attempting", "mark_attempting", "(attempt: 'SendingMainPostAttempt') -> 'AttemptingMainPostAttempt'"),
         ("remove_main_post_attempt", "remove_attempt", "(attempt: 'dict', *, sending_disposition: 'str', commit_proof=None) -> 'None'"),
-        ("finalize_confirmed_pending_schedule_receipt", "finalize_pending", "(pending: 'dict') -> 'dict'"),
+        ("finalize_confirmed_pending_schedule_receipt", "finalize_pending", "(pending: 'PendingMainPostReceipt') -> 'CurrentRegularPostReceipt | CurrentMemePostReceipt'"),
         ("write_regular_post_receipt", "write_regular", "(receipt: 'dict') -> 'None'"),
-        ("load_regular_post_receipt", "load_regular", "() -> 'tuple[str, dict | None]'"),
+        ("load_regular_post_receipt", "load_regular", "() -> 'RegularReceiptLoad'"),
         ("remove_regular_post_receipt", "remove_regular", "(receipt: 'dict', *, commit_proof=None) -> 'None'"),
         ("write_meme_post_receipt", "write_meme", "(receipt: 'dict') -> 'None'"),
-        ("load_meme_post_receipt", "load_meme", "() -> 'tuple[str, dict | None]'"),
+        ("load_meme_post_receipt", "load_meme", "() -> 'MemeReceiptLoad'"),
         ("remove_meme_post_receipt", "remove_meme", "(receipt: 'dict', *, commit_proof=None) -> 'None'"),
     ],
 )
