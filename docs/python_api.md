@@ -111,7 +111,8 @@ and AppleDouble files.
 | `reply_evidence.py` | Lexically shortlist validated local passages for compact trusted facts | Local corpus reads only |
 | `historical_context_formatter.py` | Canonical research loading, compact context formatting and context-reply persistence | Local state; posting only through an injected callback |
 | `shadow_lifecycle.py` | Strict validation for the versioned shadow-feature lifecycle register | Local file reads only |
-| `mrs_log_digest.py` | Log-input coordination, aggregation and Markdown/JSON reports | Separate production and self-test source contexts retain pending observations and active provider attempts across interleaved records. Handlers use strictly parsed EVENT fields; compatibility parsing only classifies malformed visual diagnostics. Resume state uses the production context and retains its existing JSON contract. Local log and resume-state reads/writes; no provider calls |
+| `mrs_log_digest.py` | Digest CLI, staged run transaction and `DigestAnalysis` record/report coordinator | `run_digest` selects inputs, collects current snapshots, analyses records, applies report overlays, delivers outputs and only then commits the cursor. `DigestAnalysis.observe` preserves ordered short-circuit routing; its finalisation methods reconcile and assemble the report. Local log and resume-state reads/writes; no provider calls |
+| `mrs_log_digest_analysis.py` | Inert invocation-local analysis and run-boundary records | `DigestAnalysisState` owns mutable collections, source contexts and per-record routing context. `DigestInputSelection` retains physical resume evidence; `DigestCurrentSnapshots` labels current runtime and durable evidence. Construction performs no I/O |
 | `mrs_log_digest_context.py` | Historical context, config backscan and digest-cursor persistence | Reads supplied log/cursor paths; saves through a temporary sibling and replacement; explicit current helpers, marker/tail limits, Counter factory, diagnostic and save-time clock; no import-time I/O or publication authority |
 | `mrs_log_digest_input_io.py` | Stable file observations, strict native/Decimal JSON parsing and canonical receipt/history encodings | Reads only supplied paths; explicit current sibling callbacks; ordinary file hashing retains its separate read contract; no writes or import-time runtime access |
 | `mrs_log_digest_records.py` | Shared frozen records, bounded source references, fingerprints, resume-window selection, prefixed-JSON observation parsing and combined log input/coverage reading | Reads/stats supplied log paths and emits existing missing-input warnings; explicit current regex, constructor, parsers, readers and helpers; no import-time runtime access |
@@ -244,13 +245,17 @@ replaced, then the parent is fsynced;
 parent directories are not created. Output must succeed before the cursor
 advances.
 
-`analyse` keeps production and self-test pending observations in separate source
-contexts, including active provider attempts. Resume state belongs to the
-production context. EVENT records are parsed strictly first; compatibility
-parsing only classifies malformed visual-description diagnostics. Handlers use
-`add_event` for insertion, statistics and source attribution. Semantic analysis
-and public-text enrichment precede display shortening, so `max_text` cannot
-change identity, status classification or correlation.
+`analyse` creates `DigestAnalysis` from the invocation inputs, observes records,
+and finalises a report. `DigestAnalysisState` owns separate production and
+self-test pending contexts, including active provider attempts. Resume state
+belongs to the production context. `observe` first runs transport, logged
+runtime and error/provider observations; strict EVENT routing then takes
+precedence over legacy receipt/API and posting handlers. A handled route ends
+that record. Compatibility parsing only classifies malformed visual-description
+diagnostics. `add_event` owns insertion, statistics and source attribution.
+Finalisation reconciles evidence, prepares derived sections, assembles the JSON
+report and enriches exact public text before display shortening, so `max_text`
+cannot change identity, status classification or correlation.
 
 `mrs_log_digest_legacy_posts` handles raw historical quote/image, meme,
 created-post and conversational-reply messages. Its handled/state results update
@@ -298,8 +303,10 @@ headline components have explicit activity, reply-quality, health, observations
 and cooldown ordering. Current health refresh replaces the health/cooldown
 components from current evidence without interpreting rendered text.
 
-The CLI's `run_digest` overlays current runtime observations before applying
-saved context. `apply_saved_context` performs the final derived refresh when
+The CLI's `run_digest` calls `select_digest_inputs`, `collect_current_snapshots`,
+`analyse`, report enrichment and `render_and_deliver_digest` before
+`commit_digest_cursor`. `overlay_current_runtime` applies current observations
+before saved context. `apply_saved_context` performs the final derived refresh when
 saved-state loading is enabled, including when the cursor is absent; otherwise the coordinator
 refreshes directly. The standalone saved-context API refreshes the supplied report
 in place and returns `None`. Historical context stays diagnostic while current

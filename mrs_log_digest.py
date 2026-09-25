@@ -42,7 +42,6 @@ import sys
 import tempfile
 from collections import Counter
 from contextlib import ExitStack, contextmanager
-from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -50,6 +49,10 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 from zoneinfo import ZoneInfo
 
 # Explicit imports preserve the existing digest helper import surface.
+from mrs_log_digest_analysis import (
+    AnalysisSourceContext as _AnalysisSourceContext,
+    DigestAnalysisState, DigestInputSelection, DigestCurrentSnapshots,
+)
 from mrs_log_digest_context import (
     INTERNAL_CONTEXT_KEYS,
     read_resume_data as _read_resume_data,
@@ -1589,19 +1592,1137 @@ def reconcile_reply_pipeline_effective_outcomes(
     )
 
 
-@dataclass
-class _AnalysisSourceContext:
-    """Pending observations kept independently for production and self-test logs."""
+class DigestAnalysis(DigestAnalysisState):
+    """Route records in order and finalise one read-only digest report."""
 
-    pending_quote: Dict[str, Any] = field(default_factory=dict)
-    pending_meme: Dict[str, Any] = field(default_factory=dict)
-    pending_mention: Dict[str, Any] = field(default_factory=dict)
-    pending_qt: Dict[str, Any] = field(default_factory=dict)
-    pending_confirmed_reply_receipt: Dict[str, Any] = field(default_factory=dict)
-    last_created_post: Dict[str, Any] = field(default_factory=dict)
-    active_xai_context: Optional[Dict[str, Any]] = None
-    active_xai_call_attempt_index: Optional[int] = None
+    def __init__(
+        self,
+        records: List[Record],
+        max_text: int = 280,
+        *,
+        initial_active_xai_context: Optional[Dict[str, Any]] = None,
+        initial_active_xai_call_attempt: Optional[Dict[str, Any]] = None,
+        initial_pending_mention: Optional[Dict[str, Any]] = None,
+        initial_pending_qt: Optional[Dict[str, Any]] = None,
+        current_remote_write_safety: Optional[Dict[str, Any]] = None,
+        generation_time: Optional[datetime] = None,
+        selected_window_end: Optional[datetime] = None,
+        current_snapshot_authoritative: bool = False,
+        current_runtime_state: Optional[Dict[str, Any]] = None,
+        input_file_indexes: Optional[Dict[str, int]] = None,
+        confirmed_receipt_evidence: Optional[List[Dict[str, Any]]] = None,
+        historical_history_evidence: Optional[List[Dict[str, Any]]] = None,
+        durable_reply_evidence_status: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Bind invocation inputs and initialise independent source contexts."""
+        super().__init__()
+        # Retain the entry module's injectable counter factory and one callback
+        # identity across observations in the same invocation.
+        self.stats = Counter()
+        self.routine_skip_counts = Counter()
+        self.pending_original_editorial_shadow_companions = Counter()
+        self._local_rejection_callback = self.add_or_merge_local_rejection
+        self.records = records
+        self.max_text = max_text
+        self.current_remote_write_safety = current_remote_write_safety
+        self.generation_time = generation_time
+        self.selected_window_end = selected_window_end
+        self.current_snapshot_authoritative = current_snapshot_authoritative
+        self.current_runtime_state = current_runtime_state
+        self.input_file_indexes = input_file_indexes
+        self.confirmed_receipt_evidence = confirmed_receipt_evidence
+        self.durable_reply_evidence_status = durable_reply_evidence_status
+        if self.selected_window_end is None:
+            self.selected_window_end = max((record.ts for record in records), default=None)
+        restored_xai_call_attempt = normalise_active_xai_call_attempt(
+            initial_active_xai_call_attempt
+        )
+        self.xai_call_attempts = (
+            [restored_xai_call_attempt] if restored_xai_call_attempt else []
+        )
+        self.production_context = _AnalysisSourceContext(
+            pending_mention=dict(initial_pending_mention or {}),
+            pending_qt=dict(initial_pending_qt or {}),
+            active_xai_context=dict(initial_active_xai_context or {}) or None,
+            active_xai_call_attempt_index=0 if restored_xai_call_attempt else None,
+        )
+        if self.production_context.pending_mention:
+            self.production_context.pending_mention.setdefault("_identity_production", True)
+            self.production_context.pending_mention.setdefault("_reply_post_id_production", True)
+        if self.production_context.pending_qt:
+            self.production_context.pending_qt.setdefault("_identity_production", True)
+            self.production_context.pending_qt.setdefault("_reply_post_id_production", True)
+        self.source_context = self.production_context
+        self.historical_reply_text_evidence = list(historical_history_evidence or [])
+        self.quote_publications = QuotePublicationCorrelation(
+            source_is_selftest=lambda: (
+                self.current_source_record is not None
+                and is_selftest_log_path(self.current_source_record.path)
+            ),
+            valid_string_public_post_id=lambda value: valid_string_public_post_id(value),
+            valid_bounded_utf8_text=lambda value, **kwargs: valid_bounded_utf8_text(value, **kwargs),
+            bounded_source_refs=lambda *groups: bounded_source_refs(*groups),
+            warning_limit=lambda: QUOTE_PUBLICATION_CORRELATION_WARNING_LIMIT,
+        )
 
+    def add_event(self, kind: str, ts: datetime, **kwargs: Any) -> Dict[str, Any]:
+        """Insert a bounded event with source provenance and statistics."""
+        # Keep parser-bounded values intact for status counts, identity joins and
+        # diagnostic classification. Display limits are applied after analysis.
+        ev = {"time": ts.strftime("%Y-%m-%d %H:%M:%S"), "kind": kind}
+        for key, value in kwargs.items():
+            # Structured handlers have tighter field-specific limits; this
+            # guard also bounds free-form captures from older plain-text logs.
+            ev[key] = (
+                None if isinstance(value, str)
+                and not valid_bounded_utf8_text(value, allow_empty=True)
+                else value
+            )
+        if kind in PROVENANCE_EVENT_KINDS and self.current_source_record is not None:
+            ev["source_refs"] = [
+                record_source_ref(self.current_source_record, self.input_file_indexes)
+            ]
+        self.events.append(ev)
+        if (
+            self.current_source_record is not None
+            and not is_selftest_log_path(self.current_source_record.path)
+        ):
+            self.production_event_object_ids.add(id(ev))
+        self.stats[kind] += 1
+        return ev
+
+
+    def add_or_merge_local_rejection(
+        self,
+        ts: datetime,
+        *,
+        lane: Any,
+        target_id: Any,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Keep one enriched effective local-rejection record per target."""
+        return _add_or_merge_local_rejection(
+            ts, kwargs, lane=lane, target_id=target_id,
+            local_rejections_by_identity=self.local_rejections_by_identity,
+            valid_string_public_post_id=valid_string_public_post_id,
+            _normalise_lane=_normalise_lane, bounded_event_text=bounded_event_text,
+            bounded_event_string_list=bounded_event_string_list,
+            add_event=self.add_event,
+        )
+
+    def add_receipt_event(self, kind: str, r: Record, **kwargs: Any) -> None:
+        """Record a main-post receipt observation."""
+        _add_receipt_event(
+            kind, r, kwargs,
+            input_file_indexes=self.input_file_indexes, stats=self.stats,
+            short=short, is_selftest_log_path=is_selftest_log_path,
+            record_source_ref=record_source_ref,
+            receipt_events=self.receipt_events,
+        )
+
+    def add_confirmed_reply_receipt_event(self, kind: str, r: Record, **kwargs: Any) -> None:
+        """Record a reply receipt within the selected source context."""
+        self.source_context.pending_confirmed_reply_receipt = _add_confirmed_reply_receipt_event(
+            kind, r, kwargs,
+            input_file_indexes=self.input_file_indexes, stats=self.stats,
+            short=short, is_selftest_log_path=is_selftest_log_path,
+            record_source_ref=record_source_ref,
+            confirmed_reply_receipts=self.confirmed_reply_receipts,
+            pending_confirmed_reply_receipt=self.source_context.pending_confirmed_reply_receipt,
+        )
+
+    def add_asset_health(self, kind: str, r: Record, **kwargs: Any) -> None:
+        """Collect an asset health observation and count its kind."""
+        item = {
+            "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+            "kind": kind,
+            "level": r.level,
+            "message": short(r.msg, 500),
+        }
+        item.update(kwargs)
+        self.asset_health.append(item)
+        self.stats[f"asset_{kind}"] += 1
+
+    def add_reply_media_context_event(self, r: Record, **kwargs: Any) -> None:
+        """Collect reply media context for later incident reconciliation."""
+        _add_reply_media_context_event(
+            r, kwargs, reply_media_context=self.reply_media_context,
+            stats=self.stats, short=short,
+        )
+
+    def conversational_evidence_fields(
+        self,
+        event_obj: Dict[str, Any],
+        *,
+        evidence_ids: Any,
+        factual_claim_count: Any,
+    ) -> Dict[str, Any]:
+        """Project bounded conversational evidence onto an event."""
+        return _conversational_evidence_fields(
+            event_obj, evidence_ids=evidence_ids,
+            factual_claim_count=factual_claim_count,
+            bounded_event_string_list=bounded_event_string_list,
+        )
+
+
+    def begin_record(self, r: Record) -> None:
+        """Select source context and parse a strict structured envelope."""
+        self.current_source_record = r
+        self.msg = r.msg
+        self.production_record = not is_selftest_log_path(r.path)
+        self.source_context = self.production_context if self.production_record else self.selftest_context
+        self.strict_structured_event_obj = (
+            try_parse_strict_json_object_from_msg(self.msg)
+            if self.msg.startswith("EVENT ")
+            else None
+        )
+        # Structured EVENT fields are projected into the JSON contract only
+        # after duplicate-key, finite-number, UTF-8 and exact-envelope
+        # validation. Only a failed strict parse needs compatibility detection
+        # so malformed visual events retain bounded parser diagnostics without
+        # supplying fields to structured handlers.
+        diagnostic_event_obj = self.strict_structured_event_obj
+        if diagnostic_event_obj is None and self.msg.startswith("EVENT "):
+            diagnostic_event_obj = try_parse_json_object_from_msg(self.msg)
+        self.is_reply_visual_description_event = bool(
+            (
+                diagnostic_event_obj
+                and diagnostic_event_obj.get("event")
+                == "reply_visual_description"
+            )
+            or (
+                diagnostic_event_obj is None
+                and self.msg.startswith("EVENT ")
+                and re.search(
+                    r'"event"\s*:\s*"reply_visual_description"', self.msg
+                )
+            )
+        )
+
+    def observe_transport(self, r: Record) -> None:
+        """Observe X requests and remote-write transactions before routing."""
+        request_start = (
+            parse_x_request_start(self.msg)
+            if self.production_record and r.src in {"x_request", "x_bearer_request"}
+            else None
+        )
+        if request_start is not None:
+            record_x_request_start(
+                request_start, r, input_file_indexes=self.input_file_indexes,
+                x_requests=self.x_requests,
+                latest_x_request_by_source=self.latest_x_request_by_source,
+                stats=self.stats, record_source_ref=record_source_ref,
+            )
+
+        transaction_event = (
+            parse_remote_write_transaction_event(r) if self.production_record else None
+        )
+        if transaction_event is not None:
+            record_remote_write_transaction(
+                transaction_event, r, input_file_indexes=self.input_file_indexes,
+                remote_write_transactions=self.remote_write_transactions,
+                stats=self.stats, record_source_ref=record_source_ref,
+                add_receipt_event=self.add_receipt_event,
+            )
+
+    def observe_logged_runtime(self, r: Record) -> None:
+        """Collect lifecycle, configuration and logged-state observations."""
+        # Lifecycle/config/state
+        if self.production_record and (
+            self.msg == "Bot starting"
+            or self.msg == "Bot started successfully"
+            or "Bot stopped by KeyboardInterrupt" in self.msg
+            or "runtime control pause cleared" in self.msg.lower()
+        ):
+            self.lifecycle.append({"time": r.ts.strftime("%Y-%m-%d %H:%M:%S"), "level": r.level, "message": self.msg.splitlines()[0]})
+
+        config_pairs = extract_config_pairs(self.msg) if self.production_record else {}
+        if config_pairs:
+            self.configs.update(config_pairs)
+
+        if self.production_record and (self.msg.startswith("State being saved:") or self.msg.startswith("Loaded state:")):
+            state = try_parse_json_object_from_msg(self.msg) or parse_partial_state_from_msg(self.msg)
+            if state is not None:
+                self.latest_state = state
+                self.latest_state_ts = r.ts
+
+    def observe_errors_and_provider(self, r: Record) -> None:
+        """Classify warnings and observe provider messages before routing."""
+        self.is_asset_metadata_warning, self.is_handled_reply_restriction = observe_error_warning(
+            r, self.msg,
+            self_test_errors=self.self_test_errors,
+            confirmed_post_recovery=self.confirmed_post_recovery,
+            confirmed_reply_recovery=self.confirmed_reply_recovery,
+            errors=self.errors,
+            pending_mention=self.source_context.pending_mention,
+            pending_qt=self.source_context.pending_qt,
+            pending_meme=self.source_context.pending_meme,
+            pending_quote=self.source_context.pending_quote,
+            is_reply_visual_description_event=self.is_reply_visual_description_event,
+            input_file_indexes=self.input_file_indexes,
+            is_reply_target_eligibility_restriction=is_reply_target_eligibility_restriction,
+            is_deleted_or_inaccessible_tweet_403=is_deleted_or_inaccessible_tweet_403,
+            add_or_merge_local_rejection=self._local_rejection_callback,
+            short=short, record_source_ref=record_source_ref,
+            record_fingerprint=record_fingerprint,
+            classify_operational_error=classify_operational_error,
+        )
+
+        (
+            self.source_context.active_xai_context,
+            self.source_context.active_xai_call_attempt_index,
+        ) = observe_provider_message(
+            r, self.msg,
+            pending_mention=self.source_context.pending_mention,
+            pending_qt=self.source_context.pending_qt,
+            active_xai_context=self.source_context.active_xai_context,
+            active_xai_call_attempt_index=self.source_context.active_xai_call_attempt_index,
+            xai_call_attempts=self.xai_call_attempts,
+            xai_usage_events=self.xai_usage_events,
+            xai_usage_parse_errors=self.xai_usage_parse_errors,
+            stats=self.stats,
+            xai_usage_context_from_pending=xai_usage_context_from_pending,
+            parse_xai_call_start=parse_xai_call_start,
+            unknown_xai_usage_context=unknown_xai_usage_context,
+            parse_xai_usage_from_msg=parse_xai_usage_from_msg,
+            xai_usage_stage_from_msg=xai_usage_stage_from_msg,
+            provider_usage_provider_from_msg=provider_usage_provider_from_msg,
+            normalise_reply_lane=normalise_reply_lane,
+            summarize_xai_usage_event=summarize_xai_usage_event,
+            short=short,
+        )
+
+    def observe_structured_event(self, r: Record, record_index: int) -> bool:
+        """Route strict EVENT records; they never enter legacy parsing."""
+        # Strict structured EVENT lines provide immutable publication evidence;
+        # older human-readable success lines still define the final digest event.
+        if self.msg.startswith("EVENT "):
+            event_obj = self.strict_structured_event_obj
+            if self.is_reply_visual_description_event:
+                visual_event = (
+                    parse_reply_visual_description_event(event_obj)
+                    if event_obj is not None
+                    else None
+                )
+                if visual_event is None:
+                    self.stats["reply_visual_description_malformed_events"] += 1
+                else:
+                    self.stats["reply_visual_description_events"] += 1
+            elif event_obj and event_obj.get("event") == "main_post_posted":
+                record_main_post_publication(
+                    event_obj, self.strict_structured_event_obj, r.ts,
+                    valid_string_public_post_id=valid_string_public_post_id,
+                    SHA256_LOWER_RE=SHA256_LOWER_RE,
+                    retain_quote_post_evidence=self.quote_publications.retain,
+                    note_invalid_quote_post_evidence=self.quote_publications.note_invalid,
+                    make_source_ref=lambda: record_source_ref(r, self.input_file_indexes),
+                )
+                if event_obj.get("lane") == "daily_meme":
+                    self.source_context.pending_meme.update({
+                        "post_id": event_obj.get("post_id"),
+                        "file": event_obj.get("filename"),
+                    })
+            elif event_obj and event_obj.get("event") == "account_root_posted":
+                record_account_root_publication(
+                    event_obj, self.strict_structured_event_obj, r.ts,
+                    valid_account_root_publication_identity=valid_account_root_publication_identity,
+                    SHA256_LOWER_RE=SHA256_LOWER_RE,
+                    valid_bounded_utf8_text=valid_bounded_utf8_text,
+                    retain_quote_post_evidence=self.quote_publications.retain,
+                    note_invalid_quote_post_evidence=self.quote_publications.note_invalid,
+                    make_source_ref=lambda: record_source_ref(r, self.input_file_indexes),
+                )
+            elif event_obj and event_obj.get("event") == "historical_context_semantic_gate":
+                record_historical_context_semantic_gate(
+                    event_obj, r.ts, add_event=self.add_event
+                )
+            elif event_obj and event_obj.get("event") == "historical_context_runtime":
+                record_historical_context_runtime(
+                    event_obj, r.ts, self.stats, add_event=self.add_event
+                )
+            elif event_obj and event_obj.get("event") == "reply_evidence_unavailable":
+                record_reply_evidence_unavailable(
+                    event_obj, r.ts, self.stats, add_event=self.add_event,
+                    bounded_event_text=bounded_event_text,
+                    valid_string_public_post_id=valid_string_public_post_id,
+                )
+            elif event_obj and event_obj.get("event") == "runtime_control_pause":
+                record_runtime_control_pause(
+                    event_obj, r.ts, self.stats, add_event=self.add_event,
+                    bounded_event_string_list=bounded_event_string_list,
+                    bounded_event_text=bounded_event_text,
+                    bounded_event_nonnegative_integer=bounded_event_nonnegative_integer,
+                )
+            elif event_obj and event_obj.get("event") == "runtime_control_clear":
+                record_runtime_control_clear(
+                    event_obj, r.ts, self.stats, add_event=self.add_event,
+                    bounded_event_string_list=bounded_event_string_list,
+                    bounded_event_text=bounded_event_text,
+                )
+            elif event_obj and event_obj.get("event") == "clarification_reply_cap_override":
+                record_clarification_reply_cap_override(
+                    event_obj, r.ts, self.stats, add_event=self.add_event,
+                    valid_string_public_post_id=valid_string_public_post_id,
+                    bounded_event_text=bounded_event_text,
+                )
+            elif event_obj and event_obj.get("event") == "clarification_reply_used":
+                record_clarification_reply_used(
+                    event_obj, r.ts, self.stats, add_event=self.add_event,
+                    valid_string_public_post_id=valid_string_public_post_id,
+                    bounded_event_text=bounded_event_text,
+                )
+            elif event_obj and event_obj.get("event") == "repair_reply_completed":
+                record_repair_reply_completed(
+                    event_obj, r.ts, self.stats, add_event=self.add_event,
+                    valid_string_public_post_id=valid_string_public_post_id,
+                )
+            elif event_obj and event_obj.get("event") in {
+                "mention_backlog_started",
+                "mention_backlog_progress",
+                "mention_backlog_completed",
+                "mention_backlog_reset",
+            }:
+                record_mention_backlog(
+                    event_obj, r.ts, add_event=self.add_event, stats=self.stats,
+                    valid_string_public_post_id=valid_string_public_post_id,
+                    bounded_event_nonnegative_integer=bounded_event_nonnegative_integer,
+                    bounded_event_boolean=bounded_event_boolean,
+                    bounded_event_text=bounded_event_text,
+                )
+            elif event_obj and event_obj.get("event") in {
+                "author_evaluation_quarantine_started",
+                "author_evaluation_quarantine_skip",
+                "author_evaluation_quarantine_expired",
+            }:
+                record_author_evaluation_quarantine(
+                    event_obj, r.ts, add_event=self.add_event, stats=self.stats,
+                    valid_string_public_post_id=valid_string_public_post_id,
+                    bounded_event_nonnegative_integer=bounded_event_nonnegative_integer,
+                )
+            elif event_obj and event_obj.get("event") == "reply_posted":
+                confirmation = prepare_structured_reply_confirmation(
+                    self.strict_structured_event_obj,
+                    production_record=self.production_record,
+                    time_text=lambda: dt_text(r.ts),
+                    event_insertion_index=lambda: len(self.events),
+                    source_sequence=record_index,
+                    make_source_ref=lambda: record_source_ref(r, self.input_file_indexes),
+                )
+                if confirmation is not None:
+                    self.structured_reply_confirmations.append(confirmation)
+            elif (
+                event_obj
+                and event_obj.get("event")
+                == "historical_context_reply_posted"
+            ):
+                self.historical_reply_text_evidence.append(
+                    prepare_structured_historical_publication_evidence(
+                        event_obj, self.strict_structured_event_obj,
+                        production_record=self.production_record,
+                        valid_string_public_post_id=lambda value: valid_string_public_post_id(value),
+                        valid_bounded_utf8_text=lambda value, **kwargs: valid_bounded_utf8_text(value, **kwargs),
+                        sha256_fullmatch=lambda value: SHA256_LOWER_RE.fullmatch(value),
+                        time_text=lambda: dt_text(r.ts),
+                        event_insertion_index=lambda: len(self.events),
+                        source_sequence=record_index,
+                        make_source_ref=lambda: record_source_ref(r, self.input_file_indexes),
+                    )
+                )
+            elif event_obj and event_obj.get("event") == "historical_context_reply":
+                historical_fields = prepare_historical_context_reply(event_obj)
+                status = historical_fields["status"]
+                historical_event = self.add_event(
+                    "historical_context_reply", r.ts, **historical_fields
+                )
+                if status in {"completed", "already_completed"}:
+                    anchor_valid = valid_structured_historical_completion_anchor(
+                        self.strict_structured_event_obj, status,
+                        valid_string_public_post_id=lambda value: valid_string_public_post_id(value),
+                        valid_bounded_utf8_text=lambda value, **kwargs: valid_bounded_utf8_text(value, **kwargs),
+                        sha256_fullmatch=lambda value: SHA256_LOWER_RE.fullmatch(value),
+                    )
+                    if not anchor_valid:
+                        historical_event["reply_post_id"] = None
+                        historical_event.update(
+                            _public_reply_text_result(
+                                [],
+                                unavailable_reason=(
+                                    "structured historical-context anchor is not canonical"
+                                ),
+                            )
+                        )
+                        self.production_event_object_ids.discard(
+                            id(historical_event)
+                        )
+                count_historical_context_reply(status, self.stats)
+            elif event_obj and event_obj.get("event") == "posting_transaction_state":
+                record_posting_transaction_state(
+                    event_obj, r.ts, self.stats, add_event=self.add_event,
+                    bounded_event_text=bounded_event_text,
+                    valid_string_public_post_id=valid_string_public_post_id,
+                    bounded_event_boolean=bounded_event_boolean,
+                )
+            elif event_obj and event_obj.get("event") == "historical_context_obligation":
+                record_historical_context_obligation(
+                    event_obj, r.ts, self.stats, add_event=self.add_event
+                )
+            elif event_obj and event_obj.get("event") == "historical_context_outbox":
+                record_historical_context_outbox(
+                    event_obj, r.ts, self.stats, add_event=self.add_event
+                )
+            elif event_obj and event_obj.get("event") == "daily_meme_failure":
+                record_daily_meme_failure(
+                    event_obj, r.ts, self.stats, add_event=self.add_event,
+                    bounded_event_text=bounded_event_text,
+                    valid_string_public_post_id=valid_string_public_post_id,
+                )
+            elif event_obj and event_obj.get("event") == "reply_strategy_decision":
+                record_reply_strategy_decision(
+                    event_obj, r.ts,
+                    add_event=self.add_event,
+                    conversational_evidence_fields=self.conversational_evidence_fields,
+                )
+            elif event_obj and event_obj.get("event") == "reply_strategy_outcome":
+                record_reply_strategy_outcome(
+                    event_obj, r.ts,
+                    add_event=self.add_event,
+                    conversational_evidence_fields=self.conversational_evidence_fields,
+                )
+            elif event_obj and event_obj.get("event") == "reply_target_terminal":
+                record_reply_target_terminal(
+                    event_obj, r.ts,
+                    add_event=self.add_event,
+                )
+            elif event_obj and event_obj.get("event") == "reply_strategy_rejection":
+                record_reply_strategy_rejection(
+                    event_obj, r.ts,
+                    add_event=self.add_event,
+                )
+            elif event_obj and event_obj.get("event") == "single_call_reply_decision":
+                record_single_call_reply_decision(
+                    event_obj, r.ts, add_event=self.add_event,
+                )
+            elif event_obj and event_obj.get("event") == "single_call_reply_provider_usage":
+                record_single_call_reply_provider_usage(
+                    event_obj, r.ts, add_event=self.add_event,
+                )
+            elif event_obj and event_obj.get("event") == "single_call_reply_posting_outcome":
+                record_single_call_reply_posting_outcome(
+                    event_obj, r.ts, add_event=self.add_event,
+                )
+            elif event_obj and event_obj.get("event") == "single_call_reply_draft_recovered":
+                record_single_call_reply_draft_recovered(
+                    event_obj, r.ts, add_event=self.add_event,
+                )
+            elif event_obj and event_obj.get("event") in {
+                "provider_request_prepared",
+                "provider_request_recording_failed",
+                "provider_request_attempt_started",
+                "provider_request_attempt_outcome",
+            }:
+                record_provider_request_lifecycle(
+                    event_obj, r.ts, add_event=self.add_event,
+                )
+            elif event_obj and event_obj.get("event") == "ai_reply_pipeline_decision":
+                record_ai_reply_pipeline_decision(
+                    event_obj, r.ts,
+                    add_event=self.add_event,
+                    add_or_merge_local_rejection=self.add_or_merge_local_rejection,
+                    conversational_evidence_fields=self.conversational_evidence_fields,
+                    bounded_event_string_list=bounded_event_string_list,
+                )
+            elif event_obj and event_obj.get("event") == "ai_reply_pipeline_stage_summary":
+                record_ai_reply_pipeline_stage_summary(
+                    event_obj, r.ts,
+                    add_event=self.add_event,
+                    bounded_event_string_list=bounded_event_string_list,
+                    normalise_majority_review_telemetry=normalise_majority_review_telemetry,
+                )
+            elif event_obj and event_obj.get("event") == "ai_reply_pipeline_effective_outcome":
+                record_ai_reply_pipeline_effective_outcome(
+                    event_obj, r.ts,
+                    add_or_merge_local_rejection=self.add_or_merge_local_rejection,
+                )
+            elif event_obj and event_obj.get("event") == "ai_reply_pipeline_failure":
+                record_ai_reply_pipeline_failure(
+                    event_obj, r.ts,
+                    add_event=self.add_event,
+                )
+            elif event_obj and event_obj.get("event") == "ai_reply_pipeline_outcome":
+                record_ai_reply_pipeline_outcome(
+                    event_obj, r.ts,
+                    add_event=self.add_event,
+                    conversational_evidence_fields=self.conversational_evidence_fields,
+                    bounded_event_string_list=bounded_event_string_list,
+                )
+            elif event_obj and event_obj.get("event") == "quote_pagination_repeated_token":
+                self.add_event(
+                    "quote_pagination_repeated_token",
+                    r.ts,
+                    post_id=(event_obj.get("post_id") if valid_string_public_post_id(event_obj.get("post_id")) else ""),
+                    token_fingerprint=bounded_event_text(event_obj.get("token_fingerprint"), default="", max_characters=200),
+                    pages_completed=bounded_event_nonnegative_integer(event_obj.get("pages_completed"), maximum=1_000_000),
+                    results_retained=bounded_event_nonnegative_integer(event_obj.get("results_retained"), maximum=1_000_000),
+                )
+            elif event_obj and event_obj.get("event") == "candidate_skipped":
+                self.add_event(
+                    "candidate_skipped", r.ts,
+                    lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
+                    target_id=(event_obj.get("id") if valid_string_public_post_id(event_obj.get("id")) else ""),
+                    reason=bounded_event_text(event_obj.get("reason"), default="other", max_characters=500),
+                )
+            return True
+        return False
+
+    def observe_legacy_evidence(self, r: Record) -> bool:
+        """Observe receipt, media, cooldown and API evidence in original order."""
+        quote_success = re.match(
+            r"Fetched \d+ quote tweet\(s\) for post_id=(\d+)$",
+            self.msg,
+        )
+        if quote_success:
+            self.add_event(
+                "quote_lane_activity_succeeded",
+                r.ts,
+                post_id=quote_success.group(1),
+            )
+            self.add_event("x_activity_succeeded", r.ts, activity="quote_lookup")
+            return True
+        if re.match(r"Fetched \d+ mentions$", self.msg):
+            self.add_event("x_activity_succeeded", r.ts, activity="mention_lookup")
+            return True
+
+        if handle_legacy_receipt_message(
+            r, self.msg,
+            pending_confirmed_reply_receipt=self.source_context.pending_confirmed_reply_receipt,
+            add_receipt_event=self.add_receipt_event,
+            add_confirmed_reply_receipt_event=self.add_confirmed_reply_receipt_event,
+        ):
+            return True
+
+        if handle_legacy_reply_media_context_message(
+            r, self.msg, add_reply_media_context_event=self.add_reply_media_context_event,
+        ):
+            return True
+
+        if self.is_asset_metadata_warning and r.level in {"ERROR", "CRITICAL", "WARNING"}:
+            kind = "metadata_warning"
+            if "Quote analysis" in self.msg or "quote analysis" in self.msg or "Skipping unanalysed current quote" in self.msg:
+                kind = "quote_metadata_warning"
+            elif "Image analysis" in self.msg or "image analysis" in self.msg or "Image metadata" in self.msg or "image analysis" in self.msg:
+                kind = "image_metadata_warning"
+            self.add_asset_health(kind, r)
+            return True
+
+        if handle_cooldown_message(
+            r, self.msg, stats=self.stats, cooldown_active=self.cooldown_active,
+            add_event=self.add_event,
+        ):
+            return True
+        m = re.search(r"Migrated legacy pickle file (.+) to JSON file (.+)$", self.msg)
+        if m:
+            self.add_event("used_history_migrated", r.ts, legacy_file=m.group(1).strip(), json_file=m.group(2).strip())
+            return True
+        m = re.search(r"Normalized used-history JSON ordering in (.+)$", self.msg)
+        if m:
+            self.add_event("used_history_normalized", r.ts, json_file=m.group(1).strip())
+            return True
+        if handle_x_api_error(
+            r, self.msg, latest_x_request_by_source=self.latest_x_request_by_source,
+            pending_mention=self.source_context.pending_mention,
+            pending_qt=self.source_context.pending_qt,
+            is_handled_reply_restriction=self.is_handled_reply_restriction,
+            api_errors=self.api_errors, handled_api_restrictions=self.handled_api_restrictions,
+            stats=self.stats, input_file_indexes=self.input_file_indexes,
+            parse_dt=parse_dt, seconds_between=seconds_between, short=short,
+            record_source_ref=record_source_ref,
+            is_deleted_or_inaccessible_tweet_403=is_deleted_or_inaccessible_tweet_403,
+        ):
+            return True
+        self.source_context.active_xai_context = observe_provider_error(
+            r, self.msg, active_xai_context=self.source_context.active_xai_context,
+            api_errors=self.api_errors, stats=self.stats,
+            input_file_indexes=self.input_file_indexes, short=short,
+            record_source_ref=record_source_ref,
+        )
+        enrich_latest_api_error(self.msg, api_errors=self.api_errors, stats=self.stats)
+        return False
+
+    def observe_legacy_posting(self, r: Record, record_index: int) -> bool:
+        """Route legacy publication and reply observations in original order."""
+        if handle_legacy_quiet_message(
+            r, self.msg,
+            stats=self.stats, add_event=self.add_event,
+        ):
+            return True
+
+        if handle_legacy_quote_image_selection(
+            r, self.msg,
+            pending_quote=self.source_context.pending_quote,
+            regular_image_usage_events=self.regular_image_usage_events, add_event=self.add_event,
+        ):
+            return True
+
+        if "ORIGINAL_EDITORIAL_SELECTION_RESULT " in self.msg:
+            record_original_editorial_selection(
+                self.msg, r.ts, r.level,
+                observations=self.original_editorial_shadow_events,
+                pending_shadow_companions=self.pending_original_editorial_shadow_companions,
+                stats=self.stats, errors=self.errors,
+                parse_json_object=_strict_native_json_object,
+                short_text=short,
+                source_ref=lambda: record_source_ref(r, self.input_file_indexes),
+            )
+            return True
+
+        if "ORIGINAL_EDITORIAL_SHADOW_RESULT " in self.msg:
+            record_original_editorial_shadow(
+                self.msg, r.ts, r.level,
+                observations=self.original_editorial_shadow_events,
+                pending_shadow_companions=self.pending_original_editorial_shadow_companions,
+                stats=self.stats, errors=self.errors,
+                parse_json_object=_strict_native_json_object,
+                short_text=short,
+                source_ref=lambda: record_source_ref(r, self.input_file_indexes),
+            )
+            return True
+
+        if "GENERATED_IDENTITY_POLICY_SHADOW_RESULT " in self.msg:
+            record_generated_identity_shadow(
+                self.msg, r.ts, r.level,
+                observations=self.generated_identity_shadow_events,
+                stats=self.stats, errors=self.errors,
+                parse_json_object=_strict_native_json_object,
+                short_text=short,
+                source_ref=lambda: record_source_ref(r, self.input_file_indexes),
+            )
+            return True
+
+        if "GENERATED_IDENTITY_POLICY_APPLIED " in self.msg:
+            record_generated_identity_policy(
+                self.msg, r.ts, r.level,
+                observations=self.generated_identity_policy_events,
+                stats=self.stats, errors=self.errors,
+                parse_json_object=_strict_native_json_object,
+                short_text=short,
+                source_ref=lambda: record_source_ref(r, self.input_file_indexes),
+            )
+            return True
+
+        handled, self.latest_generated_image_spacing = handle_legacy_generated_image_spacing(
+            r, self.msg,
+            latest_generated_image_spacing=self.latest_generated_image_spacing,
+            generated_image_spacing_events=self.generated_image_spacing_events,
+        )
+        if handled:
+            return True
+
+        handled, self.source_context.pending_quote = handle_legacy_quote_image_posting(
+            r, self.msg,
+            pending_quote=self.source_context.pending_quote,
+            regular_image_usage_events=self.regular_image_usage_events, add_event=self.add_event,
+            lit=lit,
+        )
+        if handled:
+            return True
+
+        meme_availability_kind = {
+            "All meme candidates have already been posted": "meme_cycle_exhausted",
+            "No meme available to post": "meme_unavailable",
+            "RESET_MEME_CYCLE_WHEN_ALL_POSTED=True, clearing meme history": "meme_cycle_recycled",
+        }.get(self.msg)
+        if self.production_record and meme_availability_kind:
+            self.add_event(meme_availability_kind, r.ts, message=self.msg)
+            if meme_availability_kind != "meme_cycle_recycled":
+                self.add_asset_health(meme_availability_kind, r, severity="warning")
+            return True
+
+        handled, self.source_context.pending_meme = handle_legacy_meme_posting(
+            r, self.msg,
+            pending_meme=self.source_context.pending_meme, add_event=self.add_event, lit=lit,
+        )
+        if handled:
+            return True
+
+        handled, self.source_context.last_created_post = handle_legacy_created_post(
+            r, self.msg,
+            production_record=self.production_record,
+            last_created_post=self.source_context.last_created_post,
+            stats=self.stats, production_event_object_ids=self.production_event_object_ids,
+            add_event=self.add_event, try_parse_response_id_text=try_parse_response_id_text,
+            response_post_id_is_canonical_string=response_post_id_is_canonical_string,
+        )
+        if handled:
+            return True
+
+        (
+            handled,
+            self.source_context.pending_mention,
+            self.source_context.active_xai_context,
+        ) = handle_legacy_mention_reply(
+            r, self.msg,
+            record_index=record_index, production_record=self.production_record,
+            pending_mention=self.source_context.pending_mention,
+            active_xai_context=self.source_context.active_xai_context,
+            last_created_post=self.source_context.last_created_post,
+            production_event_object_ids=self.production_event_object_ids,
+            routine_skip_counts=self.routine_skip_counts, add_event=self.add_event, lit=lit,
+        )
+        if handled:
+            return True
+
+        (
+            handled,
+            self.source_context.pending_qt,
+            self.source_context.active_xai_context,
+        ) = handle_legacy_quote_reply(
+            r, self.msg,
+            record_index=record_index, production_record=self.production_record,
+            pending_qt=self.source_context.pending_qt,
+            active_xai_context=self.source_context.active_xai_context,
+            last_created_post=self.source_context.last_created_post,
+            production_event_object_ids=self.production_event_object_ids,
+            routine_skip_counts=self.routine_skip_counts, add_event=self.add_event, lit=lit,
+        )
+        if handled:
+            return True
+        return False
+
+    def observe_routine_skip(self, r: Record) -> None:
+        """Count the remaining routine availability messages."""
+        # Other interesting skip/rate/cap messages.
+        if self.msg in {
+            "Daily generated/replied cap reached",
+            "Skipping mention check: minimum interval between replies not reached",
+            "Skipping quote-tweet check: total daily reply cap reached",
+            "Skipping quote-tweet check: daily quote-reply cap reached",
+        }:
+            self.routine_skip_counts[self.msg] += 1
+            if self.msg == "Skipping mention check: minimum interval between replies not reached":
+                self.stats["mention_checks_skipped_spacing"] += 1
+
+    def observe(self) -> None:
+        """Preserve the record observer order and every routing short circuit."""
+        for record_index, r in enumerate(self.records):
+            self.begin_record(r)
+            self.observe_transport(r)
+            self.observe_logged_runtime(r)
+            self.observe_errors_and_provider(r)
+            if self.observe_structured_event(r, record_index):
+                continue
+            if self.observe_legacy_evidence(r):
+                continue
+            if self.observe_legacy_posting(r, record_index):
+                continue
+            self.observe_routine_skip(r)
+
+    def reconcile_observations(self) -> None:
+        """Reconcile publication, media, receipt and operational error evidence."""
+        self.source_context = self.production_context
+        self.current_source_record = None
+
+        self.quote_publications.prepare_report(
+            self.events, self.production_event_object_ids,
+        )
+
+        self.latest_state_summary: Dict[str, Any] = {}
+        if self.latest_state is not None:
+            self.latest_state_summary = summarize_latest_state(self.latest_state, self.latest_state_ts)
+
+        self_test_times = {str(item.get("time")) for item in self.self_test_errors}
+        api_error_times = {str(item.get("time")) for item in self.api_errors}
+        self.handled_restriction_times = [
+            datetime.strptime(str(item["time"]), "%Y-%m-%d %H:%M:%S")
+            for item in self.handled_api_restrictions
+            if item.get("time")
+        ]
+        self.media_upload_incidents, self.errors = prepare_media_incidents_and_errors(
+            records=self.records,
+            max_text=self.max_text,
+            input_file_indexes=self.input_file_indexes,
+            remote_write_transactions=self.remote_write_transactions,
+            x_requests=self.x_requests,
+            current_remote_write_safety=self.current_remote_write_safety,
+            errors=self.errors,
+            self_test_errors=self.self_test_errors,
+            self_test_times=self_test_times,
+            api_error_times=api_error_times,
+            handled_restriction_times=self.handled_restriction_times,
+            correlate_media_upload_incidents=correlate_media_upload_incidents,
+            parse_dt=parse_dt,
+            strptime=datetime.strptime,
+            seconds_between=seconds_between,
+        )
+
+        append_unresolved_reply_receipt_errors(
+            confirmed_reply_receipts=self.confirmed_reply_receipts,
+            errors=self.errors,
+        )
+
+        self.error_health = summarise_operational_error_health(
+            self.errors,
+            self.events,
+            self.receipt_events,
+            self.lifecycle,
+            remote_write_transactions=self.remote_write_transactions,
+            handled_api_restrictions=self.handled_api_restrictions,
+            confirmed_reply_receipt_events=self.confirmed_reply_receipts,
+            current_remote_write_safety=self.current_remote_write_safety,
+            generation_time=self.generation_time,
+            selected_window_end=self.selected_window_end,
+            current_snapshot_authoritative=self.current_snapshot_authoritative,
+        )
+        (
+            self.durably_reconciled_reply_receipts,
+            self.status_unavailable_reply_receipts,
+            self.active_snapshot_reply_receipts,
+        ) = prepare_reply_receipt_recovery_reporting(
+            error_health=self.error_health,
+            current_remote_write_safety=self.current_remote_write_safety,
+            confirmed_reply_receipts=self.confirmed_reply_receipts,
+            parse_dt=parse_dt,
+            _normalise_lane=_normalise_lane,
+            REMOTE_WRITE_RECEIPT_ROLE_LABELS=REMOTE_WRITE_RECEIPT_ROLE_LABELS,
+        )
+
+    def prepare_report_sections(self) -> None:
+        """Calculate headline, API health, quality and mention-control sections."""
+        # Build a short automatic headline around current health, not raw traceback volume.
+        (
+            self.headline_components, self.transient_provider_timeouts, self.handled_media_fallbacks,
+            self.reconciled_media_uploads, self.unrecovered_media, self.derived,
+        ) = prepare_headline_and_derived(
+            stats=self.stats, error_health=self.error_health,
+            current_remote_write_safety=self.current_remote_write_safety,
+            handled_api_restrictions=self.handled_api_restrictions,
+            media_upload_incidents=self.media_upload_incidents,
+            self_test_errors=self.self_test_errors,
+            confirmed_post_recovery=self.confirmed_post_recovery,
+            confirmed_reply_recovery=self.confirmed_reply_recovery,
+            receipt_events=self.receipt_events, asset_health=self.asset_health,
+            latest_state_summary=self.latest_state_summary, records=self.records, configs=self.configs,
+            plural_count=plural_count, int_or_none=int_or_none, parse_dt=parse_dt,
+        )
+
+        self.api_health_preparation = prepare_api_health(
+            api_errors=self.api_errors, handled_api_restrictions=self.handled_api_restrictions,
+            x_requests=self.x_requests, remote_write_transactions=self.remote_write_transactions,
+            events=self.events, production_event_object_ids=self.production_event_object_ids,
+            quote_post_correlations=self.quote_publications.evidence,
+            structured_reply_confirmations=self.structured_reply_confirmations,
+            historical_reply_text_evidence=self.historical_reply_text_evidence,
+            transient_provider_timeouts=self.transient_provider_timeouts,
+            handled_restriction_times=self.handled_restriction_times,
+            event_counter=Counter, bounded_event_text=bounded_event_text,
+            SHA256_LOWER_RE=SHA256_LOWER_RE,
+            valid_string_public_post_id=valid_string_public_post_id,
+            _normalised_structured_reply_confirmation=_normalised_structured_reply_confirmation,
+            seconds_between=seconds_between, parse_dt=parse_dt,
+            strptime=datetime.strptime, datetime_min=datetime.min,
+        )
+
+        prepare_inferred_reply_strategy_outcomes(
+            events=self.events, handled_api_restrictions=self.handled_api_restrictions,
+            _normalise_lane=_normalise_lane, parse_dt=parse_dt, add_event=self.add_event,
+        )
+
+        self.context_quality = historical_context_quality_summary(self.events)
+        self.single_call_quality = single_call_reply_summary(self.events)
+        (
+            self.legacy_multi_stage, self.headline, self.headline_without_current_cooldown,
+            self.headline_components,
+        ) = prepare_reply_quality_headline(
+            events=self.events, headline=self.headline_components,
+            single_call_quality=self.single_call_quality,
+            plural_count=plural_count,
+        )
+
+        (
+            self.mention_control_events,
+            self.mention_control_counts,
+            self.pipeline_evaluations_skipped,
+        ) = prepare_mention_control_observations(self.events, event_counter=Counter)
+
+    def build_report(self) -> None:
+        """Assemble the stable JSON report sections from prepared observations."""
+        self.report = {
+            "summary": {
+                "record_count": len(self.records),
+                "time_start": self.records[0].ts.strftime("%Y-%m-%d %H:%M:%S") if self.records else None,
+                "time_end": self.records[-1].ts.strftime("%Y-%m-%d %H:%M:%S") if self.records else None,
+                "headline": "; ".join(self.headline),
+                "_headline_without_current_cooldown": (
+                    self.headline_without_current_cooldown
+                ),
+                "_headline_components": self.headline_components,
+                "stats": dict(self.stats),
+                "routine_skip_counts": dict(self.routine_skip_counts),
+            },
+            "latest_config": self.configs,
+            "latest_state": self.latest_state_summary,
+            "derived": self.derived,
+            "mention_backlog_and_quarantine": {
+                "events": self.mention_control_events,
+                "event_counts": dict(sorted(self.mention_control_counts.items())),
+                "pipeline_evaluations_skipped": self.pipeline_evaluations_skipped,
+            },
+            "api_health": api_health_report(
+                self.api_health_preparation, api_errors=self.api_errors,
+                handled_api_restrictions=self.handled_api_restrictions,
+                cooldown_active=self.cooldown_active, x_requests=self.x_requests,
+            ),
+            "main_post_recovery": {
+                "receipt_events": self.receipt_events,
+                "confirmed_post_recovery": self.confirmed_post_recovery,
+            },
+            "remote_write_transactions": self.remote_write_transactions,
+            "confirmed_reply_recovery": {
+                "receipt_events": self.confirmed_reply_receipts,
+                "warnings": self.confirmed_reply_recovery,
+                "durably_reconciled_ambiguity_receipts": (
+                    self.durably_reconciled_reply_receipts
+                ),
+                "status_unavailable_receipts": self.status_unavailable_reply_receipts,
+                "active_snapshot_receipts": self.active_snapshot_reply_receipts,
+            },
+            "quote_publication": {
+                "correlation_warnings": self.quote_publications.warnings,
+                "correlation_warning_omitted_count": (
+                    self.quote_publications.warning_omitted_count
+                ),
+            },
+            "historical_context_replies": {
+                "events": [item for item in self.events if item.get("kind") == "historical_context_reply"],
+                "status_counts": {
+                    key.removeprefix("historical_context_reply_status_"): value
+                    for key, value in sorted(self.stats.items())
+                    if key.startswith("historical_context_reply_status_")
+                },
+            },
+            "production_consistency": production_consistency_report(self.events, self.stats),
+            "historical_context_quality": self.context_quality,
+            "single_call_reply": self.single_call_quality,
+            "provider_request_correlations": [
+                item for item in self.events
+                if item.get("kind") in {
+                    "single_call_reply_decision",
+                    "single_call_reply_provider_usage",
+                    "single_call_reply_posting_outcome",
+                    "single_call_reply_draft_recovered",
+                    "provider_request_prepared",
+                    "provider_request_recording_failed",
+                    "provider_request_attempt_started",
+                    "provider_request_attempt_outcome",
+                }
+            ],
+            "legacy_multi_stage": self.legacy_multi_stage,
+            "asset_health": self.asset_health,
+            "media_upload": {
+                "incidents": self.media_upload_incidents,
+                "handled_fallbacks": self.handled_media_fallbacks,
+                "reconciled_incidents": self.reconciled_media_uploads,
+                "unrecovered_failures": self.unrecovered_media,
+            },
+            "regular_image_usage": {
+                "events": self.regular_image_usage_events,
+                "summary": regular_image_usage_summary(self.regular_image_usage_events),
+            },
+            "original_editorial_shadow": {
+                "events": self.original_editorial_shadow_events,
+                "summary": original_editorial_shadow_summary(self.original_editorial_shadow_events),
+            },
+            "generated_identity_shadow": {
+                "events": self.generated_identity_shadow_events,
+                "summary": generated_identity_shadow_summary(self.generated_identity_shadow_events),
+            },
+            "generated_identity_policy": {
+                "events": self.generated_identity_policy_events,
+                "summary": generated_identity_policy_summary(self.generated_identity_policy_events),
+            },
+            "generated_image_spacing": {
+                "latest": self.latest_generated_image_spacing,
+                "events": self.generated_image_spacing_events,
+            },
+            "resume_context": {
+                "active_xai_context": self.source_context.active_xai_context,
+                "active_xai_call_attempt": (
+                    dict(self.xai_call_attempts[self.source_context.active_xai_call_attempt_index])
+                    if self.source_context.active_xai_call_attempt_index is not None
+                    and self.xai_call_attempts[self.source_context.active_xai_call_attempt_index].get(
+                        "usage_observed"
+                    )
+                    is not True
+                    else None
+                ),
+                "pending_mention": (
+                    {
+                        key: value
+                        for key, value in self.source_context.pending_mention.items()
+                        if not key.startswith("_")
+                    }
+                    if self.source_context.pending_mention
+                    else None
+                ),
+                "pending_qt": (
+                    {
+                        key: value
+                        for key, value in self.source_context.pending_qt.items()
+                        if not key.startswith("_")
+                    }
+                    if self.source_context.pending_qt
+                    else None
+                ),
+            },
+            "lifecycle": self.lifecycle[-12:],
+            "events": self.events,
+            "self_test_errors": self.self_test_errors[-40:],
+            "error_health": self.error_health,
+            "errors_and_warnings": [
+                {
+                    key: value
+                    for key, value in item.items()
+                    if not key.startswith("_")
+                }
+                for item in self.errors[-40:]
+            ],
+        }
+
+    def complete_report(self) -> Dict[str, Any]:
+        """Enrich exact reply text, bound display prose and attach lifecycle summaries."""
+        enrich_published_reply_text(
+            self.report,
+            runtime_state=self.current_runtime_state,
+            structured_reply_confirmations=self.structured_reply_confirmations,
+            historical_reply_text_evidence=self.historical_reply_text_evidence,
+            confirmed_receipt_evidence=self.confirmed_receipt_evidence,
+            durable_evidence_status=self.durable_reply_evidence_status,
+            production_event_object_ids=self.production_event_object_ids,
+        )
+        # Prose previews can participate in analysis (notably historical-context
+        # classification), so shorten them only once every summary and correlation
+        # has consumed the original values. Semantic fields and separately bounded
+        # public/rejected reply evidence remain exact.
+        for event in self.events:
+            for field in (
+                "text", "incoming_text", "incoming_contribution", "reply_preview", "proposed_draft",
+                "repaired_draft", "summary", "components",
+            ):
+                value = event.get(field)
+                if field == "text" and event.get("public_text_status") == "confirmed":
+                    continue
+                if isinstance(value, str):
+                    event[field] = short(value, self.max_text)
+        main_post_lifecycle, reply_lifecycle = _receipt_lifecycle_summaries(self.report)
+        self.report["main_post_recovery"]["receipt_lifecycle"] = main_post_lifecycle
+        self.report["confirmed_reply_recovery"]["receipt_lifecycle"] = reply_lifecycle
+        return self.report
+
+    def finalize(self) -> Dict[str, Any]:
+        """Reconcile the complete record stream and build its report."""
+        self.reconcile_observations()
+        self.prepare_report_sections()
+        self.build_report()
+        return self.complete_report()
 
 def analyse(
     records: List[Record],
@@ -1622,1080 +2743,24 @@ def analyse(
     durable_reply_evidence_status: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Aggregate parsed production records into digest metrics."""
-    if selected_window_end is None:
-        selected_window_end = max(
-            (record.ts for record in records),
-            default=None,
-        )
-    stats = Counter()
-    events: List[Dict[str, Any]] = []
-    errors: List[Dict[str, Any]] = []
-    self_test_errors: List[Dict[str, Any]] = []
-    api_errors: List[Dict[str, Any]] = []
-    handled_api_restrictions: List[Dict[str, Any]] = []
-    receipt_events: List[Dict[str, Any]] = []
-    confirmed_post_recovery: List[Dict[str, Any]] = []
-    confirmed_reply_receipts: List[Dict[str, Any]] = []
-    confirmed_reply_recovery: List[Dict[str, Any]] = []
-    asset_health: List[Dict[str, Any]] = []
-    reply_media_context: List[Dict[str, Any]] = []
-    media_upload_incidents: List[Dict[str, Any]] = []
-    remote_write_transactions: List[Dict[str, Any]] = []
-    x_requests: List[Dict[str, Any]] = []
-    latest_x_request_by_source: Dict[str, Dict[str, Any]] = {}
-    xai_usage_events: List[Dict[str, Any]] = []
-    restored_xai_call_attempt = normalise_active_xai_call_attempt(
-        initial_active_xai_call_attempt
-    )
-    xai_call_attempts: List[Dict[str, Any]] = (
-        [restored_xai_call_attempt] if restored_xai_call_attempt else []
-    )
-    xai_usage_parse_errors: List[Dict[str, Any]] = []
-    regular_image_usage_events: List[Dict[str, Any]] = []
-    original_editorial_shadow_events: List[Dict[str, Any]] = []
-    pending_original_editorial_shadow_companions: Counter = Counter()
-    generated_identity_shadow_events: List[Dict[str, Any]] = []
-    generated_identity_policy_events: List[Dict[str, Any]] = []
-    generated_image_spacing_events: List[Dict[str, Any]] = []
-    latest_generated_image_spacing: Dict[str, Any] = {}
-    cooldown_active: List[Dict[str, Any]] = []
-    lifecycle: List[Dict[str, Any]] = []
-    routine_skip_counts = Counter()
-    configs: Dict[str, str] = {}
-    latest_state: Optional[Dict[str, Any]] = None
-    latest_state_ts: Optional[datetime] = None
-
-    production_context = _AnalysisSourceContext(
-        pending_mention=dict(initial_pending_mention or {}),
-        pending_qt=dict(initial_pending_qt or {}),
-        active_xai_context=dict(initial_active_xai_context or {}) or None,
-        active_xai_call_attempt_index=0 if restored_xai_call_attempt else None,
-    )
-    if production_context.pending_mention:
-        production_context.pending_mention.setdefault("_identity_production", True)
-        production_context.pending_mention.setdefault("_reply_post_id_production", True)
-    if production_context.pending_qt:
-        production_context.pending_qt.setdefault("_identity_production", True)
-        production_context.pending_qt.setdefault("_reply_post_id_production", True)
-    selftest_context = _AnalysisSourceContext()
-    source_context = production_context
-    structured_reply_confirmations: List[Dict[str, Any]] = []
-    historical_reply_text_evidence: List[Dict[str, Any]] = list(
-        historical_history_evidence or []
-    )
-    current_source_record: Optional[Record] = None
-    production_event_object_ids: set[int] = set()
-    quote_publications = QuotePublicationCorrelation(
-        source_is_selftest=lambda: (
-            current_source_record is not None
-            and is_selftest_log_path(current_source_record.path)
-        ),
-        valid_string_public_post_id=lambda value: valid_string_public_post_id(value),
-        valid_bounded_utf8_text=lambda value, **kwargs: valid_bounded_utf8_text(value, **kwargs),
-        bounded_source_refs=lambda *groups: bounded_source_refs(*groups),
-        warning_limit=lambda: QUOTE_PUBLICATION_CORRELATION_WARNING_LIMIT,
-    )
-
-    def add_event(kind: str, ts: datetime, **kwargs: Any) -> Dict[str, Any]:
-        # Keep parser-bounded values intact for status counts, identity joins and
-        # diagnostic classification. Display limits are applied after analysis.
-        ev = {"time": ts.strftime("%Y-%m-%d %H:%M:%S"), "kind": kind}
-        for key, value in kwargs.items():
-            # Structured handlers have tighter field-specific limits; this
-            # guard also bounds free-form captures from older plain-text logs.
-            ev[key] = (
-                None if isinstance(value, str)
-                and not valid_bounded_utf8_text(value, allow_empty=True)
-                else value
-            )
-        if kind in PROVENANCE_EVENT_KINDS and current_source_record is not None:
-            ev["source_refs"] = [
-                record_source_ref(current_source_record, input_file_indexes)
-            ]
-        events.append(ev)
-        if (
-            current_source_record is not None
-            and not is_selftest_log_path(current_source_record.path)
-        ):
-            production_event_object_ids.add(id(ev))
-        stats[kind] += 1
-        return ev
-
-    local_rejections_by_identity: Dict[Tuple[str, str], Dict[str, Any]] = {}
-
-    def add_or_merge_local_rejection(
-        ts: datetime,
-        *,
-        lane: Any,
-        target_id: Any,
-        **kwargs: Any,
-    ) -> Dict[str, Any]:
-        """Keep one enriched effective local-rejection record per target."""
-        return _add_or_merge_local_rejection(
-            ts, kwargs, lane=lane, target_id=target_id,
-            local_rejections_by_identity=local_rejections_by_identity,
-            valid_string_public_post_id=valid_string_public_post_id,
-            _normalise_lane=_normalise_lane, bounded_event_text=bounded_event_text,
-            bounded_event_string_list=bounded_event_string_list,
-            add_event=add_event,
-        )
-
-    def add_receipt_event(kind: str, r: Record, **kwargs: Any) -> None:
-        _add_receipt_event(
-            kind, r, kwargs,
-            input_file_indexes=input_file_indexes, stats=stats,
-            short=short, is_selftest_log_path=is_selftest_log_path,
-            record_source_ref=record_source_ref,
-            receipt_events=receipt_events,
-        )
-
-    def add_confirmed_reply_receipt_event(kind: str, r: Record, **kwargs: Any) -> None:
-        source_context.pending_confirmed_reply_receipt = _add_confirmed_reply_receipt_event(
-            kind, r, kwargs,
-            input_file_indexes=input_file_indexes, stats=stats,
-            short=short, is_selftest_log_path=is_selftest_log_path,
-            record_source_ref=record_source_ref,
-            confirmed_reply_receipts=confirmed_reply_receipts,
-            pending_confirmed_reply_receipt=source_context.pending_confirmed_reply_receipt,
-        )
-
-    def add_asset_health(kind: str, r: Record, **kwargs: Any) -> None:
-        item = {
-            "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
-            "kind": kind,
-            "level": r.level,
-            "message": short(r.msg, 500),
-        }
-        item.update(kwargs)
-        asset_health.append(item)
-        stats[f"asset_{kind}"] += 1
-
-    def add_reply_media_context_event(r: Record, **kwargs: Any) -> None:
-        _add_reply_media_context_event(
-            r, kwargs, reply_media_context=reply_media_context,
-            stats=stats, short=short,
-        )
-
-    def conversational_evidence_fields(
-        event_obj: Dict[str, Any],
-        *,
-        evidence_ids: Any,
-        factual_claim_count: Any,
-    ) -> Dict[str, Any]:
-        return _conversational_evidence_fields(
-            event_obj, evidence_ids=evidence_ids,
-            factual_claim_count=factual_claim_count,
-            bounded_event_string_list=bounded_event_string_list,
-        )
-
-    for record_index, r in enumerate(records):
-        current_source_record = r
-        msg = r.msg
-        production_record = not is_selftest_log_path(r.path)
-        source_context = production_context if production_record else selftest_context
-        strict_structured_event_obj = (
-            try_parse_strict_json_object_from_msg(msg)
-            if msg.startswith("EVENT ")
-            else None
-        )
-        # Structured EVENT fields are projected into the JSON contract only
-        # after duplicate-key, finite-number, UTF-8 and exact-envelope
-        # validation. Only a failed strict parse needs compatibility detection
-        # so malformed visual events retain bounded parser diagnostics without
-        # supplying fields to structured handlers.
-        diagnostic_event_obj = strict_structured_event_obj
-        if diagnostic_event_obj is None and msg.startswith("EVENT "):
-            diagnostic_event_obj = try_parse_json_object_from_msg(msg)
-        is_reply_visual_description_event = bool(
-            (
-                diagnostic_event_obj
-                and diagnostic_event_obj.get("event")
-                == "reply_visual_description"
-            )
-            or (
-                diagnostic_event_obj is None
-                and msg.startswith("EVENT ")
-                and re.search(
-                    r'"event"\s*:\s*"reply_visual_description"', msg
-                )
-            )
-        )
-
-        request_start = (
-            parse_x_request_start(msg)
-            if production_record and r.src in {"x_request", "x_bearer_request"}
-            else None
-        )
-        if request_start is not None:
-            record_x_request_start(
-                request_start, r, input_file_indexes=input_file_indexes,
-                x_requests=x_requests,
-                latest_x_request_by_source=latest_x_request_by_source,
-                stats=stats, record_source_ref=record_source_ref,
-            )
-
-        transaction_event = (
-            parse_remote_write_transaction_event(r) if production_record else None
-        )
-        if transaction_event is not None:
-            record_remote_write_transaction(
-                transaction_event, r, input_file_indexes=input_file_indexes,
-                remote_write_transactions=remote_write_transactions,
-                stats=stats, record_source_ref=record_source_ref,
-                add_receipt_event=add_receipt_event,
-            )
-
-        # Lifecycle/config/state
-        if production_record and (
-            msg == "Bot starting"
-            or msg == "Bot started successfully"
-            or "Bot stopped by KeyboardInterrupt" in msg
-            or "runtime control pause cleared" in msg.lower()
-        ):
-            lifecycle.append({"time": r.ts.strftime("%Y-%m-%d %H:%M:%S"), "level": r.level, "message": msg.splitlines()[0]})
-
-        config_pairs = extract_config_pairs(msg) if production_record else {}
-        if config_pairs:
-            configs.update(config_pairs)
-
-        if production_record and (msg.startswith("State being saved:") or msg.startswith("Loaded state:")):
-            state = try_parse_json_object_from_msg(msg) or parse_partial_state_from_msg(msg)
-            if state is not None:
-                latest_state = state
-                latest_state_ts = r.ts
-
-        is_asset_metadata_warning, is_handled_reply_restriction = observe_error_warning(
-            r, msg,
-            self_test_errors=self_test_errors,
-            confirmed_post_recovery=confirmed_post_recovery,
-            confirmed_reply_recovery=confirmed_reply_recovery,
-            errors=errors,
-            pending_mention=source_context.pending_mention,
-            pending_qt=source_context.pending_qt,
-            pending_meme=source_context.pending_meme,
-            pending_quote=source_context.pending_quote,
-            is_reply_visual_description_event=is_reply_visual_description_event,
-            input_file_indexes=input_file_indexes,
-            is_reply_target_eligibility_restriction=is_reply_target_eligibility_restriction,
-            is_deleted_or_inaccessible_tweet_403=is_deleted_or_inaccessible_tweet_403,
-            add_or_merge_local_rejection=add_or_merge_local_rejection,
-            short=short, record_source_ref=record_source_ref,
-            record_fingerprint=record_fingerprint,
-            classify_operational_error=classify_operational_error,
-        )
-
-        (
-            source_context.active_xai_context,
-            source_context.active_xai_call_attempt_index,
-        ) = observe_provider_message(
-            r, msg,
-            pending_mention=source_context.pending_mention,
-            pending_qt=source_context.pending_qt,
-            active_xai_context=source_context.active_xai_context,
-            active_xai_call_attempt_index=source_context.active_xai_call_attempt_index,
-            xai_call_attempts=xai_call_attempts,
-            xai_usage_events=xai_usage_events,
-            xai_usage_parse_errors=xai_usage_parse_errors,
-            stats=stats,
-            xai_usage_context_from_pending=xai_usage_context_from_pending,
-            parse_xai_call_start=parse_xai_call_start,
-            unknown_xai_usage_context=unknown_xai_usage_context,
-            parse_xai_usage_from_msg=parse_xai_usage_from_msg,
-            xai_usage_stage_from_msg=xai_usage_stage_from_msg,
-            provider_usage_provider_from_msg=provider_usage_provider_from_msg,
-            normalise_reply_lane=normalise_reply_lane,
-            summarize_xai_usage_event=summarize_xai_usage_event,
-            short=short,
-        )
-
-        # Strict structured EVENT lines provide immutable publication evidence;
-        # older human-readable success lines still define the final digest event.
-        if msg.startswith("EVENT "):
-            event_obj = strict_structured_event_obj
-            if is_reply_visual_description_event:
-                visual_event = (
-                    parse_reply_visual_description_event(event_obj)
-                    if event_obj is not None
-                    else None
-                )
-                if visual_event is None:
-                    stats["reply_visual_description_malformed_events"] += 1
-                else:
-                    stats["reply_visual_description_events"] += 1
-            elif event_obj and event_obj.get("event") == "main_post_posted":
-                record_main_post_publication(
-                    event_obj, strict_structured_event_obj, r.ts,
-                    valid_string_public_post_id=valid_string_public_post_id,
-                    SHA256_LOWER_RE=SHA256_LOWER_RE,
-                    retain_quote_post_evidence=quote_publications.retain,
-                    note_invalid_quote_post_evidence=quote_publications.note_invalid,
-                    make_source_ref=lambda: record_source_ref(r, input_file_indexes),
-                )
-                if event_obj.get("lane") == "daily_meme":
-                    source_context.pending_meme.update({
-                        "post_id": event_obj.get("post_id"),
-                        "file": event_obj.get("filename"),
-                    })
-            elif event_obj and event_obj.get("event") == "account_root_posted":
-                record_account_root_publication(
-                    event_obj, strict_structured_event_obj, r.ts,
-                    valid_account_root_publication_identity=valid_account_root_publication_identity,
-                    SHA256_LOWER_RE=SHA256_LOWER_RE,
-                    valid_bounded_utf8_text=valid_bounded_utf8_text,
-                    retain_quote_post_evidence=quote_publications.retain,
-                    note_invalid_quote_post_evidence=quote_publications.note_invalid,
-                    make_source_ref=lambda: record_source_ref(r, input_file_indexes),
-                )
-            elif event_obj and event_obj.get("event") == "historical_context_semantic_gate":
-                record_historical_context_semantic_gate(
-                    event_obj, r.ts, add_event=add_event
-                )
-            elif event_obj and event_obj.get("event") == "historical_context_runtime":
-                record_historical_context_runtime(
-                    event_obj, r.ts, stats, add_event=add_event
-                )
-            elif event_obj and event_obj.get("event") == "reply_evidence_unavailable":
-                record_reply_evidence_unavailable(
-                    event_obj, r.ts, stats, add_event=add_event,
-                    bounded_event_text=bounded_event_text,
-                    valid_string_public_post_id=valid_string_public_post_id,
-                )
-            elif event_obj and event_obj.get("event") == "runtime_control_pause":
-                record_runtime_control_pause(
-                    event_obj, r.ts, stats, add_event=add_event,
-                    bounded_event_string_list=bounded_event_string_list,
-                    bounded_event_text=bounded_event_text,
-                    bounded_event_nonnegative_integer=bounded_event_nonnegative_integer,
-                )
-            elif event_obj and event_obj.get("event") == "runtime_control_clear":
-                record_runtime_control_clear(
-                    event_obj, r.ts, stats, add_event=add_event,
-                    bounded_event_string_list=bounded_event_string_list,
-                    bounded_event_text=bounded_event_text,
-                )
-            elif event_obj and event_obj.get("event") == "clarification_reply_cap_override":
-                record_clarification_reply_cap_override(
-                    event_obj, r.ts, stats, add_event=add_event,
-                    valid_string_public_post_id=valid_string_public_post_id,
-                    bounded_event_text=bounded_event_text,
-                )
-            elif event_obj and event_obj.get("event") == "clarification_reply_used":
-                record_clarification_reply_used(
-                    event_obj, r.ts, stats, add_event=add_event,
-                    valid_string_public_post_id=valid_string_public_post_id,
-                    bounded_event_text=bounded_event_text,
-                )
-            elif event_obj and event_obj.get("event") == "repair_reply_completed":
-                record_repair_reply_completed(
-                    event_obj, r.ts, stats, add_event=add_event,
-                    valid_string_public_post_id=valid_string_public_post_id,
-                )
-            elif event_obj and event_obj.get("event") in {
-                "mention_backlog_started",
-                "mention_backlog_progress",
-                "mention_backlog_completed",
-                "mention_backlog_reset",
-            }:
-                record_mention_backlog(
-                    event_obj, r.ts, add_event=add_event, stats=stats,
-                    valid_string_public_post_id=valid_string_public_post_id,
-                    bounded_event_nonnegative_integer=bounded_event_nonnegative_integer,
-                    bounded_event_boolean=bounded_event_boolean,
-                    bounded_event_text=bounded_event_text,
-                )
-            elif event_obj and event_obj.get("event") in {
-                "author_evaluation_quarantine_started",
-                "author_evaluation_quarantine_skip",
-                "author_evaluation_quarantine_expired",
-            }:
-                record_author_evaluation_quarantine(
-                    event_obj, r.ts, add_event=add_event, stats=stats,
-                    valid_string_public_post_id=valid_string_public_post_id,
-                    bounded_event_nonnegative_integer=bounded_event_nonnegative_integer,
-                )
-            elif event_obj and event_obj.get("event") == "reply_posted":
-                confirmation = prepare_structured_reply_confirmation(
-                    strict_structured_event_obj,
-                    production_record=production_record,
-                    time_text=lambda: dt_text(r.ts),
-                    event_insertion_index=lambda: len(events),
-                    source_sequence=record_index,
-                    make_source_ref=lambda: record_source_ref(r, input_file_indexes),
-                )
-                if confirmation is not None:
-                    structured_reply_confirmations.append(confirmation)
-            elif (
-                event_obj
-                and event_obj.get("event")
-                == "historical_context_reply_posted"
-            ):
-                historical_reply_text_evidence.append(
-                    prepare_structured_historical_publication_evidence(
-                        event_obj, strict_structured_event_obj,
-                        production_record=production_record,
-                        valid_string_public_post_id=lambda value: valid_string_public_post_id(value),
-                        valid_bounded_utf8_text=lambda value, **kwargs: valid_bounded_utf8_text(value, **kwargs),
-                        sha256_fullmatch=lambda value: SHA256_LOWER_RE.fullmatch(value),
-                        time_text=lambda: dt_text(r.ts),
-                        event_insertion_index=lambda: len(events),
-                        source_sequence=record_index,
-                        make_source_ref=lambda: record_source_ref(r, input_file_indexes),
-                    )
-                )
-            elif event_obj and event_obj.get("event") == "historical_context_reply":
-                historical_fields = prepare_historical_context_reply(event_obj)
-                status = historical_fields["status"]
-                historical_event = add_event(
-                    "historical_context_reply", r.ts, **historical_fields
-                )
-                if status in {"completed", "already_completed"}:
-                    anchor_valid = valid_structured_historical_completion_anchor(
-                        strict_structured_event_obj, status,
-                        valid_string_public_post_id=lambda value: valid_string_public_post_id(value),
-                        valid_bounded_utf8_text=lambda value, **kwargs: valid_bounded_utf8_text(value, **kwargs),
-                        sha256_fullmatch=lambda value: SHA256_LOWER_RE.fullmatch(value),
-                    )
-                    if not anchor_valid:
-                        historical_event["reply_post_id"] = None
-                        historical_event.update(
-                            _public_reply_text_result(
-                                [],
-                                unavailable_reason=(
-                                    "structured historical-context anchor is not canonical"
-                                ),
-                            )
-                        )
-                        production_event_object_ids.discard(
-                            id(historical_event)
-                        )
-                count_historical_context_reply(status, stats)
-            elif event_obj and event_obj.get("event") == "posting_transaction_state":
-                record_posting_transaction_state(
-                    event_obj, r.ts, stats, add_event=add_event,
-                    bounded_event_text=bounded_event_text,
-                    valid_string_public_post_id=valid_string_public_post_id,
-                    bounded_event_boolean=bounded_event_boolean,
-                )
-            elif event_obj and event_obj.get("event") == "historical_context_obligation":
-                record_historical_context_obligation(
-                    event_obj, r.ts, stats, add_event=add_event
-                )
-            elif event_obj and event_obj.get("event") == "historical_context_outbox":
-                record_historical_context_outbox(
-                    event_obj, r.ts, stats, add_event=add_event
-                )
-            elif event_obj and event_obj.get("event") == "daily_meme_failure":
-                record_daily_meme_failure(
-                    event_obj, r.ts, stats, add_event=add_event,
-                    bounded_event_text=bounded_event_text,
-                    valid_string_public_post_id=valid_string_public_post_id,
-                )
-            elif event_obj and event_obj.get("event") == "reply_strategy_decision":
-                record_reply_strategy_decision(
-                    event_obj, r.ts,
-                    add_event=add_event,
-                    conversational_evidence_fields=conversational_evidence_fields,
-                )
-            elif event_obj and event_obj.get("event") == "reply_strategy_outcome":
-                record_reply_strategy_outcome(
-                    event_obj, r.ts,
-                    add_event=add_event,
-                    conversational_evidence_fields=conversational_evidence_fields,
-                )
-            elif event_obj and event_obj.get("event") == "reply_target_terminal":
-                record_reply_target_terminal(
-                    event_obj, r.ts,
-                    add_event=add_event,
-                )
-            elif event_obj and event_obj.get("event") == "reply_strategy_rejection":
-                record_reply_strategy_rejection(
-                    event_obj, r.ts,
-                    add_event=add_event,
-                )
-            elif event_obj and event_obj.get("event") == "single_call_reply_decision":
-                record_single_call_reply_decision(
-                    event_obj, r.ts, add_event=add_event,
-                )
-            elif event_obj and event_obj.get("event") == "single_call_reply_provider_usage":
-                record_single_call_reply_provider_usage(
-                    event_obj, r.ts, add_event=add_event,
-                )
-            elif event_obj and event_obj.get("event") == "single_call_reply_posting_outcome":
-                record_single_call_reply_posting_outcome(
-                    event_obj, r.ts, add_event=add_event,
-                )
-            elif event_obj and event_obj.get("event") == "single_call_reply_draft_recovered":
-                record_single_call_reply_draft_recovered(
-                    event_obj, r.ts, add_event=add_event,
-                )
-            elif event_obj and event_obj.get("event") in {
-                "provider_request_prepared",
-                "provider_request_recording_failed",
-                "provider_request_attempt_started",
-                "provider_request_attempt_outcome",
-            }:
-                record_provider_request_lifecycle(
-                    event_obj, r.ts, add_event=add_event,
-                )
-            elif event_obj and event_obj.get("event") == "ai_reply_pipeline_decision":
-                record_ai_reply_pipeline_decision(
-                    event_obj, r.ts,
-                    add_event=add_event,
-                    add_or_merge_local_rejection=add_or_merge_local_rejection,
-                    conversational_evidence_fields=conversational_evidence_fields,
-                    bounded_event_string_list=bounded_event_string_list,
-                )
-            elif event_obj and event_obj.get("event") == "ai_reply_pipeline_stage_summary":
-                record_ai_reply_pipeline_stage_summary(
-                    event_obj, r.ts,
-                    add_event=add_event,
-                    bounded_event_string_list=bounded_event_string_list,
-                    normalise_majority_review_telemetry=normalise_majority_review_telemetry,
-                )
-            elif event_obj and event_obj.get("event") == "ai_reply_pipeline_effective_outcome":
-                record_ai_reply_pipeline_effective_outcome(
-                    event_obj, r.ts,
-                    add_or_merge_local_rejection=add_or_merge_local_rejection,
-                )
-            elif event_obj and event_obj.get("event") == "ai_reply_pipeline_failure":
-                record_ai_reply_pipeline_failure(
-                    event_obj, r.ts,
-                    add_event=add_event,
-                )
-            elif event_obj and event_obj.get("event") == "ai_reply_pipeline_outcome":
-                record_ai_reply_pipeline_outcome(
-                    event_obj, r.ts,
-                    add_event=add_event,
-                    conversational_evidence_fields=conversational_evidence_fields,
-                    bounded_event_string_list=bounded_event_string_list,
-                )
-            elif event_obj and event_obj.get("event") == "quote_pagination_repeated_token":
-                add_event(
-                    "quote_pagination_repeated_token",
-                    r.ts,
-                    post_id=(event_obj.get("post_id") if valid_string_public_post_id(event_obj.get("post_id")) else ""),
-                    token_fingerprint=bounded_event_text(event_obj.get("token_fingerprint"), default="", max_characters=200),
-                    pages_completed=bounded_event_nonnegative_integer(event_obj.get("pages_completed"), maximum=1_000_000),
-                    results_retained=bounded_event_nonnegative_integer(event_obj.get("results_retained"), maximum=1_000_000),
-                )
-            elif event_obj and event_obj.get("event") == "candidate_skipped":
-                add_event(
-                    "candidate_skipped", r.ts,
-                    lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
-                    target_id=(event_obj.get("id") if valid_string_public_post_id(event_obj.get("id")) else ""),
-                    reason=bounded_event_text(event_obj.get("reason"), default="other", max_characters=500),
-                )
-            continue
-
-        quote_success = re.match(
-            r"Fetched \d+ quote tweet\(s\) for post_id=(\d+)$",
-            msg,
-        )
-        if quote_success:
-            add_event(
-                "quote_lane_activity_succeeded",
-                r.ts,
-                post_id=quote_success.group(1),
-            )
-            add_event("x_activity_succeeded", r.ts, activity="quote_lookup")
-            continue
-        if re.match(r"Fetched \d+ mentions$", msg):
-            add_event("x_activity_succeeded", r.ts, activity="mention_lookup")
-            continue
-
-        if handle_legacy_receipt_message(
-            r, msg,
-            pending_confirmed_reply_receipt=source_context.pending_confirmed_reply_receipt,
-            add_receipt_event=add_receipt_event,
-            add_confirmed_reply_receipt_event=add_confirmed_reply_receipt_event,
-        ):
-            continue
-
-        if handle_legacy_reply_media_context_message(
-            r, msg, add_reply_media_context_event=add_reply_media_context_event,
-        ):
-            continue
-
-        if is_asset_metadata_warning and r.level in {"ERROR", "CRITICAL", "WARNING"}:
-            kind = "metadata_warning"
-            if "Quote analysis" in msg or "quote analysis" in msg or "Skipping unanalysed current quote" in msg:
-                kind = "quote_metadata_warning"
-            elif "Image analysis" in msg or "image analysis" in msg or "Image metadata" in msg or "image analysis" in msg:
-                kind = "image_metadata_warning"
-            add_asset_health(kind, r)
-            continue
-
-        if handle_cooldown_message(
-            r, msg, stats=stats, cooldown_active=cooldown_active,
-            add_event=add_event,
-        ):
-            continue
-        m = re.search(r"Migrated legacy pickle file (.+) to JSON file (.+)$", msg)
-        if m:
-            add_event("used_history_migrated", r.ts, legacy_file=m.group(1).strip(), json_file=m.group(2).strip())
-            continue
-        m = re.search(r"Normalized used-history JSON ordering in (.+)$", msg)
-        if m:
-            add_event("used_history_normalized", r.ts, json_file=m.group(1).strip())
-            continue
-        if handle_x_api_error(
-            r, msg, latest_x_request_by_source=latest_x_request_by_source,
-            pending_mention=source_context.pending_mention,
-            pending_qt=source_context.pending_qt,
-            is_handled_reply_restriction=is_handled_reply_restriction,
-            api_errors=api_errors, handled_api_restrictions=handled_api_restrictions,
-            stats=stats, input_file_indexes=input_file_indexes,
-            parse_dt=parse_dt, seconds_between=seconds_between, short=short,
-            record_source_ref=record_source_ref,
-            is_deleted_or_inaccessible_tweet_403=is_deleted_or_inaccessible_tweet_403,
-        ):
-            continue
-        source_context.active_xai_context = observe_provider_error(
-            r, msg, active_xai_context=source_context.active_xai_context,
-            api_errors=api_errors, stats=stats,
-            input_file_indexes=input_file_indexes, short=short,
-            record_source_ref=record_source_ref,
-        )
-        enrich_latest_api_error(msg, api_errors=api_errors, stats=stats)
-
-        if handle_legacy_quiet_message(
-            r, msg,
-            stats=stats, add_event=add_event,
-        ):
-            continue
-
-        if handle_legacy_quote_image_selection(
-            r, msg,
-            pending_quote=source_context.pending_quote,
-            regular_image_usage_events=regular_image_usage_events, add_event=add_event,
-        ):
-            continue
-
-        if "ORIGINAL_EDITORIAL_SELECTION_RESULT " in msg:
-            record_original_editorial_selection(
-                msg, r.ts, r.level,
-                observations=original_editorial_shadow_events,
-                pending_shadow_companions=pending_original_editorial_shadow_companions,
-                stats=stats, errors=errors,
-                parse_json_object=_strict_native_json_object,
-                short_text=short,
-                source_ref=lambda: record_source_ref(r, input_file_indexes),
-            )
-            continue
-
-        if "ORIGINAL_EDITORIAL_SHADOW_RESULT " in msg:
-            record_original_editorial_shadow(
-                msg, r.ts, r.level,
-                observations=original_editorial_shadow_events,
-                pending_shadow_companions=pending_original_editorial_shadow_companions,
-                stats=stats, errors=errors,
-                parse_json_object=_strict_native_json_object,
-                short_text=short,
-                source_ref=lambda: record_source_ref(r, input_file_indexes),
-            )
-            continue
-
-        if "GENERATED_IDENTITY_POLICY_SHADOW_RESULT " in msg:
-            record_generated_identity_shadow(
-                msg, r.ts, r.level,
-                observations=generated_identity_shadow_events,
-                stats=stats, errors=errors,
-                parse_json_object=_strict_native_json_object,
-                short_text=short,
-                source_ref=lambda: record_source_ref(r, input_file_indexes),
-            )
-            continue
-
-        if "GENERATED_IDENTITY_POLICY_APPLIED " in msg:
-            record_generated_identity_policy(
-                msg, r.ts, r.level,
-                observations=generated_identity_policy_events,
-                stats=stats, errors=errors,
-                parse_json_object=_strict_native_json_object,
-                short_text=short,
-                source_ref=lambda: record_source_ref(r, input_file_indexes),
-            )
-            continue
-
-        handled, latest_generated_image_spacing = handle_legacy_generated_image_spacing(
-            r, msg,
-            latest_generated_image_spacing=latest_generated_image_spacing,
-            generated_image_spacing_events=generated_image_spacing_events,
-        )
-        if handled:
-            continue
-
-        handled, source_context.pending_quote = handle_legacy_quote_image_posting(
-            r, msg,
-            pending_quote=source_context.pending_quote,
-            regular_image_usage_events=regular_image_usage_events, add_event=add_event,
-            lit=lit,
-        )
-        if handled:
-            continue
-
-        meme_availability_kind = {
-            "All meme candidates have already been posted": "meme_cycle_exhausted",
-            "No meme available to post": "meme_unavailable",
-            "RESET_MEME_CYCLE_WHEN_ALL_POSTED=True, clearing meme history": "meme_cycle_recycled",
-        }.get(msg)
-        if production_record and meme_availability_kind:
-            add_event(meme_availability_kind, r.ts, message=msg)
-            if meme_availability_kind != "meme_cycle_recycled":
-                add_asset_health(meme_availability_kind, r, severity="warning")
-            continue
-
-        handled, source_context.pending_meme = handle_legacy_meme_posting(
-            r, msg,
-            pending_meme=source_context.pending_meme, add_event=add_event, lit=lit,
-        )
-        if handled:
-            continue
-
-        handled, source_context.last_created_post = handle_legacy_created_post(
-            r, msg,
-            production_record=production_record,
-            last_created_post=source_context.last_created_post,
-            stats=stats, production_event_object_ids=production_event_object_ids,
-            add_event=add_event, try_parse_response_id_text=try_parse_response_id_text,
-            response_post_id_is_canonical_string=response_post_id_is_canonical_string,
-        )
-        if handled:
-            continue
-
-        (
-            handled,
-            source_context.pending_mention,
-            source_context.active_xai_context,
-        ) = handle_legacy_mention_reply(
-            r, msg,
-            record_index=record_index, production_record=production_record,
-            pending_mention=source_context.pending_mention,
-            active_xai_context=source_context.active_xai_context,
-            last_created_post=source_context.last_created_post,
-            production_event_object_ids=production_event_object_ids,
-            routine_skip_counts=routine_skip_counts, add_event=add_event, lit=lit,
-        )
-        if handled:
-            continue
-
-        (
-            handled,
-            source_context.pending_qt,
-            source_context.active_xai_context,
-        ) = handle_legacy_quote_reply(
-            r, msg,
-            record_index=record_index, production_record=production_record,
-            pending_qt=source_context.pending_qt,
-            active_xai_context=source_context.active_xai_context,
-            last_created_post=source_context.last_created_post,
-            production_event_object_ids=production_event_object_ids,
-            routine_skip_counts=routine_skip_counts, add_event=add_event, lit=lit,
-        )
-        if handled:
-            continue
-
-        # Other interesting skip/rate/cap messages.
-        if msg in {
-            "Daily generated/replied cap reached",
-            "Skipping mention check: minimum interval between replies not reached",
-            "Skipping quote-tweet check: total daily reply cap reached",
-            "Skipping quote-tweet check: daily quote-reply cap reached",
-        }:
-            routine_skip_counts[msg] += 1
-            if msg == "Skipping mention check: minimum interval between replies not reached":
-                stats["mention_checks_skipped_spacing"] += 1
-
-    source_context = production_context
-    current_source_record = None
-
-    quote_publications.prepare_report(
-        events, production_event_object_ids,
-    )
-
-    latest_state_summary: Dict[str, Any] = {}
-    if latest_state is not None:
-        latest_state_summary = summarize_latest_state(latest_state, latest_state_ts)
-
-    self_test_times = {str(item.get("time")) for item in self_test_errors}
-    api_error_times = {str(item.get("time")) for item in api_errors}
-    handled_restriction_times = [
-        datetime.strptime(str(item["time"]), "%Y-%m-%d %H:%M:%S")
-        for item in handled_api_restrictions
-        if item.get("time")
-    ]
-    media_upload_incidents, errors = prepare_media_incidents_and_errors(
-        records=records,
-        max_text=max_text,
-        input_file_indexes=input_file_indexes,
-        remote_write_transactions=remote_write_transactions,
-        x_requests=x_requests,
-        current_remote_write_safety=current_remote_write_safety,
-        errors=errors,
-        self_test_errors=self_test_errors,
-        self_test_times=self_test_times,
-        api_error_times=api_error_times,
-        handled_restriction_times=handled_restriction_times,
-        correlate_media_upload_incidents=correlate_media_upload_incidents,
-        parse_dt=parse_dt,
-        strptime=datetime.strptime,
-        seconds_between=seconds_between,
-    )
-
-    append_unresolved_reply_receipt_errors(
-        confirmed_reply_receipts=confirmed_reply_receipts,
-        errors=errors,
-    )
-
-    error_health = summarise_operational_error_health(
-        errors,
-        events,
-        receipt_events,
-        lifecycle,
-        remote_write_transactions=remote_write_transactions,
-        handled_api_restrictions=handled_api_restrictions,
-        confirmed_reply_receipt_events=confirmed_reply_receipts,
+    analysis = DigestAnalysis(
+        records, max_text,
+        initial_active_xai_context=initial_active_xai_context,
+        initial_active_xai_call_attempt=initial_active_xai_call_attempt,
+        initial_pending_mention=initial_pending_mention,
+        initial_pending_qt=initial_pending_qt,
         current_remote_write_safety=current_remote_write_safety,
         generation_time=generation_time,
         selected_window_end=selected_window_end,
         current_snapshot_authoritative=current_snapshot_authoritative,
-    )
-    (
-        durably_reconciled_reply_receipts,
-        status_unavailable_reply_receipts,
-        active_snapshot_reply_receipts,
-    ) = prepare_reply_receipt_recovery_reporting(
-        error_health=error_health,
-        current_remote_write_safety=current_remote_write_safety,
-        confirmed_reply_receipts=confirmed_reply_receipts,
-        parse_dt=parse_dt,
-        _normalise_lane=_normalise_lane,
-        REMOTE_WRITE_RECEIPT_ROLE_LABELS=REMOTE_WRITE_RECEIPT_ROLE_LABELS,
-    )
-
-    # Build a short automatic headline around current health, not raw traceback volume.
-    (
-        headline_components, transient_provider_timeouts, handled_media_fallbacks,
-        reconciled_media_uploads, unrecovered_media, derived,
-    ) = prepare_headline_and_derived(
-        stats=stats, error_health=error_health,
-        current_remote_write_safety=current_remote_write_safety,
-        handled_api_restrictions=handled_api_restrictions,
-        media_upload_incidents=media_upload_incidents,
-        self_test_errors=self_test_errors,
-        confirmed_post_recovery=confirmed_post_recovery,
-        confirmed_reply_recovery=confirmed_reply_recovery,
-        receipt_events=receipt_events, asset_health=asset_health,
-        latest_state_summary=latest_state_summary, records=records, configs=configs,
-        plural_count=plural_count, int_or_none=int_or_none, parse_dt=parse_dt,
-    )
-
-    api_health_preparation = prepare_api_health(
-        api_errors=api_errors, handled_api_restrictions=handled_api_restrictions,
-        x_requests=x_requests, remote_write_transactions=remote_write_transactions,
-        events=events, production_event_object_ids=production_event_object_ids,
-        quote_post_correlations=quote_publications.evidence,
-        structured_reply_confirmations=structured_reply_confirmations,
-        historical_reply_text_evidence=historical_reply_text_evidence,
-        transient_provider_timeouts=transient_provider_timeouts,
-        handled_restriction_times=handled_restriction_times,
-        event_counter=Counter, bounded_event_text=bounded_event_text,
-        SHA256_LOWER_RE=SHA256_LOWER_RE,
-        valid_string_public_post_id=valid_string_public_post_id,
-        _normalised_structured_reply_confirmation=_normalised_structured_reply_confirmation,
-        seconds_between=seconds_between, parse_dt=parse_dt,
-        strptime=datetime.strptime, datetime_min=datetime.min,
-    )
-
-    prepare_inferred_reply_strategy_outcomes(
-        events=events, handled_api_restrictions=handled_api_restrictions,
-        _normalise_lane=_normalise_lane, parse_dt=parse_dt, add_event=add_event,
-    )
-
-    context_quality = historical_context_quality_summary(events)
-    single_call_quality = single_call_reply_summary(events)
-    (
-        legacy_multi_stage, headline, headline_without_current_cooldown,
-        headline_components,
-    ) = prepare_reply_quality_headline(
-        events=events, headline=headline_components,
-        single_call_quality=single_call_quality,
-        plural_count=plural_count,
-    )
-
-    (
-        mention_control_events,
-        mention_control_counts,
-        pipeline_evaluations_skipped,
-    ) = prepare_mention_control_observations(events, event_counter=Counter)
-    report = {
-        "summary": {
-            "record_count": len(records),
-            "time_start": records[0].ts.strftime("%Y-%m-%d %H:%M:%S") if records else None,
-            "time_end": records[-1].ts.strftime("%Y-%m-%d %H:%M:%S") if records else None,
-            "headline": "; ".join(headline),
-            "_headline_without_current_cooldown": (
-                headline_without_current_cooldown
-            ),
-            "_headline_components": headline_components,
-            "stats": dict(stats),
-            "routine_skip_counts": dict(routine_skip_counts),
-        },
-        "latest_config": configs,
-        "latest_state": latest_state_summary,
-        "derived": derived,
-        "mention_backlog_and_quarantine": {
-            "events": mention_control_events,
-            "event_counts": dict(sorted(mention_control_counts.items())),
-            "pipeline_evaluations_skipped": pipeline_evaluations_skipped,
-        },
-        "api_health": api_health_report(
-            api_health_preparation, api_errors=api_errors,
-            handled_api_restrictions=handled_api_restrictions,
-            cooldown_active=cooldown_active, x_requests=x_requests,
-        ),
-        "main_post_recovery": {
-            "receipt_events": receipt_events,
-            "confirmed_post_recovery": confirmed_post_recovery,
-        },
-        "remote_write_transactions": remote_write_transactions,
-        "confirmed_reply_recovery": {
-            "receipt_events": confirmed_reply_receipts,
-            "warnings": confirmed_reply_recovery,
-            "durably_reconciled_ambiguity_receipts": (
-                durably_reconciled_reply_receipts
-            ),
-            "status_unavailable_receipts": status_unavailable_reply_receipts,
-            "active_snapshot_receipts": active_snapshot_reply_receipts,
-        },
-        "quote_publication": {
-            "correlation_warnings": quote_publications.warnings,
-            "correlation_warning_omitted_count": (
-                quote_publications.warning_omitted_count
-            ),
-        },
-        "historical_context_replies": {
-            "events": [item for item in events if item.get("kind") == "historical_context_reply"],
-            "status_counts": {
-                key.removeprefix("historical_context_reply_status_"): value
-                for key, value in sorted(stats.items())
-                if key.startswith("historical_context_reply_status_")
-            },
-        },
-        "production_consistency": production_consistency_report(events, stats),
-        "historical_context_quality": context_quality,
-        "single_call_reply": single_call_quality,
-        "provider_request_correlations": [
-            item for item in events
-            if item.get("kind") in {
-                "single_call_reply_decision",
-                "single_call_reply_provider_usage",
-                "single_call_reply_posting_outcome",
-                "single_call_reply_draft_recovered",
-                "provider_request_prepared",
-                "provider_request_recording_failed",
-                "provider_request_attempt_started",
-                "provider_request_attempt_outcome",
-            }
-        ],
-        "legacy_multi_stage": legacy_multi_stage,
-        "asset_health": asset_health,
-        "media_upload": {
-            "incidents": media_upload_incidents,
-            "handled_fallbacks": handled_media_fallbacks,
-            "reconciled_incidents": reconciled_media_uploads,
-            "unrecovered_failures": unrecovered_media,
-        },
-        "regular_image_usage": {
-            "events": regular_image_usage_events,
-            "summary": regular_image_usage_summary(regular_image_usage_events),
-        },
-        "original_editorial_shadow": {
-            "events": original_editorial_shadow_events,
-            "summary": original_editorial_shadow_summary(original_editorial_shadow_events),
-        },
-        "generated_identity_shadow": {
-            "events": generated_identity_shadow_events,
-            "summary": generated_identity_shadow_summary(generated_identity_shadow_events),
-        },
-        "generated_identity_policy": {
-            "events": generated_identity_policy_events,
-            "summary": generated_identity_policy_summary(generated_identity_policy_events),
-        },
-        "generated_image_spacing": {
-            "latest": latest_generated_image_spacing,
-            "events": generated_image_spacing_events,
-        },
-        "resume_context": {
-            "active_xai_context": source_context.active_xai_context,
-            "active_xai_call_attempt": (
-                dict(xai_call_attempts[source_context.active_xai_call_attempt_index])
-                if source_context.active_xai_call_attempt_index is not None
-                and xai_call_attempts[source_context.active_xai_call_attempt_index].get(
-                    "usage_observed"
-                )
-                is not True
-                else None
-            ),
-            "pending_mention": (
-                {
-                    key: value
-                    for key, value in source_context.pending_mention.items()
-                    if not key.startswith("_")
-                }
-                if source_context.pending_mention
-                else None
-            ),
-            "pending_qt": (
-                {
-                    key: value
-                    for key, value in source_context.pending_qt.items()
-                    if not key.startswith("_")
-                }
-                if source_context.pending_qt
-                else None
-            ),
-        },
-        "lifecycle": lifecycle[-12:],
-        "events": events,
-        "self_test_errors": self_test_errors[-40:],
-        "error_health": error_health,
-        "errors_and_warnings": [
-            {
-                key: value
-                for key, value in item.items()
-                if not key.startswith("_")
-            }
-            for item in errors[-40:]
-        ],
-    }
-    enrich_published_reply_text(
-        report,
-        runtime_state=current_runtime_state,
-        structured_reply_confirmations=structured_reply_confirmations,
-        historical_reply_text_evidence=historical_reply_text_evidence,
+        current_runtime_state=current_runtime_state,
+        input_file_indexes=input_file_indexes,
         confirmed_receipt_evidence=confirmed_receipt_evidence,
-        durable_evidence_status=durable_reply_evidence_status,
-        production_event_object_ids=production_event_object_ids,
+        historical_history_evidence=historical_history_evidence,
+        durable_reply_evidence_status=durable_reply_evidence_status,
     )
-    # Prose previews can participate in analysis (notably historical-context
-    # classification), so shorten them only once every summary and correlation
-    # has consumed the original values. Semantic fields and separately bounded
-    # public/rejected reply evidence remain exact.
-    for event in events:
-        for field in (
-            "text", "incoming_text", "incoming_contribution", "reply_preview", "proposed_draft",
-            "repaired_draft", "summary", "components",
-        ):
-            value = event.get(field)
-            if field == "text" and event.get("public_text_status") == "confirmed":
-                continue
-            if isinstance(value, str):
-                event[field] = short(value, max_text)
-    main_post_lifecycle, reply_lifecycle = _receipt_lifecycle_summaries(report)
-    report["main_post_recovery"]["receipt_lifecycle"] = main_post_lifecycle
-    report["confirmed_reply_recovery"]["receipt_lifecycle"] = reply_lifecycle
-    return report
+    analysis.observe()
+    return analysis.finalize()
 
 
 def refresh_current_health_headline(report: Dict[str, Any]) -> None:
@@ -3046,9 +3111,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return run_digest(args, project_dir=project_dir, state_file=state_file)
 
 
-def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path) -> int:
-    """Run digest analysis, delivery, and resume-state persistence transactionally."""
-    generation_time = datetime.now()
+def select_digest_inputs(args: argparse.Namespace, project_dir: Path, state_file: Path) -> DigestInputSelection:
+    """Resolve logs, resume boundaries and physical record selection."""
     if args.logs:
         logs = resolve_explicit_logs(args.logs, project_dir)
     else:
@@ -3122,10 +3186,14 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
             file=sys.stderr,
         ),
     )
-    records = selection.records
-    input_file_indexes = {
-        str(path): index for index, path in enumerate(logs)
-    }
+    return DigestInputSelection(
+        logs, since, until, since_source, since_exclusive,
+        resume_boundary_counts, resume_data, physical_records, input_files, selection,
+    )
+
+
+def collect_current_snapshots(project_dir: Path, generation_time: datetime) -> DigestCurrentSnapshots:
+    """Read current runtime, durable reply and remote-write evidence."""
     runtime_state, runtime_state_path, runtime_state_ts, runtime_state_status = (
         load_current_runtime_state(project_dir)
     )
@@ -3143,23 +3211,6 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         "confirmed_reply_receipt": confirmed_receipt_status,
         "historical_context_reply_history": historical_history_status,
     }
-    initial_active_xai_context = None
-    initial_active_xai_call_attempt = None
-    initial_pending_mention = None
-    initial_pending_qt = None
-    if since_source == "saved resume state":
-        if isinstance(resume_data.get("last_active_xai_context"), dict):
-            initial_active_xai_context = resume_data.get("last_active_xai_context")
-        if isinstance(resume_data.get("last_active_xai_call_attempt"), dict):
-            initial_active_xai_call_attempt = resume_data.get(
-                "last_active_xai_call_attempt"
-            )
-        if isinstance(resume_data.get("last_pending_mention"), dict):
-            initial_pending_mention = dict(resume_data.get("last_pending_mention") or {})
-            initial_pending_mention["considered_seq"] = -1
-        if isinstance(resume_data.get("last_pending_qt"), dict):
-            initial_pending_qt = dict(resume_data.get("last_pending_qt") or {})
-            initial_pending_qt["considered_seq"] = -1
     try:
         current_remote_write_safety = remote_write_safety_snapshot(project_dir)
     except Exception as exc:
@@ -3171,69 +3222,86 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
             "blocking": None,
             "reason": f"{type(exc).__name__}: {exc}",
         }
-    report_window_end = until or max(
-        (record.ts for record in records),
-        default=None,
+    return DigestCurrentSnapshots(
+        runtime_state, runtime_state_path, runtime_state_ts, runtime_state_status,
+        runtime_state_observed_at, runtime_config, runtime_config_path,
+        runtime_config_ts, runtime_config_status, confirmed_receipt_evidence,
+        historical_history_evidence, durable_reply_evidence_status,
+        current_remote_write_safety,
     )
-    report = analyse(
-        records,
-        max_text=args.max_text,
-        initial_active_xai_context=initial_active_xai_context,
-        initial_active_xai_call_attempt=initial_active_xai_call_attempt,
-        initial_pending_mention=initial_pending_mention,
-        initial_pending_qt=initial_pending_qt,
-        current_remote_write_safety=current_remote_write_safety,
-        generation_time=generation_time,
-        selected_window_end=report_window_end,
-        current_snapshot_authoritative=until is None,
-        current_runtime_state=runtime_state,
-        input_file_indexes=input_file_indexes,
-        confirmed_receipt_evidence=confirmed_receipt_evidence,
-        historical_history_evidence=historical_history_evidence,
-        durable_reply_evidence_status=durable_reply_evidence_status,
-    )
+
+
+def resume_analysis_context(inputs: DigestInputSelection) -> tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    """Restore only the pending production context from a saved cursor."""
+    initial_active_xai_context = None
+    initial_active_xai_call_attempt = None
+    initial_pending_mention = None
+    initial_pending_qt = None
+    if inputs.since_source == "saved resume state":
+        if isinstance(inputs.resume_data.get("last_active_xai_context"), dict):
+            initial_active_xai_context = inputs.resume_data.get("last_active_xai_context")
+        if isinstance(inputs.resume_data.get("last_active_xai_call_attempt"), dict):
+            initial_active_xai_call_attempt = inputs.resume_data.get(
+                "last_active_xai_call_attempt"
+            )
+        if isinstance(inputs.resume_data.get("last_pending_mention"), dict):
+            initial_pending_mention = dict(inputs.resume_data.get("last_pending_mention") or {})
+            initial_pending_mention["considered_seq"] = -1
+        if isinstance(inputs.resume_data.get("last_pending_qt"), dict):
+            initial_pending_qt = dict(inputs.resume_data.get("last_pending_qt") or {})
+            initial_pending_qt["considered_seq"] = -1
+    return (initial_active_xai_context, initial_active_xai_call_attempt,
+            initial_pending_mention, initial_pending_qt)
+
+
+def annotate_input_report(report: Dict[str, Any], inputs: DigestInputSelection, snapshots: DigestCurrentSnapshots, args: argparse.Namespace, project_dir: Path, state_file: Path, generation_time: datetime) -> None:
+    """Attach generation, coverage and resume-selection metadata."""
     report["generation_time"] = dt_text(generation_time)
     report["generation_epoch"] = int(generation_time.timestamp())
-    report["remote_write_safety"] = current_remote_write_safety
+    report["remote_write_safety"] = snapshots.remote_write_safety
 
-    report["log_files"] = [str(p) for p in logs]
-    report["input_files"] = input_files
+    report["log_files"] = [str(p) for p in inputs.logs]
+    report["input_files"] = inputs.input_files
     report["input_warning"] = None
     if (
-        not records
-        and selection.cursor_mode != "fingerprint_tail"
-        and any(int(item.get("records_in_window") or 0) > 0 for item in input_files)
+        not inputs.records
+        and inputs.selection.cursor_mode != "fingerprint_tail"
+        and any(int(item.get("records_in_window") or 0) > 0 for item in inputs.input_files)
     ):
         report["input_warning"] = (
             "selected log sources contain timestamped records inside the requested window, "
             "but 0 records survived filtering"
         )
-    if selection.timestamp_fallback:
+    if inputs.selection.timestamp_fallback:
         report["input_warning"] = combine_input_warnings(
             report["input_warning"],
             "saved physical resume cursor was not found; timestamp fallback can "
             "omit newly appended records after a backward clock jump",
         )
-    report["input_retention_coverage"] = input_retention_coverage(input_files, since)
+    report["input_retention_coverage"] = input_retention_coverage(inputs.input_files, inputs.since)
     report["input_warning"] = combine_input_warnings(
         report["input_warning"],
         report["input_retention_coverage"].get("warning"),
     )
-    report["requested_since"] = dt_text(since) if since else None
-    report["requested_until"] = dt_text(until) if until else None
-    report["since_source"] = since_source
-    report["since_exclusive"] = since_exclusive
-    report["resume_cursor_mode"] = selection.cursor_mode
-    report["resume_tail_match_length"] = selection.tail_match_length
+    report["requested_since"] = dt_text(inputs.since) if inputs.since else None
+    report["requested_until"] = dt_text(inputs.until) if inputs.until else None
+    report["since_source"] = inputs.since_source
+    report["since_exclusive"] = inputs.since_exclusive
+    report["resume_cursor_mode"] = inputs.selection.cursor_mode
+    report["resume_tail_match_length"] = inputs.selection.tail_match_length
     report["local_clock_rollback_count"] = sum(
         current.ts < previous.ts
-        for previous, current in zip(records, records[1:])
+        for previous, current in zip(inputs.records, inputs.records[1:])
     )
-    report["resume_boundary_fingerprint_count"] = len(resume_boundary_counts)
-    report["resume_boundary_occurrence_count"] = sum(resume_boundary_counts.values())
+    report["resume_boundary_fingerprint_count"] = len(inputs.resume_boundary_counts)
+    report["resume_boundary_occurrence_count"] = sum(inputs.resume_boundary_counts.values())
     report["project_dir"] = str(project_dir)
     report["resume_state_file"] = None if args.no_state else str(state_file)
     report["state_updated"] = False
+
+
+def add_historical_and_optional_evidence(report: Dict[str, Any], project_dir: Path) -> None:
+    """Attach retired feature, historical corpus and optional analytics sections."""
     # Preserve the section names for readers of older reports, but do not scan
     # archived assets or calculate live capacity for a retired runtime feature.
     for section in (
@@ -3262,45 +3330,48 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         }
     report["shadow_feature_lifecycle"] = shadow_lifecycle_snapshot(project_dir)
 
+
+def overlay_current_runtime(report: Dict[str, Any], inputs: DigestInputSelection, snapshots: DigestCurrentSnapshots, args: argparse.Namespace, project_dir: Path, state_file: Path, generation_time: datetime) -> None:
+    """Overlay explicitly current state/config and then saved historical context."""
     report["runtime_state_status"] = {
-        "status": runtime_state_status,
-        "path": str(runtime_state_path),
-        "observed_at": dt_text(runtime_state_observed_at),
+        "status": snapshots.runtime_state_status,
+        "path": str(snapshots.runtime_state_path),
+        "observed_at": dt_text(snapshots.runtime_state_observed_at),
     }
     report["latest_state"] = (
         summarize_latest_state(
-            runtime_state,
-            runtime_state_ts,
+            snapshots.runtime_state,
+            snapshots.runtime_state_ts,
             source="bot_state.json",
-            source_path=runtime_state_path,
+            source_path=snapshots.runtime_state_path,
         )
-        if runtime_state is not None
+        if snapshots.runtime_state is not None
         else {}
     )
 
     report["runtime_config_status"] = {
-        "status": runtime_config_status,
-        "path": str(runtime_config_path),
-        "time": dt_text(runtime_config_ts) if runtime_config_ts else None,
+        "status": snapshots.runtime_config_status,
+        "path": str(snapshots.runtime_config_path),
+        "time": dt_text(snapshots.runtime_config_ts) if snapshots.runtime_config_ts else None,
     }
-    report["latest_config"] = runtime_config or {}
+    report["latest_config"] = snapshots.runtime_config or {}
     report["meme_queue_health"] = meme_queue_health_snapshot(
         project_dir,
-        runtime_state=runtime_state,
-        runtime_state_status=runtime_state_status,
-        runtime_config=runtime_config,
-        runtime_config_status=runtime_config_status,
+        runtime_state=snapshots.runtime_state,
+        runtime_state_status=snapshots.runtime_state_status,
+        runtime_config=snapshots.runtime_config,
+        runtime_config_status=snapshots.runtime_config_status,
         observed_at=datetime.now(),
-        state_observed_at=runtime_state_observed_at,
+        state_observed_at=snapshots.runtime_state_observed_at,
         read_snapshot=read_stable_regular_snapshot,
     )
     strike_progress = current_author_no_reply_strike_progress(
-        runtime_state,
-        runtime_state_status,
-        runtime_config,
-        runtime_config_status,
+        snapshots.runtime_state,
+        snapshots.runtime_state_status,
+        snapshots.runtime_config,
+        snapshots.runtime_config_status,
         generation_time,
-        state_observed_at=runtime_state_observed_at,
+        state_observed_at=snapshots.runtime_state_observed_at,
     )
     report.setdefault("mention_backlog_and_quarantine", {})[
         "current_author_no_reply_strike_progress"
@@ -3324,16 +3395,19 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     else:
         refresh_derived(report)
 
-    if not records:
-        report["saved_last_log_entry_time"] = dt_text(since) if since else None
+    if not inputs.records:
+        report["saved_last_log_entry_time"] = dt_text(inputs.since) if inputs.since else None
 
+
+def add_provider_and_cost_evidence(report: Dict[str, Any], inputs: DigestInputSelection, args: argparse.Namespace, project_dir: Path, generation_time: datetime) -> None:
+    """Export optional provider captures and selected-window costs."""
     report["verbose_replies"] = bool(args.verbose_replies)
     report["detailed_appendix"] = bool(getattr(args, "detailed_appendix", False))
-    selected_window_start = since or min(
-        (record.ts for record in records), default=None
+    selected_window_start = inputs.since or min(
+        (record.ts for record in inputs.records), default=None
     )
-    selected_window_end = until or max(
-        (record.ts for record in records), default=None
+    selected_window_end = inputs.until or max(
+        (record.ts for record in inputs.records), default=None
     )
     request_record_directory = args.request_record_dir or (
         project_dir / "ai-request-records"
@@ -3366,6 +3440,10 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         "scope": (report.get("openai_published_cost") or {}).get("scope"),
         "method": single_call_cost.get("method"),
     }
+
+
+def render_and_deliver_digest(report: Dict[str, Any], inputs: DigestInputSelection, args: argparse.Namespace) -> None:
+    """Render and deliver every requested destination before cursor persistence."""
     json_rendered: Optional[str] = None
     if args.json or args.json_output is not None:
         json_report = dict(report)
@@ -3382,7 +3460,7 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         rendered = json_rendered
     else:
         rendered = render_markdown(report) + "\n"
-        if not records:
+        if not inputs.records:
             rendered += "\n<!-- no matching records; resume state not advanced -->\n"
 
     deliver_report(rendered, args.output)
@@ -3392,22 +3470,61 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         assert json_rendered is not None
         deliver_report(json_rendered, args.json_output)
 
-    if records and not args.no_state and not args.no_update_state:
-        last_ts = max(record.ts for record in physical_records)
+
+def commit_digest_cursor(report: Dict[str, Any], inputs: DigestInputSelection, args: argparse.Namespace, state_file: Path) -> None:
+    """Advance the physical cursor only after all report deliveries succeed."""
+    if inputs.records and not args.no_state and not args.no_update_state:
+        last_ts = max(record.ts for record in inputs.physical_records)
         save_resume_time(
             state_file,
             last_ts,
-            records,
+            inputs.records,
             report,
-            logs,
+            inputs.logs,
             preserve_existing_context=not args.reset_state,
-            merge_existing_boundary_occurrences=since_source == "saved resume state",
+            merge_existing_boundary_occurrences=inputs.since_source == "saved resume state",
             cursor_fingerprint_tail=[
                 record_fingerprint(record)
-                for record in physical_records[-RESUME_FINGERPRINT_TAIL_LIMIT:]
+                for record in inputs.physical_records[-RESUME_FINGERPRINT_TAIL_LIMIT:]
             ],
         )
 
+
+def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path) -> int:
+    """Run input selection, current observation, analysis, output and cursor commit."""
+    generation_time = datetime.now()
+    inputs = select_digest_inputs(args, project_dir, state_file)
+    snapshots = collect_current_snapshots(project_dir, generation_time)
+    (
+        initial_active_xai_context, initial_active_xai_call_attempt,
+        initial_pending_mention, initial_pending_qt,
+    ) = resume_analysis_context(inputs)
+    report_window_end = inputs.until or max(
+        (record.ts for record in inputs.records), default=None,
+    )
+    report = analyse(
+        inputs.records,
+        max_text=args.max_text,
+        initial_active_xai_context=initial_active_xai_context,
+        initial_active_xai_call_attempt=initial_active_xai_call_attempt,
+        initial_pending_mention=initial_pending_mention,
+        initial_pending_qt=initial_pending_qt,
+        current_remote_write_safety=snapshots.remote_write_safety,
+        generation_time=generation_time,
+        selected_window_end=report_window_end,
+        current_snapshot_authoritative=inputs.until is None,
+        current_runtime_state=snapshots.runtime_state,
+        input_file_indexes={str(path): index for index, path in enumerate(inputs.logs)},
+        confirmed_receipt_evidence=snapshots.confirmed_receipt_evidence,
+        historical_history_evidence=snapshots.historical_history_evidence,
+        durable_reply_evidence_status=snapshots.durable_reply_evidence_status,
+    )
+    annotate_input_report(report, inputs, snapshots, args, project_dir, state_file, generation_time)
+    add_historical_and_optional_evidence(report, project_dir)
+    overlay_current_runtime(report, inputs, snapshots, args, project_dir, state_file, generation_time)
+    add_provider_and_cost_evidence(report, inputs, args, project_dir, generation_time)
+    render_and_deliver_digest(report, inputs, args)
+    commit_digest_cursor(report, inputs, args, state_file)
     return 0
 
 

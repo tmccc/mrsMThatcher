@@ -394,32 +394,39 @@ live in `tests/test_bot_reply_history.py`.
 ## Digest input, analysis and reporting
 
 Start with `main()` in [mrs_log_digest.py](../mrs_log_digest.py) for arguments,
-output paths and locking, then follow its call to `run_digest()`. That function
-discovers logs, selects the resume/time window, reads current local snapshots,
-calls `analyse()`, overlays current-state reporting, delivers the report, then
-saves the resume cursor when enabled and records were selected. Output must
-succeed before the cursor advances.
+output paths and locking. `run_digest()` then calls `select_digest_inputs()`
+for the physical resume window, `collect_current_snapshots()` for current
+read-only evidence, and `analyse()` for historical record analysis. It attaches
+input coverage, historical and optional evidence, overlays current state and
+saved context, renders and delivers every output, then commits the resume cursor.
+The delivery call precedes the cursor commit call in `run_digest()`.
 
 | Question | Implementation to read next |
 |---|---|
 | How are records, retained input coverage and resume boundaries selected? | [mrs_log_digest_records.py](../mrs_log_digest_records.py) |
 | How are files read consistently and JSON parsed strictly? | [mrs_log_digest_input_io.py](../mrs_log_digest_input_io.py) |
-| Where do event routing, shared observations and final analysis assembly live? | `analyse()` in [mrs_log_digest.py](../mrs_log_digest.py) |
+| Where do event routing and final analysis assembly live? | `DigestAnalysis` in [mrs_log_digest.py](../mrs_log_digest.py); its mutable state and separate source contexts are defined in [mrs_log_digest_analysis.py](../mrs_log_digest_analysis.py) |
 | How are current state, config and operator controls observed? | [mrs_log_digest_runtime.py](../mrs_log_digest_runtime.py) |
 | How are current-state summaries and derived headlines prepared? | [mrs_log_digest_state_reporting.py](../mrs_log_digest_state_reporting.py) |
 | How are reply decisions and exact published text reported? | [mrs_log_digest_single_call.py](../mrs_log_digest_single_call.py), [mrs_log_digest_reply_evidence.py](../mrs_log_digest_reply_evidence.py), [mrs_log_digest_reply_text.py](../mrs_log_digest_reply_text.py) |
 | How are request/receipt evidence and current barriers reconciled into health? | [mrs_log_digest_transactions.py](../mrs_log_digest_transactions.py), [mrs_log_digest_incidents.py](../mrs_log_digest_incidents.py), [mrs_log_digest_remote_write.py](../mrs_log_digest_remote_write.py) |
-| Where are Markdown, JSON and output delivery handled? | [mrs_log_digest_markdown.py](../mrs_log_digest_markdown.py) renders Markdown; `run_digest()` builds JSON and `deliver_report()` writes output in [mrs_log_digest.py](../mrs_log_digest.py) |
+| Where are Markdown, JSON and output delivery handled? | [mrs_log_digest_markdown.py](../mrs_log_digest_markdown.py) renders Markdown; `render_and_deliver_digest()` builds JSON and calls `deliver_report()` in [mrs_log_digest.py](../mrs_log_digest.py) |
 | Where are saved context and cursor persistence handled? | [mrs_log_digest_context.py](../mrs_log_digest_context.py) |
 
-`analyse()` maintains separate production and self-test source contexts; resumed
-pending observations belong to production. Event-family modules consume supplied
-observations and callbacks. Current snapshots are separately labelled evidence,
-not a reconstruction of state at an old log timestamp. `--max-text` limits prose
+`analyse()` creates a `DigestAnalysis`, observes records, then finalises the
+report. Its `observe()` loop names the ordered transport, logged-runtime and
+error/provider observers before structured EVENT routing, legacy evidence,
+legacy posting and remaining skips. Each handled route stops that record's
+later routing. `DigestAnalysisState` owns the collections and independent
+production/self-test pending contexts; resumed context belongs to production.
+`reconcile_observations()`, `prepare_report_sections()`, `build_report()` and
+`complete_report()` separate post-loop work. Event-family modules still consume
+supplied observations and callbacks. Current snapshots remain current evidence,
+not reconstructed state at an old `--until` timestamp. `--max-text` limits prose
 previews after analysis; identifiers and exact reply evidence retain their own bounds.
-Receipt lifecycle summaries are prepared in `analyse()` and shared by JSON and
-Markdown. Current runtime overlays precede saved-context application and its final
-derived refresh.
+Receipt lifecycle summaries are prepared during finalisation and shared by JSON
+and Markdown. Current runtime overlays precede saved-context application and its
+final derived refresh.
 
 ## Boundaries and older material
 
