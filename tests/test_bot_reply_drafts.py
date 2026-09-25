@@ -23,6 +23,7 @@ from single_call_reply import PipelineResult, ValidatedReply
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import (
+    UnitReplyEvidenceRepository,
     UNIT_REPLY_REPOSITORY,
     patch_reply_draft_method,
     unit_approved_reply,
@@ -162,11 +163,15 @@ def test_validation_fetches_fresh_evidence_and_preserves_context_and_recent_refe
 
 def test_store_respects_reply_type_and_deep_copies_validated_record(make_owner):
     context = unit_reply_context()
+    repository = UnitReplyEvidenceRepository()
     original = unit_approved_reply(
         context, factual=True,
         text="People moved from East Germany towards West Germany in November 1989.",
+        repository=repository,
     )
-    validated = make_owner().validate(original.draft_record, context=context)
+    validated = make_owner(evidence_repository=lambda: repository).validate(
+        original.draft_record, context=context,
+    )
     validate = Mock(return_value=validated)
 
     class CurrentReply(ValidatedReply):

@@ -6244,6 +6244,8 @@ def _reply_assembly() -> _reply_assembly_module.ReplyAssembly:
             MAX_RECENT_ACCOUNT_REPLIES=MAX_RECENT_ACCOUNT_REPLIES,
             MAX_SAME_AUTHOR_INTERACTIONS=MAX_SAME_AUTHOR_INTERACTIONS,
             MY_USER_ID=MY_USER_ID,
+            MY_USERNAME=MY_USERNAME,
+            SPAMMY_PATTERNS=SPAMMY_PATTERNS,
             OPENAI_API_KEY=OPENAI_API_KEY,
             OPENAI_BASE=OPENAI_BASE,
             REPLY_INCOMING_MAX_CHARS=REPLY_INCOMING_MAX_CHARS,
@@ -6362,12 +6364,6 @@ def _reply_assembly() -> _reply_assembly_module.ReplyAssembly:
             log_json_debug=log_json_debug,
         ),
         current=_reply_assembly,
-        current_reply_config=lambda: single_call_reply,
-        current_identity=lambda: (MY_USERNAME, MY_USER_ID),
-        current_spam_patterns=lambda: SPAMMY_PATTERNS,
-        current_log=lambda: log,
-        current_log_event=lambda: log_event,
-        current_now_epoch=lambda: now_epoch,
     )
 
 

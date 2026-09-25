@@ -104,7 +104,7 @@ assert 'mrsMThatcher2' not in sys.modules
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-def test_builders_use_the_isolated_bot_and_current_monkeypatches(
+def test_integration_helpers_use_isolated_bot_and_explicit_receipt_dates(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -112,8 +112,9 @@ def test_builders_use_the_isolated_bot_and_current_monkeypatches(
     assert bot.STATE_FILE == tmp_path / "bot_state.json"
     assert bot.reply_evidence_repository() is reply_fixtures.UNIT_REPLY_REPOSITORY
 
-    monkeypatch.setattr(bot, "epoch_date_str", lambda _epoch: "2026-08-01")
-    receipt = reply_fixtures.unit_confirmed_v4_reply_receipt(lane="quote_tweet")
+    receipt = reply_fixtures.unit_confirmed_v4_reply_receipt(
+        lane="quote_tweet", date_for_epoch=lambda _epoch: "2026-08-01",
+    )
     assert receipt["daily_reply_date"] == "2026-08-01"
     assert receipt["daily_quote_reply_date"] == "2026-08-01"
 

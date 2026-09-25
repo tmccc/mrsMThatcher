@@ -127,3 +127,39 @@ def test_spam_preserves_current_pattern_order_raw_logs_and_thresholds(monkeypatc
     with pytest.raises(AttributeError):
         bot.is_probably_spam_or_not_worth_replying(None)
     assert trace.mock_calls == []
+
+
+def test_assembly_binds_values_once_but_keeps_mutable_config_and_clock_live(monkeypatch):
+    config = {**bot.single_call_reply, "enabled": False}
+    patterns = [r"\bblocked\b"]
+    first_clock, second_clock = Mock(return_value=100), Mock(return_value=200)
+    first_log, second_log = Mock(), Mock()
+    first_event, second_event = Mock(), Mock()
+    monkeypatch.setattr(bot, "single_call_reply", config)
+    monkeypatch.setattr(bot, "SPAMMY_PATTERNS", patterns)
+    monkeypatch.setattr(bot, "now_epoch", first_clock)
+    monkeypatch.setattr(bot, "log", first_log)
+    monkeypatch.setattr(bot, "log_event", first_event)
+    old = bot._reply_assembly()
+    assert old.pipeline_enabled() is False
+    config["enabled"] = True
+    patterns.append(r"\bnewpattern\b")
+    assert old.pipeline_enabled() is True
+    assert old.policy.SPAMMY_PATTERNS is patterns
+    assert old.application.now_epoch is first_clock
+    first_clock.assert_not_called()
+
+    replacement = {**config, "enabled": False}
+    monkeypatch.setattr(bot, "single_call_reply", replacement)
+    monkeypatch.setattr(bot, "SPAMMY_PATTERNS", [r"\breplacement\b"])
+    monkeypatch.setattr(bot, "now_epoch", second_clock)
+    monkeypatch.setattr(bot, "log", second_log)
+    monkeypatch.setattr(bot, "log_event", second_event)
+    fresh = old.current()
+    assert old.pipeline_enabled() is True
+    assert fresh.pipeline_enabled() is False
+    assert old.application.log is first_log and fresh.application.log is second_log
+    assert old.application.log_event is first_event and fresh.application.log_event is second_event
+    assert fresh.application.now_epoch is second_clock
+    first_clock.assert_not_called()
+    second_clock.assert_not_called()

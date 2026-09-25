@@ -16,6 +16,9 @@ from mrs_bot_reply_cycle_interfaces import (
     ReplyCycleDelivery,
     ReplyCyclePersistence,
 )
+from tests.helpers.reply_values import (
+    unit_approved_reply, unit_sending_v4_reply_receipt,
+)
 
 
 class ApiError(Exception):
@@ -42,8 +45,11 @@ def prepare_delivery(lane, outcome, *, save_failure=None, retirement_failure=Non
         "daily_quote_reply_count": 1,
     }
     replied_ids = {"100"}
-    receipt = {"target_id": target, "lifecycle_state": "sending"}
-    reply = "Validated reply"
+    receipt = unit_sending_v4_reply_receipt(
+        target_id=target, author_id="205",
+        lane="hot_post_reply" if lane == "hot_post" else lane,
+    )
+    reply = unit_approved_reply(receipt["reply_context"])
     trace = Mock()
     snapshots = []
     rejection = ProvedRejection("denied") if outcome == "proved" else ApiError("denied")

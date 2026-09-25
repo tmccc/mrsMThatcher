@@ -97,10 +97,12 @@ clones and source archives need no Git history or downloads to run these tests.
 See `tests/fixtures/README.md` for the fixture's contents and maintenance. Current
 runtime tests use the active quotation collection.
 
-Reusable bot test support lives in `tests/helpers`: `bot_runtime.py` owns the
-isolated bot import, `reply_fixtures.py` supplies reply evidence and receipt
-builders, and `bot_fixtures.py` supplies state isolation and other bot fixtures.
-Import shared support from these modules. Tests needing durable-state isolation
+Reusable bot test support lives in `tests/helpers`: `reply_values.py` and
+`mention_values.py` provide root-independent data builders, while
+`reply_fixtures.py`, `mention_fixtures.py`, `bot_runtime.py` and `bot_fixtures.py`
+provide isolated application setup and integration patches. Root-independent
+behavioural tests import the value builders directly. Tests needing durable-state
+isolation
 explicitly import `isolate_bot_runtime`; its autouse behaviour is scoped
 to those test modules. Network and production-state guards are defined in
 `tests/conftest.py`.

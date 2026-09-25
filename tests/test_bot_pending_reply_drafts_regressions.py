@@ -933,11 +933,14 @@ def test_pending_factual_reply_is_not_reused_when_evidence_disappears(
 ) -> None:
     state = bot.default_state()
     context = unit_reply_context(target_id="100", contribution="What happened at the event?")
+    repository = UnitReplyEvidenceRepository()
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: repository)
     reply = unit_approved_reply(
         context,
         text="People moved from East Germany towards West Germany in November 1989.",
         mode="direct_factual_answer",
         factual=True,
+        repository=repository,
     )
     assert bot._reply_assembly()._reply_draft_owner().store(state, "100", "mention", reply, context=context) is True
     missing_repository = UnitReplyEvidenceRepository()
@@ -953,11 +956,14 @@ def test_pending_factual_reply_fails_closed_when_local_corpus_validation_fails(
 ) -> None:
     state = bot.default_state()
     context = unit_reply_context(target_id="100", contribution="What happened at the event?")
+    repository = UnitReplyEvidenceRepository()
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: repository)
     reply = unit_approved_reply(
         context,
         text="People moved from East Germany towards West Germany in November 1989.",
         mode="direct_factual_answer",
         factual=True,
+        repository=repository,
     )
     assert bot._reply_assembly()._reply_draft_owner().store(state, "100", "mention", reply, context=context) is True
     monkeypatch.setattr(
@@ -994,14 +1000,17 @@ def test_pending_reply_is_preserved_when_evidence_repository_is_temporarily_unav
     assert state["pending_ai_reply_drafts"]["mention:100"] == saved
 
 
-def test_pending_factual_reply_is_reused_after_source_hash_revalidation() -> None:
+def test_pending_factual_reply_is_reused_after_source_hash_revalidation(monkeypatch) -> None:
     state = bot.default_state()
     context = unit_reply_context(target_id="100", contribution="What happened at the event?")
+    repository = UnitReplyEvidenceRepository()
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: repository)
     reply = unit_approved_reply(
         context,
         text="People moved from East Germany towards West Germany in November 1989.",
         mode="direct_factual_answer",
         factual=True,
+        repository=repository,
     )
     assert bot._reply_assembly()._reply_draft_owner().store(state, "100", "mention", reply, context=context) is True
 

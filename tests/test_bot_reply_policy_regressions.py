@@ -30,6 +30,7 @@ from tests.helpers.bot_fixtures import (
     install_receipt_bound_x_request_stub,
 )
 from tests.helpers.reply_fixtures import (
+    UnitReplyEvidenceRepository,
     patch_reply_owner_method,
     patch_tweet_lookup_method,
     UNIT_REPLY_REPOSITORY,
@@ -796,6 +797,8 @@ def test_clarification_ledger_survives_state_restart_and_blocks_replay(
         "original_question": "Where did people move when the Berlin Wall fell?",
         "correction": "That did not answer my question.",
     }
+    repository = UnitReplyEvidenceRepository()
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: repository)
     receipt = unit_confirmed_reply_receipt(
         target_id="101",
         reply_post_id="900001",
@@ -806,6 +809,7 @@ def test_clarification_ledger_survives_state_restart_and_blocks_replay(
         factual=True,
         clarification_request=clarification_request,
         conversation_id="700",
+        repository=repository,
     )
     receipt["clarification_reply"] = {
         "thread_id": "700",
