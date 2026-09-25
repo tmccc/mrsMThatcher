@@ -11,7 +11,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from mrs_bot_regular_post_completion import complete_regular_post_persistence
 
@@ -19,17 +19,40 @@ from mrs_bot_receipt_primitives import receipt_int, valid_post_id
 
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_core_contracts import AttemptingMainPostAttempt
     from mrs_bot_daily_meme import MemeSchedule
     from mrs_bot_main_post_receipt_storage import MainPostReceipts
     from mrs_bot_main_post_receipts import MainPostReceiptValues
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
     from mrs_bot_state_generation import StateCommitProof
+    from mrs_bot_reply_cycle_interfaces import SaveReplyState
+    from mrs_bot_main_post_assembly import (
+        RetireMainPostTransportJournal, VerifyMainPostTransportLineage,
+    )
+    from mrs_bot_main_post_confirmation_persistence import RegularPostPersistenceResult
+
+
+class SaveRegularProtectedState(Protocol):
+    """Commit regular used histories and state under one exact proof."""
+
+    def __call__(
+        self, lines_used: set[str], images_used: set[str], state: BotState, *,
+        durable: bool,
+    ) -> StateCommitProof: ...
+
+
+class RemoveConfirmedMainPostReceipt(Protocol):
+    """Remove a confirmed receipt only with its state commit proof."""
+
+    def __call__(
+        self, receipt: Mapping[str, Any], *, commit_proof: StateCommitProof | None = None,
+    ) -> None: ...
 
 
 def apply_meme_post_receipt(
     receipt: dict,
-    state: dict,
+    state: BotState,
     *,
     MEME_POST_TEXT: Any,
     MEME_SCHEDULE_VERSION: Any,
@@ -134,7 +157,7 @@ def apply_meme_post_receipt(
 
 
 def reconcile_meme_post_receipt(
-    state: dict,
+    state: BotState,
     *,
     InvalidMemePostReceipt: Any,
     MEME_POST_RECEIPT_FILE: Any,
@@ -211,7 +234,7 @@ def apply_regular_post_receipt(
     receipt: dict,
     lines_used: set,
     images_used: set,
-    state: dict,
+    state: BotState,
     *,
     MEME_SCHEDULE_VERSION: Any,
     MY_USER_ID: Any,
@@ -345,7 +368,7 @@ def confirmed_regular_emergency_representation_is_complete(
     image_basename: str,
     lines_used: set,
     images_used: set,
-    state: dict,
+    state: BotState,
     main_post_attempt: dict,
     receipt_values: MainPostReceiptValues,
     valid_receipt_epoch: Any,
@@ -397,7 +420,7 @@ def confirmed_meme_emergency_representation_is_complete(
     post_id: str,
     post_epoch: int | None,
     meme_basename: str,
-    state: dict,
+    state: BotState,
     main_post_attempt: dict,
     receipt_values: MainPostReceiptValues,
     safe_bound_schedule_date_str: Any,
@@ -461,7 +484,7 @@ def confirmed_meme_emergency_representation_is_complete(
 def reconcile_regular_post_receipt(
     lines_used: set,
     images_used: set,
-    state: dict,
+    state: BotState,
     *,
     minimum_next_quote_epoch: int | None = None,
     process_auxiliary_context: bool = True,
@@ -567,7 +590,7 @@ def reconcile_regular_post_receipt(
 def reconcile_main_post_receipts(
     lines_used: set,
     images_used: set,
-    state: dict,
+    state: BotState,
     *,
     minimum_next_quote_epoch: int | None = None,
     process_auxiliary_context: bool = True,
@@ -617,14 +640,14 @@ class MainPostRecoveryPolicy:
 class MainPostRecoveryPersistence:
     """Proof-gated state and receipt operations shared by both replay lanes."""
 
-    save_state: Callable
-    save_regular_protected_state: Callable
-    emergency_regular: Callable
-    remove_regular_receipt: Callable
-    remove_meme_receipt: Callable
-    retire_transport_journal: Callable
-    verify_transport_lineage: Callable
-    ensure_regular_schedule_future: Callable
+    save_state: SaveReplyState
+    save_regular_protected_state: SaveRegularProtectedState
+    emergency_regular: Callable[[set[str], set[str], BotState], RegularPostPersistenceResult]
+    remove_regular_receipt: RemoveConfirmedMainPostReceipt
+    remove_meme_receipt: RemoveConfirmedMainPostReceipt
+    retire_transport_journal: RetireMainPostTransportJournal
+    verify_transport_lineage: VerifyMainPostTransportLineage
+    ensure_regular_schedule_future: Callable[[dict[str, Any], BotState, int], bool]
 
 
 @dataclass(frozen=True)
@@ -674,7 +697,7 @@ class MainPostRecovery:
             valid_receipt_epoch=self.valid_receipt_epoch,
         )
 
-    def emergency_regular(self, lines_used: set, images_used: set, state: dict):
+    def emergency_regular(self, lines_used: set, images_used: set, state: BotState):
         """Persist emergency histories and state through the bound authority."""
         return self.persistence.emergency_regular(lines_used, images_used, state)
 
@@ -688,7 +711,7 @@ class MainPostRecovery:
         )
 
     def complete_regular(
-        self, lines_used: set, images_used: set, state: dict,
+        self, lines_used: set, images_used: set, state: BotState,
         receipt: dict, *, posted_id: str,
     ) -> None:
         """Save live regular state and outbox before retiring exact authority."""
@@ -709,7 +732,7 @@ class MainPostRecovery:
             remove_regular_post_receipt=self.persistence.remove_regular_receipt,
         )
 
-    def apply_meme(self, receipt: dict, state: dict) -> None:
+    def apply_meme(self, receipt: dict, state: BotState) -> None:
         """Apply one confirmed meme receipt to in-memory state."""
         apply_meme_post_receipt(
             receipt, state,
@@ -722,7 +745,7 @@ class MainPostRecovery:
         )
 
     def apply_regular(
-        self, receipt: dict, lines_used: set, images_used: set, state: dict,
+        self, receipt: dict, lines_used: set, images_used: set, state: BotState,
     ) -> None:
         """Apply one confirmed quotation receipt to histories and state."""
         apply_regular_post_receipt(
@@ -734,7 +757,7 @@ class MainPostRecovery:
             tweets=self.tweets,
         )
 
-    def reconcile_meme(self, state: dict) -> bool:
+    def reconcile_meme(self, state: BotState) -> bool:
         """Replay a meme receipt without performing another remote create."""
         return reconcile_meme_post_receipt(
             state,
@@ -752,7 +775,7 @@ class MainPostRecovery:
         )
 
     def reconcile_regular(
-        self, lines_used: set, images_used: set, state: dict,
+        self, lines_used: set, images_used: set, state: BotState,
         *, minimum_next_quote_epoch: int | None = None,
         process_auxiliary_context: bool = True,
     ) -> bool:
@@ -777,7 +800,7 @@ class MainPostRecovery:
         )
 
     def reconcile(
-        self, lines_used: set, images_used: set, state: dict,
+        self, lines_used: set, images_used: set, state: BotState,
         *, minimum_next_quote_epoch: int | None = None,
         process_auxiliary_context: bool = True,
     ) -> dict[str, bool]:

@@ -7,7 +7,10 @@ helpers bind delivery callbacks and apply outcomes against the durable outbox.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
 
 from mrs_bot_historical_context_delivery import (
     _record_context_outbox_failure,
@@ -103,7 +106,7 @@ def _process_due_historical_context_obligations(
     store,
     parent_post_id: str | None = None,
     limit: int = 1,
-    runtime_state: dict | None = None,
+    runtime_state: BotState | dict | None = None,
     historical_context_receipt_reconciliation_only: bool = False,
     historical_context_outbox_reconciliation_only: bool = False,
     ApiError: Any,
@@ -757,7 +760,7 @@ def safely_process_due_historical_context_obligations(
     *,
     parent_post_id: str | None = None,
     limit: int = 1,
-    runtime_state: dict | None = None,
+    runtime_state: BotState | dict | None = None,
     _set_historical_context_outbox_unavailable_reason: Any,
     log: Any,
     log_event: Any,

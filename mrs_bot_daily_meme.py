@@ -22,10 +22,14 @@ from mrs_bot_runtime_state_helpers import apply_state_fields
 
 
 if TYPE_CHECKING:
-    from mrs_bot_core_contracts import CurrentMemePostReceipt, PendingMainPostReceipt
+    from mrs_bot_core_contracts import BotState
+    from mrs_bot_core_contracts import CurrentMemePostReceipt, MainPostAttempt, PendingMainPostReceipt
     from mrs_bot_main_post_publication import MainPostPublication
     from mrs_bot_main_post_reconciliation import MainPostRecovery
-    from mrs_bot_main_post_assembly import (MainPostPolicy, MainPostErrors, MainPostTransport, MainPostApplication)
+    from mrs_bot_main_post_assembly import (
+        BuildCurrentMainPostAttempt, MainPostPolicy, MainPostErrors,
+        MainPostTransport, MainPostApplication, RemoveMainPostAttemptWithProof,
+    )
     from mrs_bot_main_post_receipt_storage import MainPostReceipts
     from mrs_bot_main_post_receipts import MainPostReceiptValues
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
@@ -135,7 +139,7 @@ class MemeCatalog:
 
     def choose(
         self,
-        state: dict,
+        state: BotState,
     ) -> Path | None:
         """Select next meme."""
         candidates = self.candidates()
@@ -192,7 +196,7 @@ class MemeSchedule:
 
     def posted_on_date(
         self,
-        state: dict,
+        state: BotState,
         date_text: str,
     ) -> bool:
         """Return the meme posted on date."""
@@ -203,7 +207,7 @@ class MemeSchedule:
 
     def next_fallback_epoch(
         self,
-        state: dict,
+        state: BotState,
         from_epoch: int | None = None,
     ) -> int:
         """Return the next meme fallback epoch."""
@@ -227,7 +231,7 @@ class MemeSchedule:
 
     def next_fields(
         self,
-        state: dict,
+        state: BotState,
         from_epoch: int | None = None,
         mode: str = 'fallback',
     ) -> dict:
@@ -259,7 +263,7 @@ class MemeSchedule:
 
     def set_delay(
         self,
-        state: dict,
+        state: BotState,
         *,
         epoch: int,
         mode: str,
@@ -272,7 +276,7 @@ class MemeSchedule:
 
     def schedule_next(
         self,
-        state: dict,
+        state: BotState,
         from_epoch: int | None = None,
         mode: str = 'fallback',
         *,
@@ -296,7 +300,7 @@ class MemeSchedule:
             mode,
         )
 
-    def ensure_initialized(self, state: dict) -> None:
+    def ensure_initialized(self, state: BotState) -> None:
         """Ensure meme schedule initialized."""
         if not self.enabled:
             return
@@ -330,7 +334,7 @@ class MemeSchedule:
 
     def fields_after_quote(
         self,
-        state: dict,
+        state: BotState,
         quote_post_epoch: int | None = None,
         *,
         delay: int | None = None,
@@ -381,7 +385,7 @@ class MemeSchedule:
 
     def maybe_after_quote(
         self,
-        state: dict,
+        state: BotState,
         quote_post_epoch: int | None = None,
         *,
         save: bool = True,
@@ -462,8 +466,8 @@ class DailyMemeRunner:
     errors: MainPostErrors
     transport: MainPostTransport
     application: MainPostApplication
-    build_attempt: Callable
-    remove_attempt: Callable
+    build_attempt: BuildCurrentMainPostAttempt
+    remove_attempt: RemoveMainPostAttemptWithProof
 
     def _stage(self, stage: str, operation: Callable):
         """Keep the meme's diagnostic stage and exception boundary."""
@@ -473,7 +477,7 @@ class DailyMemeRunner:
             log_event=self.application.log_event,
         )
 
-    def post(self, state: dict) -> None:
+    def post(self, state: BotState) -> None:
         """Select and post the next daily meme transactionally."""
         publication = self.publication
         receipts = self.receipts
@@ -670,7 +674,7 @@ class DailyMemeRunner:
                     meme_schedule_fields = _confirmed_meme_schedule_fields(fallback_receipt)
                 state["last_main_post_id"] = str(posted_id)
                 if meme_post_epoch is not _RECOVERY_VALUE_UNAVAILABLE:
-                    state["last_meme_post_epoch"] = meme_post_epoch
+                    state["last_meme_post_epoch"] = cast(int, meme_post_epoch)
                 posted = set(str(x) for x in state.get("posted_meme_filenames", []))
                 posted.add(meme_path.name)
                 state["posted_meme_filenames"] = sorted(posted)
@@ -747,12 +751,12 @@ class DailyMemeRunner:
                 retire_lane_transport_journal_if_present(
                     commit_proof=commit_proof,
                     receipt_path=MEME_POST_RECEIPT_FILE,
-                    receipt=publication.attempt,
+                    receipt=cast("MainPostAttempt", publication.attempt),
                     lane="daily_meme",
                     post_id=str(posted_id),
                 )
                 remove_main_post_attempt(
-                    publication.attempt,
+                    cast("MainPostAttempt", publication.attempt),
                     sending_disposition="confirmed_state_fallback",
                     commit_proof=commit_proof,
                 )

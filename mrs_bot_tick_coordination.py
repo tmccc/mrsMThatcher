@@ -19,6 +19,7 @@ from mrs_bot_reply_cycle_interfaces import (
 )
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_api_cooldowns import ApiCooldowns
     from mrs_bot_main_post_assembly import MainPostAssembly
     from mrs_bot_reply_assembly import ReplyAssembly
@@ -39,7 +40,7 @@ class SchedulerEpoch(Protocol):
     """Read and repair one scheduling epoch without hiding its current clock."""
 
     def __call__(
-        self, state: dict[str, Any], key: str, *, current: int | None = None,
+        self, state: BotState, key: str, *, current: int | None = None,
     ) -> tuple[int, bool]:
         """Return the usable epoch and whether the state was changed."""
         ...
@@ -61,7 +62,7 @@ class ProcessHistoricalContext(Protocol):
     """Run one due context obligation with the current state reference."""
 
     def __call__(
-        self, *, limit: int = 1, runtime_state: dict[str, Any] | None = None,
+        self, *, limit: int = 1, runtime_state: BotState | None = None,
     ) -> list[dict[str, Any]]:
         """Return attempted context obligations."""
         ...
@@ -92,7 +93,7 @@ class RuntimeErrors:
     api_error: type[Exception]
 
 
-def sanitize_next_reply_lane_priority(state: dict[str, Any], *, log: Logger) -> bool:
+def sanitize_next_reply_lane_priority(state: BotState, *, log: Logger) -> bool:
     """Sanitise next reply lane priority in the original state."""
     priority = str(state.get("next_reply_lane_priority", "normal") or "normal")
     if priority in {"normal", "quote"}:
@@ -121,13 +122,13 @@ class RuntimeCoordinator:
         main_post_assembly: Callable[[], MainPostAssembly],
         now_epoch: Callable[[], int],
         scheduler_epoch_from_state: SchedulerEpoch,
-        save_state: Callable[[dict[str, Any]], StateCommitProof],
+        save_state: Callable[[BotState], StateCommitProof],
         log: Logger,
         log_event: Callable[..., None],
         report_health: ReportHealth,
         resume_media_retirement: Callable[[], bool],
         resume_source_retirement: ResumeSourceRetirement,
-        reconcile_confirmed_transactions: Callable[[set[str], set[str], dict[str, Any]], dict[str, bool]],
+        reconcile_confirmed_transactions: Callable[[set[str], set[str], BotState], dict[str, bool]],
         ambiguous_remote_post_is_blocking: Callable[[], bool],
         durable_remote_write_safety_barrier_exists: Callable[[], bool],
         remote_write_safety_protocol_is_active: Callable[[], bool],
@@ -160,7 +161,7 @@ class RuntimeCoordinator:
         self.ambiguity_pause_logged = False
 
     def run_continuously(
-        self, lines_used: set[str], images_used: set[str], state: dict[str, Any],
+        self, lines_used: set[str], images_used: set[str], state: BotState,
         *, sleep: Callable[[int], None],
     ) -> None:
         """Drive the same finite operation and wait only when it requests a wait."""
@@ -170,7 +171,7 @@ class RuntimeCoordinator:
                 sleep(wait_seconds)
 
     def run_once(
-        self, lines_used: set[str], images_used: set[str], state: dict[str, Any],
+        self, lines_used: set[str], images_used: set[str], state: BotState,
     ) -> int | None:
         """Run exactly one production iteration; return wait seconds or None to continue."""
         log = self.log
@@ -314,7 +315,7 @@ class RuntimeCoordinator:
         return True
 
     def run_reply_lane_checks_for_tick(
-        self, state: dict[str, Any], current: int,
+        self, state: BotState, current: int,
     ) -> tuple[int, int]:
         """Arbitrate reply lanes at the supplied tick epoch and repair scheduler state."""
         settings = self.settings
@@ -483,7 +484,7 @@ class RuntimeCoordinator:
 
     def run_due_quote_post_for_tick(
         self, lines_used: set[str], images_used: set[str],
-        state: dict[str, Any], current: int,
+        state: BotState, current: int,
     ) -> None:
         """Handle quote timing and retries after the main loop's safety gates."""
         cooldowns = self.cooldowns()
@@ -537,7 +538,7 @@ class RuntimeCoordinator:
             )
 
 
-    def run_due_meme_post_for_tick(self, state: dict[str, Any], current: int) -> None:
+    def run_due_meme_post_for_tick(self, state: BotState, current: int) -> None:
         """Handle meme timing and retries after the main loop's safety gates."""
         cooldowns = self.cooldowns()
         controls = self.lane_controls()

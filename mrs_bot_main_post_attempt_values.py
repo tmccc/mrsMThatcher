@@ -16,7 +16,7 @@ from collections.abc import Callable, Mapping
 from typing import Any, TYPE_CHECKING, Protocol, cast
 
 if TYPE_CHECKING:
-    from mrs_bot_core_contracts import PendingMainPostReceipt, SendingMainPostAttempt
+    from mrs_bot_core_contracts import BoundMemeScheduleState, PendingMainPostReceipt, SendingMainPostAttempt
 
 
 class RandomBytes(Protocol):
@@ -79,7 +79,7 @@ def bound_meme_schedule_state(
     MAIN_POST_SCHEDULE_TIMEZONE: str,
     MEME_SCHEDULE_VERSION: int,
     safe_bound_schedule_date_str: Callable[[int, str], str | None],
-) -> dict[str, object]:
+) -> BoundMemeScheduleState:
     """Capture the exact meme-schedule inputs bound before a regular X write."""
     next_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
     next_mode = str(state.get("next_meme_schedule_mode", "") or "")

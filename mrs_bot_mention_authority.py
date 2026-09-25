@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, TypeGuard, cast
 
 if TYPE_CHECKING:
-    from mrs_bot_core_contracts import MentionPagination
+    from mrs_bot_core_contracts import BotState, MentionPagination
 from mrs_bot_state_value_normalisation import bounded_tweet_id_value
 from mrs_bot_reply_evaluation_state import terminal_reply_evaluation
 
@@ -52,7 +52,7 @@ def mention_pagination_provenance_is_valid(
     return True
 
 
-def active_mention_backlog_reset_guard(state: dict) -> dict[str, object] | None:
+def active_mention_backlog_reset_guard(state: BotState | dict) -> dict[str, object] | None:
     """Return the reset guard only while it is bound to the current watermark."""
     guard = state.get("mention_backlog_reset_guard")
     if (
@@ -68,7 +68,7 @@ def active_mention_backlog_reset_guard(state: dict) -> dict[str, object] | None:
 
 
 def _reset_mention_candidate_authority(
-    state: dict,
+    state: BotState | dict,
     *,
     watermark: str,
 ) -> None:
@@ -235,7 +235,7 @@ class MentionAuthority:
             "announced": announced,
         }
 
-    def canonical_candidates(self, value: object, *, path: Path) -> dict[str, dict] | None:
+    def canonical_candidates(self, value: object, *, path: Path) -> dict[str, dict[str, object]] | None:
         """Validate exact, bounded identities for the durable mention queue."""
         if not isinstance(value, dict):
             self.log.error(
@@ -295,7 +295,7 @@ class MentionAuthority:
 
     def validate_pending(
         self,
-        state: dict,
+        state: BotState | dict,
         *,
         path: Path,
         recover_pending_identity: bool,
@@ -342,8 +342,8 @@ class MentionAuthority:
         changed = pending != raw_pending
         replied_ids = {
             str(value)
-            for key in ("replied_to_ids", "replied_to_quote_post_ids")
-            for value in state.get(key, [])
+            for values in (state.get("replied_to_ids", []), state.get("replied_to_quote_post_ids", []))
+            for value in values
         }
         deduplicated = {
             mention_id: candidate
@@ -529,7 +529,7 @@ class MentionAuthority:
 
         return True, changed
 
-    def owns_page(self, state: dict, pagination: object, *, target_id: str) -> bool:
+    def owns_page(self, state: BotState, pagination: object, *, target_id: str) -> bool:
         """Return whether canonical state owns the page bound into a receipt."""
         if not mention_pagination_provenance_is_valid(pagination):
             return False
@@ -559,7 +559,7 @@ class MentionAuthority:
 
 
 def mention_receipt_pagination(
-    state: dict,
+    state: BotState,
     candidate: dict,
     candidate_source: str,
 ) -> dict | None:

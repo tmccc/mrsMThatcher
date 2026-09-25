@@ -98,7 +98,7 @@ SIGNATURES = {'confirmed_context_outbox_matches_receipt': "(context_reply: 'dict
                                                     "lane: 'str', post_id: 'str', "
                                                     "current_receipt_bytes: 'bytes | None' = None) "
                                                     "-> 'bool'",
- 'retire_lane_transport_journal_if_present': "(*, receipt_path: 'Path', receipt: 'dict', lane: "
+ 'retire_lane_transport_journal_if_present': "(*, receipt_path: 'Path', receipt: 'Mapping[str, Any]', lane: "
                                              "'str', post_id: 'str', current_receipt_bytes: 'bytes "
                                              "| None' = None, commit_proof=None) -> 'bool'"}
 

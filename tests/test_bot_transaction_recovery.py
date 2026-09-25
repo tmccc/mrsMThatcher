@@ -58,12 +58,12 @@ DEPENDENCIES = {'ensure_reconciled_regular_receipt_schedule_is_future': ['log', 
                                                             'remote_write_safety_protocol_is_active',
                                                             'transport_source_semantic_validator']}
 
-SIGNATURES = {'ensure_reconciled_regular_receipt_schedule_is_future': "(receipt: 'dict', state: 'dict', "
+SIGNATURES = {'ensure_reconciled_regular_receipt_schedule_is_future': "(receipt: 'dict', state: 'BotState', "
                                                          "current: 'int') -> 'bool'",
- 'reconcile_startup_main_post_receipts': "(lines_used: 'set', images_used: 'set', state: 'dict', "
+ 'reconcile_startup_main_post_receipts': "(lines_used: 'set', images_used: 'set', state: 'BotState', "
                                          "current: 'int') -> 'dict[str, bool]'",
  'reconcile_confirmed_transactions_before_global_barrier': "(lines_used: 'set', images_used: "
-                                                           "'set', state: 'dict', current: 'int | "
+                                                           "'set', state: 'BotState', current: 'int | "
                                                            "None' = None) -> 'dict[str, bool]'"}
 
 def test_import_needs_no_runtime_access():

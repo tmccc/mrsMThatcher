@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any, SupportsFloat, SupportsIndex, cast
 
 if TYPE_CHECKING:
     from mrs_bot_core_contracts import (
-        AttemptingMainPostAttempt, BotState, CurrentMemePostReceipt,
+        AttemptingMainPostAttempt, BotState, BoundMemeScheduleState, CurrentMemePostReceipt,
         CurrentRegularPostReceipt, MemePostReceipt, MemeReceiptLoad,
         PendingMainPostReceipt, RegularPostReceipt, RegularReceiptLoad,
         ReplyReceiptLoad, SendingMainPostAttempt,
@@ -2336,7 +2336,7 @@ def author_no_reply_epoch_limit() -> int:
 
 
 def prune_author_evaluation_quarantines(
-    state: dict,
+    state: BotState,
     *,
     current_epoch: int | None = None,
 ) -> bool:
@@ -2345,7 +2345,7 @@ def prune_author_evaluation_quarantines(
 
 
 def active_author_evaluation_quarantine(
-    state: dict,
+    state: BotState,
     author_id: str,
     *,
     current_epoch: int | None = None,
@@ -2355,7 +2355,7 @@ def active_author_evaluation_quarantine(
 
 
 def record_qualifying_author_no_reply(
-    state: dict,
+    state: BotState,
     author_id: str,
     *,
     current_epoch: int | None = None,
@@ -2474,7 +2474,7 @@ def validate_pending_mention_candidate_authority(
 
 
 def mention_pagination_has_canonical_page_ownership(
-    state: dict,
+    state: BotState,
     pagination: object,
     *,
     target_id: str,
@@ -2598,12 +2598,10 @@ def load_state() -> BotState:
         require_compatible_state_reader=require_compatible_state_reader,
         save_state=save_state,
     )
-    # The loader returns only the default or a normalised candidate; it keeps
-    # raw dictionary operations local so unknown persisted fields survive.
-    return cast("BotState", loaded)
+    return loaded
 
 
-def scheduler_epoch_from_state(state: dict, key: str, *, current: int | None = None) -> tuple[int, bool]:
+def scheduler_epoch_from_state(state: BotState, key: str, *, current: int | None = None) -> tuple[int, bool]:
     """Return the scheduler epoch from state."""
     return _runtime_state_helpers.scheduler_epoch_from_state(
         state,
@@ -2670,11 +2668,11 @@ def state_generation_context():
     return _state_generation_context_owner()
 
 
-def save_state(state: dict, *, durable: bool = False) -> StateCommitProof:
+def save_state(state: BotState | dict, *, durable: bool = False) -> StateCommitProof:
     """Persist state atomically, logging only a value-free structural summary."""
     normalise_candidate = _state_candidate_normalizer()
     return _state_persistence.save_state(
-        state,
+        cast(dict, state),
         durable=durable,
         STATE_FILE=STATE_FILE,
         StateBackupWriteError=StateBackupWriteError,
@@ -2690,12 +2688,12 @@ def save_state(state: dict, *, durable: bool = False) -> StateCommitProof:
     )
 
 
-def reset_daily_reply_count_if_needed(state: dict) -> None:
+def reset_daily_reply_count_if_needed(state: BotState) -> None:
     """Reset daily reply count if needed."""
     return _reply_assembly().daily_reply_accounting().reset(state)
 
 
-def reset_daily_quote_reply_count_if_needed(state: dict) -> None:
+def reset_daily_quote_reply_count_if_needed(state: BotState) -> None:
     """Reset daily quote reply count if needed."""
     return _reply_assembly().daily_reply_accounting().reset_quotes(state)
 
@@ -2703,12 +2701,12 @@ def reset_daily_quote_reply_count_if_needed(state: dict) -> None:
 daily_author_reply_counts = _daily_reply_accounting.daily_author_reply_counts
 
 
-def daily_author_reply_count(state: dict, author_id: str) -> int:
+def daily_author_reply_count(state: BotState, author_id: str) -> int:
     """Return the daily author reply count."""
     return _reply_assembly().daily_reply_accounting().author_count(state, author_id)
 
 
-def mark_daily_author_replied(state: dict, author_id: str) -> None:
+def mark_daily_author_replied(state: BotState, author_id: str) -> None:
     """Mark daily author replied."""
     return _reply_assembly().daily_reply_accounting().mark_author(state, author_id)
 
@@ -2721,12 +2719,12 @@ CLARIFICATION_TOKEN_STOPWORDS = _reply_clarifications.CLARIFICATION_TOKEN_STOPWO
 clarification_thread_id = _reply_clarifications.clarification_thread_id
 
 
-def clarification_thread_is_terminal(state: dict, candidate: dict) -> bool:
+def clarification_thread_is_terminal(state: BotState, candidate: dict) -> bool:
     """Delegate clarification behavior to its owner with current dependencies."""
     return _reply_assembly().clarification_replies().thread_is_terminal(state, candidate)
 
 
-def author_used_clarification_recently(state: dict, author_id: str, *, current: int) -> bool:
+def author_used_clarification_recently(state: BotState, author_id: str, *, current: int) -> bool:
     """Delegate clarification behavior to its owner with current dependencies."""
     return _reply_assembly().clarification_replies().author_used_recently(state, author_id, current=current)
 
@@ -2734,7 +2732,7 @@ def author_used_clarification_recently(state: dict, author_id: str, *, current: 
 _clarification_tokens = _reply_clarifications._clarification_tokens
 
 
-def clarification_reply_context(state: dict, candidate: dict, *, current: int) -> dict | None:
+def clarification_reply_context(state: BotState, candidate: dict, *, current: int) -> dict | None:
     """Delegate clarification behavior to its owner with current dependencies."""
     return _reply_assembly().clarification_replies().context(state, candidate, current=current)
 
@@ -2791,17 +2789,17 @@ def _api_cooldown_owner() -> _api_cooldowns.ApiCooldowns:
     )
 
 
-def in_api_cooldown(state: dict, *, scope: str = "api") -> bool:
+def in_api_cooldown(state: BotState, *, scope: str = "api") -> bool:
     """Return the in API cooldown."""
     return _api_cooldown_owner().active(state, scope=scope)
 
 
-def clear_expired_api_cooldowns(state: dict) -> bool:
+def clear_expired_api_cooldowns(state: BotState) -> bool:
     """Clear expired API cooldowns."""
     return _api_cooldown_owner().clear_expired(state)
 
 
-def sanitize_next_reply_lane_priority(state: dict) -> bool:
+def sanitize_next_reply_lane_priority(state: BotState) -> bool:
     """Sanitise next reply lane priority."""
     return _tick_coordination.sanitize_next_reply_lane_priority(
         state,
@@ -2809,7 +2807,7 @@ def sanitize_next_reply_lane_priority(state: dict) -> bool:
     )
 
 
-def load_runtime_state() -> dict:
+def load_runtime_state() -> BotState:
     """Load runtime state and apply daily maintenance safely."""
     return _runtime_state_helpers.load_runtime_state(
         cooldowns=_api_cooldown_owner(),
@@ -2828,7 +2826,7 @@ def cooldown_until_for_rate_limit(current: int, reset_epoch: int | None) -> int:
     return _api_cooldown_owner().rate_limit_until(current, reset_epoch)
 
 
-def record_api_error(state: dict, error: Exception, service: str, *, scope: str = "api") -> None:
+def record_api_error(state: BotState, error: Exception, service: str, *, scope: str = "api") -> None:
     """Record API error."""
     return _api_cooldown_owner().record_error(state, error, service, scope=scope)
 
@@ -3155,23 +3153,23 @@ normalise_tweet_text = _tweet_lookup_cache.normalise_tweet_text
 tweet_text_is_complete = _tweet_lookup_cache.tweet_text_is_complete
 
 
-def prune_tweet_cache(state: dict) -> None:
+def prune_tweet_cache(state: BotState) -> None:
     """Delegate tweet lookup/cache work with current root dependencies."""
     return _tweet_lookup_cache_owner().prune(state)
 
 
-def record_recent_own_post(state: dict, tweet_id: str) -> None:
+def record_recent_own_post(state: BotState, tweet_id: str) -> None:
     """Delegate tweet lookup/cache work with current root dependencies."""
     return _tweet_lookup_cache_owner().record_recent_own_post(state, tweet_id)
 
 
-def seed_recent_own_post_ids_from_cache(state: dict) -> None:
+def seed_recent_own_post_ids_from_cache(state: BotState) -> None:
     """Delegate tweet lookup/cache work with current root dependencies."""
     return _tweet_lookup_cache_owner().seed_recent_own_posts(state)
 
 
 def cache_tweet(
-    state: dict,
+    state: BotState,
     *,
     tweet_id: str,
     text: str,
@@ -3218,7 +3216,7 @@ def reply_target_is_available_immediately_before_send(target_id: str) -> bool:
 
 def get_tweet_by_id_cached(
     tweet_id: str,
-    state: dict,
+    state: BotState,
     *,
     include_media: bool = False,
 ) -> dict | None:
@@ -3273,7 +3271,7 @@ remove_pending_mention_candidate = _mention_discovery.remove_pending_mention_can
 
 
 def mark_hot_post_reply_skipped(
-    state: dict,
+    state: BotState,
     reply_id: str,
     *,
     reason: str = "unspecified",
@@ -3292,7 +3290,7 @@ def mark_hot_post_reply_skipped(
     )
 
 
-def maybe_mark_hot_post_reply_skipped(state: dict, candidate: dict, reason: str = "unspecified") -> None:
+def maybe_mark_hot_post_reply_skipped(state: BotState, candidate: dict, reason: str = "unspecified") -> None:
     """Delegate to the hot-post owner with current root dependencies."""
     return _hot_post_discovery.maybe_mark_hot_post_reply_skipped(
         state,
@@ -3563,7 +3561,7 @@ def _legacy_conversational_transport_source_semantic_validator(
 def bind_lane_transport_source(
     *,
     receipt_path: Path,
-    receipt: dict,
+    receipt: AttemptingMainPostAttempt | dict,
     lane: str,
     payload: dict,
     transport_source_validator: Callable[[str, dict, dict], bool] | None = None,
@@ -3571,7 +3569,7 @@ def bind_lane_transport_source(
     """Create the only accepted semantic source binding for a public tweet."""
     return _transport_source_preparation.bind_lane_transport_source(
         receipt_path=receipt_path,
-        receipt=receipt,
+        receipt=cast(dict, receipt),
         lane=lane,
         payload=payload,
         TRANSPORT_SOURCE_VALIDATOR_ID=TRANSPORT_SOURCE_VALIDATOR_ID,
@@ -3906,7 +3904,7 @@ def verify_lane_transport_source_lineage_if_present(
 def retire_lane_transport_journal_if_present(
     *,
     receipt_path: Path,
-    receipt: dict,
+    receipt: Mapping[str, Any],
     lane: str,
     post_id: str,
     current_receipt_bytes: bytes | None = None,
@@ -3919,7 +3917,7 @@ def retire_lane_transport_journal_if_present(
         commit_proof.require_receipt(receipt)
     return _receipt_retirement.retire_lane_transport_journal_if_present(
         receipt_path=receipt_path,
-        receipt=receipt,
+        receipt=cast(dict, receipt),
         lane=lane,
         post_id=post_id,
         current_receipt_bytes=current_receipt_bytes,
@@ -4310,7 +4308,7 @@ def create_post(
     *,
     prepared_conversational_reply_receipt: dict | None = None,
     prepared_historical_context_reply_receipt: dict | None = None,
-    prepared_main_post_attempt: dict | None = None,
+    prepared_main_post_attempt: AttemptingMainPostAttempt | dict | None = None,
     prepared_transport_authority: TransportAuthority | None = None,
     prepared_transport_source: SourceReceiptBinding | None = None,
     on_remote_transaction_started: Callable[[], None] | None = None,
@@ -4332,7 +4330,7 @@ def create_post(
         made_with_ai,
         prepared_conversational_reply_receipt=prepared_conversational_reply_receipt,
         prepared_historical_context_reply_receipt=prepared_historical_context_reply_receipt,
-        prepared_main_post_attempt=prepared_main_post_attempt,
+        prepared_main_post_attempt=cast(dict | None, prepared_main_post_attempt),
         prepared_transport_authority=prepared_transport_authority,
         prepared_transport_source=prepared_transport_source,
         on_remote_transaction_started=on_remote_transaction_started,
@@ -4824,7 +4822,7 @@ def bound_meme_schedule_state(
     state: Mapping[str, Any],
     *,
     schedule_timezone: str | None = None,
-) -> dict[str, object]:
+) -> BoundMemeScheduleState:
     """Capture the exact meme-schedule inputs bound before a regular X write."""
     return _main_post_attempt_values.bound_meme_schedule_state(
         state,
@@ -5209,7 +5207,7 @@ def remove_meme_post_receipt(receipt: dict, *, commit_proof=None) -> None:
 
 
 
-def save_regular_post_protected_state(lines_used: set, images_used: set, state: dict, *, durable: bool) -> StateCommitProof:
+def save_regular_post_protected_state(lines_used: set, images_used: set, state: BotState, *, durable: bool) -> StateCommitProof:
     """Save regular post protected state."""
     return _main_post_confirmation_persistence.save_regular_post_protected_state(
         lines_used,
@@ -5249,7 +5247,7 @@ def json_file_matches(path: Path, expected: object, *, commit_proof=None) -> boo
         return False
 
 
-def emergency_persist_confirmed_regular_post(lines_used: set, images_used: set, state: dict) -> RegularPostPersistenceResult:
+def emergency_persist_confirmed_regular_post(lines_used: set, images_used: set, state: BotState) -> RegularPostPersistenceResult:
     """Persist emergency confirmed-post effects and return exact restart authority."""
     return _main_post_confirmation_persistence.emergency_persist_confirmed_regular_post(
         lines_used,
@@ -5423,7 +5421,7 @@ def _process_due_historical_context_obligations(
     store,
     parent_post_id: str | None = None,
     limit: int = 1,
-    runtime_state: dict | None = None,
+    runtime_state: BotState | None = None,
     historical_context_receipt_reconciliation_only: bool = False,
     historical_context_outbox_reconciliation_only: bool = False,
 ) -> list[dict]:
@@ -5461,7 +5459,7 @@ def process_due_historical_context_obligations(
     *,
     parent_post_id: str | None = None,
     limit: int = 1,
-    runtime_state: dict | None = None,
+    runtime_state: BotState | None = None,
 ) -> list[dict]:
     """Serialise complete context attempts across claims and remote outcomes."""
     return _historical_context_delivery.process_due_historical_context_obligations(
@@ -5485,7 +5483,7 @@ def safely_process_due_historical_context_obligations(
     *,
     parent_post_id: str | None = None,
     limit: int = 1,
-    runtime_state: dict | None = None,
+    runtime_state: BotState | None = None,
 ) -> list[dict]:
     """Isolate auxiliary context-worker faults from confirmed main-post lanes."""
     return _historical_context_queue.safely_process_due_historical_context_obligations(
@@ -5501,7 +5499,7 @@ def safely_process_due_historical_context_obligations(
 
 def ensure_reconciled_regular_receipt_schedule_is_future(
     receipt: dict,
-    state: dict,
+    state: BotState,
     current: int,
 ) -> bool:
     """Persist a future quote schedule before completing current-receipt replay."""
@@ -5518,7 +5516,7 @@ def ensure_reconciled_regular_receipt_schedule_is_future(
 
 
 def reconcile_main_post_receipts(
-    lines_used: set, images_used: set, state: dict,
+    lines_used: set, images_used: set, state: BotState,
     *, minimum_next_quote_epoch: int | None = None,
     process_auxiliary_context: bool = True,
 ) -> dict[str, bool]:
@@ -5531,7 +5529,7 @@ def reconcile_main_post_receipts(
 
 
 def reconcile_startup_main_post_receipts(
-    lines_used: set, images_used: set, state: dict, current: int,
+    lines_used: set, images_used: set, state: BotState, current: int,
 ) -> dict[str, bool]:
     """Reconcile main receipts unless a global maintenance pause is active."""
     recovery = _main_post_assembly().recovery_operation()
@@ -5546,7 +5544,7 @@ def reconcile_startup_main_post_receipts(
 def reconcile_confirmed_transactions_before_global_barrier(
     lines_used: set,
     images_used: set,
-    state: dict,
+    state: BotState,
     current: int | None = None,
 ) -> dict[str, bool]:
     """Finish one exact locally recoverable transaction before global blocking.
@@ -5989,7 +5987,7 @@ def _image_selection_owner() -> _image_selection.ImageSelection:
 def available_currently_eligible_image_basenames(
     eligible_basenames: set[str],
     images_used: set[str],
-    state: dict | None = None,
+    state: BotState | None = None,
 ) -> tuple[list[str], bool]:
     """Return whether available currently eligible image basenames."""
     return _image_selection_owner().available_basenames(eligible_basenames, images_used, state)
@@ -6016,7 +6014,7 @@ def log_regular_image_selection(choice: dict) -> None:
 def choose_matched_unused_image(
     images_used: set,
     quote_choice: dict,
-    state: dict,
+    state: BotState,
     *,
     force_cycle_reset: bool = False,
     avoid_last_image_at_cycle_boundary: bool = True,
@@ -6038,7 +6036,7 @@ def choose_matched_unused_image(
 def choose_regular_quote_image_pair(
     lines_used: set,
     images_used: set,
-    state: dict,
+    state: BotState,
     *,
     force_image_cycle_reset: bool = False,
     avoid_last_image_at_cycle_boundary: bool = True,
@@ -6059,7 +6057,7 @@ def choose_regular_quote_image_pair(
 # Runtime assembly: ordinary quotation publication
 # ---------------------------------------------------------------------
 
-def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
+def post_random_quote(lines_used: set, images_used: set, state: BotState) -> None:
     """Request one ordinary quotation post from the main-post subsystem."""
     return _main_post_assembly().quote_runner().post(lines_used, images_used, state)
 
@@ -6086,7 +6084,7 @@ def list_meme_candidates() -> list[Path]:
     return _main_post_assembly().meme_catalog().candidates()
 
 
-def choose_next_meme(state: dict) -> Path | None:
+def choose_next_meme(state: BotState) -> Path | None:
     """Select a meme, saving any cycle reset through root authority."""
     return _main_post_assembly().meme_catalog().choose(state)
 
@@ -6111,17 +6109,17 @@ def meme_schedule_date_str(epoch: int | None = None) -> str:
     return _main_post_assembly().meme_schedule().date_str(epoch)
 
 
-def meme_posted_on_date(state: dict, date_text: str) -> bool:
+def meme_posted_on_date(state: BotState, date_text: str) -> bool:
     """Check the daily meme guard through the current date helper."""
     return _main_post_assembly().meme_schedule().posted_on_date(state, date_text)
 
 
-def next_meme_fallback_epoch(state: dict, from_epoch: int | None = None) -> int:
+def next_meme_fallback_epoch(state: BotState, from_epoch: int | None = None) -> int:
     """Calculate the next fallback through current calendar settings."""
     return _main_post_assembly().meme_schedule().next_fallback_epoch(state, from_epoch)
 
 
-def next_meme_schedule_fields(state: dict, from_epoch: int | None = None, mode: str = "fallback") -> dict:
+def next_meme_schedule_fields(state: BotState, from_epoch: int | None = None, mode: str = "fallback") -> dict:
     """Build fallback schedule fields through current root helpers."""
     return _main_post_assembly().meme_schedule().next_fields(state, from_epoch, mode)
 
@@ -6131,7 +6129,7 @@ def meme_delay_schedule_fields(epoch: int, mode: str) -> dict:
     return _main_post_assembly().meme_schedule().delay_fields(epoch, mode)
 
 
-def set_meme_delay_schedule(state: dict, *, epoch: int, mode: str, save: bool = True) -> None:
+def set_meme_delay_schedule(state: BotState, *, epoch: int, mode: str, save: bool = True) -> None:
     """Apply a meme delay and optionally save through root authority."""
     return _main_post_assembly().meme_schedule().set_delay(state, epoch=epoch, mode=mode, save=save)
 
@@ -6139,22 +6137,22 @@ def set_meme_delay_schedule(state: dict, *, epoch: int, mode: str, save: bool = 
 apply_state_fields = _runtime_state_helpers.apply_state_fields
 
 
-def schedule_next_meme_post(state: dict, from_epoch: int | None = None, mode: str = "fallback", *, save: bool = True) -> None:
+def schedule_next_meme_post(state: BotState, from_epoch: int | None = None, mode: str = "fallback", *, save: bool = True) -> None:
     """Schedule the fallback and optionally save through root authority."""
     return _main_post_assembly().meme_schedule().schedule_next(state, from_epoch, mode, save=save)
 
 
-def ensure_meme_schedule_initialized(state: dict) -> None:
+def ensure_meme_schedule_initialized(state: BotState) -> None:
     """Initialise or migrate the meme schedule through root authority."""
     return _main_post_assembly().meme_schedule().ensure_initialized(state)
 
 
-def meme_schedule_fields_after_quote_post(state: dict, quote_post_epoch: int | None = None, *, delay: int | None = None) -> dict:
+def meme_schedule_fields_after_quote_post(state: BotState, quote_post_epoch: int | None = None, *, delay: int | None = None) -> dict:
     """Build quote-anchored meme fields through current root settings."""
     return _main_post_assembly().meme_schedule().fields_after_quote(state, quote_post_epoch, delay=delay)
 
 
-def maybe_schedule_meme_after_quote_post(state: dict, quote_post_epoch: int | None = None, *, save: bool = True) -> None:
+def maybe_schedule_meme_after_quote_post(state: BotState, quote_post_epoch: int | None = None, *, save: bool = True) -> None:
     """Apply quote-anchored meme scheduling and optionally save state."""
     return _main_post_assembly().meme_schedule().maybe_after_quote(state, quote_post_epoch, save=save)
 
@@ -6176,7 +6174,7 @@ def require_valid_meme_post_id(posted_id: object) -> None:
     )
 
 
-def post_next_meme(state: dict) -> None:
+def post_next_meme(state: BotState) -> None:
     """Request one daily meme post from the main-post subsystem."""
     return _main_post_assembly().meme_runner().post(state)
 
@@ -6618,7 +6616,7 @@ def _valid_iso_date(value: object) -> bool:
 
 
 def _advance_reply_counters_to_confirmation_date(
-    state: dict,
+    state: BotState,
     confirmation_date: str,
     *,
     include_quote_lane: bool,
@@ -6631,7 +6629,7 @@ def _advance_reply_counters_to_confirmation_date(
     )
 
 
-def reconcile_confirmed_reply_receipt(state: dict) -> bool:
+def reconcile_confirmed_reply_receipt(state: BotState) -> bool:
     """Reconcile a confirmed reply without duplicating the remote post."""
     return _reply_assembly().reconcile_receipt(state)
 
@@ -6640,7 +6638,7 @@ def reconcile_confirmed_reply_receipt(state: dict) -> bool:
 # Scheduler boundary: normal mention and hot-post reply cycle
 # ---------------------------------------------------------------------
 
-def maybe_reply_to_mentions(state: dict) -> str:
+def maybe_reply_to_mentions(state: BotState) -> str:
     """Process eligible mention and hot-post candidates under all reply limits."""
     return _reply_assembly().run_normal(state)
 
@@ -6659,7 +6657,7 @@ def load_extra_quote_watch_post_ids() -> list[str]:
 # Scheduler boundary: quote-tweet reply cycle
 # ---------------------------------------------------------------------
 
-def maybe_reply_to_quote_tweets(state: dict) -> str:
+def maybe_reply_to_quote_tweets(state: BotState) -> str:
     """Process eligible quote-tweet candidates under all reply limits."""
     return _reply_assembly().run_quote(state)
 
@@ -6684,7 +6682,7 @@ def next_quote_schedule_fields(from_epoch: int | None = None, *, delay: int | No
     return _quote_schedule_owner().next_fields(from_epoch, delay=delay)
 
 
-def schedule_next_quote_post(state: dict, from_epoch: int | None = None, *, save: bool = True) -> None:
+def schedule_next_quote_post(state: BotState, from_epoch: int | None = None, *, save: bool = True) -> None:
     """Perform the schedule next quote post operation."""
     return _quote_schedule_owner().schedule(state, from_epoch, save=save)
 
@@ -7059,7 +7057,7 @@ def require_test_mode(command_name: str) -> bool:
     )
 
 
-def prepare_test_main_post_state(state: dict) -> None:
+def prepare_test_main_post_state(state: BotState) -> None:
     """Prepare test main post state."""
     return _runtime_state_helpers.prepare_test_main_post_state(
         state,

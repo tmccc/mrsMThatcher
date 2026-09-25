@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING
 from mrs_bot_reply_native_media import attach_media_to_tweets
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_state_value_normalisation import StateValues
 
 
@@ -156,7 +157,7 @@ class TweetLookupCache:
             out[str(tweet_id)] = normalized_entry
         return out
 
-    def prune(self, state: dict) -> None:
+    def prune(self, state: BotState) -> None:
         """Prune tweet cache."""
         cache = state.setdefault("tweet_cache", {})
         cutoff = self.now_epoch() - self.maximum_age_seconds
@@ -180,7 +181,7 @@ class TweetLookupCache:
 
         state["tweet_cache"] = pruned
 
-    def record_recent_own_post(self, state: dict, tweet_id: str) -> None:
+    def record_recent_own_post(self, state: BotState, tweet_id: str) -> None:
         """Record recent own post."""
         tweet_id = str(tweet_id)
 
@@ -190,7 +191,7 @@ class TweetLookupCache:
 
         self.log.info("Recorded recent own post id=%s recent_count=%d", tweet_id, len(state["recent_own_post_ids"]))
 
-    def seed_recent_own_posts(self, state: dict) -> None:
+    def seed_recent_own_posts(self, state: BotState) -> None:
         """Seed recent own post IDs from cache."""
         if state.get("recent_own_post_ids"):
             return
@@ -218,7 +219,7 @@ class TweetLookupCache:
         self.log.info("Seeded recent_own_post_ids from cache count=%d", len(seeded))
 
     def store(
-        self, state: dict, *, tweet_id: str, text: str, author_id: str,
+        self, state: BotState, *, tweet_id: str, text: str, author_id: str,
         conversation_id: str | None = None,
         referenced_tweets: list[dict] | None = None,
         created_at: str | None = None, image_summary: str | None = None,
@@ -357,7 +358,7 @@ class TweetLookupCache:
         self.log.info("Fresh pre-send reply-target lookup passed. target_id=%s", target_id)
         return True
 
-    def get_cached(self, tweet_id: str, state: dict, *, include_media: bool = False) -> dict | None:
+    def get_cached(self, tweet_id: str, state: BotState, *, include_media: bool = False) -> dict | None:
         """Return complete cached text, refreshing legacy external text or requested media."""
         self.prune(state)
 

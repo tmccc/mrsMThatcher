@@ -164,7 +164,7 @@ class LegacyReceiptReplyContext(TypedDict):
     lane: ReplyLane
 
 
-class BotState(TypedDict):
+class BotStateRequired(TypedDict):
     """Keys supplied by default_state and retained after candidate normalisation.
 
     Values which have a specialised validator but no structural guarantee here
@@ -176,7 +176,7 @@ class BotState(TypedDict):
     mention_pagination: dict[str, str]
     mention_backlog: dict[str, object]
     mention_backlog_reset_guard: dict[str, object]
-    mention_pending_candidates: dict[str, object]
+    mention_pending_candidates: dict[str, dict[str, object]]
     author_evaluation_quarantines: dict[str, object]
     replied_to_ids: list[str]
     dry_run_seen_mention_ids: list[str]
@@ -190,8 +190,7 @@ class BotState(TypedDict):
     daily_replied_author_ids: list[str]
     daily_replied_author_counts: dict[str, int]
     own_auto_reply_ids: list[str]
-    tweet_cache: dict[str, object]
-    pending_ai_reply_drafts: dict[str, object]
+    tweet_cache: dict[str, dict[str, object]]
     ai_reply_history: list[dict[str, object]]
     posted_meme_filenames: list[str]
     last_meme_post_epoch: int
@@ -231,6 +230,24 @@ class BotState(TypedDict):
     quote_x_error_epochs: list[int]
     quote_api_cooldown_until_epoch: int
     quote_api_cooldown_reason: object
+
+
+class ReceiptCommitIdentity(TypedDict):
+    """Validated persisted identity used to reprove receipt retirement."""
+
+    quote_hash: str
+    image_basename: str
+
+
+class BotState(BotStateRequired, total=False):
+    """Normalised live state with recognised keys absent from fresh defaults."""
+
+    _confirmed_receipt_commits: dict[str, ReceiptCommitIdentity]
+    pending_ai_reply_drafts: dict[str, object]
+    reply_evaluation_records: dict[str, dict[str, object]]
+    clarification_reply_records: dict[str, dict[str, object]]
+    reply_strategy_history: list[dict[str, object]]
+    original_regular_posts_since_generated_image: int
 
 
 class ReplyReceiptCommon(TypedDict):

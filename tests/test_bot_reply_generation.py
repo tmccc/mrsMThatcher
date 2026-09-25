@@ -75,7 +75,7 @@ assert 'single_call_reply' not in sys.modules
     assert generation._REPLY_IMAGE_MIME_TYPES == {
         "image/jpeg", "image/png", "image/webp", "image/gif",
     }
-    assert generation.ReplyGeneration.record_result.__annotations__["result"] == "PipelineResult"
+    assert generation.ReplyGeneration.record_result.__annotations__["result"] == "PipelineTelemetry"
 
 
 OWNER_INPUTS = {

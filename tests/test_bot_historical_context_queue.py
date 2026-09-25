@@ -51,7 +51,7 @@ SIGNATURES = {'enqueue_historical_context_obligation': "(receipt: 'dict') -> 'di
  '_process_due_historical_context_obligations': '(*, store, parent_post_id: '
                                                 "'str | None' = None, limit: "
                                                 "'int' = 1, runtime_state: "
-                                                "'dict | None' = None, "
+                                                "'BotState | None' = None, "
                                                 'historical_context_receipt_reconciliation_only: '
                                                 "'bool' = False, "
                                                 'historical_context_outbox_reconciliation_only: '
@@ -60,7 +60,7 @@ SIGNATURES = {'enqueue_historical_context_obligation': "(receipt: 'dict') -> 'di
  'safely_process_due_historical_context_obligations': '(*, parent_post_id: '
                                                       "'str | None' = None, "
                                                       "limit: 'int' = 1, "
-                                                      "runtime_state: 'dict | "
+                                                      "runtime_state: 'BotState | "
                                                       "None' = None) -> "
                                                       "'list[dict]'"}
 
@@ -96,7 +96,7 @@ assert 'requests' not in sys.modules
 assert 'single_call_reply' not in sys.modules
 assert 'transaction_mutation_authority' not in sys.modules
 assert mrs_bot_historical_context_queue.enqueue_historical_context_obligation.__annotations__['return'] == 'dict'
-assert mrs_bot_historical_context_queue._process_due_historical_context_obligations.__annotations__['runtime_state'] == 'dict | None'
+assert mrs_bot_historical_context_queue._process_due_historical_context_obligations.__annotations__['runtime_state'] == 'BotState | dict | None'
 assert 'historical_context_formatter' not in sys.modules
 """
     result = subprocess.run(

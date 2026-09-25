@@ -12,13 +12,14 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_state_generation import StateCommitProof
 
 
 def complete_regular_post_persistence(
     lines_used: set,
     images_used: set,
-    state: dict,
+    state: BotState,
     receipt: dict,
     *,
     save_regular_post_protected_state: Callable[..., StateCommitProof],

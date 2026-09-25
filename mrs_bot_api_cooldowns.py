@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_state_generation import StateCommitProof
 
 
@@ -35,9 +36,9 @@ class ApiCooldowns:
     maximum_openai_errors: int
     maximum_x_errors: int
     reply_not_allowed: Callable[[Exception], bool]
-    save_state: Callable[[dict], StateCommitProof]
+    save_state: Callable[[BotState], StateCommitProof]
 
-    def active(self, state: dict, *, scope: str = 'api') -> bool:
+    def active(self, state: BotState, *, scope: str = 'api') -> bool:
         """Return the in API cooldown."""
         if scope == "quote":
             until = int(state.get("quote_api_cooldown_until_epoch", 0) or 0)
@@ -64,7 +65,7 @@ class ApiCooldowns:
         return True
 
 
-    def clear_expired(self, state: dict) -> bool:
+    def clear_expired(self, state: BotState) -> bool:
         """Clear expired API cooldowns."""
         changed = False
         current = self.now_epoch()
@@ -112,7 +113,7 @@ class ApiCooldowns:
 
 
     def record_error(
-        self, state: dict, error: Exception, service: str, *, scope: str = 'api',
+        self, state: BotState, error: Exception, service: str, *, scope: str = 'api',
     ) -> None:
         """Record API error."""
         if service == "x" and scope == "write" and self.reply_not_allowed(error):

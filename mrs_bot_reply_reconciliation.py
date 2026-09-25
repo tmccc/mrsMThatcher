@@ -38,7 +38,8 @@ from mrs_bot_mention_authority import (
 )
 
 if TYPE_CHECKING:
-    from mrs_bot_core_contracts import ConfirmedReplyReceipt
+    from mrs_bot_core_contracts import BotState
+    from mrs_bot_core_contracts import ConfirmedReplyReceipt, ValidatedConfirmedReplyReceipt
     from mrs_bot_reply_clarifications import ClarificationReplies
     from mrs_bot_daily_reply_accounting import DailyReplyAccounting
     from mrs_bot_mention_authority import MentionAuthority
@@ -49,11 +50,15 @@ if TYPE_CHECKING:
     from mrs_bot_reply_history import ReplyHistory
     from mrs_bot_reply_receipt_values import ReplyReceiptValues
     from mrs_bot_state_generation import StateCommitProof
+    from mrs_bot_reply_cycle_interfaces import SaveReplyState
+    from mrs_bot_main_post_assembly import (
+        RetireMainPostTransportJournal, VerifyMainPostTransportLineage,
+    )
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
 
 
 def apply_confirmed_reply_receipt(
-    state: dict,
+    state: BotState,
     receipt: dict,
     *,
     receipt_values: ReplyReceiptValues,
@@ -223,7 +228,7 @@ def apply_confirmed_reply_receipt(
 
 
 def _mention_pagination_to_preserve(
-    state: dict,
+    state: BotState,
     receipt: dict,
     *,
     target_id: str,
@@ -298,16 +303,16 @@ class ReplyCompletion:
 
     receipt_path: Path
     persistence_error: type[Exception]
-    apply_state: Callable
-    save_state: Callable
-    retire_journal: Callable
+    apply_state: Callable[[BotState, ValidatedConfirmedReplyReceipt], None]
+    save_state: SaveReplyState
+    retire_journal: RetireMainPostTransportJournal
     log: logging.Logger
     receipts: ReplyReceipts
     unresolved_sending_receipt: type[Exception]
     invalid_receipt: type[Exception]
-    verify_lineage: Callable
+    verify_lineage: VerifyMainPostTransportLineage
 
-    def commit(self, state: dict, receipt: Mapping[str, Any]) -> StateCommitProof:
+    def commit(self, state: BotState, receipt: Mapping[str, Any]) -> StateCommitProof:
         """Record this receipt in caller state and return its durable commit proof."""
         from mrs_bot_state_generation import record_receipt_commit
         record_receipt_commit(state, receipt)
@@ -333,7 +338,7 @@ class ReplyCompletion:
             )
 
     def finalise(
-        self, state: dict, receipt: ConfirmedReplyReceipt, *, target_id: str, quote_reply: bool,
+        self, state: BotState, receipt: ConfirmedReplyReceipt, *, target_id: str, quote_reply: bool,
     ) -> str:
         """Commit a new confirmation, then retire its exact recovery records.
 
@@ -366,7 +371,7 @@ class ReplyCompletion:
             ) from exc
         return own_reply_id
 
-    def reconcile(self, state: dict) -> bool:
+    def reconcile(self, state: BotState) -> bool:
         """Reconcile a confirmed reply without duplicating the remote post."""
         loaded = self.receipts.load()
         if loaded[0] == "absent":
@@ -385,7 +390,7 @@ class ReplyCompletion:
 
         self.verify_lineage(
             receipt_path=self.receipt_path,
-            receipt=receipt,
+            receipt=cast(dict, receipt),
             lane="conversational_reply",
             post_id=str(receipt.get("reply_post_id") or ""),
         )
@@ -415,12 +420,12 @@ class ReplyCompletion:
 
 def confirmed_reply_emergency_representation_is_complete(
     receipt: dict,
-    state: dict,
+    state: BotState,
     *,
     receipt_values: ReplyReceiptValues,
     InvalidConfirmedReplyReceipt: type[Exception],
     receipt_int: Callable,
-    has_target_draft: Callable[[dict, str, str], bool],
+    has_target_draft: Callable[[BotState, str, str], bool],
 ) -> bool:
     """Return whether state alone durably suppresses a confirmed reply replay."""
     if not receipt_values.confirmed_is_valid(receipt):

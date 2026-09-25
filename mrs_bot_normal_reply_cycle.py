@@ -54,6 +54,7 @@ from mrs_bot_reply_state import handled_reply_target_ids, retire_ineligible_repl
 from mrs_bot_reply_outcomes import outcome_disposition
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_core_contracts import ConfirmedReplyReceipt, ReplyContextData, ReplyMediaContext
     from mrsMThatcher2 import ApiError as ApiErrorValue
     from mrs_bot_api_cooldowns import ApiCooldowns
@@ -94,7 +95,7 @@ class _ReplyCycleProgress:
 
     def prune_quarantine_retirement_batch(
         self,
-        state: dict[str, Any],
+        state: BotState,
         reply_evaluations: ReplyEvaluations,
     ) -> None:
         """Prune the pending batch before its caller durably saves the state."""
@@ -106,7 +107,7 @@ class _ReplyCycleProgress:
 
     def flush_quarantine_retirements(
         self,
-        state: dict[str, Any],
+        state: BotState,
         reply_evaluations: ReplyEvaluations,
         persistence: ReplyCyclePersistence,
     ) -> None:
@@ -211,7 +212,7 @@ class NormalReplyCycle:
 
     def run(
         self,
-        state: dict[str, Any],
+        state: BotState,
         *,
         _fresh_mention_ai_evaluations: int = 0,
         _skip_hot_post_fetch: bool = False,
@@ -473,7 +474,7 @@ class NormalReplyCycle:
 
     def _candidate_is_eligible(
         self,
-        state: dict[str, Any],
+        state: BotState,
         candidate: _ReplyCandidate,
         replied_to_ids: set[str],
         progress: _ReplyCycleProgress,
@@ -595,7 +596,7 @@ class NormalReplyCycle:
 
     def _author_allows_evaluation(
         self,
-        state: dict[str, Any],
+        state: BotState,
         candidate: _ReplyCandidate,
         clarification: dict[str, Any] | None,
         current: int,
@@ -707,7 +708,7 @@ class NormalReplyCycle:
         return True
 
     def _prepare_reply_context(
-        self, state: dict[str, Any], candidate: _ReplyCandidate, clarification: dict[str, Any] | None
+        self, state: BotState, candidate: _ReplyCandidate, clarification: dict[str, Any] | None
     ) -> PreparedReplyContext | SkipReplyCandidate | FinishReplyCheck:
         """Build canonical context and media, preserving the narrow context error boundary."""
         try:
@@ -799,7 +800,7 @@ class NormalReplyCycle:
 
     def _evaluate_reply(
         self,
-        state: dict[str, Any],
+        state: BotState,
         candidate: _ReplyCandidate,
         reply_context: ReplyContextData,
         media_context: ReplyMediaContext | None,
@@ -880,7 +881,7 @@ class NormalReplyCycle:
 
     def _retire_or_defer_no_reply(
         self,
-        state: dict[str, Any],
+        state: BotState,
         candidate: _ReplyCandidate,
         evaluation: PipelineOutcome,
         current: int,
@@ -962,7 +963,7 @@ class NormalReplyCycle:
 
     def _prepare_reply_receipt(
         self,
-        state: dict[str, Any],
+        state: BotState,
         candidate: _ReplyCandidate,
         reply_text: ValidatedReplyValue,
         reply_context: ReplyContextData,
@@ -1043,7 +1044,7 @@ class NormalReplyCycle:
 
     def _retire_terminal_target(
         self,
-        state: dict[str, Any],
+        state: BotState,
         candidate: _ReplyCandidate,
         replied_to_ids: set[str],
         reply_text: ValidatedReplyValue,
@@ -1084,7 +1085,7 @@ class NormalReplyCycle:
 
     def _deliver_reply(
         self,
-        state: dict[str, Any],
+        state: BotState,
         candidate: _ReplyCandidate,
         replied_to_ids: set[str],
         reply_text: ValidatedReplyValue,
@@ -1132,7 +1133,7 @@ class NormalReplyCycle:
         return outcome
 
     def _finalise_confirmed_reply(
-        self, state: dict[str, Any], candidate: _ReplyCandidate, receipt: ConfirmedReplyReceipt
+        self, state: BotState, candidate: _ReplyCandidate, receipt: ConfirmedReplyReceipt
     ) -> str:
         """Finish the shared confirmation transaction and report this lane's success."""
         own_reply_id = self.delivery.finalise(

@@ -13,12 +13,12 @@ owners per root call, then invokes them directly without retaining caller state.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import random
 from collections.abc import Callable
+from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from mrs_bot_image_scoring import (
     build_image_topic_idf,
@@ -27,6 +27,9 @@ from mrs_bot_image_scoring import (
 )
 from mrs_bot_asset_metadata import AssetMetadata
 from mrs_bot_original_editorial import OriginalEditorial
+
+if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
 from mrs_bot_quote_candidates import QuoteCandidates
 from mrs_bot_used_history import UsedHistory
 
@@ -56,7 +59,7 @@ class ImageSelection:
         self,
         eligible_basenames: set[str],
         images_used: set[str],
-        state: dict | None = None,
+        state: BotState | None = None,
     ) -> tuple[list[str], bool]:
         """Return whether available currently eligible image basenames."""
         if not eligible_basenames:
@@ -98,7 +101,7 @@ class ImageSelection:
         self,
         images_used: set,
         quote_choice: dict,
-        state: dict,
+        state: BotState,
         *,
         force_cycle_reset: bool = False,
         avoid_last_image_at_cycle_boundary: bool = True,
@@ -273,7 +276,7 @@ class ImageSelection:
         self,
         lines_used: set,
         images_used: set,
-        state: dict,
+        state: BotState,
         *,
         force_image_cycle_reset: bool = False,
         avoid_last_image_at_cycle_boundary: bool = True,
@@ -294,7 +297,7 @@ class ImageSelection:
 def choose_regular_quote_image_pair(
     lines_used: set,
     images_used: set,
-    state: dict,
+    state: BotState,
     *,
     force_image_cycle_reset: bool = False,
     avoid_last_image_at_cycle_boundary: bool = True,

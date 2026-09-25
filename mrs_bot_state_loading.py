@@ -10,10 +10,10 @@ this module retains no runtime authority or import-time side effects."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from logging import Logger
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mrs_bot_core_contracts import BotState
@@ -23,7 +23,7 @@ from mrs_bot_observability import state_debug_summary
 
 
 def _select_latest_generation(
-    candidates: dict[Path, dict],
+    candidates: Mapping[Path, BotState],
     generations: dict[Path, tuple[int, bytes]],
 ) -> Path:
     """Select the newest replica only after every sequence has one exact identity."""
@@ -119,7 +119,7 @@ def load_state(
     read_stable_owned_json_bytes_no_follow: Callable[..., tuple[bool, bytes | None]],
     require_compatible_state_reader: Callable[..., int],
     save_state: Callable[..., StateCommitProof],
-) -> dict:
+) -> BotState:
     """Load, validate, and recover runtime state from durable storage."""
     from mrs_bot_state_generation import (
         canonical_bytes, generation_number, require_unambiguous_legacy_documents,
@@ -135,7 +135,7 @@ def load_state(
     candidate_recoveries: dict[Path, list[dict[str, object]]] = {}
     candidate_generations: dict[Path, tuple[int, bytes]] = {}
 
-    def persist_candidate_recoveries(candidate: Path, state: dict) -> None:
+    def persist_candidate_recoveries(candidate: Path, state: BotState) -> None:
         """Commit safe state repairs before any post-load provider work."""
         if not candidate_recoveries.get(candidate):
             return
@@ -146,7 +146,7 @@ def load_state(
         *,
         reject_legacy: bool,
         recover_pending_identity: bool = False,
-    ) -> dict | None:
+    ) -> BotState | None:
         nonlocal existing_candidates
         try:
             present, data = read_stable_owned_json_bytes_no_follow(candidate)
@@ -214,17 +214,17 @@ def load_state(
         if normalised is not None:
             candidate_recoveries[candidate] = recovery_events
             candidate_generations[candidate] = (sequence, canonical_bytes(strict_document(data)))
-        return cast(dict, normalised) if normalised is not None else None
+        return normalised
 
     latest_backup_path = STATE_FILE.with_name(f"{STATE_FILE.name}.bak1")
     primary = load_candidate(STATE_FILE, reject_legacy=True)
     # Generation-aware files carry ordering in their own atomic document. Scan
     # all replicas and fail on sequence collisions, rather than treating a stale
     # latest backup as a veto over a committed primary.
-    modern: dict[Path, dict] = {}
+    modern: dict[Path, BotState] = {}
     if primary is not None and candidate_generations[STATE_FILE][0]:
         modern[STATE_FILE] = primary
-    inspected_backups: dict[Path, dict | None] = {}
+    inspected_backups: dict[Path, BotState | None] = {}
     for candidate in candidates[1:]:
         recovered = load_candidate(candidate, reject_legacy=primary is None)
         inspected_backups[candidate] = recovered
@@ -328,4 +328,4 @@ def load_state(
         raise RuntimeError(message)
 
     log.error("No state file or backup found; using default state")
-    return cast(dict, default_state())
+    return default_state()

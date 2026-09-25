@@ -28,15 +28,15 @@ DEPENDENCIES = {'default_state': ['STATE_MINIMUM_READER_VERSION'],
 SIGNATURES = {'default_state': "() -> 'BotState'",
  'append_unique_capped': "(values: 'object', item: 'object', max_items: 'int') -> 'list[str]'",
  'append_unique_durable': "(values: 'object', item: 'object') -> 'list[str]'",
- 'scheduler_epoch_from_state': "(state: 'dict', key: 'str', *, current: 'int | None' = None) -> "
+ 'scheduler_epoch_from_state': "(state: 'BotState', key: 'str', *, current: 'int | None' = None) -> "
                                "'tuple[int, bool]'",
- 'load_runtime_state': "() -> 'dict'",
- 'apply_state_fields': "(state: 'dict', fields: 'dict') -> 'None'",
+ 'load_runtime_state': "() -> 'BotState'",
+ 'apply_state_fields': "(state: 'BotState', fields: 'dict[str, object]') -> 'None'",
  'next_quote_schedule_fields': "(from_epoch: 'int | None' = None, *, delay: 'int | None' = None) "
                                "-> 'tuple[dict, int]'",
- 'schedule_next_quote_post': "(state: 'dict', from_epoch: 'int | None' = None, *, save: 'bool' = "
+ 'schedule_next_quote_post': "(state: 'BotState', from_epoch: 'int | None' = None, *, save: 'bool' = "
                              "True) -> 'None'",
- 'prepare_test_main_post_state': "(state: 'dict') -> 'None'"}
+ 'prepare_test_main_post_state': "(state: 'BotState') -> 'None'"}
 
 
 def test_import_needs_no_runtime_access():

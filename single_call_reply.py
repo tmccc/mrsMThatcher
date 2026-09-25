@@ -363,8 +363,78 @@ class PipelineTelemetry(Protocol):
     """Shared accounting carried by every checked evaluation outcome."""
 
     @property
+    def status(self) -> str:
+        """Expose the checked outcome status."""
+        ...
+
+    @property
     def reason(self) -> str:
         """Expose the checked reason value."""
+        ...
+
+    @property
+    def decision(self) -> str | None:
+        """Expose the editorial decision when one exists."""
+        ...
+
+    @property
+    def used_fact_ids(self) -> tuple[str, ...]:
+        """Expose the trusted fact identities used by the decision."""
+        ...
+
+    @property
+    def local_validation_status(self) -> str:
+        """Expose the local validation disposition."""
+        ...
+
+    @property
+    def payload_sha256(self) -> str | None:
+        """Expose the provider payload identity."""
+        ...
+
+    @property
+    def visible_turn_count(self) -> int:
+        """Expose the visible conversation count."""
+        ...
+
+    @property
+    def visible_character_count(self) -> int:
+        """Expose the visible conversation size."""
+        ...
+
+    @property
+    def same_author_interaction_count(self) -> int:
+        """Expose same-author history count."""
+        ...
+
+    @property
+    def recent_conversational_reply_count(self) -> int:
+        """Expose recent reply history count."""
+        ...
+
+    @property
+    def trusted_fact_count(self) -> int:
+        """Expose the available trusted fact count."""
+        ...
+
+    @property
+    def supplied_image_count(self) -> int:
+        """Expose the supplied image count."""
+        ...
+
+    @property
+    def validation_error_codes(self) -> tuple[str, ...]:
+        """Expose bounded local validation codes."""
+        ...
+
+    @property
+    def rejected_reply_text(self) -> str | None:
+        """Expose rejected text for bounded telemetry only."""
+        ...
+
+    @property
+    def rejected_reply_text_character_count(self) -> int | None:
+        """Expose the rejected text size."""
         ...
 
     @property
@@ -2605,7 +2675,7 @@ def run_reply_pipeline(
     ))
 
 
-def decision_telemetry(result: PipelineResult) -> dict[str, Any]:
+def decision_telemetry(result: PipelineTelemetry) -> dict[str, Any]:
     """Return bounded fields for the sole structured decision event."""
 
     outcome = (

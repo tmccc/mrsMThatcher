@@ -12,9 +12,10 @@ import functools
 import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from logging import Logger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from mrs_bot_main_post_attempt_values import (
     bound_meme_schedule_state as capture_bound_meme_schedule_state,
@@ -33,7 +34,7 @@ from mrs_bot_transport_source_preparation import (
     validate_confirmed_media_upload_metadata,
 )
 from mrs_bot_transaction_recovery import ensure_reconciled_regular_receipt_schedule_is_future
-from mrs_bot_main_post_publication import MainPostPublication
+from mrs_bot_main_post_publication import CreatePreparedMainPost, MainPostPublication
 from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from mrs_bot_main_post_receipts import MainPostReceiptValues
 from mrs_bot_main_post_reconciliation import (
@@ -51,17 +52,196 @@ from mrs_bot_receipt_primitives import valid_post_id
 
 if TYPE_CHECKING:
     from mrs_bot_core_contracts import (
-        AttemptingMainPostAttempt, MainPostAttempt, MainPostLane,
+        AttemptingMainPostAttempt, BotState, BoundMemeScheduleState, MainPostAttempt, MainPostLane,
         PendingMainPostReceipt, SendingMainPostAttempt,
     )
+    from mrs_bot_reply_cycle_interfaces import SaveReplyState
+    from mrs_bot_runtime_state_helpers import QuoteSchedule
+    from mrs_bot_state_generation import StateCommitProof
+    from mrs_bot_main_post_confirmation_persistence import RegularPostPersistenceResult
     from mrsMThatcher2 import (
-        ApiError, ConfirmedPendingScheduleDurabilityUncertain,
+        ApiError, ConfirmedPendingScheduleDurabilityUncertain, ConfirmedPostSigintDeferral,
         NoViableQuoteImagePair,
     )
-    from remote_write_transport_journal import SourceReceiptBinding, TransportAuthority
+    from remote_media_upload_receipt import (
+        ConfirmedMediaUpload, MediaHandoffAuthority, MediaReceiptSnapshot,
+        MediaRetirementState,
+    )
+    from remote_write_transport_journal import (
+        ConfirmedSourceRecovery, ConfirmedTransportDetails, SourceReceiptBinding,
+        TransportAuthority,
+    )
+    from transaction_mutation_authority import TransactionMutationAuthority
     from mrs_bot_daily_meme import MemeCatalog, MemeSchedule
     from mrs_bot_image_selection import ImageSelection
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
+
+
+class ReplaceExactReceiptDocument(Protocol):
+    """Replace one receipt only under its original bytes and lock authority."""
+
+    def __call__(
+        self, path: Path, *, expected_bytes: bytes, replacement_bytes: bytes,
+        mutation_authority: TransactionMutationAuthority | None = None,
+    ) -> None: ...
+
+
+class AcquireMainPostMutationAuthority(Protocol):
+    """Acquire the current transaction mutation authority for one operation."""
+
+    def __call__(self, operation: str) -> TransactionMutationAuthority: ...
+
+
+class RetireCurrentMainPostSource(Protocol):
+    """Retire the exact current source using a commit proof or safe disposition."""
+
+    def __call__(
+        self, receipt_path: Path, expected_receipt_bytes: bytes, *,
+        commit_proof: StateCommitProof | None = None, disposition: str | None = None,
+    ) -> None: ...
+
+
+class ReplaceBoundMainPostSource(Protocol):
+    """Promote the source bound to a confirmed transport transaction."""
+
+    def __call__(
+        self, binding: SourceReceiptBinding, replacement_bytes: bytes, *,
+        mutation_authority: TransactionMutationAuthority | None = None,
+    ) -> None: ...
+
+
+class BeginMainPostTransport(Protocol):
+    """Publish a sealed transport barrier for the already bound source."""
+
+    def __call__(
+        self, *, receipt_path: Path, source_binding: SourceReceiptBinding,
+    ) -> TransportAuthority: ...
+
+
+class BindMainPostTransportSource(Protocol):
+    """Bind an attempting receipt and exact payload before remote creation."""
+
+    def __call__(
+        self, *, receipt_path: Path, receipt: AttemptingMainPostAttempt,
+        lane: str, payload: dict[str, object],
+    ) -> SourceReceiptBinding: ...
+
+
+class BindConfirmedMainPostSource(Protocol):
+    """Reinspect the confirmed source with the current semantic validator."""
+
+    def __call__(
+        self, *, journal_path: Path, receipt_path: Path, validator_id: str,
+        validator: Callable[[str, Mapping[str, Any], Mapping[str, Any]], bool],
+    ) -> ConfirmedSourceRecovery: ...
+
+
+class SaveUsedMainPostHistory(Protocol):
+    """Persist one used-history set with its requested durability."""
+
+    def __call__(self, path: Path, value: set[str], *, durable: bool = False) -> None: ...
+
+
+class VerifyMainPostTransportLineage(Protocol):
+    """Verify one receipt against an optional sealed transport source."""
+
+    def __call__(
+        self, *, receipt_path: Path, receipt: dict[str, Any], lane: str,
+        post_id: str, current_receipt_bytes: bytes | None = None,
+    ) -> bool: ...
+
+
+class RetireMainPostTransportJournal(Protocol):
+    """Retire a journal only after exact state and receipt proof."""
+
+    def __call__(
+        self, *, receipt_path: Path, receipt: Mapping[str, Any], lane: str,
+        post_id: str, current_receipt_bytes: bytes | None = None,
+        commit_proof: StateCommitProof | None = None,
+    ) -> bool: ...
+
+
+class WriteMainPostReceiptJSON(Protocol):
+    """Write a receipt with the requested durability setting."""
+
+    def __call__(self, path: Path, value: object, *, durable: bool = False) -> None: ...
+
+
+class ExactJSONFileMatches(Protocol):
+    """Reprove a durable JSON file against the optional exact commit proof."""
+
+    def __call__(
+        self, path: Path, expected: object, *,
+        commit_proof: StateCommitProof | None = None,
+    ) -> bool: ...
+
+
+class RetireConfirmedMediaUpload(Protocol):
+    """Retire a confirmed upload under its handoff and current authority."""
+
+    def __call__(
+        self, receipt_path: Path, handoff: MediaHandoffAuthority, *,
+        mutation_authority: TransactionMutationAuthority | None = None,
+    ) -> MediaRetirementState: ...
+
+
+class BindMediaHandoffToTransport(Protocol):
+    """Bind confirmed media to the prepared tweet transport authority."""
+
+    def __call__(
+        self, receipt_path: Path, confirmation: ConfirmedMediaUpload | None, *,
+        transport_journal_path: Path, transport_fence_path: Path,
+        source_receipt_path: Path,
+    ) -> MediaHandoffAuthority: ...
+
+
+class UploadMainPostMedia(Protocol):
+    """Upload one selected image under its main-post lane."""
+
+    def __call__(self, image_path: str, *, lane: str) -> str: ...
+
+
+class BlockAmbiguousMainPost(Protocol):
+    """Check the remote-write barrier before main-post reconciliation."""
+
+    def __call__(
+        self, *, allow_confirmed_pending_schedule_reconciliation: bool = False,
+    ) -> None: ...
+
+
+class LatchConfirmedMainPostFailure(Protocol):
+    """Latch a confirmed post whose complete recovery path failed."""
+
+    def __call__(
+        self, *, lane: str, post_id: str, failure_components: list[str],
+    ) -> bool: ...
+
+
+class BuildCurrentMainPostAttempt(Protocol):
+    """Build a new sending attempt with the current main-post policy."""
+
+    def __call__(
+        self, *, lane: str, text: str, media_ids: list[str], made_with_ai: bool,
+        selected_identity: dict[str, object], recovery_plan: dict[str, object],
+        attempt_epoch: int | None = None,
+    ) -> SendingMainPostAttempt: ...
+
+
+class CaptureBoundMemeState(Protocol):
+    """Snapshot the live meme schedule using the current bound policy."""
+
+    def __call__(
+        self, state: BotState, *, schedule_timezone: str | None = None,
+    ) -> BoundMemeScheduleState: ...
+
+
+class RemoveMainPostAttemptWithProof(Protocol):
+    """Retire an attempt with its exact disposition and optional commit proof."""
+
+    def __call__(
+        self, attempt: Mapping[str, Any], *, sending_disposition: str,
+        commit_proof: StateCommitProof | None = None,
+    ) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -118,45 +298,45 @@ class MainPostErrors:
 class MainPostReceiptIO:
     """Shared durable receipt primitives and proof-authorised retirement."""
 
-    durable_create: Callable
-    namespace_entry_exists: Callable
-    retirement_is_blocking: Callable
-    replace_exact_document: Callable
-    mutation_authority: Callable
-    load_no_follow: Callable
-    atomic_write_json: Callable
-    retire_current_source: Callable
-    replace_bound_source: Callable
-    fsync_parent_dir: Callable
-    atomic_json_matches: Callable
+    durable_create: Callable[[Path, object], None]
+    namespace_entry_exists: Callable[[Path], bool]
+    retirement_is_blocking: Callable[[], bool]
+    replace_exact_document: ReplaceExactReceiptDocument
+    mutation_authority: AcquireMainPostMutationAuthority
+    load_no_follow: Callable[[Path], tuple[bool, object | None]]
+    atomic_write_json: WriteMainPostReceiptJSON
+    retire_current_source: RetireCurrentMainPostSource
+    replace_bound_source: ReplaceBoundMainPostSource
+    fsync_parent_dir: Callable[..., None]
+    atomic_json_matches: Callable[[Path, object], bool]
 
 
 @dataclass(frozen=True)
 class MainPostTransport:
     """The application's sealed transport and interrupt authority."""
 
-    begin_transport_transaction: Callable
-    bind_lane_transport_source: Callable
-    bind_media_handoff_to_transport: Callable
-    confirmed_media_upload_type: type
-    inspect_media_upload_receipt: Callable
-    load_confirmed_media_upload: Callable
-    retire_confirmed_media_upload: Callable
-    begin_sigint: Callable
-    create_post: Callable
-    proves_non_success: Callable
-    end_sigint: Callable
-    incident_latched: Callable
-    durable_barrier_exists: Callable
-    retain_sigint: Callable
-    inspect_confirmation: Callable
-    journal_path: Callable
-    bind_confirmed_source: Callable
-    source_semantic_validator: Callable
-    set_ambiguous_seen: Callable
-    upload_media: Callable
-    block_if_ambiguous: Callable
-    latch_confirmed_failure: Callable
+    begin_transport_transaction: BeginMainPostTransport
+    bind_lane_transport_source: BindMainPostTransportSource
+    bind_media_handoff_to_transport: BindMediaHandoffToTransport
+    confirmed_media_upload_type: type[ConfirmedMediaUpload]
+    inspect_media_upload_receipt: Callable[[Path], MediaReceiptSnapshot | None]
+    load_confirmed_media_upload: Callable[[Path], ConfirmedMediaUpload | None]
+    retire_confirmed_media_upload: RetireConfirmedMediaUpload
+    begin_sigint: Callable[[], ConfirmedPostSigintDeferral]
+    create_post: CreatePreparedMainPost
+    proves_non_success: Callable[[BaseException], bool]
+    end_sigint: Callable[[ConfirmedPostSigintDeferral | None], None]
+    incident_latched: Callable[[], bool]
+    durable_barrier_exists: Callable[[], bool]
+    retain_sigint: Callable[..., None]
+    inspect_confirmation: Callable[[Path], ConfirmedTransportDetails]
+    journal_path: Callable[[Path], Path]
+    bind_confirmed_source: BindConfirmedMainPostSource
+    source_semantic_validator: Callable[[str, dict[str, Any], dict[str, Any]], bool]
+    set_ambiguous_seen: Callable[[bool], None]
+    upload_media: UploadMainPostMedia
+    block_if_ambiguous: BlockAmbiguousMainPost
+    latch_confirmed_failure: LatchConfirmedMainPostFailure
 
 
 @dataclass(frozen=True)
@@ -164,23 +344,23 @@ class MainPostApplication:
     """Shared state, observability, and optional-context application services."""
 
     log: Logger
-    log_event: Callable
-    emit_account_root_posted: Callable
+    log_event: Callable[..., None]
+    emit_account_root_posted: Callable[..., None]
     now_epoch: Callable[[], int]
-    safe_bound_schedule_date: Callable
-    valid_receipt_epoch: Callable
-    bound_schedule_datetime: Callable
-    save_state: Callable
-    save_image_used_basenames: Callable
-    save_quote_used_hashes: Callable
-    json_file_matches: Callable
-    retire_transport_journal: Callable
-    verify_transport_lineage: Callable
-    quote_schedule: Callable
-    require_context_outbox_writable: Callable
-    enqueue_context: Callable
-    process_due_context: Callable
-    load_meme_analysis_index: Callable
+    safe_bound_schedule_date: Callable[[int, object], str | None]
+    valid_receipt_epoch: Callable[[object], bool]
+    bound_schedule_datetime: Callable[[int, object], datetime]
+    save_state: SaveReplyState
+    save_image_used_basenames: SaveUsedMainPostHistory
+    save_quote_used_hashes: SaveUsedMainPostHistory
+    json_file_matches: ExactJSONFileMatches
+    retire_transport_journal: RetireMainPostTransportJournal
+    verify_transport_lineage: VerifyMainPostTransportLineage
+    quote_schedule: Callable[[], QuoteSchedule]
+    require_context_outbox_writable: Callable[..., Any]
+    enqueue_context: Callable[..., Any]
+    process_due_context: Callable[..., Any]
+    load_meme_analysis_index: Callable[..., Any]
     selection: Callable[[], ImageSelection]
     tweets: Callable[[], TweetLookupCache]
 
@@ -277,13 +457,43 @@ class MainPostAssembly:
             os=os,
         )
 
-    def confirmation_epoch(self, attempt: dict, observed_epoch: int) -> int:
+    def _build_attempt_with_current_owner(
+        self, *, lane: str, text: str, media_ids: list[str], made_with_ai: bool,
+        selected_identity: dict[str, object], recovery_plan: dict[str, object],
+        attempt_epoch: int | None = None,
+    ) -> SendingMainPostAttempt:
+        """Refresh the sibling owner for each runner attempt construction."""
+        return self.current().build_attempt(
+            lane=lane, text=text, media_ids=media_ids, made_with_ai=made_with_ai,
+            selected_identity=selected_identity, recovery_plan=recovery_plan,
+            attempt_epoch=attempt_epoch,
+        )
+
+    def _bound_meme_state_with_current_owner(
+        self, state: BotState, *, schedule_timezone: str | None = None,
+    ) -> BoundMemeScheduleState:
+        """Refresh the sibling owner when the runner captures its meme schedule."""
+        return self.current().bound_meme_state(
+            state, schedule_timezone=schedule_timezone,
+        )
+
+    def _remove_attempt_with_current_owner(
+        self, attempt: Mapping[str, Any], *, sending_disposition: str,
+        commit_proof: StateCommitProof | None = None,
+    ) -> None:
+        """Refresh the sibling owner for each attempt retirement."""
+        self.current().remove_attempt(
+            attempt, sending_disposition=sending_disposition,
+            commit_proof=commit_proof,
+        )
+
+    def confirmation_epoch(self, attempt: Mapping[str, Any], observed_epoch: int) -> int:
         """Keep a confirmed epoch at or after its durable attempt epoch."""
         return confirmation_epoch_for_main_attempt(
             attempt, observed_epoch, log=self.application.log,
         )
 
-    def bound_meme_state(self, state: dict, *, schedule_timezone: str | None = None) -> dict:
+    def bound_meme_state(self, state: BotState, *, schedule_timezone: str | None = None) -> BoundMemeScheduleState:
         """Capture the current meme schedule in an exact pre-send plan."""
         return capture_bound_meme_schedule_state(
             state,
@@ -336,8 +546,8 @@ class MainPostAssembly:
         )
 
     def save_regular_protected_state(
-        self, lines_used: set, images_used: set, state: dict, *, durable: bool,
-    ):
+        self, lines_used: set[str], images_used: set[str], state: BotState, *, durable: bool,
+    ) -> StateCommitProof:
         """Save regular-post histories and canonical state in their existing order."""
         return save_regular_post_protected_state(
             lines_used, images_used, state, durable=durable,
@@ -348,7 +558,9 @@ class MainPostAssembly:
             save_state=self.application.save_state,
         )
 
-    def emergency_regular(self, lines_used: set, images_used: set, state: dict):
+    def emergency_regular(
+        self, lines_used: set[str], images_used: set[str], state: BotState,
+    ) -> RegularPostPersistenceResult:
         """Persist an emergency regular-post representation after confirmation."""
         p, e, a = self.policy, self.errors, self.application
         return emergency_persist_confirmed_regular_post(
@@ -365,7 +577,7 @@ class MainPostAssembly:
         )
 
     def ensure_regular_schedule_future(
-        self, receipt: dict, state: dict, current: int,
+        self, receipt: dict[str, Any], state: BotState, current: int,
     ) -> bool:
         """Delay a due quote schedule before retiring a replayed receipt."""
         return ensure_reconciled_regular_receipt_schedule_is_future(
@@ -374,27 +586,39 @@ class MainPostAssembly:
             quote_schedule=self.application.quote_schedule(),
         )
 
-    def remove_attempt(self, attempt: Mapping[str, Any], *, sending_disposition: str, commit_proof=None) -> None:
+    def remove_attempt(
+        self, attempt: Mapping[str, Any], *, sending_disposition: str,
+        commit_proof: StateCommitProof | None = None,
+    ) -> None:
         """Retire exactly one attempt under its required proof or disposition."""
         if sending_disposition == "confirmed_state_fallback":
             from mrs_bot_state_generation import require_commit_proof
             require_commit_proof(commit_proof)
+            assert commit_proof is not None
             commit_proof.require_receipt(attempt)
+        retire_source = (
+            functools.partial(
+                self.receipt_io.retire_current_source,
+                commit_proof=commit_proof, disposition="definite_non_success",
+            )
+            if sending_disposition == "definite_non_success"
+            else functools.partial(
+                self.receipt_io.retire_current_source, commit_proof=commit_proof,
+            )
+        )
         return self.receipts().remove_attempt(
             attempt,
             sending_disposition=sending_disposition,
-            retire_current_source_receipt=functools.partial(
-                self.receipt_io.retire_current_source,
-                commit_proof=commit_proof,
-                **({"disposition": "definite_non_success"}
-                   if sending_disposition == "definite_non_success" else {}),
-            ),
+            retire_current_source_receipt=retire_source,
         )
 
-    def remove_regular(self, receipt: dict, *, commit_proof=None) -> None:
+    def remove_regular(
+        self, receipt: Mapping[str, Any], *, commit_proof: StateCommitProof | None = None,
+    ) -> None:
         """Require the exact commit proof before removing a regular receipt."""
         from mrs_bot_state_generation import require_commit_proof
         require_commit_proof(commit_proof)
+        assert commit_proof is not None
         commit_proof.require_receipt(receipt)
         return self.receipts().remove_regular(
             receipt,
@@ -403,10 +627,13 @@ class MainPostAssembly:
             ),
         )
 
-    def remove_meme(self, receipt: dict, *, commit_proof=None) -> None:
+    def remove_meme(
+        self, receipt: Mapping[str, Any], *, commit_proof: StateCommitProof | None = None,
+    ) -> None:
         """Require the exact commit proof before removing a meme receipt."""
         from mrs_bot_state_generation import require_commit_proof
         require_commit_proof(commit_proof)
+        assert commit_proof is not None
         commit_proof.require_receipt(receipt)
         return self.receipts().remove_meme(
             receipt,
@@ -520,6 +747,32 @@ class MainPostAssembly:
     ) -> MainPostRecovery:
         """Bind local receipt application and replay to the same operation."""
         p, e, a = self.policy, self.errors, self.application
+
+        def save_regular(
+            lines_used: set[str], images_used: set[str], state: BotState, *, durable: bool,
+        ) -> StateCommitProof:
+            return self.current().save_regular_protected_state(
+                lines_used, images_used, state, durable=durable,
+            )
+
+        def emergency_regular(
+            lines_used: set[str], images_used: set[str], state: BotState,
+        ) -> RegularPostPersistenceResult:
+            return self.current().emergency_regular(lines_used, images_used, state)
+
+        def remove_regular(
+            receipt: Mapping[str, Any], *, commit_proof: StateCommitProof | None = None,
+        ) -> None:
+            self.current().remove_regular(receipt, commit_proof=commit_proof)
+
+        def remove_meme(
+            receipt: Mapping[str, Any], *, commit_proof: StateCommitProof | None = None,
+        ) -> None:
+            self.current().remove_meme(receipt, commit_proof=commit_proof)
+
+        def ensure_future(receipt: dict[str, Any], state: BotState, current: int) -> bool:
+            return self.current().ensure_regular_schedule_future(receipt, state, current)
+
         return MainPostRecovery(
             receipts=receipts,
             values=values,
@@ -537,13 +790,13 @@ class MainPostAssembly:
             ),
             persistence=MainPostRecoveryPersistence(
                 save_state=a.save_state,
-                save_regular_protected_state=lambda *args, **kwargs: self.current().save_regular_protected_state(*args, **kwargs),
-                emergency_regular=lambda *args, **kwargs: self.current().emergency_regular(*args, **kwargs),
-                remove_regular_receipt=lambda *args, **kwargs: self.current().remove_regular(*args, **kwargs),
-                remove_meme_receipt=lambda *args, **kwargs: self.current().remove_meme(*args, **kwargs),
+                save_regular_protected_state=save_regular,
+                emergency_regular=emergency_regular,
+                remove_regular_receipt=remove_regular,
+                remove_meme_receipt=remove_meme,
                 retire_transport_journal=a.retire_transport_journal,
                 verify_transport_lineage=a.verify_transport_lineage,
-                ensure_regular_schedule_future=lambda *args, **kwargs: self.current().ensure_regular_schedule_future(*args, **kwargs),
+                ensure_regular_schedule_future=ensure_future,
             ),
             context=MainPostContextObligations(
                 enqueue=a.enqueue_context,
@@ -608,9 +861,9 @@ class MainPostAssembly:
             errors=self.errors,
             transport=self.transport,
             application=self.application,
-            build_attempt=lambda **kwargs: self.current().build_attempt(**kwargs),
-            bound_meme_state=lambda *args, **kwargs: self.current().bound_meme_state(*args, **kwargs),
-            remove_attempt=lambda *args, **kwargs: self.current().remove_attempt(*args, **kwargs),
+            build_attempt=self._build_attempt_with_current_owner,
+            bound_meme_state=self._bound_meme_state_with_current_owner,
+            remove_attempt=self._remove_attempt_with_current_owner,
         )
 
     def recovery_operation(self) -> MainPostRecovery:
@@ -640,6 +893,6 @@ class MainPostAssembly:
             errors=self.errors,
             transport=self.transport,
             application=self.application,
-            build_attempt=lambda **kwargs: self.current().build_attempt(**kwargs),
-            remove_attempt=lambda *args, **kwargs: self.current().remove_attempt(*args, **kwargs),
+            build_attempt=self._build_attempt_with_current_owner,
+            remove_attempt=self._remove_attempt_with_current_owner,
         )

@@ -33,12 +33,13 @@ from mrs_bot_reply_state import handled_reply_target_ids
 from mrs_bot_tweet_lookup_cache import normalise_tweet_text
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_mention_authority import MentionAuthority
     from mrs_bot_reply_evaluation_state import ReplyEvaluations
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
 
 
-def remove_pending_mention_candidate(state: dict, mention_id: str) -> bool:
+def remove_pending_mention_candidate(state: BotState, mention_id: str) -> bool:
     """Remove one completely handled mention from the durable fetched queue."""
     pending = state.get("mention_pending_candidates")
     if not isinstance(pending, dict) or str(mention_id) not in pending:
@@ -59,11 +60,11 @@ class MentionQueue:
     sort_candidates: Callable
     log: Logger
 
-    def remove_pending(self, state: dict, mention_id: str) -> bool:
+    def remove_pending(self, state: BotState, mention_id: str) -> bool:
         """Remove one completely handled mention from the durable queue."""
         return remove_pending_mention_candidate(state, mention_id)
 
-    def pending(self, state: dict) -> list[dict]:
+    def pending(self, state: BotState) -> list[dict]:
         """Return the durable fetched-candidate queue, deduplicated by status ID."""
         usable, changed = self.authority.validate_pending(
             state,
@@ -85,7 +86,7 @@ class MentionQueue:
             context="durable pending mention",
         )
 
-    def advance_watermark(self, state: dict, mention_id: str) -> None:
+    def advance_watermark(self, state: BotState, mention_id: str) -> None:
         """Advance the durable mention watermark without moving it backwards."""
         previous = state.get("last_seen_mention_id")
         self.log.debug("Updating last_seen_mention_id. previous=%s new_candidate=%s", previous, mention_id)
@@ -98,7 +99,7 @@ class MentionQueue:
             state["last_seen_mention_id"] = str(mention_id)
         self.log.debug("last_seen_mention_id is now %s", state["last_seen_mention_id"])
 
-    def mark_seen(self, state: dict, candidate: dict) -> None:
+    def mark_seen(self, state: BotState, candidate: dict) -> None:
         """Retire a durably queued mention, with legacy watermark compatibility."""
         if candidate.get("_source", "mention") == "mention" and self.remove_pending(
             state,
@@ -116,7 +117,7 @@ class MentionQueue:
 
 
 def get_mentions(
-    state: dict,
+    state: BotState,
     *,
     ApiError: type[Exception],
     MAX_MENTIONS_PER_CHECK: int,
@@ -432,7 +433,7 @@ class _MentionTraversalProgress:
 
 
 def _persist_mention_page(
-    state: dict,
+    state: BotState,
     page_data: list[dict],
     includes: dict,
     next_token: str,

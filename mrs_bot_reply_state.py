@@ -10,6 +10,10 @@ callbacks or caller state are retained.
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
 
 from mrs_bot_runtime_state_helpers import append_unique_capped, append_unique_durable
 from mrs_bot_reply_drafts import pending_ai_reply_draft_key
@@ -20,7 +24,7 @@ from mrs_bot_reply_history import (
 )
 
 
-def handled_reply_target_ids(state: dict) -> set[str]:
+def handled_reply_target_ids(state: BotState) -> set[str]:
     """Snapshot normal and legacy quote targets already handled for admission.
 
     The normal ledger also contains terminal outcomes without a remote post, so
@@ -29,18 +33,18 @@ def handled_reply_target_ids(state: dict) -> set[str]:
     """
     return {
         str(value)
-        for key in ("replied_to_ids", "replied_to_quote_post_ids")
-        for value in state.get(key, [])
+        for values in (state.get("replied_to_ids", []), state.get("replied_to_quote_post_ids", []))
+        for value in values
     }
 
 
 def retire_ineligible_reply_draft(
-    state: dict,
+    state: BotState,
     target_id: str,
     candidate_source: str,
     *,
     reason: str,
-    retire_draft: Callable[[dict, str, str], None],
+    retire_draft: Callable[[BotState, str, str], None],
     record_terminal_reply_evaluation: Callable,
 ) -> None:
     """Retire the draft through its owner, then record ineligible evaluation.
@@ -59,7 +63,7 @@ def retire_ineligible_reply_draft(
     )
 
 
-def remove_pending_quote_candidate(state: dict, quote_id: str) -> bool:
+def remove_pending_quote_candidate(state: BotState, quote_id: str) -> bool:
     """Remove a handled quote from the fetched queue before its caller saves."""
     pending = state.get("quote_pending_candidates")
     if not isinstance(pending, dict) or str(quote_id) not in pending:
@@ -71,7 +75,7 @@ def remove_pending_quote_candidate(state: dict, quote_id: str) -> bool:
 
 
 def mark_quote_tweet_skipped(
-    state: dict,
+    state: BotState,
     quote_id: str,
 ) -> None:
     """Mark quote tweet skipped."""
@@ -91,7 +95,7 @@ def mark_quote_tweet_skipped(
 
 
 def mark_quote_tweet_replied(
-    state: dict,
+    state: BotState,
     quote_id: str,
 ) -> None:
     """Mark quote tweet replied."""

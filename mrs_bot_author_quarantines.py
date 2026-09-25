@@ -15,6 +15,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
 
 
 AUTHOR_EVALUATION_QUARANTINE_PREVIOUS_EVIDENCE_POLICY = (
@@ -34,7 +38,7 @@ AUTHOR_EVALUATION_QUARANTINE_LEGACY_EVIDENCE_POLICY = (
 )
 
 
-def clear_author_evaluation_quarantine_history(state: dict, author_id: str) -> bool:
+def clear_author_evaluation_quarantine_history(state: BotState, author_id: str) -> bool:
     """Clear prior strikes when a mention receives a validated reply."""
     records = state.get("author_evaluation_quarantines")
     if not isinstance(records, dict) or str(author_id) not in records:
@@ -62,7 +66,7 @@ class AuthorQuarantines:
         """Return retention sized from the effective runtime quarantine threshold."""
         return max(100, int(self.threshold) * 4)
 
-    def prune(self, state: dict, *, current_epoch: int | None=None) -> bool:
+    def prune(self, state: BotState | dict, *, current_epoch: int | None=None) -> bool:
         """Expire quarantines and discard author strikes outside the live window."""
         records = state.get("author_evaluation_quarantines")
         if not isinstance(records, dict):
@@ -135,7 +139,7 @@ class AuthorQuarantines:
 
     def active(
         self,
-        state: dict,
+        state: BotState,
         author_id: str,
         *,
         current_epoch: int | None = None,
@@ -154,7 +158,7 @@ class AuthorQuarantines:
 
     def record_no_reply(
         self,
-        state: dict,
+        state: BotState,
         author_id: str,
         *,
         current_epoch: int | None = None,

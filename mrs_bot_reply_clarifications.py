@@ -20,6 +20,7 @@ from mrs_bot_tweet_lookup_cache import tweet_text_is_complete
 
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_reply_context import ReplyContext
 
 
@@ -64,12 +65,12 @@ class ClarificationReplies:
     window_seconds: int
     log_event: Callable
 
-    def thread_is_terminal(self, state: dict, candidate: dict) -> bool:
+    def thread_is_terminal(self, state: BotState, candidate: dict) -> bool:
         """Return whether clarification thread is terminal."""
         records = state.get("clarification_reply_records", {})
         return isinstance(records, dict) and clarification_thread_id(candidate) in records
 
-    def author_used_recently(self, state: dict, author_id: str, *, current: int) -> bool:
+    def author_used_recently(self, state: BotState, author_id: str, *, current: int) -> bool:
         """Return the author used clarification recently."""
         records = state.get("clarification_reply_records", {})
         if not isinstance(records, dict):
@@ -87,7 +88,7 @@ class ClarificationReplies:
 
     tokens = staticmethod(_clarification_tokens)
 
-    def context(self, state: dict, candidate: dict, *, current: int) -> dict | None:
+    def context(self, state: BotState, candidate: dict, *, current: int) -> dict | None:
         """Return bounded repair metadata only for a direct follow-up to our confirmed reply."""
         if not self.pipeline_enabled() or self.thread_is_terminal(state, candidate):
             return None
@@ -161,7 +162,7 @@ class ClarificationReplies:
         }
 
     def assert_no_conflict(
-        self, state: dict, clarification: dict, *, reply_post_id: str,
+        self, state: BotState, clarification: dict, *, reply_post_id: str,
     ) -> None:
         """Reject confirmation when the thread already names a different repair."""
         existing_records = state.get("clarification_reply_records", {})
@@ -172,7 +173,7 @@ class ClarificationReplies:
             )
 
     def record_completed(
-        self, state: dict, clarification: dict, *, author_id: str,
+        self, state: BotState, clarification: dict, *, author_id: str,
         target_id: str, reply_post_id: str, reply_epoch: int,
     ) -> None:
         """Record a confirmed repair once, retaining prior ledger records and events."""

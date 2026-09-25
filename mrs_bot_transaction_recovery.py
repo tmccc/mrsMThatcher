@@ -15,13 +15,14 @@ from mrs_bot_receipt_retirement import confirmed_context_outbox_matches_receipt
 
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_main_post_receipt_storage import MainPostReceipts
     from mrs_bot_runtime_state_helpers import QuoteSchedule
 
 
 def ensure_reconciled_regular_receipt_schedule_is_future(
     receipt: dict,
-    state: dict,
+    state: BotState,
     current: int,
     *,
     log: Any,
@@ -62,7 +63,7 @@ def block_if_unresolved_regular_post_receipt(
 def reconcile_startup_main_post_receipts(
     lines_used: set,
     images_used: set,
-    state: dict,
+    state: BotState,
     current: int,
     *,
     global_remote_writes_paused: Any,
@@ -554,7 +555,7 @@ def _reconcile_historical_context_receipt_before_global_barrier(
 def reconcile_confirmed_transactions_before_global_barrier(
     lines_used: set,
     images_used: set,
-    state: dict,
+    state: BotState,
     current: int | None = None,
     *,
     CONFIRMED_REPLY_RECEIPT_FILE: Any,

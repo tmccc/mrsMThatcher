@@ -16,7 +16,7 @@ import random
 from collections.abc import Callable
 from datetime import datetime
 from logging import Logger
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 
 if TYPE_CHECKING:
@@ -121,7 +121,7 @@ def append_unique_durable(values: object, item: object) -> list[str]:
 
 
 def scheduler_epoch_from_state(
-    state: dict,
+    state: BotState,
     key: str,
     *,
     current: int | None = None,
@@ -134,7 +134,7 @@ def scheduler_epoch_from_state(
         and (not math.isfinite(raw_value) or not raw_value.is_integer())
     )
     try:
-        value = 0 if malformed else int(raw_value or 0)
+        value = 0 if malformed else int(cast(Any, raw_value) or 0)
     except (TypeError, ValueError, OverflowError):
         malformed = True
         value = 0
@@ -152,7 +152,7 @@ def scheduler_epoch_from_state(
         value = current if key == "last_quote_tweet_check_epoch" else 0
 
     if malformed or type(raw_value) is not int or raw_value != value:
-        state[key] = value
+        cast(dict[str, Any], state)[key] = value
         return value, True
 
     return value, False
@@ -161,9 +161,9 @@ def scheduler_epoch_from_state(
 def load_runtime_state(
     *,
     cooldowns: ApiCooldowns,
-    load_state: Any,
-    sanitize_next_reply_lane_priority: Any,
-) -> dict:
+    load_state: Callable[[], BotState],
+    sanitize_next_reply_lane_priority: Callable[[BotState], bool],
+) -> BotState:
     """Load runtime state and apply daily maintenance safely."""
     state = load_state()
     cooldowns.clear_expired(state)
@@ -171,14 +171,14 @@ def load_runtime_state(
     return state
 
 
-def apply_state_fields(state: dict, fields: dict) -> None:
+def apply_state_fields(state: BotState, fields: dict[str, object]) -> None:
     """Apply state fields."""
     for key, value in fields.items():
-        state[key] = value
+        cast(dict[str, Any], state)[key] = value
 
 
 def prepare_test_main_post_state(
-    state: dict,
+    state: BotState,
     *,
     ENABLE_DAILY_MEME_POSTS: Any,
     meme_schedule: MemeSchedule,
@@ -195,7 +195,7 @@ class QuoteSchedule:
     minimum_delay: int
     maximum_delay: int
     now_epoch: Callable[[], int]
-    save_state: Callable[..., Any]
+    save_state: Callable[[BotState], object]
     log: Logger
 
     def next_fields(
@@ -214,7 +214,7 @@ class QuoteSchedule:
 
     def schedule(
         self,
-        state: dict,
+        state: BotState,
         from_epoch: int | None = None,
         *,
         save: bool = True,

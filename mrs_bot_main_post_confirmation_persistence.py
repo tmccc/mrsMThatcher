@@ -13,6 +13,7 @@ from typing import Any, TYPE_CHECKING, cast
 from mrs_bot_durable_json_io import canonical_atomic_json_bytes
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_core_contracts import AttemptingMainPostAttempt, PendingMainPostReceipt
     from mrs_bot_main_post_receipt_storage import MainPostReceipts
     from mrs_bot_main_post_receipts import MainPostReceiptValues
@@ -192,7 +193,7 @@ def promote_main_post_attempt_to_confirmed_pending_schedule(
 def save_regular_post_protected_state(
     lines_used: set,
     images_used: set,
-    state: dict,
+    state: BotState,
     *,
     durable: bool,
     IMAGES_USED_FILE: Any,
@@ -224,7 +225,7 @@ class RegularPostPersistenceResult:
 def emergency_persist_confirmed_regular_post(
     lines_used: set,
     images_used: set,
-    state: dict,
+    state: BotState,
     *,
     IMAGES_USED_FILE: Any,
     LINES_USED_FILE: Any,

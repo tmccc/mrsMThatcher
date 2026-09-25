@@ -102,22 +102,30 @@ python3 tools/check_core_typing_examples.py
 actual root factories in `mrsMThatcher2.py`, both reply lanes and their assembly,
 generation, draft, delivery and completion modules, main-post assembly,
 publication, attempt/receipt owners and quote/meme runners, runtime coordination,
-and the state loading boundary. The value, runner, publication and runtime
-coordinator modules named in the configuration's per-module section have strict
-function and generic checks; the remaining selected legacy modules have their
-annotated bodies checked. Application imports outside that selected list are
-followed for their signatures without making unrelated offline, native media,
-transport and locking implementations strict. Those specialised authorities remain runtime
-boundaries. The configuration does not use `ignore_errors`,
+and the state loading boundary. The value, runner, publication, runtime
+coordinator, reply assembly and main-post assembly modules named in the
+configuration's per-module section have strict function and generic checks;
+the remaining selected legacy modules have their annotated bodies checked.
+The real root factories are checked against receipt, transport, mutation
+authority and state-save contracts. Application imports outside that selected
+list are followed for their signatures without making unrelated offline,
+native media, transport and locking implementations strict. Those specialised
+authorities remain runtime boundaries. The configuration does not use `ignore_errors`,
 `ignore_missing_imports`, or `follow_imports=skip`.
 
 `mrs_bot_core_contracts.py` describes normalised state, verified reply contexts,
 current and historical drafts, and the distinct reply and main-post receipt
-shapes. Raw JSON and provider values start as untrusted objects; existing
-state normalisation, draft validation and receipt validators establish the
-internal shapes. `single_call_reply.py` narrows its existing `PipelineResult`
-instance into reply-ready, no-reply, operational-failure, disabled or
-draft-discarded alternatives. The reply and main-post receipt loaders return
+shapes. Raw JSON and state-candidate normalisation remain dynamic and preserve
+unknown persisted fields. Once default creation or candidate normalisation
+succeeds, the same dictionary is carried as `BotState` through runtime
+coordination, reply cycles, delivery, completion and main-post orchestration.
+Recognised keys that may be absent are optional in that contract. Provider
+values remain untrusted objects; draft and receipt validators establish their
+internal shapes. `single_call_reply.py` retains the existing `PipelineResult`
+dataclass instance while its checked outcome protocols narrow reply-ready,
+no-reply, operational-failure, disabled and draft-discarded alternatives. Every
+alternative also guarantees the telemetry read by reply generation and decision
+logging. The reply and main-post receipt loaders return
 tagged outcomes for absence, invalid data and the supported sending,
 pending-schedule or confirmed stages. Current materialised main-post receipts
 are distinct from smaller historical validated forms.

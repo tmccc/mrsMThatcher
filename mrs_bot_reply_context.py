@@ -29,6 +29,7 @@ from mrs_bot_tweet_lookup_cache import TweetLookupCache, tweet_text_is_complete
 
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_core_contracts import RawTweet, ReplyContextData, ReplyRole, VisibleReplyTurn
     from mrsMThatcher2 import ApiError
     from mrs_bot_reply_native_media import ReplyMedia
@@ -187,7 +188,7 @@ class ReplyContext:
 
         return None
 
-    def parent_chain(self, mention: RawTweet, state: dict[str, object]) -> list[RawTweet]:
+    def parent_chain(self, mention: RawTweet, state: BotState) -> list[RawTweet]:
         """Build bounded earlier-thread context for a reply candidate."""
         chain: list[RawTweet] = []
         seen_ids: set[str] = set()
@@ -241,7 +242,7 @@ class ReplyContext:
 
         return chain
 
-    def is_our_auto_reply(self, tweet: RawTweet | None, state: dict[str, object]) -> bool:
+    def is_our_auto_reply(self, tweet: RawTweet | None, state: BotState) -> bool:
         """Return whether a post is one of this account's conversational replies."""
 
         if not tweet or str(tweet.get("author_id")) != str(self.user_id):
@@ -319,7 +320,7 @@ class ReplyContext:
     def directly_quoted_tweet(
         self,
         candidate: RawTweet,
-        state: dict[str, object],
+        state: BotState,
         *,
         include_media: bool = True,
     ) -> RawTweet | None:
@@ -351,7 +352,7 @@ class ReplyContext:
     def quoted_post(
         self,
         candidate: RawTweet,
-        state: dict[str, object],
+        state: BotState,
         *,
         principal_author_id: str,
     ) -> VisibleReplyTurn | None:
@@ -476,7 +477,7 @@ class ReplyContext:
             return False
         return True
 
-    def build(self, mention: RawTweet, state: dict[str, object]) -> PreparedReplyContext | None:
+    def build(self, mention: RawTweet, state: BotState) -> PreparedReplyContext | None:
         """Build the verified parent-contiguous canonical single-call context."""
 
         mention_id = str(mention.get("id") or "")

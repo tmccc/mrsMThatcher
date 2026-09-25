@@ -32,6 +32,7 @@ from mrs_bot_runtime_state_helpers import append_unique_capped
 from mrs_bot_tweet_lookup_cache import normalise_tweet_text
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_api_cooldowns import ApiCooldowns
     from mrs_bot_quote_discovery import QuoteWatchPosts
     from mrs_bot_reply_evaluation_state import ReplyEvaluations
@@ -84,7 +85,7 @@ def _prune_unwatched_tracking(
 
 
 def get_hot_post_reply_candidates(
-    state: dict,
+    state: BotState,
     *,
     ApiError: type[Exception],
     ENABLE_HOT_POST_REPLY_CHECKS: bool,
@@ -96,7 +97,7 @@ def get_hot_post_reply_candidates(
     MAX_HOT_POST_REPLIES_PER_CHECK: int,
     MY_USER_ID: str,
     tweets: TweetLookupCache,
-    retire_ineligible_draft: Callable[[dict, str, str], None],
+    retire_ineligible_draft: Callable[[BotState, str, str], None],
     cooldowns: ApiCooldowns,
     controls: RuntimeControls,
     watch_posts: QuoteWatchPosts,
@@ -400,7 +401,7 @@ def get_hot_post_reply_candidates(
 
 
 def mark_hot_post_reply_skipped(
-    state: dict,
+    state: BotState,
     reply_id: str,
     *,
     reason: str='unspecified',
@@ -456,7 +457,7 @@ def mark_hot_post_reply_skipped(
 
 
 def maybe_mark_hot_post_reply_skipped(
-    state: dict,
+    state: BotState,
     candidate: dict,
     reason: str='unspecified',
     *,

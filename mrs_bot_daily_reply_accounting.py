@@ -21,10 +21,11 @@ from mrs_bot_runtime_state_helpers import append_unique_capped
 
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_receipt_primitives import ReceiptDates
 
 
-def daily_author_reply_counts(state: dict) -> dict[str, int]:
+def daily_author_reply_counts(state: BotState) -> dict[str, int]:
     """Return the daily author reply counts."""
     counts = state.get("daily_replied_author_counts", {})
     if isinstance(counts, dict):
@@ -53,7 +54,7 @@ class DailyReplyAccounting:
     log: logging.Logger
     dates: ReceiptDates
 
-    def reset(self, state: dict) -> None:
+    def reset(self, state: BotState) -> None:
         """Reset daily reply count if needed."""
         today = self.dates.reply_cap_date()
 
@@ -69,7 +70,7 @@ class DailyReplyAccounting:
             state["daily_replied_author_ids"] = []
             state["daily_replied_author_counts"] = {}
 
-    def reset_quotes(self, state: dict) -> None:
+    def reset_quotes(self, state: BotState) -> None:
         """Reset daily quote reply count if needed."""
         today = self.dates.reply_cap_date()
 
@@ -83,11 +84,11 @@ class DailyReplyAccounting:
             state["daily_quote_reply_date"] = today
             state["daily_quote_reply_count"] = 0
 
-    def author_count(self, state: dict, author_id: str) -> int:
+    def author_count(self, state: BotState, author_id: str) -> int:
         """Return the daily author reply count."""
         return daily_author_reply_counts(state).get(str(author_id), 0)
 
-    def mark_author(self, state: dict, author_id: str) -> None:
+    def mark_author(self, state: BotState, author_id: str) -> None:
         """Mark daily author replied."""
         author_id = str(author_id)
         counts = daily_author_reply_counts(state)
@@ -111,7 +112,7 @@ class DailyReplyAccounting:
 
     def advance(
         self,
-        state: dict,
+        state: BotState,
         confirmation_date: str,
         *,
         include_quote_lane: bool,
@@ -146,7 +147,7 @@ class DailyReplyAccounting:
 
     def record_confirmed(
         self,
-        state: dict,
+        state: BotState,
         *,
         already_recorded: bool,
         candidate_source: str,

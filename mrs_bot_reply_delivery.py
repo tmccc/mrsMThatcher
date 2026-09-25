@@ -29,12 +29,16 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from mrs_bot_durable_json_io import canonical_atomic_json_bytes
 
 if TYPE_CHECKING:
-    from mrsMThatcher2 import ApiError as ApiErrorValue, ProvedRemotePostNonSuccess
+    from mrs_bot_core_contracts import BotState
+    from mrsMThatcher2 import (
+        ApiError as ApiErrorValue, ConfirmedPostSigintDeferral,
+        ProvedRemotePostNonSuccess,
+    )
     from mrs_bot_core_contracts import (
         ConfirmedReplyReceipt, HistoricalConfirmedReplyReceipt,
         HistoricalSendingReplyReceipt, LegacyCurrentConfirmedReplyReceipt,
@@ -42,9 +46,27 @@ if TYPE_CHECKING:
     )
     from mrs_bot_api_cooldowns import ApiCooldowns
     from mrs_bot_reply_cycle_interfaces import PostReply, SaveReplyState
+    from mrs_bot_reply_cycle_interfaces import LogReplyPostingOutcome
+    from mrs_bot_main_post_assembly import (
+        AcquireMainPostMutationAuthority, BindConfirmedMainPostSource,
+        ExactJSONFileMatches, LatchConfirmedMainPostFailure,
+        ReplaceBoundMainPostSource, RetireCurrentMainPostSource,
+    )
+    from mrs_bot_reply_assembly import CreatePreparedReplyPost
     from mrs_bot_reply_receipt_values import ReplyReceiptValues
     from mrs_bot_reply_reconciliation import ReplyCompletion
+    from mrs_bot_state_generation import StateCommitProof
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
+    from remote_write_transport_journal import ConfirmedTransportDetails
+
+
+class RemovePublishedReplyReceipt(Protocol):
+    """Retire one published reply under its disposition and commit proof."""
+
+    def __call__(
+        self, receipt: Mapping[str, Any], *, sending_disposition: str | None = None,
+        commit_proof: StateCommitProof | None = None,
+    ) -> None: ...
 
 
 class ReplyDeliveryStop(Enum):
@@ -68,24 +90,24 @@ class ReplyCycleDelivery:
     receipt_values: ReplyReceiptValues
     tweets: TweetLookupCache
     post: PostReply
-    retire_rejected: Callable[[dict, Exception], None]
+    retire_rejected: Callable[[dict[str, Any], Exception], None]
     ambiguous_outcome: type[Exception]
     remote_operations_paused: type[Exception]
     api_error: type[Exception]
     confirmed_local_failure: type[Exception]
     proved_non_success: type[ProvedRemotePostNonSuccess]
     unrecoverable_confirmed: type[Exception]
-    reply_not_allowed: Callable
+    reply_not_allowed: Callable[[Exception], bool]
     save_state: SaveReplyState
     log: logging.Logger
-    posting_outcome: Callable
+    posting_outcome: LogReplyPostingOutcome
     cooldowns: ApiCooldowns
 
     def load_receipt(self) -> ReplyReceiptLoad:
         """Load through the cycle-bound receipt owner."""
         return self.receipts.load()
 
-    def reconcile_receipt(self, state: dict) -> bool:
+    def reconcile_receipt(self, state: BotState) -> bool:
         """Reconcile through the cycle-bound completion owner."""
         return self.completion.reconcile(state)
 
@@ -98,7 +120,7 @@ class ReplyCycleDelivery:
         return self.tweets.target_is_available(target_id)
 
     def finalise(
-        self, state: dict, receipt: ConfirmedReplyReceipt, *, target_id: str, quote_reply: bool,
+        self, state: BotState, receipt: ConfirmedReplyReceipt, *, target_id: str, quote_reply: bool,
     ) -> str:
         """Finalise through the cycle-bound completion owner."""
         return self.completion.finalise(
@@ -107,7 +129,7 @@ class ReplyCycleDelivery:
 
     def deliver(
         self,
-        state: dict,
+        state: BotState,
         target_id: str,
         reply_text: str,
         receipt_template: dict,
@@ -237,24 +259,24 @@ class ReplyReceipts:
     """
 
     path: Path
-    read_json: Callable
+    read_json: Callable[[Path], tuple[bool, object | None]]
     log: logging.Logger
     values: ReplyReceiptValues
-    retirement_is_blocking: Callable
+    retirement_is_blocking: Callable[[], bool]
     invalid_receipt: type[Exception]
-    namespace_entry_exists: Callable
-    create_json: Callable
+    namespace_entry_exists: Callable[[Path], bool]
+    create_json: Callable[[Path, object], None]
     unresolved_sending: type[Exception]
-    bind_confirmed_source: Callable
-    journal_path: Callable
+    bind_confirmed_source: BindConfirmedMainPostSource
+    journal_path: Callable[[Path], Path]
     validator_id: str
     transport_validator: Callable
     legacy_transport_validator: Callable
     transport_journal_error: type[Exception]
-    replace_bound_source: Callable
-    mutation_authority: Callable
+    replace_bound_source: ReplaceBoundMainPostSource
+    mutation_authority: AcquireMainPostMutationAuthority
     current_receipts: Callable[[], ReplyReceipts]
-    retire_current_source_receipt: Callable
+    retire_current_source_receipt: RetireCurrentMainPostSource
     proved_non_success: type[ProvedRemotePostNonSuccess]
     reply_not_allowed: Callable[[Exception], bool]
     rejection_payload: Callable
@@ -271,12 +293,16 @@ class ReplyReceipts:
             from mrs_bot_state_generation import require_commit_proof
             require_commit_proof(commit_proof)
             commit_proof.require_receipt(receipt)
-        retire = functools.partial(
-            self.retire_current_source_receipt,
-            commit_proof=commit_proof,
-            **({"disposition": "definite_non_success"}
-               if receipt.get("lifecycle_state") == "sending"
-               and sending_disposition == "definite_non_success" else {}),
+        retire = (
+            functools.partial(
+                self.retire_current_source_receipt,
+                commit_proof=commit_proof, disposition="definite_non_success",
+            )
+            if receipt.get("lifecycle_state") == "sending"
+            and sending_disposition == "definite_non_success"
+            else functools.partial(
+                self.retire_current_source_receipt, commit_proof=commit_proof,
+            )
         )
         return remove_confirmed_reply_receipt(
             receipt,
@@ -591,37 +617,37 @@ def retire_proved_rejected_conversational_reply_receipt(
 
 def post_conversational_reply_with_durable_identity(
     *,
-    state: dict,
+    state: BotState,
     receipt_template: dict,
     reply_text: str,
     reply_to_id: str,
     made_with_ai: bool,
     lane: str,
     receipt_values: ReplyReceiptValues,
-    receipt_namespace_entry_exists: Callable,
+    receipt_namespace_entry_exists: Callable[[Path], bool],
     CONFIRMED_REPLY_RECEIPT_FILE: Path,
     InvalidConfirmedReplyReceipt: type[Exception],
-    block_if_ambiguous_remote_post: Callable,
+    block_if_ambiguous_remote_post: Callable[[], None],
     receipts: Callable[[], ReplyReceipts],
-    begin_confirmed_post_sigint_deferral: Callable,
-    create_post: Callable,
+    begin_confirmed_post_sigint_deferral: Callable[[], ConfirmedPostSigintDeferral],
+    create_post: CreatePreparedReplyPost,
     AmbiguousRemotePostOutcome: type[ApiErrorValue],
-    end_confirmed_post_sigint_deferral: Callable,
+    end_confirmed_post_sigint_deferral: Callable[[ConfirmedPostSigintDeferral | None], None],
     cooldowns: ApiCooldowns,
-    save_state: Callable,
+    save_state: SaveReplyState,
     log: logging.Logger,
     RemoteOperationsPaused: type[Exception],
-    remove_confirmed_reply_receipt: Callable,
+    remove_confirmed_reply_receipt: RemovePublishedReplyReceipt,
     ConfirmedReplyLocalPersistenceError: type[Exception],
     ProvedRemotePostNonSuccess: type[ProvedRemotePostNonSuccess],
     ApiError: type[ApiErrorValue],
-    inspect_confirmed_transport_transaction: Callable,
-    journal_path_for_receipt: Callable,
+    inspect_confirmed_transport_transaction: Callable[[Path], ConfirmedTransportDetails],
+    journal_path_for_receipt: Callable[[Path], Path],
     StateBackupWriteError: type[Exception],
-    json_file_matches: Callable,
+    json_file_matches: ExactJSONFileMatches,
     STATE_FILE: Path,
     confirmed_reply_emergency_representation_is_complete: Callable,
-    latch_confirmed_post_persistence_failure: Callable,
+    latch_confirmed_post_persistence_failure: LatchConfirmedMainPostFailure,
     retain_sigint_deferral_without_durable_barrier: Callable,
     UnrecoverableConfirmedReplyPersistenceError: type[Exception],
     completion: ReplyCompletion,
@@ -776,7 +802,7 @@ def post_conversational_reply_with_durable_identity(
                 raise InvalidConfirmedReplyReceipt(
                     "Refusing to apply an invalid confirmed reply representation"
                 )
-            completion.apply_state(state, receipt)
+            completion.apply_state(state, cast("ConfirmedReplyReceipt", receipt))
             # Backup failures expose proof metadata dynamically; the existing
             # exact file and retirement authorities validate it before removal.
             commit_proof: Any

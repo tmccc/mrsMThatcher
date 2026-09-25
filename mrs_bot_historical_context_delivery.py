@@ -6,7 +6,10 @@ module performs no runtime work at import and retains no runtime authority.
 from __future__ import annotations
 
 import re
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
+
+if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
 
 
 def historical_context_formatter_options(config: dict) -> dict[str, int | bool]:
@@ -845,7 +848,7 @@ def process_due_historical_context_obligations(
     *,
     parent_post_id: str | None = None,
     limit: int = 1,
-    runtime_state: dict | None = None,
+    runtime_state: BotState | dict | None = None,
     AmbiguousRemotePostOutcome: Any,
     InvalidMemePostReceipt: Any,
     InvalidRegularPostReceipt: Any,

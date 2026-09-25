@@ -90,7 +90,7 @@ SIGNATURES = {'maybe_post_historical_context_reply': "(*, quote_hash: 'str', quo
                                                    "recovered_epoch: 'int', receipt_was_observed: "
                                                    "'bool' = False) -> 'dict'",
  'process_due_historical_context_obligations': "(*, parent_post_id: 'str | None' = None, limit: "
-                                               "'int' = 1, runtime_state: 'dict | None' = None) -> "
+                                               "'int' = 1, runtime_state: 'BotState | None' = None) -> "
                                                "'list[dict]'"}
 
 

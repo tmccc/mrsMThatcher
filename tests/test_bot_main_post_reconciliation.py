@@ -28,7 +28,7 @@ DEPENDENCIES = {"reconcile_main_post_receipts": ("receipts", "tweets")}
 
 SIGNATURES = {
     "reconcile_main_post_receipts": "(lines_used: 'set', images_used: 'set', "
-    "state: 'dict', *, minimum_next_quote_epoch: 'int | None' = None, "
+    "state: 'BotState', *, minimum_next_quote_epoch: 'int | None' = None, "
     "process_auxiliary_context: 'bool' = True) -> 'dict[str, bool]'"
 }
 

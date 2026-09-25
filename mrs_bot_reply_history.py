@@ -14,7 +14,10 @@ import hashlib
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, cast, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
 
 from mrs_bot_receipt_primitives import valid_string_post_id
 
@@ -56,7 +59,7 @@ class ReplyHistory:
     maximum_age_seconds: int
     maximum_records: int
 
-    def confirmed_rows(self, state: dict) -> list[dict]:
+    def confirmed_rows(self, state: BotState) -> list[dict]:
         """Return positively identified rows from the durable confirmation history."""
 
         history = state.get("ai_reply_history", [])
@@ -94,7 +97,7 @@ class ReplyHistory:
 
     def recent_replies(
         self,
-        state: dict,
+        state: BotState,
         limit: int,
         *,
         before_epoch: int | None = None,
@@ -151,7 +154,7 @@ class ReplyHistory:
 
     def recovery_replies(
         self,
-        state: dict,
+        state: BotState,
         *,
         context: Mapping[str, Any],
     ) -> list[dict[str, str]]:
@@ -202,7 +205,7 @@ class ReplyHistory:
 
     def same_author_rows(
         self,
-        state: dict,
+        state: BotState,
         *,
         author_id: object,
         current_thread_post_ids: set[str],
@@ -259,7 +262,7 @@ class ReplyHistory:
 
     def recent_same_author_interactions(
         self,
-        state: dict,
+        state: BotState,
         *,
         author_id: object,
         conversation_id: object,
@@ -291,7 +294,7 @@ class ReplyHistory:
 
     def for_evaluation(
         self,
-        state: dict,
+        state: BotState,
         *,
         context: Mapping[str, object],
         target_id: str,
@@ -327,7 +330,7 @@ class ReplyHistory:
 
     def record_confirmation(
         self,
-        state: dict,
+        state: BotState,
         receipt: dict,
         draft: dict,
         *,
@@ -381,7 +384,7 @@ class ReplyHistory:
         history.append(record)
         history.sort(
             key=lambda item: (
-                int(item["reply_epoch"]),
+                int(cast(int, item["reply_epoch"])),
                 int(str(item.get("reply_post_id") or "0"))
                 if valid_string_post_id(item.get("reply_post_id"))
                 else 0,

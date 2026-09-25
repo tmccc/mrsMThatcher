@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 from mrs_bot_reply_delivery import ReplyCycleDelivery as ReplyCycleDelivery
 
 if TYPE_CHECKING:
-    from mrs_bot_core_contracts import ConfirmedReplyReceipt, ReplyContextData, ReplyMediaContext
+    from mrs_bot_core_contracts import BotState, ConfirmedReplyReceipt, ReplyContextData, ReplyMediaContext
     from mrs_bot_state_generation import StateCommitProof
     from single_call_reply import PipelineOutcome
 
@@ -95,14 +95,14 @@ class QuoteReplyConfig(ReplyCycleConfig):
 class SaveReplyState(Protocol):
     """Persist the original caller state, optionally requiring durability."""
 
-    def __call__(self, state: dict[str, object], *, durable: bool = False) -> StateCommitProof: ...
+    def __call__(self, state: BotState, *, durable: bool = False) -> StateCommitProof: ...
 
 
 class RecoverReplyDraft(Protocol):
     """Recover an explicit decision without a provider call."""
 
     def __call__(
-        self, state: dict[str, object], target_id: str, candidate_source: str, *,
+        self, state: BotState, target_id: str, candidate_source: str, *,
         context: ReplyContextData, recent_replies: Sequence[object] | None = None,
     ) -> PipelineOutcome | None: ...
 
@@ -111,7 +111,7 @@ class StoreReplyDraft(Protocol):
     """Validate and store a pending draft in caller state."""
 
     def __call__(
-        self, state: dict[str, object], target_id: str, candidate_source: str, reply: str, *,
+        self, state: BotState, target_id: str, candidate_source: str, reply: str, *,
         context: ReplyContextData,
     ) -> bool: ...
 
@@ -119,7 +119,7 @@ class StoreReplyDraft(Protocol):
 class ReplyCandidateDiscovery(Protocol):
     """Return an untrusted provider page; context building validates its values."""
 
-    def __call__(self, state: dict[str, object]) -> list[dict[str, Any]]: ...
+    def __call__(self, state: BotState) -> list[dict[str, Any]]: ...
 
 
 class QuoteTweetDiscovery(Protocol):
@@ -128,7 +128,7 @@ class QuoteTweetDiscovery(Protocol):
     def __call__(
         self,
         post_ids: list[str],
-        state: dict[str, object] | None = None,
+        state: BotState | None = None,
     ) -> dict[str, list[dict[str, Any]]]: ...
 
 
@@ -167,7 +167,7 @@ class MarkHotPostSkipped(Protocol):
     """Record a candidate skip against the mutable live state."""
 
     def __call__(
-        self, state: dict[str, Any], candidate: dict[str, Any],
+        self, state: BotState, candidate: dict[str, Any],
         reason: str = "unspecified",
     ) -> None: ...
 
@@ -179,15 +179,15 @@ class ReplyCyclePersistence:
     save: SaveReplyState
     recover: RecoverReplyDraft
     store: StoreReplyDraft
-    clear: Callable[[dict[str, object], str, str], None]
-    retire_ineligible: Callable[[dict[str, object], str, str], None]
+    clear: Callable[[BotState, str, str], None]
+    retire_ineligible: Callable[[BotState, str, str], None]
 
 
 class EvaluateReply(Protocol):
     """Return the entire model/local evaluation and its accounting metadata."""
 
     def __call__(
-        self, context: ReplyContextData, media_context: ReplyMediaContext | None = None, *, state: dict[str, object],
+        self, context: ReplyContextData, media_context: ReplyMediaContext | None = None, *, state: BotState,
     ) -> PipelineOutcome: ...
 
 
@@ -195,7 +195,7 @@ class PostReply(Protocol):
     """Publish and durably bind the remote identity to its receipt."""
 
     def __call__(
-        self, *, state: dict[str, object], receipt_template: dict[str, object], reply_text: str,
+        self, *, state: BotState, receipt_template: dict[str, object], reply_text: str,
         reply_to_id: str, made_with_ai: bool, lane: str,
     ) -> tuple[dict[str, object], ConfirmedReplyReceipt]: ...
 
@@ -204,5 +204,5 @@ class FinaliseReply(Protocol):
     """Commit a confirmation and retire recovery records before lane reporting."""
 
     def __call__(
-        self, state: dict[str, object], receipt: ConfirmedReplyReceipt, *, target_id: str, quote_reply: bool,
+        self, state: BotState, receipt: ConfirmedReplyReceipt, *, target_id: str, quote_reply: bool,
     ) -> str: ...

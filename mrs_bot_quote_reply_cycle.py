@@ -49,6 +49,7 @@ from mrs_bot_reply_preparation import (
 )
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_core_contracts import ConfirmedReplyReceipt, ReplyContextData
     from mrsMThatcher2 import ApiError as ApiErrorValue
     from mrs_bot_api_cooldowns import ApiCooldowns
@@ -144,7 +145,7 @@ def quote_author_profile_text(quote_tweet: dict[str, Any]) -> str:
 
 
 def mark_quote_spam_author(
-    state: dict[str, Any],
+    state: BotState,
     author_id: str,
     *,
     log: Logger,
@@ -175,7 +176,7 @@ class _QuoteScanHistory:
     replied_to_ids: frozenset[str]
 
     @classmethod
-    def capture(cls, state: dict[str, Any]) -> _QuoteScanHistory:
+    def capture(cls, state: BotState) -> _QuoteScanHistory:
         """Snapshot each ledger in admission order without retaining caller state."""
 
         return cls(
@@ -280,7 +281,7 @@ class QuoteReplyCycle:
         self.reply_evidence_repository = reply_evidence_repository
         self.valid_tweets_sorted_by_id = valid_tweets_sorted_by_id
 
-    def run(self, state: dict[str, Any]) -> str:
+    def run(self, state: BotState) -> str:
         """Process eligible quote-tweet candidates under all reply limits."""
         self.log.info("Starting quote-tweet reply check")
         # Finish an exact confirmed local transaction before the unresolved-
@@ -472,7 +473,7 @@ class QuoteReplyCycle:
         return QUOTE_CHECK_STATUS_CHECKED
 
     def _lookup_quote_candidates(
-        self, original_post_id: str, state: dict[str, Any], quote_tweets: list[dict[str, Any]]
+        self, original_post_id: str, state: BotState, quote_tweets: list[dict[str, Any]]
     ) -> tuple[dict[str, Any], list[dict[str, Any]]] | SkipReplyCandidate | FinishReplyCheck:
         """Fetch context for an original with discovered quotes, preserving failure routing."""
         try:
@@ -553,7 +554,7 @@ class QuoteReplyCycle:
         self,
         candidate: _QuoteCandidate,
         original_post_id: str,
-        state: dict[str, Any],
+        state: BotState,
         scan_history: _QuoteScanHistory,
     ) -> bool:
         """Apply identity, relationship and age gates against the cycle's original snapshots."""
@@ -652,7 +653,7 @@ class QuoteReplyCycle:
         candidate: _QuoteCandidate,
         original_post_id: str,
         original_tweet: dict[str, Any],
-        state: dict[str, Any],
+        state: BotState,
         quote_spam_author_ids: set[str],
     ) -> bool:
         """Check cleaned text and author limits, retaining cap context and newly found spam."""
@@ -737,7 +738,7 @@ class QuoteReplyCycle:
         return True
 
     def _prepare_reply_context(
-        self, candidate: _QuoteCandidate, original_post_id: str, state: dict[str, Any]
+        self, candidate: _QuoteCandidate, original_post_id: str, state: BotState
     ) -> PreparedReplyContext | SkipReplyCandidate | FinishReplyCheck:
         """Refetch media, cache the quote and build context before charging its candidate budget."""
         quote_tweet = candidate.tweet
@@ -841,7 +842,7 @@ class QuoteReplyCycle:
         return prepared
 
     def _evaluate_reply(
-        self, candidate: _QuoteCandidate, prepared: PreparedReplyContext, state: dict[str, Any]
+        self, candidate: _QuoteCandidate, prepared: PreparedReplyContext, state: BotState
     ) -> PipelineOutcome | FinishReplyCheck:
         """Check evidence and recover or generate a draft with the original exception boundaries."""
         reply_context = prepared.context
@@ -906,7 +907,7 @@ class QuoteReplyCycle:
         return evaluation
 
     def _resolve_reply_evaluation(
-        self, quote_id: str, evaluation: PipelineOutcome, state: dict[str, Any]
+        self, quote_id: str, evaluation: PipelineOutcome, state: BotState
     ) -> SkipReplyCandidate | FinishReplyCheck | None:
         """Retire terminal decisions, defer retryable failures, or allow a validated reply through."""
         reply_text = evaluation.reply
@@ -973,7 +974,7 @@ class QuoteReplyCycle:
         original_post_id: str,
         reply_text: ValidatedReplyValue,
         reply_context: ReplyContextData,
-        state: dict[str, Any],
+        state: BotState,
     ) -> dict[str, Any] | FinishReplyCheck:
         """Persist the validated draft before copying and binding its sending receipt."""
         quote_tweet = candidate.tweet
@@ -1022,7 +1023,7 @@ class QuoteReplyCycle:
 
     def _retire_terminal_target(
         self,
-        state: dict[str, Any],
+        state: BotState,
         quote_id: str,
         reply_text: ValidatedReplyValue,
         *,
@@ -1060,7 +1061,7 @@ class QuoteReplyCycle:
         quote_id: str,
         reply_text: ValidatedReplyValue,
         receipt_template: dict[str, Any],
-        state: dict[str, Any],
+        state: BotState,
     ) -> ConfirmedReplyReceipt | FinishReplyCheck:
         """Deliver through the shared boundary, retaining quote-lane retirement and statuses."""
 
@@ -1106,7 +1107,7 @@ class QuoteReplyCycle:
         candidate: _QuoteCandidate,
         original_post_id: str,
         receipt: ConfirmedReplyReceipt,
-        state: dict[str, Any],
+        state: BotState,
     ) -> str:
         """Finish the shared confirmation transaction and report this lane's success."""
         quote_id = candidate.quote_id

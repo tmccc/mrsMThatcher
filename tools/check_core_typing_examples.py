@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 
@@ -35,25 +36,29 @@ def check_negative() -> None:
     lines = fixture.read_text(encoding="utf-8").splitlines()
     expected = {
         (next(i for i, line in enumerate(lines, 1) if 'state["daily_repl_count"]' in line), "typeddict-item"),
+        (next(i for i, line in enumerate(lines, 1) if 'state["daily_reply_count"] = "one"' in line), "typeddict-item"),
         (next(i for i, line in enumerate(lines, 1) if 'context["target_id"] = 7' in line), "typeddict-item"),
         (next(i for i, line in enumerate(lines, 1) if 'finalise(state, receipt' in line), "arg-type"),
         (next(i for i, line in enumerate(lines, 1) if 'return outcome.reply' in line), "return-value"),
         (next(i for i, line in enumerate(lines, 1) if 'bad_storage: StoreReplyDraft' in line), "assignment"),
+        (next(i for i, line in enumerate(lines, 1) if 'bad_pipeline: RunReplyPipeline' in line), "assignment"),
+        (next(i for i, line in enumerate(lines, 1) if 'return replace(owner, create_post=wrong_main_create)' in line), "arg-type"),
+        (next(i for i, line in enumerate(lines, 1) if 'runner.post(set(), set(), state)' in line), "arg-type"),
         (next(i for i, line in enumerate(lines, 1) if 'return _unsupported_outcome(outcome)' in line), "arg-type"),
     }
     result = subprocess.run(
         [*COMMAND, str(fixture)], cwd=ROOT, text=True,
         capture_output=True, check=False,
     )
-    observed = set()
+    observed: Counter[tuple[int, str]] = Counter()
     for line in result.stdout.splitlines():
         match = DIAGNOSTIC.match(line)
         if match:
             path, line_number, code = match.groups()
             if Path(path).resolve() != fixture:
                 raise SystemExit(f"Unexpected file in mypy diagnostics: {line}")
-            observed.add((int(line_number), code))
-    if result.returncode == 0 or observed != expected:
+            observed[(int(line_number), code)] += 1
+    if result.returncode == 0 or observed != Counter(expected):
         raise SystemExit(
             "Negative core typing diagnostics differed.\n"
             f"Expected: {sorted(expected)}\nObserved: {sorted(observed)}\n"

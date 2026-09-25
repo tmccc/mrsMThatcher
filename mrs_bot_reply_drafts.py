@@ -25,6 +25,7 @@ from single_call_reply_validation import (
 )
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_core_contracts import CurrentReplyDraft, ReplyContextData
     from reply_evidence import EvidenceRepository
     from mrs_bot_reply_generation import ReplyGeneration
@@ -89,7 +90,7 @@ class ReplyDrafts:
 
     def store(
         self,
-        state: dict[str, object],
+        state: BotState,
         target_id: str,
         candidate_source: str,
         reply: str,
@@ -179,7 +180,7 @@ class ReplyDrafts:
 
     def recover(
         self,
-        state: dict[str, object],
+        state: BotState,
         target_id: str,
         candidate_source: str,
         *,
@@ -295,7 +296,7 @@ class ReplyDrafts:
 
     def recover_checked(
         self,
-        state: dict[str, object],
+        state: BotState,
         target_id: str,
         candidate_source: str,
         *,
@@ -314,7 +315,7 @@ class ReplyDrafts:
 
     def clear(
         self,
-        state: dict[str, object],
+        state: BotState,
         target_id: str,
         candidate_source: str,
     ) -> None:
@@ -327,7 +328,7 @@ class ReplyDrafts:
         if not drafts:
             state.pop("pending_ai_reply_drafts", None)
 
-    def retire_ineligible(self, state: dict[str, object], target_id: str, candidate_source: str) -> None:
+    def retire_ineligible(self, state: BotState, target_id: str, candidate_source: str) -> None:
         """Log and clear a mapping-shaped draft after preflight rejects its target."""
         drafts = state.get("pending_ai_reply_drafts", {})
         pending_key = pending_ai_reply_draft_key(target_id, candidate_source)
@@ -362,12 +363,12 @@ class ReplyDrafts:
             return False
         return validated["proposed_reply"] == text
 
-    def clear_target(self, state: dict[str, object], target_id: str, candidate_source: str) -> None:
+    def clear_target(self, state: BotState, target_id: str, candidate_source: str) -> None:
         """Retire every lane's draft after one public reply confirms this target."""
         for source in _target_draft_sources(candidate_source):
             self.clear(state, target_id, source)
 
-    def has_target(self, state: dict[str, object], target_id: str, candidate_source: str) -> bool:
+    def has_target(self, state: BotState, target_id: str, candidate_source: str) -> bool:
         """Check whether any lane still carries a draft for a confirmed target."""
         drafts = state.get("pending_ai_reply_drafts")
         pending_keys = {

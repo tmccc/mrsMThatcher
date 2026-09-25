@@ -15,7 +15,10 @@ import json
 import os
 from pathlib import Path
 import stat
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
 
 
 GENERATION_KEY = '_state_generation'
@@ -124,7 +127,7 @@ def receipt_commit_records_are_valid(commits: object) -> bool:
     )
 
 
-def record_receipt_commit(state: dict, receipt: Mapping[str, Any]) -> None:
+def record_receipt_commit(state: BotState, receipt: Mapping[str, Any]) -> None:
     """Bind exact receipt retirement to the state which records its confirmed effect.
 
     This durable identity collection is intentionally never truncated. The whole
@@ -217,7 +220,7 @@ def protect_history_files(proof: StateCommitProof, files: tuple[tuple[Path, byte
     return result
 
 
-def require_unambiguous_legacy_documents(documents: dict[Path, dict], primary_path: Path) -> None:
+def require_unambiguous_legacy_documents(documents: Mapping[Path, Mapping[str, object]], primary_path: Path) -> None:
     """Require legacy agreement unless the canonical/latest pair proves a commit.
 
     Backup numbers alone cannot order legacy data: a failed latest-backup

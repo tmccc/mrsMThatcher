@@ -13,13 +13,14 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_core_contracts import ReplyContextData
     from mrs_bot_reply_cycle_interfaces import ReplyCyclePersistence
     from single_call_reply import ValidatedReply as ValidatedReplyValue
 
 
 def persist_validated_reply_draft(
-    state: dict,
+    state: BotState,
     target_id: str,
     candidate_source: str,
     reply_text: ValidatedReplyValue,

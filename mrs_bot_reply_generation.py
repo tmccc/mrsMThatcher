@@ -19,20 +19,21 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol
 
 from mrs_bot_reply_native_media import _REPLY_IMAGE_MIME_TYPES
 from single_call_reply_validation import normalise_validation_error_codes
 
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_core_contracts import ReplyContextData, ReplyMediaContext
     from mrs_bot_api_cooldowns import ApiCooldowns
     from mrs_bot_reply_history import ReplyHistory
     from mrs_bot_reply_model_transport import ReplyModelTransport
     from mrs_bot_reply_native_media import ReplyMedia
     from reply_evidence import EvidenceRepository
-    from single_call_reply import ModelTransport, PipelineOutcome, PipelineResult, ValidatedReply
+    from single_call_reply import ModelTransport, PipelineOutcome, PipelineResult, PipelineTelemetry, ValidatedReply
 
 
 class RunReplyPipeline(Protocol):
@@ -149,7 +150,7 @@ class ReplyGeneration:
     model_transport: ReplyModelTransport
     cooldowns: ApiCooldowns
     reply_type: type[ValidatedReply]
-    decision_telemetry: Callable[[PipelineResult], dict[str, object]]
+    decision_telemetry: Callable[[PipelineTelemetry], dict[str, object]]
     log_event: Callable[..., None]
     strategy_version: str
 
@@ -157,7 +158,7 @@ class ReplyGeneration:
     is_terminal_candidate_failure = staticmethod(_is_terminal_candidate_local_failure)
 
     def record_result(
-        self, result: PipelineResult, *, lane: str, target_id: str,
+        self, result: PipelineTelemetry, *, lane: str, target_id: str,
     ) -> None:
         """Record the decision and bounded validation/provider usage details."""
         telemetry = self.decision_telemetry(result)
@@ -202,7 +203,7 @@ class ReplyGeneration:
 
     def evaluate(
         self, context: ReplyContextData, media_context: ReplyMediaContext | None = None, *,
-        state: dict[str, object],
+        state: BotState,
     ) -> PipelineOutcome:
         """Return the authoritative decision, retaining local and provider dispositions."""
 
@@ -245,11 +246,10 @@ class ReplyGeneration:
             visual_description=context.get("visual_description"),
         )
         self._record_provider_health(state, result, lane=lane, target_id=target_id)
-        # The closed outcome view retains the exact PipelineResult dataclass.
         if result.status == "operational_failure":
-            self.record_result(cast("PipelineResult", result), lane=lane, target_id=target_id)
+            self.record_result(result, lane=lane, target_id=target_id)
             return result
-        self.record_result(cast("PipelineResult", result), lane=lane, target_id=target_id)
+        self.record_result(result, lane=lane, target_id=target_id)
         if result.status in {"disabled", "no_reply"}:
             return result
         if result.status != "reply" or not isinstance(result.reply, self.reply_type):
@@ -295,7 +295,7 @@ class ReplyGeneration:
         return checked_pipeline_outcome(result)
 
     def _record_provider_health(
-        self, state: dict[str, object], result: PipelineOutcome | PipelineResult, *, lane: str, target_id: str,
+        self, state: BotState, result: PipelineOutcome | PipelineResult, *, lane: str, target_id: str,
     ) -> None:
         """Account for provider health before decision telemetry can fail."""
         status_code: int | None

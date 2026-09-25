@@ -28,6 +28,7 @@ from mrs_bot_state_value_normalisation import bounded_tweet_id_value
 from mrs_bot_tweet_lookup_cache import normalise_tweet_text
 
 if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
 
 
@@ -172,7 +173,7 @@ class QuoteWatchPosts:
 
         return post_ids
 
-    def lookup(self, state: dict) -> list[str]:
+    def lookup(self, state: BotState) -> list[str]:
         """
         Build the list of own posts to inspect for quote-tweets.
 
@@ -209,7 +210,7 @@ class QuoteWatchPosts:
 
         return clean_ids
 
-    def recent(self, state: dict) -> list[str]:
+    def recent(self, state: BotState) -> list[str]:
         """Return recent own post IDs for quote lookup."""
         self.tweets.seed_recent_own_posts(state)
 
@@ -234,7 +235,7 @@ class QuoteWatchPosts:
 
 def get_quote_tweets_for_post(
     post_id: str,
-    state: dict | None = None,
+    state: BotState | None = None,
     *,
     QUOTE_LOOKUP_API_MAX_RESULTS: int,
     QUOTE_LOOKUP_MAX_PAGES_PER_POST: int,
@@ -510,7 +511,7 @@ def get_quote_tweets_for_post(
     return quote_tweets
 
 
-def pending_quote_candidates(state: dict) -> dict[str, list[dict]]:
+def pending_quote_candidates(state: BotState) -> dict[str, list[dict]]:
     """Group durable unfinished quotes by original, independent of the watch set.
 
     Invalid queue records fail closed rather than letting discovery advance past
@@ -549,7 +550,7 @@ def pending_quote_candidates(state: dict) -> dict[str, list[dict]]:
 
 def get_quote_tweets_for_posts(
     post_ids: list[str],
-    state: dict | None = None,
+    state: BotState | None = None,
     *,
     QUOTE_LOOKUP_API_MAX_RESULTS: int,
     QUOTE_LOOKUP_MAX_PAGES_PER_POST: int,

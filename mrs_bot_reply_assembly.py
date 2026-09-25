@@ -11,7 +11,7 @@ from datetime import datetime as DateTime
 from pathlib import Path
 from types import ModuleType
 import logging
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, cast
 import mrs_bot_reply_drafts as _reply_drafts
 import mrs_bot_reply_history as _reply_history
 import mrs_bot_reply_generation as _reply_generation
@@ -63,7 +63,7 @@ class PipelineModule(Protocol):
         """Validate one current draft before reuse."""
         ...
 
-    def decision_telemetry(self, result: PipelineResult) -> dict[str, Any]:
+    def decision_telemetry(self, result: PipelineTelemetry) -> dict[str, Any]:
         """Project bounded decision telemetry."""
         ...
 
@@ -108,12 +108,44 @@ def _rejection_proofs() -> RejectionProofModule:
 
 
 if TYPE_CHECKING:
-    from mrs_bot_core_contracts import ConfirmedReplyReceipt, CurrentReplyDraft, ReplyReceiptLoad
+    from mrs_bot_core_contracts import BotState
+    from mrs_bot_core_contracts import (
+        ConfirmedReplyReceipt, CurrentReplyDraft, ReplyReceiptLoad,
+        ValidatedConfirmedReplyReceipt,
+    )
     from mrs_bot_reply_context import ReplyContext
     from mrsMThatcher2 import ApiError, ProvedRemotePostNonSuccess as ProvedNonSuccessValue
     from mrs_bot_state_generation import StateCommitProof
+    from mrs_bot_main_post_assembly import (
+        AcquireMainPostMutationAuthority, BindConfirmedMainPostSource,
+        ExactJSONFileMatches, LatchConfirmedMainPostFailure, ReplaceBoundMainPostSource,
+        RetireCurrentMainPostSource, RetireMainPostTransportJournal,
+        VerifyMainPostTransportLineage,
+    )
+    from remote_write_transport_journal import ConfirmedTransportDetails
+    from mrsMThatcher2 import ConfirmedPostSigintDeferral
     from reply_evidence import EvidenceRepository
-    from single_call_reply import ModelTransport, PipelineOutcome, PipelineResult, ValidatedReply
+    from single_call_reply import ModelTransport, PipelineOutcome, PipelineResult, PipelineTelemetry, ValidatedReply
+
+
+class CreatePreparedReplyPost(Protocol):
+    """Create one receipt-bound conversational reply with exact send keywords."""
+
+    def __call__(
+        self, text: str, media_ids: None = None, reply_to_id: str | None = None,
+        made_with_ai: bool = False, *,
+        prepared_conversational_reply_receipt: dict[str, Any] | None = None,
+        reply_receipt_validator: Callable[[dict[str, Any]], bool] | None = None,
+        reply_receipts: _reply_delivery.ReplyReceipts | None = None,
+    ) -> dict[str, Any]: ...
+
+
+class ReplyRemoteWriteBarrier(Protocol):
+    """Bind the current receipt owner to a send-time global write barrier."""
+
+    def __call__(
+        self, *, receipts: _reply_delivery.ReplyReceipts | None = None,
+    ) -> Callable[[], None]: ...
 
 
 @dataclass(frozen=True)
@@ -210,13 +242,13 @@ class ReplyReceiptIO:
     """Shared durable receipt storage and exact source authority."""
 
     durable_create_receipt_json: Callable[[Path, object], None]
-    json_file_matches: Callable[..., bool]
+    json_file_matches: ExactJSONFileMatches
     load_receipt_json_no_follow: Callable[[Path], tuple[bool, object | None]]
     receipt_namespace_entry_exists: Callable[[Path], bool]
     remote_receipt_retirement_is_blocking: Callable[[], bool]
-    replace_bound_source_receipt: Callable
-    retire_current_source_receipt: Callable
-    transaction_mutation_authority: Callable
+    replace_bound_source_receipt: ReplaceBoundMainPostSource
+    retire_current_source_receipt: RetireCurrentMainPostSource
+    transaction_mutation_authority: AcquireMainPostMutationAuthority
 
 
 @dataclass(frozen=True)
@@ -224,21 +256,21 @@ class ReplyTransport:
     """Sealed transport, signal and network authorities."""
 
     requests: ModuleType
-    begin_confirmed_post_sigint_deferral: Callable
-    bind_confirmed_transport_source: Callable
-    create_post: Callable
-    end_confirmed_post_sigint_deferral: Callable
-    inspect_confirmed_transport_transaction: Callable
-    journal_path_for_receipt: Callable
-    latch_confirmed_post_persistence_failure: Callable
-    retain_sigint_deferral_without_durable_barrier: Callable
-    retire_lane_transport_journal_if_present: Callable
-    verify_lane_transport_source_lineage_if_present: Callable
-    request_timeout: Callable
-    validate_supplied_images: Callable
-    x_paginated_get: Callable
-    x_quote_lookup_request: Callable
-    x_request: Callable
+    begin_confirmed_post_sigint_deferral: Callable[[], ConfirmedPostSigintDeferral]
+    bind_confirmed_transport_source: BindConfirmedMainPostSource
+    create_post: CreatePreparedReplyPost
+    end_confirmed_post_sigint_deferral: Callable[[ConfirmedPostSigintDeferral | None], None]
+    inspect_confirmed_transport_transaction: Callable[[Path], ConfirmedTransportDetails]
+    journal_path_for_receipt: Callable[[Path], Path]
+    latch_confirmed_post_persistence_failure: LatchConfirmedMainPostFailure
+    retain_sigint_deferral_without_durable_barrier: Callable[..., None]
+    retire_lane_transport_journal_if_present: RetireMainPostTransportJournal
+    verify_lane_transport_source_lineage_if_present: VerifyMainPostTransportLineage
+    request_timeout: Callable[..., Any]
+    validate_supplied_images: Callable[..., Any]
+    x_paginated_get: Callable[..., Any]
+    x_quote_lookup_request: Callable[..., Any]
+    x_request: Callable[..., Any]
 
 
 @dataclass(frozen=True)
@@ -248,9 +280,9 @@ class ReplyApplication:
     datetime: type[DateTime]
     _api_cooldown_owner: Callable[[], _api_cooldowns.ApiCooldowns]
     _receipt_dates_owner: Callable[[], _receipt_primitives.ReceiptDates]
-    _reply_remote_write_barrier: Callable
+    _reply_remote_write_barrier: ReplyRemoteWriteBarrier
     _runtime_controls_owner: Callable[[], _runtime_control.RuntimeControls]
-    _tweet_lookup_cache_owner: Callable[..., _tweet_lookup_cache.TweetLookupCache]
+    _tweet_lookup_cache_owner: Callable[[], _tweet_lookup_cache.TweetLookupCache]
     api_error_is_permanent_target_failure: Callable[[Exception], bool]
     api_error_is_reply_not_allowed: Callable[[Exception], bool]
     log: logging.Logger
@@ -258,15 +290,15 @@ class ReplyApplication:
     monotonic: Callable[[], float]
     now_epoch: Callable[[], int]
     reply_evidence_repository: Callable[[], EvidenceRepository]
-    report_bot_health_progress: Callable
-    require_remote_operation_unpaused: Callable
-    record_ambiguous_remote_post: Callable[[dict], None]
-    main_post_attempt_binds_payload: Callable
+    report_bot_health_progress: Callable[..., None]
+    require_remote_operation_unpaused: Callable[[str], None]
+    record_ambiguous_remote_post: Callable[[dict[str, Any]], None]
+    main_post_attempt_binds_payload: Callable[..., Any]
     save_state: _reply_cycle_interfaces.SaveReplyState
     sleep: Callable[[float], None]
     api_error_is_invalid_pagination_cursor: Callable[[Exception], bool]
     current_utc_datetime: Callable[[], DateTime]
-    log_json_debug: Callable
+    log_json_debug: Callable[..., Any]
 
 
 class ReplyAssembly:
@@ -330,7 +362,7 @@ class ReplyAssembly:
         )
 
     def mark_hot_post_reply_skipped(
-        self, state: dict[str, Any], reply_id: str, *, reason: str = "unspecified",
+        self, state: BotState, reply_id: str, *, reason: str = "unspecified",
         original_post_id: str | None = None, retryable: bool | None = None,
     ) -> None:
         """Record a hot-post skip through the reply discovery owner."""
@@ -341,7 +373,7 @@ class ReplyAssembly:
         )
 
     def maybe_mark_hot_post_reply_skipped(
-        self, state: dict[str, Any], candidate: dict[str, Any], reason: str = "unspecified",
+        self, state: BotState, candidate: dict[str, Any], reason: str = "unspecified",
     ) -> None:
         """Record a skipped hot-post candidate through the same owner."""
         return _hot_post_discovery.maybe_mark_hot_post_reply_skipped(
@@ -515,7 +547,7 @@ class ReplyAssembly:
             persistence_error=e.ConfirmedReplyLocalPersistenceError,
         )
 
-    def emergency_representation_is_complete(self, receipt: dict[str, Any], state: dict[str, Any]) -> bool:
+    def emergency_representation_is_complete(self, receipt: dict[str, Any], state: BotState) -> bool:
         """Check whether the current state durably represents a confirmed reply."""
         p, e, io, t, a = self.policy, self.errors, self.receipt_io, self.transport, self.application
         drafts = self._reply_draft_owner()
@@ -578,7 +610,7 @@ class ReplyAssembly:
             confirmation_epoch=confirmation_epoch, legacy_recovery=legacy_recovery,
         )
 
-    def reconcile_receipt(self, state: dict[str, Any]) -> bool:
+    def reconcile_receipt(self, state: BotState) -> bool:
         """Complete a saved confirmation under current state and receipt authority."""
         return self._reply_completion_owner().reconcile(state)
 
@@ -610,7 +642,7 @@ class ReplyAssembly:
         mention_queue: _mention_discovery.MentionQueue | None = None,
         tweets: _tweet_lookup_cache.TweetLookupCache | None = None,
         history: _reply_history.ReplyHistory | None = None,
-    ) -> Callable[[dict[str, Any], dict[str, Any]], None]:
+    ) -> Callable[[BotState, ValidatedConfirmedReplyReceipt], None]:
         """Compose current typed owners for one confirmed-state application."""
         p, e, io, t, a = self.policy, self.errors, self.receipt_io, self.transport, self.application
         if dates is None:
@@ -633,7 +665,7 @@ class ReplyAssembly:
             tweets = a._tweet_lookup_cache_owner()
         if history is None:
             history = self._reply_history_owner()
-        return functools.partial(
+        apply_receipt = functools.partial(
             _reply_reconciliation.apply_confirmed_reply_receipt,
             receipt_values=receipt_values,
             mention_authority=mention_authority,
@@ -651,6 +683,11 @@ class ReplyAssembly:
             clarifications=self.clarification_replies(),
             log_event=a.log_event,
         )
+
+        def apply_validated(state: BotState, receipt: ValidatedConfirmedReplyReceipt) -> None:
+            apply_receipt(state, cast(dict[str, Any], receipt))
+
+        return apply_validated
 
     def _reply_completion_owner(
         self,
@@ -702,7 +739,7 @@ class ReplyAssembly:
     def post_with_current_owners(
         self,
         *,
-        state: dict[str, Any],
+        state: BotState,
         receipt_template: dict[str, Any],
         reply_text: str,
         reply_to_id: str,
@@ -716,7 +753,7 @@ class ReplyAssembly:
         )
 
     def _post_with_bound_owners(
-        self, *, state: dict[str, Any], receipt_template: dict[str, Any], reply_text: str,
+        self, *, state: BotState, receipt_template: dict[str, Any], reply_text: str,
         reply_to_id: str, made_with_ai: bool, lane: str,
     ) -> tuple[dict[str, Any], ConfirmedReplyReceipt]:
         """Compose one publication transaction from current owners."""
@@ -940,11 +977,11 @@ class ReplyAssembly:
             valid_tweets_sorted_by_id=functools.partial(_reply_context.valid_tweets_sorted_by_id, log=a.log),
         )
 
-    def run_quote(self, state: dict[str, Any]) -> str:
+    def run_quote(self, state: BotState) -> str:
         """Run a quote check through a freshly constructed runner."""
         return self.quote_runner().run(state)
 
-    def run_normal(self, state: dict[str, Any]) -> str:
+    def run_normal(self, state: BotState) -> str:
         """Rebuild a fresh normal runner for each backlog continuation pass."""
         fresh_evaluations = 0
         skip_hot_post_fetch = False
@@ -1184,7 +1221,7 @@ class ReplyAssembly:
         )
 
     def get_quote_tweets_for_posts(
-        self, post_ids: list[str], state: dict[str, Any] | None = None
+        self, post_ids: list[str], state: BotState | None = None
     ) -> dict[str, list[dict[str, Any]]]:
         """Search watched originals together using current root dependencies."""
         p, e, io, t, a = self.policy, self.errors, self.receipt_io, self.transport, self.application
@@ -1200,7 +1237,7 @@ class ReplyAssembly:
         )
 
     def get_quote_tweets_for_post(
-        self, post_id: str, state: dict[str, Any] | None = None,
+        self, post_id: str, state: BotState | None = None,
     ) -> list[dict[str, Any]]:
         """Discover quotes for one original with current external boundaries."""
         p, e, io, t, a = self.policy, self.errors, self.receipt_io, self.transport, self.application

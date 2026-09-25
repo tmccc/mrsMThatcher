@@ -14,11 +14,15 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
+from typing import TYPE_CHECKING
 
 from mrs_bot_author_quarantines import clear_author_evaluation_quarantine_history
 
+if TYPE_CHECKING:
+    from mrs_bot_core_contracts import BotState
 
-def completed_mention_watermark_covers_target(state: dict, target_id: str) -> bool:
+
+def completed_mention_watermark_covers_target(state: BotState | dict, target_id: str) -> bool:
     """Return whether a completed mention traversal prevents refetching one target."""
     target_id = str(target_id)
     watermark = str(state.get("last_seen_mention_id") or "")
@@ -33,7 +37,7 @@ def completed_mention_watermark_covers_target(state: dict, target_id: str) -> bo
     return int(target_id) <= int(watermark)
 
 
-def terminal_reply_evaluation(state: dict, target_id: str) -> dict | None:
+def terminal_reply_evaluation(state: BotState | dict, target_id: str) -> dict | None:
     """Return the terminal reply evaluation."""
     records = state.get("reply_evaluation_records", {})
     if not isinstance(records, dict):
@@ -59,7 +63,7 @@ class ReplyEvaluations:
     maximum_records: int
     minimum_retention_seconds: int
 
-    def prune_completed_mentions(self, state: dict) -> int:
+    def prune_completed_mentions(self, state: BotState | dict) -> int:
         """Drop unsafe legacy or watermark-covered local quarantine skips."""
         records = state.get("reply_evaluation_records")
         if not isinstance(records, dict):
@@ -90,7 +94,7 @@ class ReplyEvaluations:
         )
         return len(removable)
 
-    def prune(self, state: dict, *, current_epoch: int | None = None) -> None:
+    def prune(self, state: BotState | dict, *, current_epoch: int | None = None) -> None:
         """Prune old terminal evaluations while preserving recent replay protection."""
         self.prune_completed_mentions(state)
         records = state.get("reply_evaluation_records")
@@ -178,7 +182,7 @@ class ReplyEvaluations:
 
     def record(
         self,
-        state: dict,
+        state: BotState,
         *,
         target_id: str,
         lane: str,

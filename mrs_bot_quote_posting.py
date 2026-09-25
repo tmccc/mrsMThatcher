@@ -23,7 +23,8 @@ from mrs_bot_runtime_state_helpers import apply_state_fields
 
 
 if TYPE_CHECKING:
-    from mrs_bot_core_contracts import CurrentRegularPostReceipt, PendingMainPostReceipt
+    from mrs_bot_core_contracts import BotState
+    from mrs_bot_core_contracts import CurrentRegularPostReceipt, MainPostAttempt, PendingMainPostReceipt
     from mrs_bot_image_selection import ImageSelection
     from mrs_bot_main_post_publication import MainPostPublication
     from mrs_bot_main_post_receipt_storage import MainPostReceipts
@@ -31,7 +32,11 @@ if TYPE_CHECKING:
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
     from mrs_bot_state_generation import StateCommitProof
     from mrs_bot_main_post_reconciliation import MainPostRecovery
-    from mrs_bot_main_post_assembly import (MainPostPolicy, MainPostErrors, MainPostTransport, MainPostApplication)
+    from mrs_bot_main_post_assembly import (
+        BuildCurrentMainPostAttempt, CaptureBoundMemeState, MainPostPolicy,
+        MainPostErrors, MainPostTransport, MainPostApplication,
+        RemoveMainPostAttemptWithProof,
+    )
 
 
 # Availability is separate from a callback's value, including an assigned None.
@@ -83,11 +88,11 @@ class QuotePostRunner:
     errors: MainPostErrors
     transport: MainPostTransport
     application: MainPostApplication
-    build_attempt: Callable
-    bound_meme_state: Callable
-    remove_attempt: Callable
+    build_attempt: BuildCurrentMainPostAttempt
+    bound_meme_state: CaptureBoundMemeState
+    remove_attempt: RemoveMainPostAttemptWithProof
 
-    def _select_pair(self, lines_used: set, images_used: set, state: dict) -> tuple[dict, dict]:
+    def _select_pair(self, lines_used: set, images_used: set, state: BotState) -> tuple[dict, dict]:
         """Select an ordinary pair with the bounded image-cycle fallbacks."""
         selection = self.selection
         log = self.application.log
@@ -185,7 +190,7 @@ class QuotePostRunner:
         )
 
     def _complete_post(
-        self, lines_used: set, images_used: set, state: dict,
+        self, lines_used: set, images_used: set, state: BotState,
         *, preparation: _QuotePostPreparation, posted_id: object,
         quote_post_epoch: int, quote_schedule_fields: dict,
         meme_schedule_fields: dict, receipt: CurrentRegularPostReceipt, image_choice: dict,
@@ -253,7 +258,7 @@ class QuotePostRunner:
 
 
 
-    def post(self, lines_used: set, images_used: set, state: dict) -> None:
+    def post(self, lines_used: set, images_used: set, state: BotState) -> None:
         """Select and post one quotation-image pair transactionally."""
         publication = self.publication
         receipts = self.receipts
@@ -427,7 +432,7 @@ class QuotePostRunner:
                 images_used.add(preparation.image_basename)
                 state["last_main_post_id"] = str(posted_id)
                 if quote_post_epoch is not _RECOVERY_VALUE_UNAVAILABLE:
-                    state["last_quote_post_epoch"] = quote_post_epoch
+                    state["last_quote_post_epoch"] = cast(int, quote_post_epoch)
                 state["last_regular_image_filename"] = preparation.image_basename
             except Exception:
                 fallback_failures.append("in_memory_regular_post_state")
@@ -523,13 +528,13 @@ class QuotePostRunner:
                     ) from context_exc
                 retire_lane_transport_journal_if_present(
                     receipt_path=REGULAR_POST_RECEIPT_FILE,
-                    receipt=publication.attempt,
+                    receipt=cast("MainPostAttempt", publication.attempt),
                     lane="quote_image",
                     post_id=str(posted_id),
                     commit_proof=persistence.commit_proof,
                 )
                 remove_main_post_attempt(
-                    publication.attempt,
+                    cast("MainPostAttempt", publication.attempt),
                     sending_disposition="confirmed_state_fallback",
                     commit_proof=persistence.commit_proof,
                 )

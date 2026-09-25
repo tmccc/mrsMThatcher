@@ -103,9 +103,9 @@ def test_public_signatures_and_current_adapter_references(monkeypatch, name):
             "(attempt: 'AttemptingMainPostAttempt', *, post_id: 'str', confirmation_epoch: 'int', image_summary: 'str' = '') -> 'PendingMainPostReceipt'"
         ),
         "save_regular_post_protected_state": (
-            "(lines_used: 'set', images_used: 'set', state: 'dict', *, durable: 'bool') -> 'StateCommitProof'"
+            "(lines_used: 'set', images_used: 'set', state: 'BotState', *, durable: 'bool') -> 'StateCommitProof'"
         ),
-        "emergency_persist_confirmed_regular_post": "(lines_used: 'set', images_used: 'set', state: 'dict') -> 'RegularPostPersistenceResult'",
+        "emergency_persist_confirmed_regular_post": "(lines_used: 'set', images_used: 'set', state: 'BotState') -> 'RegularPostPersistenceResult'",
     }
     public, extracted = getattr(bot, name), getattr(owner, name)
     assert bot._main_post_confirmation_persistence is owner
