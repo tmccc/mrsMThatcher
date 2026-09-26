@@ -306,7 +306,7 @@ def read_records(
     physical_order: bool = False,
     iter_records: Callable[[Path], Iterable[Record]],
 ) -> List[Record]:
-    """Read and deduplicate structured and legacy log records."""
+    """Read structured and legacy records, removing only evidenced rotation overlap."""
 
     def source_records() -> Iterable[Tuple[Path, Record]]:
         for path in paths:
@@ -331,59 +331,88 @@ def _deduplicate_records(
     since_exclusive: bool,
     physical_order: bool,
 ) -> List[Record]:
-    """Filter and order records while retaining each source's multiplicity."""
-    occurrences: Dict[tuple[Any, ...], Dict[str, List[Record]]] = {}
-    path_priority = {str(path): index for index, path in enumerate(paths)}
-    for path, r in source_records:
-        if since:
-            if since_exclusive:
-                if r.ts <= since:
-                    continue
-            elif r.ts < since:
-                continue
-        if until and r.ts > until:
+    """Retain physical occurrences; remove only a clear adjacent-file copy."""
+    by_path: Dict[str, List[Record]] = {str(path): [] for path in paths}
+    for path, record in source_records:
+        # Bound history scans as records arrive. If a time window cuts through
+        # copied content, retain the uncertain boundary rather than guessing.
+        if since is not None and (
+            record.ts < since or (since_exclusive and record.ts == since)
+        ):
             continue
-        # Preserve repeated occurrences within a source. For overlapping
-        # rotations, retain the greatest occurrence count seen in any one
-        # source instead of collapsing the record globally.
-        key = (r.ts, r.level, r.src, r.line, r.msg)
-        occurrences.setdefault(key, {}).setdefault(str(path), []).append(r)
-    out: List[Record] = []
-    for by_path in occurrences.values():
-        _selected_path, selected_records = min(
-            by_path.items(),
-            key=lambda item: (-len(item[1]), path_priority.get(item[0], len(paths))),
-        )
-        out.extend(selected_records)
-    if physical_order:
-        canonical = []
-        for path in paths:
-            match = re.fullmatch(r"(?P<base>.+\.log)(?:\.(?P<rotation>\d+))?", path.name)
-            canonical.append((path, match))
-        same_rotation_family = bool(canonical) and all(match for _path, match in canonical)
-        if same_rotation_family:
-            families = {(path.parent.resolve(), match.group("base")) for path, match in canonical if match}
-            same_rotation_family = len(families) == 1
-        if same_rotation_family:
-            ordered_paths = sorted(
-                (path for path, _match in canonical),
-                key=lambda path: (
-                    1 if re.fullmatch(r".+\.log", path.name) else 0,
-                    -int(path.name.rsplit(".", 1)[1]) if path.name.rsplit(".", 1)[1].isdigit() else 0,
-                ),
-            )
-        else:
-            def physical_path_key(path: Path) -> Tuple[int, str]:
-                try:
-                    return path.stat().st_mtime_ns, str(path)
-                except OSError:
-                    return 0, str(path)
+        if until is not None and record.ts > until:
+            continue
+        by_path.setdefault(str(path), []).append(record)
 
-            ordered_paths = sorted(paths, key=physical_path_key)
-        physical_priority = {str(path): index for index, path in enumerate(ordered_paths)}
-        out.sort(key=lambda r: (physical_priority.get(r.path, len(paths)), r.ordinal, r.ts))
+    canonical = [
+        (path, re.fullmatch(r"(?P<base>.+\.log)(?:\.(?P<rotation>\d+))?", path.name))
+        for path in paths
+    ]
+    same_rotation_family = bool(canonical) and all(match for _path, match in canonical)
+    if same_rotation_family:
+        families = {(path.parent.resolve(), match.group("base")) for path, match in canonical if match}
+        same_rotation_family = len(families) == 1
+    if same_rotation_family:
+        ordered_paths = sorted(
+            paths,
+            key=lambda path: -int(path.name.rsplit(".", 1)[1])
+            if path.name.rsplit(".", 1)[1].isdigit() else 0,
+        )
     else:
-        out.sort(key=lambda r: (r.ts, r.path, r.ordinal))
+        def physical_path_key(path: Path) -> Tuple[int, str]:
+            try:
+                return path.stat().st_mtime_ns, str(path)
+            except OSError:
+                return 0, str(path)
+
+        ordered_paths = sorted(paths, key=physical_path_key)
+
+    def identity(record: Record) -> tuple[Any, ...]:
+        return record.ts, record.level, record.src, record.line, record.msg
+
+    def overlap_length(old_records: List[Record], new_records: List[Record]) -> int:
+        """Find the longest old suffix equal to a new prefix in linear time."""
+        if not old_records or not new_records:
+            return 0
+        new_keys = [identity(record) for record in new_records]
+        prefixes = [0] * len(new_keys)
+        for index in range(1, len(new_keys)):
+            matched = prefixes[index - 1]
+            while matched and new_keys[index] != new_keys[matched]:
+                matched = prefixes[matched - 1]
+            if new_keys[index] == new_keys[matched]:
+                matched += 1
+            prefixes[index] = matched
+        matched = 0
+        for record in old_records:
+            key = identity(record)
+            while matched and (matched == len(new_keys) or key != new_keys[matched]):
+                matched = prefixes[matched - 1]
+            if key == new_keys[matched]:
+                matched += 1
+        return matched
+
+    if same_rotation_family:
+        for older, newer in zip(ordered_paths, ordered_paths[1:]):
+            older_number = int(older.name.rsplit(".", 1)[1]) if older.name.rsplit(".", 1)[1].isdigit() else 0
+            newer_number = int(newer.name.rsplit(".", 1)[1]) if newer.name.rsplit(".", 1)[1].isdigit() else 0
+            if older_number != newer_number + 1:
+                continue
+            old_records = by_path[str(older)]
+            new_records = by_path[str(newer)]
+            # Same-second boundary matches can be genuine repeated events.
+            # Require a contiguous copy spanning distinct timestamps before
+            # removing newer copies; keep the older physical cursor position.
+            length = overlap_length(old_records, new_records)
+            if length > 1 and len({record.ts for record in new_records[:length]}) > 1:
+                del new_records[:length]
+
+    out = [record for records in by_path.values() for record in records]
+    if physical_order:
+        physical_priority = {str(path): index for index, path in enumerate(ordered_paths)}
+        out.sort(key=lambda record: (physical_priority.get(record.path, len(paths)), record.ordinal, record.ts))
+    else:
+        out.sort(key=lambda record: (record.ts, record.path, record.ordinal))
     return out
 
 

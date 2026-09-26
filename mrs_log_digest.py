@@ -807,8 +807,8 @@ def resolve_explicit_logs(paths: Iterable[Path], project_dir: Path) -> List[Path
 
 @contextmanager
 def digest_execution_lock(path: Path) -> Iterator[None]:
-    """Hold a separate, nonblocking lock for one stateful/output digest run."""
-    path.parent.mkdir(parents=True, exist_ok=True)
+    """Hold a nonblocking lock for one digest state or output resource."""
+    _mkdir_durable(path.parent)
     fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
     try:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
@@ -2886,6 +2886,27 @@ def render_markdown(report: Dict[str, Any]) -> str:
     )
 
 
+def _fsync_directory(path: Path) -> None:
+    """Persist directory entries after creating or replacing a digest file."""
+    directory_fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def _mkdir_durable(path: Path) -> None:
+    """Create an output directory and persist any new ancestor entries."""
+    missing: List[Path] = []
+    ancestor = path
+    while not ancestor.exists():
+        missing.append(ancestor)
+        ancestor = ancestor.parent
+    path.mkdir(parents=True, exist_ok=True)
+    for created in reversed(missing):
+        _fsync_directory(created.parent)
+
+
 def deliver_report(rendered: str, output_path: Optional[Path] = None) -> None:
     """Deliver a complete report before the caller advances resume state."""
     if output_path is None:
@@ -2893,7 +2914,7 @@ def deliver_report(rendered: str, output_path: Optional[Path] = None) -> None:
         sys.stdout.flush()
         return
     output_path = output_path.expanduser().resolve()
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    _mkdir_durable(output_path.parent)
     fd, tmp_name = tempfile.mkstemp(
         prefix=f".{output_path.name}.",
         suffix=".tmp",
@@ -2902,21 +2923,19 @@ def deliver_report(rendered: str, output_path: Optional[Path] = None) -> None:
     )
     tmp = Path(tmp_name)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        try:
+            handle = os.fdopen(fd, "w", encoding="utf-8")
+        except BaseException:
+            os.close(fd)
+            raise
+        with handle:
             handle.write(rendered)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(tmp, output_path)
-    except Exception:
-        try:
-            os.close(fd)
-        except OSError:
-            pass
-        try:
-            tmp.unlink()
-        except FileNotFoundError:
-            pass
-        raise
+        _fsync_directory(output_path.parent)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def validate_output_destinations(
@@ -3149,9 +3168,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     lock_paths: List[Path] = []
     if not args.no_state:
         lock_paths.append(state_file.with_suffix(state_file.suffix + ".lock"))
-    else:
-        for output in output_paths:
-            lock_paths.append(output.with_suffix(output.suffix + ".lock"))
+    for output in output_paths:
+        lock_paths.append(output.with_suffix(output.suffix + ".lock"))
+    if set(output_paths) & {path.resolve() for path in lock_paths}:
+        ap.error("output paths must not alias digest lock files")
 
     if not lock_paths:
         return run_digest(args, project_dir=project_dir, state_file=state_file)

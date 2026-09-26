@@ -801,6 +801,80 @@ def test_output_file_failure_does_not_advance_resume(tmp_path, monkeypatch):
     assert state.read_bytes() == before
 
 
+def test_report_publication_fsyncs_file_then_replaces_then_fsyncs_directory(tmp_path, monkeypatch):
+    output = tmp_path / "report.md"
+    calls = []
+    real_fsync = os.fsync
+    real_replace = os.replace
+
+    def record_fsync(fd):
+        calls.append("directory fsync" if stat.S_ISDIR(os.fstat(fd).st_mode) else "file fsync")
+        real_fsync(fd)
+
+    def record_replace(source, destination):
+        calls.append("replace")
+        real_replace(source, destination)
+
+    monkeypatch.setattr(digest.os, "fsync", record_fsync)
+    monkeypatch.setattr(digest.os, "replace", record_replace)
+
+    digest.deliver_report("durable report\n", output)
+
+    assert calls == ["file fsync", "replace", "directory fsync"]
+    assert output.read_text() == "durable report\n"
+    assert list(tmp_path.glob(".report.md.*.tmp")) == []
+
+
+def test_new_report_directories_have_durable_parent_entries(tmp_path, monkeypatch):
+    output = tmp_path / "new" / "nested" / "report.md"
+    directories = []
+    real_fsync_directory = digest._fsync_directory
+
+    def record_directory(path):
+        directories.append(path)
+        real_fsync_directory(path)
+
+    monkeypatch.setattr(digest, "_fsync_directory", record_directory)
+    digest.deliver_report("report\n", output)
+
+    assert directories == [tmp_path, tmp_path / "new", output.parent]
+    assert output.read_text() == "report\n"
+
+
+def test_directory_fsync_failure_prevents_cursor_commit_and_cleans_temp(tmp_path, monkeypatch):
+    project, log = project_with_log(tmp_path)
+    state = project / ".resume.json"
+    state.write_text('{"last_log_entry_time":"2026-07-09 00:00:00"}\n')
+    before = state.read_bytes()
+    output = tmp_path / "report.md"
+    real_fsync = os.fsync
+
+    def fail_directory_fsync(fd):
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            raise OSError("directory fsync failure")
+        real_fsync(fd)
+
+    monkeypatch.setattr(digest.os, "fsync", fail_directory_fsync)
+    monkeypatch.setattr(digest, "save_resume_time", lambda *_a, **_k: pytest.fail("cursor must not advance"))
+
+    with pytest.raises(OSError, match="directory fsync failure"):
+        digest.main(main_args(project, log, "--output", str(output)))
+
+    assert state.read_bytes() == before
+    assert list(tmp_path.glob(".report.md.*.tmp")) == []
+
+
+def test_report_replace_failure_cleans_temporary_file(tmp_path, monkeypatch):
+    output = tmp_path / "report.md"
+    monkeypatch.setattr(digest.os, "replace", lambda *_a, **_k: (_ for _ in ()).throw(OSError("replace failure")))
+
+    with pytest.raises(OSError, match="replace failure"):
+        digest.deliver_report("report\n", output)
+
+    assert not output.exists()
+    assert list(tmp_path.glob(".report.md.*.tmp")) == []
+
+
 def test_output_cannot_alias_input_log(tmp_path):
     project, log = project_with_log(tmp_path)
     before = log.read_bytes()
@@ -1032,7 +1106,7 @@ def test_repeated_identical_records_in_one_log_are_preserved(tmp_path: Path) -> 
     assert [record.ordinal for record in records] == [1, 2]
 
 
-def test_overlapping_rotations_preserve_maximum_occurrence_cardinality(tmp_path: Path) -> None:
+def test_identical_boundary_records_are_not_assumed_to_be_copies(tmp_path: Path) -> None:
     current = tmp_path / "mrsMThatcher.log"
     rotation = tmp_path / "mrsMThatcher.log.1"
     line = "2026-07-10 12:00:00 INFO     worker:9 - identical event\n"
@@ -1041,8 +1115,62 @@ def test_overlapping_rotations_preserve_maximum_occurrence_cardinality(tmp_path:
 
     records = digest.read_records([current, rotation], None, None)
 
-    assert len(records) == 2
-    assert all(record.path == str(current) for record in records)
+    assert len(records) == 3
+    assert [record.path for record in records] == [str(current), str(current), str(rotation)]
+
+
+def test_identical_genuine_events_straddling_rotation_keep_both_positions(tmp_path: Path) -> None:
+    current = tmp_path / "mrsMThatcher.log"
+    rotation = tmp_path / "mrsMThatcher.log.1"
+    line = "2026-07-10 12:00:00 INFO     worker:9 - genuine repeat\n"
+    rotation.write_text(line, encoding="utf-8")
+    current.write_text(line, encoding="utf-8")
+
+    records = digest.read_records([current, rotation], None, None, physical_order=True)
+
+    assert [record.path for record in records] == [str(rotation), str(current)]
+
+
+def test_same_second_varied_boundary_stays_ambiguous(tmp_path: Path) -> None:
+    current = tmp_path / "mrsMThatcher.log"
+    rotation = tmp_path / "mrsMThatcher.log.1"
+    a = "2026-07-10 12:00:00 INFO     worker:9 - first event\n"
+    b = "2026-07-10 12:00:00 INFO     worker:9 - second event\n"
+    rotation.write_text(a + b, encoding="utf-8")
+    current.write_text(a + b, encoding="utf-8")
+
+    assert len(digest.read_records([current, rotation], None, None)) == 4
+
+
+def test_contiguous_multisecond_rotation_copy_is_removed_without_losing_new_records(tmp_path: Path) -> None:
+    current = tmp_path / "mrsMThatcher.log"
+    rotation = tmp_path / "mrsMThatcher.log.1"
+    a = "2026-07-10 12:00:00 INFO     worker:9 - first event\n"
+    b = "2026-07-10 12:00:01 INFO     worker:9 - second event\n"
+    c = "2026-07-10 12:00:02 INFO     worker:9 - new event\n"
+    rotation.write_text(a + b, encoding="utf-8")
+    current.write_text(a + b + c, encoding="utf-8")
+
+    records = digest.read_records([current, rotation], None, None, physical_order=True)
+
+    assert [record.msg for record in records] == ["first event", "second event", "new event"]
+    assert [record.path for record in records] == [str(rotation), str(rotation), str(current)]
+    clipped = digest.read_records(
+        [current, rotation], datetime(2026, 7, 10, 12, 0, 1), None,
+    )
+    assert [record.msg for record in clipped] == [
+        "second event", "second event", "new event",
+    ]
+
+
+def test_explicit_unrelated_logs_keep_identical_physical_records(tmp_path: Path) -> None:
+    first = tmp_path / "first.log"
+    second = tmp_path / "second.log"
+    line = "2026-07-10 12:00:00 INFO     worker:9 - identical event\n"
+    first.write_text(line, encoding="utf-8")
+    second.write_text(line, encoding="utf-8")
+
+    assert len(digest.read_records([first, second], None, None)) == 2
 
 
 def test_physical_record_order_preserves_clock_rollback_append_order(tmp_path: Path) -> None:
@@ -1184,6 +1312,51 @@ def test_resume_tail_keeps_post_fallback_record_after_rotation(tmp_path: Path) -
 
     assert digest.main(args) == 0
     assert "no matching records" in report.read_text(encoding="utf-8")
+
+
+def test_resume_uses_old_rotation_tail_before_new_unrelated_and_repeated_events(tmp_path: Path) -> None:
+    project, _names = pool(tmp_path, 2)
+    current = project / "mrsMThatcher.log"
+    rotation = project / "mrsMThatcher.log.1"
+    state = project / ".resume.json"
+    report = project / "report.md"
+    repeated = "2026-07-10 12:00:00 ERROR    worker:9 - repeated event\n"
+    unique = "2026-07-10 12:00:00 ERROR    worker:9 - unique new event\n"
+    current.write_text(repeated, encoding="utf-8")
+    args = ["--project-dir", str(project), "--state-file", state.name,
+            "--output", str(report), str(current)]
+
+    assert digest.main(args) == 0
+    assert json.loads(state.read_text())["last_log_entry_fingerprint_tail"]
+    current.replace(rotation)
+    current.write_text(unique + repeated, encoding="utf-8")
+
+    assert digest.main(args) == 0
+    second = report.read_text(encoding="utf-8")
+    assert "unique new event" in second
+    assert "repeated event" in second
+    assert "Records parsed: `2`" in second
+    assert digest.main(args) == 0
+    assert "no matching records" in report.read_text(encoding="utf-8")
+
+
+def test_ordinary_incremental_resume_processes_only_appended_record(tmp_path: Path) -> None:
+    project, _names = pool(tmp_path, 2)
+    current = project / "mrsMThatcher.log"
+    report = project / "report.md"
+    first = "2026-07-10 12:00:00 ERROR    worker:9 - first event\n"
+    second = "2026-07-10 12:00:01 ERROR    worker:9 - second event\n"
+    current.write_text(first, encoding="utf-8")
+    args = ["--project-dir", str(project), "--output", str(report), str(current)]
+
+    assert digest.main(args) == 0
+    current.write_text(first + second, encoding="utf-8")
+    assert digest.main(args) == 0
+
+    rendered = report.read_text(encoding="utf-8")
+    assert "second event" in rendered
+    assert "first event" not in rendered
+    assert "Records parsed: `1`" in rendered
 
 
 def test_resume_boundary_counts_preserve_new_identical_occurrence(tmp_path: Path) -> None:

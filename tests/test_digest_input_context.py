@@ -540,8 +540,10 @@ def test_combined_reader_preserves_raw_summaries_and_physical_resume_records(
     assert [item["total_records"] for item in summaries] == [3, 0, 0, 4]
     assert summaries[3]["first_timestamp"] == digest.dt_text(BASE - timedelta(seconds=1))
     assert summaries[3]["last_timestamp"] == digest.dt_text(BASE - timedelta(seconds=2))
-    assert [item.ordinal for item in records if item.msg == "duplicate"] == [1, 2]
-    assert all(item.path == str(current) for item in records if item.msg == "duplicate")
+    assert [item.ordinal for item in records if item.msg == "duplicate"] == [2, 1, 2]
+    assert [item.path for item in records if item.msg == "duplicate"] == [
+        str(rotation), str(current), str(current),
+    ]
     assert capsys.readouterr().err == f"WARNING: missing log file: {missing}\n"
 
 
@@ -851,6 +853,22 @@ def test_cli_refuses_colliding_output_paths(tmp_path):
     assert "output paths must be distinct" in result.stderr
 
 
+@pytest.mark.parametrize("arguments", [
+    ["--state-file", "resume.json", "--output", "resume.json.lock"],
+    ["--no-state", "--output", "report.md", "--markdown-output", "report.md.lock"],
+])
+def test_cli_refuses_outputs_that_replace_digest_lock_files(tmp_path, arguments, capsys):
+    resolved = [str(tmp_path / value) if value.endswith((".md", ".lock")) else value
+                for value in arguments]
+
+    with pytest.raises(SystemExit) as caught:
+        digest.main(["--project-dir", str(tmp_path), *resolved])
+
+    assert caught.value.code == 2
+    assert "output paths must not alias digest lock files" in capsys.readouterr().err
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_secondary_output_is_locked_when_state_is_disabled(tmp_path, monkeypatch):
     log = tmp_path / "bot.log"
     log.write_text("2026-07-15 12:00:00 INFO main:1 - Bot started\n", encoding="utf-8")
@@ -866,6 +884,103 @@ def test_secondary_output_is_locked_when_state_is_disabled(tmp_path, monkeypatch
     monkeypatch.setattr(digest, "run_digest", lambda *_args, **_kwargs: 0)
     assert digest.main([str(log), "--no-state", "--markdown-output", str(output)]) == 0
     assert locks == [output.with_suffix(".md.lock")]
+
+
+@pytest.mark.parametrize("other_state", [None, "second-state.json"])
+def test_shared_output_serializes_different_state_modes(tmp_path, monkeypatch, other_state):
+    output = tmp_path / "shared.md"
+    outer = ["--project-dir", str(tmp_path), "--state-file", "first-state.json",
+             "--output", str(output)]
+    inner = ["--project-dir", str(tmp_path), "--output", str(output)]
+    inner += ["--no-state"] if other_state is None else ["--state-file", other_state]
+    entries = []
+
+    def outer_run(*_args, **_kwargs):
+        entries.append("entered")
+        if len(entries) > 1:
+            return 0
+        with pytest.raises(RuntimeError, match="Another digest process holds"):
+            digest.main(inner)
+        return 0
+
+    monkeypatch.setattr(digest, "run_digest", outer_run)
+    assert digest.main(outer) == 0
+    assert entries == ["entered"]
+
+
+def test_stateful_output_lock_blocks_no_state_in_another_process(tmp_path, monkeypatch):
+    output = tmp_path / "shared.md"
+    script = """
+import sys
+import mrs_log_digest as digest
+digest.run_digest = lambda *_args, **_kwargs: 0
+try:
+    digest.main(sys.argv[1:])
+except RuntimeError as exc:
+    if "Another digest process holds" in str(exc):
+        sys.exit(0)
+    raise
+sys.exit(7)
+"""
+
+    def while_locked(*_args, **_kwargs):
+        result = subprocess.run(
+            [sys.executable, "-c", script, "--no-state", "--output", str(output)],
+            capture_output=True, text=True, check=False,
+        )
+        assert result.returncode == 0, result.stderr
+        return 0
+
+    monkeypatch.setattr(digest, "run_digest", while_locked)
+    assert digest.main(["--project-dir", str(tmp_path), "--state-file", "first-state.json",
+                        "--output", str(output)]) == 0
+
+
+def test_unrelated_output_and_state_locks_can_run_together(tmp_path, monkeypatch):
+    outer = ["--project-dir", str(tmp_path), "--state-file", "first-state.json",
+             "--output", str(tmp_path / "first.md")]
+    inner = ["--project-dir", str(tmp_path), "--state-file", "second-state.json",
+             "--output", str(tmp_path / "second.md")]
+    calls = []
+
+    def fake_run(*_args, **_kwargs):
+        calls.append("run")
+        if len(calls) == 1:
+            assert digest.main(inner) == 0
+        return 0
+
+    monkeypatch.setattr(digest, "run_digest", fake_run)
+    assert digest.main(outer) == 0
+    assert calls == ["run", "run"]
+
+
+def test_multiple_outputs_and_state_locks_acquire_in_deterministic_order(tmp_path, monkeypatch):
+    primary = tmp_path / "z.md"
+    markdown = tmp_path / "b.md"
+    json_output = tmp_path / "m.json"
+    state = tmp_path / "a-state.json"
+    acquired = []
+    released = []
+
+    @contextmanager
+    def fake_lock(path):
+        acquired.append(path)
+        try:
+            yield
+        finally:
+            released.append(path)
+
+    monkeypatch.setattr(digest, "digest_execution_lock", fake_lock)
+    monkeypatch.setattr(digest, "run_digest", lambda *_args, **_kwargs: 0)
+    assert digest.main([
+        "--project-dir", str(tmp_path), "--state-file", str(state),
+        "--output", str(primary), "--markdown-output", str(markdown),
+        "--json-output", str(json_output),
+    ]) == 0
+    expected = sorted({path.with_suffix(path.suffix + ".lock") for path in
+                       (state, primary, markdown, json_output)}, key=str)
+    assert acquired == expected
+    assert released == list(reversed(expected))
 
 
 def test_input_retention_coverage_warns_when_requested_start_predates_logs():

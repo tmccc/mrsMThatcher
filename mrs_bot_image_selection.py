@@ -76,7 +76,7 @@ class ImageSelection:
             cycle_reset = True
 
             last_name = str((state or {}).get("last_regular_image_filename") or "")
-            if len(available) > 1 and last_name in available:
+            if last_name in available:
                 available.remove(last_name)
                 self.log.info("Temporarily excluded last regular image at eligible-cycle boundary: %s", last_name)
 
@@ -162,9 +162,14 @@ class ImageSelection:
         else:
             available, cycle_reset = self.available_basenames(eligible_basenames, images_used, state)
         last_name = str((state or {}).get("last_regular_image_filename") or "")
+        if (cycle_reset and not force_cycle_reset and avoid_last_image_at_cycle_boundary
+                and last_name in eligible_basenames
+                and cycle_boundary_exclusions is not None):
+            # available_basenames already removed it for this attempt. Retain
+            # that boundary decision for later quotations in the same pairing.
+            cycle_boundary_exclusions.add(last_name)
         should_exclude_last = (
             avoid_last_image_at_cycle_boundary
-            and len(available) > 1
             and last_name in available
             and (force_cycle_reset or (cycle_boundary_exclusions is not None and last_name in cycle_boundary_exclusions))
         )
@@ -172,7 +177,8 @@ class ImageSelection:
             available.remove(last_name)
             if cycle_boundary_exclusions is not None:
                 cycle_boundary_exclusions.add(last_name)
-            self.log.info("Temporarily excluded last regular image at forced eligible-cycle boundary: %s", last_name)
+            boundary = "forced eligible-cycle" if force_cycle_reset else "eligible-cycle"
+            self.log.info("Temporarily excluded last regular image at %s boundary: %s", boundary, last_name)
         self.log.info(
             "Image cycle status: used_count=%d currently_eligible=%d remaining_count=%d seasonally_excluded=%d stale_excluded=%d cycle_reset=%s",
             len(images_used),
@@ -184,6 +190,12 @@ class ImageSelection:
         )
 
         if not available:
+            if should_exclude_last or (
+                avoid_last_image_at_cycle_boundary
+                and cycle_boundary_exclusions is not None
+                and last_name in cycle_boundary_exclusions
+            ):
+                raise self.QuoteSpecificImageMismatch("Only the previous regular image remains at the eligible-cycle boundary")
             raise self.GlobalImageUnavailable("No currently unused eligible regular-post images are available")
 
         scored: list[dict] = []
@@ -336,7 +348,7 @@ def choose_regular_quote_image_pair(
                 state,
                 force_cycle_reset=reset_available_images_once,
                 avoid_last_image_at_cycle_boundary=avoid_last_image_at_cycle_boundary,
-                cycle_boundary_exclusions=cycle_boundary_exclusions if force_image_cycle_reset else None,
+                cycle_boundary_exclusions=cycle_boundary_exclusions,
                 selection_phase=selection_phase,
             )
             if attempts > 1:

@@ -345,6 +345,87 @@ def test_last_image_boundary_avoidance_wins_when_non_last_image_is_viable(
     assert "retrying once with last image permitted" not in caplog.text
 
 
+def test_automatic_cycle_boundary_excludes_last_across_quote_attempts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    first_quote = {"primary_topics": ["first"]}
+    second_quote = {"primary_topics": ["second"]}
+    lines_used, images_used, state, _paths = configure_image_cycle_post(
+        tmp_path, monkeypatch,
+        image_analyses={"t01.jpg": portrait_analysis(), "t02.jpg": crowd_scene_analysis()},
+        quote_analyses={0: first_quote, 1: second_quote},
+    )
+    images_used.update({"t01.jpg", "t02.jpg"})
+    state["last_regular_image_filename"] = "t01.jpg"
+    monkeypatch.setattr(quote_candidates.QuoteCandidates, "select", lambda _self, candidates: candidates[0])
+
+    def score(quote_analysis, image_analysis, _idf):
+        image_is_last = "Formal portrait" in image_analysis["description"]
+        if quote_analysis["primary_topics"] == ["first"]:
+            return 0.0, {}, image_is_last
+        return (100.0 if image_is_last else 10.0), {}, True
+
+    monkeypatch.setattr(bot, "score_image_for_quote", score)
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+
+    bot.post_random_quote(lines_used, images_used, state)
+
+    assert state["last_regular_image_filename"] == "t02.jpg"
+    assert images_used == {"t02.jpg"}
+    assert lines_used == {bot.quote_text_hash("Quote B.")}
+    assert "retrying once with last image permitted" not in caplog.text
+    next_quote, next_image, _attempts = bot.choose_regular_quote_image_pair(
+        lines_used, images_used, state,
+    )
+    assert next_quote["text"] == "Quote A."
+    assert next_image["basename"] == "t01.jpg"
+
+
+def test_automatic_boundary_admits_last_only_in_explicit_final_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    lines_used, images_used, state, _paths = configure_image_cycle_post(
+        tmp_path, monkeypatch,
+        image_analyses={"t01.jpg": portrait_analysis(), "t02.jpg": crowd_scene_analysis()},
+        quote_analyses={0: quote_rejecting_crowd_scenes(), 1: quote_rejecting_crowd_scenes()},
+    )
+    images_used.update({"t01.jpg", "t02.jpg"})
+    state["last_regular_image_filename"] = "t01.jpg"
+    monkeypatch.setattr(quote_candidates.QuoteCandidates, "select", lambda _self, candidates: candidates[0])
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+
+    bot.post_random_quote(lines_used, images_used, state)
+
+    assert state["last_regular_image_filename"] == "t01.jpg"
+    assert "retrying once with last image permitted" in caplog.text
+    assert "Regular quote/image pairing succeeded after permitting last regular image" in caplog.text
+
+
+def test_single_eligible_last_image_also_waits_for_explicit_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    lines_used, images_used, state, _paths = configure_image_cycle_post(
+        tmp_path, monkeypatch,
+        image_analyses={"t01.jpg": portrait_analysis()},
+        quote_analyses={0: {}},
+        quotes=["Only quote."],
+    )
+    images_used.add("t01.jpg")
+    state["last_regular_image_filename"] = "t01.jpg"
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+
+    bot.post_random_quote(lines_used, images_used, state)
+
+    assert state["last_regular_image_filename"] == "t01.jpg"
+    assert "retrying once with last image permitted" in caplog.text
+
+
 def test_last_image_boundary_fallback_fails_safely_without_fourth_pass(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
