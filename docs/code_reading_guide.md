@@ -65,6 +65,10 @@ For the quote-tweet path:
    candidate ordering, delay/cap checks and quote-lane bookkeeping.
 3. It calls `ReplyContext.build_quote`, `ReplyDrafts.recover` and
    `ReplyGeneration.evaluate` directly, then enters the same delivery boundary.
+   Completed scans report `checked`; search and provider failures report
+   `api_error`, unavailable local evidence reports `local_error`, and a
+   deliberate runtime pause reports `paused`. These statuses still consume the
+   ordinary quote-check interval; only spacing has a short retry.
 
 For the posting and durable-state boundary, start with
 `ReplyCycleDelivery.deliver` in
@@ -313,6 +317,11 @@ retirement, namespace, validation and exclusive-create checks in that order.
 journal retirement and receipt removal using the same commit proof. Fresh replies,
 restart reconciliation and emergency state fallback keep their distinct exception
 and signal-deferral policies around those owned operations.
+`RuntimeCoordinator` contains confirmed-reply local persistence failures at
+both reply lanes and pre-barrier recovery. A failing tick stops later lanes and
+waits 60 seconds before retrying local recovery; startup also waits and retries
+before continuing state mutation. The receipt and journal remain the authority
+for whether a confirmed reply can be reconciled without another remote post.
 
 `TweetLookupCache` owns cache normalization, pruning, storage, verified fetches
 and the recent own-post index. Cached context preserves row identity on a hit;
@@ -408,7 +417,11 @@ lock. Collision checks use resolved paths and, for existing files, same-file
 identity to catch hard links. Relative input and state paths use the project
 directory; relative outputs use the current working directory. A stateful run
 holds its cursor lock and every explicit output lock; a `--no-state` run holds
-its output locks. Locks are deduplicated and acquired in deterministic order.
+its output locks. After checking every requested lock path against data paths,
+existing hard-linked lock names are acquired once by inode identity. Distinct
+or absent locks retain deterministic pathname order. This preflight assumes
+lock path identity is stable until each no-follow open; it does not defend
+against arbitrary concurrent filesystem replacement.
 
 Under those locks, `run_digest()` calls `select_digest_inputs()` for the
 physical resume window, `collect_current_snapshots()` for current read-only
@@ -420,6 +433,12 @@ its directory; newly created output directories have their parent entries
 synced as well. Only after all delivery succeeds does `run_digest()` call
 `commit_digest_cursor()`. That call advances the cursor only when records were
 selected and neither `--no-state` nor `--no-update-state` was given.
+Its saved timestamp comes from the last contiguous selected physical record
+covered by the cursor, even after a backward clock jump or a manual filter
+leaves holes or a suffix unanalysed. Later analysed records may replay after a
+gap. Boundary occurrence counts include newly analysed records; an unavailable
+saved tail prevents uncertain counts from
+being added to earlier boundary counts.
 
 | Question | Implementation to read next |
 |---|---|
@@ -439,7 +458,11 @@ suffix/prefix overlap between adjacent numbered rotations that spans distinct
 timestamps, preserving the older physical position. Uncertain duplicates stay
 in the input, keeping an older saved-tail occurrence ahead of a later identical
 event when both are retained. Resume selection uses physical order and prefers
-the saved tail, with a timestamp boundary fallback when that tail is unavailable.
+the saved tail. If that tail is unavailable, the timestamp fallback retains
+uncertain same-second records and may replay retained history after a backward
+clock jump. Without physical identity, a timestamp alone cannot perfectly
+separate old and new records across a non-monotonic clock; the fallback warning
+marks that uncertainty.
 
 `analyse()` creates a `DigestAnalysis`, observes records, then finalises the
 report. Its `observe()` loop names the ordered transport, logged-runtime and

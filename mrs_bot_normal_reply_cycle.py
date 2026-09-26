@@ -1126,7 +1126,7 @@ class NormalReplyCycle:
             mark_as_ai=self.config.mark_as_ai,
             retire_terminal_target=retire_terminal_target,
         )
-        if outcome is ReplyDeliveryStop.TERMINAL:
+        if outcome is ReplyDeliveryStop.TERMINAL or outcome is ReplyDeliveryStop.PAUSED:
             return FinishReplyCheck(NORMAL_CHECK_STATUS_CHECKED)
         if outcome is ReplyDeliveryStop.RETRYABLE:
             return FinishReplyCheck(NORMAL_CHECK_STATUS_API_ERROR)

@@ -762,8 +762,9 @@ def test_resume_selection_keeps_unprocessed_boundary_occurrences(missing_tail):
     assert selection.cursor_mode == "timestamp"
     assert selection.tail_match_length == 0
     assert selection.timestamp_fallback is missing_tail
-    assert len(selection.records) == 3
-    assert all(actual is expected for actual, expected in zip(selection.records, rows[2:]))
+    expected = rows[1:] if missing_tail else rows[2:]
+    assert selection.records == expected
+    assert all(actual is expected_record for actual, expected_record in zip(selection.records, expected))
     assert counts == original_counts
 
 
@@ -778,7 +779,7 @@ def test_resume_selection_retains_timestamp_boundary_semantics(since, exclusive,
     assert selection.timestamp_fallback is False
 
 
-@pytest.mark.parametrize("failure", ["warning", "time_filter", "boundary_filter"])
+@pytest.mark.parametrize("failure", ["warning", "time_filter"])
 def test_resume_fallback_warning_precedes_filter_failures(failure):
     calls = []
     rows = [record(0, "INFO", "worker", "boundary")]
@@ -798,8 +799,22 @@ def test_resume_fallback_warning_precedes_filter_failures(failure):
             filter_records_by_time=lambda *args, **kwargs: step("time_filter", rows),
             filter_resume_boundary_records=lambda *args: step("boundary_filter", rows),
         )
-    expected = ["locate", "warning", "time_filter", "boundary_filter"]
+    expected = ["locate", "warning", "time_filter"]
     assert calls == expected[:expected.index(failure) + 1]
+
+
+def test_legacy_timestamp_boundary_filter_failure_still_propagates():
+    rows = [record(0, "INFO", "worker", "boundary")]
+    with pytest.raises(RuntimeError, match="boundary filter failed"):
+        record_owner.select_resume_window(
+            rows, BASE, since_exclusive=False, saved_resume_tail=[],
+            resume_boundary_counts=Counter({digest.record_fingerprint(rows[0]): 1}),
+            locate_resume_fingerprint_tail=lambda *_args: None,
+            warn_timestamp_fallback=lambda: None,
+            filter_records_by_time=lambda *_args, **_kwargs: rows,
+            filter_resume_boundary_records=lambda *_args: (_ for _ in ()).throw(
+                RuntimeError("boundary filter failed")),
+        )
 
 
 def test_explicit_since_is_exact_and_boundary_is_inclusive(tmp_path, monkeypatch):
@@ -1111,6 +1126,108 @@ def test_multiple_outputs_and_state_locks_acquire_in_deterministic_order(tmp_pat
                        (state, primary, markdown, json_output)}, key=str)
     assert acquired == expected
     assert released == list(reversed(expected))
+
+
+def test_hard_linked_state_and_output_locks_are_acquired_once(tmp_path, monkeypatch):
+    log = tmp_path / "bot.log"
+    log.write_text("2026-07-15 12:00:00 INFO worker:9 - existing log\n")
+    state = tmp_path / "a-state.json"
+    output = tmp_path / "z-report.md"
+    state_lock = state.with_suffix(".json.lock")
+    output_lock = output.with_suffix(".md.lock")
+    state_lock.write_text("old lock owner\n")
+    output_lock.hardlink_to(state_lock)
+    real_lock = digest.digest_execution_lock
+    acquired = []
+
+    @contextmanager
+    def recording_lock(path):
+        acquired.append(path)
+        with real_lock(path):
+            yield
+
+    monkeypatch.setattr(digest, "digest_execution_lock", recording_lock)
+    assert digest.main(["--project-dir", str(tmp_path), "--state-file", state.name,
+                        "--output", str(output), log.name]) == 0
+    assert acquired == [state_lock]
+    assert output.exists() and state.exists()
+    assert output_lock.samefile(state_lock)
+
+
+def test_other_process_holding_either_lock_alias_blocks_digest(tmp_path):
+    log = tmp_path / "bot.log"
+    log.write_text("2026-07-15 12:00:00 INFO worker:9 - existing log\n")
+    state = tmp_path / "a-state.json"
+    output = tmp_path / "z-report.md"
+    state_lock = state.with_suffix(".json.lock")
+    output_lock = output.with_suffix(".md.lock")
+    state_lock.touch()
+    output_lock.hardlink_to(state_lock)
+    script = """
+from pathlib import Path
+import sys
+import mrs_log_digest as digest
+with digest.digest_execution_lock(Path(sys.argv[1])):
+    print('ready', flush=True)
+    sys.stdin.readline()
+"""
+    for held_alias in (state_lock, output_lock):
+        process = subprocess.Popen(
+            [sys.executable, "-c", script, str(held_alias)],
+            cwd=Path(__file__).resolve().parents[1],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            assert process.stdout is not None
+            assert process.stdout.readline().strip() == "ready"
+            with pytest.raises(RuntimeError, match="Another digest process holds"):
+                digest.main(["--project-dir", str(tmp_path), "--state-file", state.name,
+                             "--output", str(output), log.name])
+        finally:
+            stdout, stderr = process.communicate("\n", timeout=10)
+            assert process.returncode == 0, stderr + stdout
+
+
+@pytest.mark.parametrize("kind", ["symlink", "directory"])
+def test_lock_identity_preflight_keeps_no_follow_and_regular_file_guards(tmp_path, kind):
+    log = tmp_path / "bot.log"
+    log.write_text("2026-07-15 12:00:00 INFO worker:9 - existing log\n")
+    state = tmp_path / "state.json"
+    lock = state.with_suffix(".json.lock")
+    sentinel = tmp_path / "sentinel.txt"
+    sentinel.write_text("unchanged")
+    if kind == "symlink":
+        lock.symlink_to(sentinel)
+    else:
+        lock.mkdir()
+    with pytest.raises(RuntimeError, match="Digest lock is not a regular file"):
+        digest.main(["--project-dir", str(tmp_path), "--state-file", state.name,
+                     log.name])
+    assert sentinel.read_text() == "unchanged"
+    assert not state.exists()
+
+
+def test_lock_identity_inspection_error_propagates_before_acquisition(tmp_path, monkeypatch):
+    log = tmp_path / "bot.log"
+    log.write_text("2026-07-15 12:00:00 INFO worker:9 - existing log\n")
+    state = tmp_path / "state.json"
+    lock = state.with_suffix(".json.lock")
+    original_lstat = Path.lstat
+
+    def inspect(path):
+        if path == lock:
+            raise PermissionError("lock inspection denied")
+        return original_lstat(path)
+
+    monkeypatch.setattr(Path, "lstat", inspect)
+    monkeypatch.setattr(digest, "digest_execution_lock", lambda _path: pytest.fail(
+        "lock acquisition reached after an inspection error"))
+    with pytest.raises(PermissionError, match="lock inspection denied"):
+        digest.main(["--project-dir", str(tmp_path), "--state-file", state.name,
+                     log.name])
+    assert not state.exists() and not lock.exists()
+    assert log.read_text() == "2026-07-15 12:00:00 INFO worker:9 - existing log\n"
 
 
 def test_input_retention_coverage_warns_when_requested_start_predates_logs():

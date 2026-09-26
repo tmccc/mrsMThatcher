@@ -2218,6 +2218,69 @@ def test_confirmed_reply_receipt_persistence_failure_keeps_receipt(
     assert "100" in state["replied_to_ids"]
 
 
+@pytest.mark.parametrize("lane", ["mention", "quote_tweet"])
+@pytest.mark.parametrize("failure_stage", ["journal", "receipt", "state"])
+def test_confirmed_reply_local_recovery_retries_without_remote_or_duplicate_counting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, lane: str, failure_stage: str,
+) -> None:
+    fixed_epoch = 2_000_000_000
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+    receipt = unit_confirmed_reply_receipt(
+        target_id="100", reply_post_id="900000", author_id="200", lane=lane,
+        epoch=fixed_epoch,
+    )
+    state = bot.default_state()
+    state["daily_reply_date"] = receipt["daily_reply_date"]
+    if lane == "quote_tweet":
+        state["daily_quote_reply_date"] = receipt["daily_quote_reply_date"]
+    state["next_quote_post_epoch"] = fixed_epoch + 3600
+    state["next_meme_post_epoch"] = fixed_epoch + 3600
+    bot._reply_assembly().reply_receipts().write(receipt, confirmed=True)
+    monkeypatch.setattr(bot, "x_request", lambda *_args, **_kwargs: pytest.fail(
+        "confirmed reply recovery must not make a remote request"))
+    failing = [True]
+
+    def fail_while_active(original):
+        def wrapped(*args, **kwargs):
+            if failing[0]:
+                raise OSError(f"{failure_stage} persistence failed")
+            return original(*args, **kwargs)
+        return wrapped
+
+    if failure_stage == "journal":
+        monkeypatch.setattr(bot, "retire_lane_transport_journal_if_present", fail_while_active(
+            bot.retire_lane_transport_journal_if_present))
+    elif failure_stage == "receipt":
+        monkeypatch.setattr(ReplyReceipts, "remove", fail_while_active(ReplyReceipts.remove))
+    else:
+        monkeypatch.setattr(bot, "save_state", fail_while_active(bot.save_state))
+
+    runtime = bot._runtime_coordinator()
+    runtime.resume_media_retirement = lambda: False
+    runtime.resume_source_retirement = lambda **_kwargs: None
+    runtime.process_historical_context = lambda **_kwargs: None
+    runtime.settings = bot._tick_coordination.RuntimeSettings(
+        False, False, False, 0, 3600, 3600, 3, 90,
+    )
+    assert runtime.run_once(set(), set(), state) == 60
+    assert runtime.run_once(set(), set(), state) == 60
+    assert bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
+    assert state["daily_reply_count"] == 1
+    assert state["daily_quote_reply_count"] == (1 if lane == "quote_tweet" else 0)
+    assert state["own_auto_reply_ids"].count("900000") == 1
+
+    failing[0] = False
+    assert runtime.run_once(set(), set(), state) == 60
+    assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
+    assert state["daily_reply_count"] == 1
+    assert state["daily_quote_reply_count"] == (1 if lane == "quote_tweet" else 0)
+    assert state["own_auto_reply_ids"].count("900000") == 1
+
+
 def test_confirmed_reply_normal_success_uses_durable_state_before_receipt_removal(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -294,6 +294,59 @@ def test_recovery_failures_stay_bounded_but_stage_failures_propagate():
         tick.runtime.run_once(set(), set(), state)
 
 
+@pytest.mark.parametrize("lane", ["normal", "quote"])
+def test_confirmed_reply_failure_blocks_later_lanes_until_local_recovery(lane):
+    tick = _runtime()
+    state = _state()
+    failure = UnrecoverableReply("confirmed local cleanup")
+    selected = tick.normal if lane == "normal" else tick.quote
+    if lane == "quote":
+        state["next_reply_lane_priority"] = "quote"
+    selected.side_effect = failure
+
+    assert tick.runtime.run_once(set(), set(), state) == 60
+    assert tick.runtime.reply_recovery_blocked is True
+    assert state["last_reply_check_epoch"] == state["last_quote_tweet_check_epoch"] == 0
+    (tick.quote if lane == "normal" else tick.normal).assert_not_called()
+    tick.post_quote.assert_not_called()
+    tick.post_meme.assert_not_called()
+
+    selected.side_effect = lambda _state: "checked"
+    state["next_quote_post_epoch"] = state["next_meme_post_epoch"] = 20_000
+    assert tick.runtime.run_once(set(), set(), state) == 60
+    assert tick.runtime.reply_recovery_blocked is False
+    assert selected.call_count == 2
+
+
+def test_confirmed_reply_reconciliation_failure_stays_at_prebarrier_with_bounded_wait():
+    tick = _runtime()
+    state = _state()
+    recover = Mock(side_effect=UnrecoverableReply("state save failed"))
+    tick.runtime.reconcile_confirmed_transactions = recover
+    assert tick.runtime.run_once(set(), set(), state) == 60
+    assert tick.runtime.run_once(set(), set(), state) == 60
+    assert recover.call_count == 2
+    assert "historical" not in tick.events
+    tick.normal.assert_not_called()
+    tick.post_quote.assert_not_called()
+    tick.post_meme.assert_not_called()
+    recover.side_effect = None
+    recover.return_value = {"reply": True}
+    state["next_quote_post_epoch"] = state["next_meme_post_epoch"] = 20_000
+    assert tick.runtime.run_once(set(), set(), state) == 60
+    assert "historical" in tick.events
+
+
+@pytest.mark.parametrize("status", ["api_error", "local_error", "paused", "checked"])
+def test_quote_failure_statuses_consume_normal_interval_without_retry_acceleration(status):
+    tick = _runtime(settings=RuntimeSettings(False, True, False, 0, 10, 10, 3, 90))
+    state = _state()
+    tick.quote.side_effect = lambda _state: status
+    assert tick.runtime.run_reply_lane_checks_for_tick(state, 10_000) == (0, 10_000)
+    assert state["last_quote_tweet_check_epoch"] == 10_000
+    assert tick.quote.call_count == 1
+
+
 def test_fresh_assemblies_across_operations_and_ticks():
     tick = _runtime()
     state = _state()

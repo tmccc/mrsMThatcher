@@ -110,7 +110,7 @@ def test_model_failure_replays_pending_quotes_before_fetching_older_page(monkeyp
         monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate", evaluate,
     )
     state = bot.default_state()
-    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_API_ERROR
     assert evaluated == ["912"] and search.call_count == 1
 
     state = bot.load_state()
@@ -160,7 +160,10 @@ def test_missing_creation_time_gets_bounded_refresh_without_stalling_queue(monke
     patch_reply_owner_method(
         monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate", evaluate,
     )
-    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+    assert bot.maybe_reply_to_quote_tweets(state) == (
+        bot.QUOTE_CHECK_STATUS_API_ERROR if refresh == "transient"
+        else bot.QUOTE_CHECK_STATUS_CHECKED
+    )
     saved = bot.load_state()
     if refresh == "transient":
         evaluate.assert_not_called()

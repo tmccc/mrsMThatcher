@@ -16,7 +16,7 @@ from tests.helpers.bot_fixtures import (
     configure_simple_quote_post,
     valid_regular_receipt,
 )
-from tests.helpers.reply_fixtures import unit_sending_reply_receipt
+from tests.helpers.reply_fixtures import unit_confirmed_reply_receipt, unit_sending_reply_receipt
 
 
 pytestmark = pytest.mark.allow_loopback_network
@@ -40,6 +40,79 @@ def _patch_reply_lanes(monkeypatch, normal, quote):
                         lambda _assembly, state: normal(state))
     monkeypatch.setattr(bot._reply_assembly_module.ReplyAssembly, "run_quote",
                         lambda _assembly, state: quote(state))
+
+
+@pytest.mark.parametrize("recovers", [False, True])
+def test_startup_retries_confirmed_reply_cleanup_before_state_mutation_or_scheduling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, recovers: bool,
+) -> None:
+    lines_file = tmp_path / "quotes.txt"
+    lines_file.write_text("A quote.\n", encoding="utf-8")
+    state = bot.default_state()
+    receipt = unit_confirmed_reply_receipt(epoch=2_000_000_000)
+    state["daily_reply_date"] = receipt["daily_reply_date"]
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    bot._reply_assembly().reply_receipts().write(receipt, confirmed=True)
+    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
+    monkeypatch.setattr(bot, "require_production_bootstrap", lambda: None)
+    monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
+    monkeypatch.setattr(bot, "require_established_installation_after_ledger_recovery", lambda: None)
+    monkeypatch.setattr(bot, "resume_interrupted_confirmed_media_retirement_if_present", lambda: False)
+    monkeypatch.setattr(bot, "reconcile_runtime_historical_context_state", lambda: None)
+    monkeypatch.setattr(bot, "_log_startup_configuration", lambda: None)
+    monkeypatch.setattr(bot, "current_image_paths", lambda: [])
+    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", False)
+    monkeypatch.setattr(bot, "validate_original_editorial_shadow_startup", lambda: None)
+    monkeypatch.setattr(bot, "load_quote_used_hashes", lambda _lines: set())
+    monkeypatch.setattr(bot, "load_image_used_basenames", lambda _paths: set())
+    monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
+    monkeypatch.setattr(bot, "reconcile_startup_main_post_receipts", lambda *_args: None)
+    monkeypatch.setattr(bot, "now_epoch", lambda: 10_000)
+    order = []
+
+    original_reconcile = bot.reconcile_confirmed_transactions_before_global_barrier
+    original_retire = bot.retire_lane_transport_journal_if_present
+
+    def retire(*args, **kwargs):
+        if not recovers or order.count("reconcile") <= 2:
+            raise OSError("confirmed receipt cleanup failed")
+        return original_retire(*args, **kwargs)
+
+    def reconcile(*args):
+        order.append("reconcile")
+        return original_reconcile(*args)
+
+    def sleep(seconds):
+        assert seconds == 60
+        order.append("sleep")
+        if not recovers and order.count("sleep") == 2:
+            raise StartupBlocked
+
+    class StartupComplete(Exception):
+        pass
+
+    class StartupBlocked(Exception):
+        pass
+
+    monkeypatch.setattr(bot, "reconcile_confirmed_transactions_before_global_barrier", reconcile)
+    monkeypatch.setattr(bot, "retire_lane_transport_journal_if_present", retire)
+    monkeypatch.setattr(bot, "sleep", sleep)
+    monkeypatch.setattr(bot._tweet_lookup_cache.TweetLookupCache, "seed_recent_own_posts",
+                        lambda _owner, _state: order.append("seed"))
+    monkeypatch.setattr(bot, "_runtime_coordinator", lambda **_kwargs: SimpleNamespace(
+        run_continuously=lambda *_args, **_kwargs: (_ for _ in ()).throw(StartupComplete)))
+
+    with pytest.raises(StartupComplete if recovers else StartupBlocked):
+        bot.main()
+    if recovers:
+        assert order[:5] == ["reconcile", "sleep", "reconcile", "sleep", "reconcile"]
+        assert order.index("seed") > 4
+        assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
+        assert state["daily_reply_count"] == 1
+    else:
+        assert order == ["reconcile", "sleep", "reconcile", "sleep"]
+        assert bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
 
 
 @pytest.mark.parametrize(

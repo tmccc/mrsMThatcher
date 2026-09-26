@@ -87,7 +87,7 @@ class RuntimeErrors:
     """Current exception identities at the runtime boundary."""
 
     ambiguous_post: type[Exception]
-    unrecoverable_reply: type[Exception]
+    confirmed_reply: type[Exception]
     unrecoverable_main_post: type[Exception]
     confirmed_main_post: type[Exception]
     api_error: type[Exception]
@@ -159,6 +159,7 @@ class RuntimeCoordinator:
         self.process_historical_context = process_historical_context
         self.maintenance_pause_logged = maintenance_pause_logged
         self.ambiguity_pause_logged = False
+        self.reply_recovery_blocked = False
 
     def run_continuously(
         self, lines_used: set[str], images_used: set[str], state: BotState,
@@ -195,10 +196,18 @@ class RuntimeCoordinator:
                 "all remote lanes remain blocked",
                 exc_info=True,
             )
+        confirmed_reply_recovery_failed = False
         if not maintenance_paused:
             try:
                 reconciled = self.reconcile_confirmed_transactions(
                     lines_used, images_used, state,
+                )
+            except self.errors.confirmed_reply:
+                confirmed_reply_recovery_failed = True
+                log.critical(
+                    "Confirmed-reply local recovery failed before the global "
+                    "barrier; all remote lanes remain blocked until the next tick",
+                    exc_info=True,
                 )
             except Exception:
                 log.critical(
@@ -233,7 +242,7 @@ class RuntimeCoordinator:
         self.maintenance_pause_logged = False
         health("main_loop", paused=False)
 
-        if ambiguity_blocked:
+        if ambiguity_blocked or confirmed_reply_recovery_failed:
             health(
                 "remote_write_blocked", remote_write_blocked=True,
                 loop_completed=True,
@@ -252,6 +261,12 @@ class RuntimeCoordinator:
         health("reply_checks")
         self.run_reply_lane_checks_for_tick(state, current)
         health("main_loop")
+        if self.reply_recovery_blocked:
+            health(
+                "remote_write_blocked", remote_write_blocked=True,
+                loop_completed=True,
+            )
+            return 60
         if self._stage_blocked():
             return None
 
@@ -320,7 +335,7 @@ class RuntimeCoordinator:
         """Arbitrate reply lanes at the supplied tick epoch and repair scheduler state."""
         settings = self.settings
         AmbiguousRemotePostOutcome = self.errors.ambiguous_post
-        UnrecoverableConfirmedReplyPersistenceError = self.errors.unrecoverable_reply
+        ConfirmedReplyLocalPersistenceError = self.errors.confirmed_reply
         ENABLE_AUTO_REPLIES = settings.enable_auto_replies
         ENABLE_QUOTE_TWEET_CHECKS = settings.enable_quote_tweet_checks
         MIN_SECONDS_BETWEEN_REPLIES = settings.minimum_reply_spacing
@@ -332,6 +347,7 @@ class RuntimeCoordinator:
         log_event = self.log_event
         log = self.log
         ambiguity_blocked = False
+        self.reply_recovery_blocked = False
         last_reply_check_epoch, reply_epoch_changed = scheduler_epoch_from_state(
             state,
             "last_reply_check_epoch",
@@ -370,11 +386,12 @@ class RuntimeCoordinator:
                 normal_check_status = self.reply_assembly().run_normal(state)
             except (
                 AmbiguousRemotePostOutcome,
-                UnrecoverableConfirmedReplyPersistenceError,
+                ConfirmedReplyLocalPersistenceError,
             ):
                 ambiguity_blocked = True
+                self.reply_recovery_blocked = True
                 log.critical(
-                    "Normal reply lane stopped by the global remote-write safety barrier"
+                    "Normal reply lane stopped by unresolved reply persistence or remote-write safety"
                 )
                 return False
             log.info("Normal/hot-post reply check status=%s", normal_check_status)
@@ -413,11 +430,12 @@ class RuntimeCoordinator:
                 quote_check_status = self.reply_assembly().run_quote(state)
             except (
                 AmbiguousRemotePostOutcome,
-                UnrecoverableConfirmedReplyPersistenceError,
+                ConfirmedReplyLocalPersistenceError,
             ):
                 ambiguity_blocked = True
+                self.reply_recovery_blocked = True
                 log.critical(
-                    "Quote-tweet lane stopped by the global remote-write safety barrier"
+                    "Quote-tweet lane stopped by unresolved reply persistence or remote-write safety"
                 )
                 return False
 

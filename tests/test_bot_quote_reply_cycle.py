@@ -108,7 +108,7 @@ def test_cycle_hands_cooldown_and_control_work_to_typed_owners(monkeypatch):
             bot, relay, Mock(side_effect=AssertionError(f"obsolete root relay used: {relay}")),
         )
 
-    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_API_ERROR
 
     paused.assert_called_once_with("disable_replies", "disable_quote_replies")
     assert active.call_args_list == [
@@ -119,6 +119,32 @@ def test_cycle_hands_cooldown_and_control_work_to_typed_owners(monkeypatch):
     record.assert_called_once_with(state, failure, "x", scope="quote")
 
 
+def test_unexpected_quote_search_failure_is_not_a_completed_check(monkeypatch):
+    _configure_cycle(monkeypatch)
+    bot._reply_assembly().get_quote_tweets_for_posts.side_effect = ValueError("search failed")
+    assert bot.maybe_reply_to_quote_tweets(bot.default_state()) == bot.QUOTE_CHECK_STATUS_API_ERROR
+
+
+@pytest.mark.parametrize(
+    ("evaluation", "expected"),
+    [
+        (bot.PipelineResult(status="operational_failure", reason="provider_timeout",
+                            error_category="provider", model_call_count=1), "api_error"),
+        (bot.RemoteOperationsPaused("runtime paused"), "paused"),
+    ],
+)
+def test_quote_evaluation_failure_status_keeps_candidate_for_retry(monkeypatch, evaluation, expected):
+    _configure_cycle(monkeypatch)
+    generate = Mock(side_effect=evaluation if isinstance(evaluation, Exception) else None,
+                    return_value=evaluation if not isinstance(evaluation, Exception) else None)
+    patch_reply_owner_method(monkeypatch, generation_owner.ReplyGeneration, "evaluate", generate)
+    state = bot.default_state()
+    assert bot.maybe_reply_to_quote_tweets(state) == expected
+    generate.assert_called_once()
+    assert not state["skipped_quote_post_ids"]
+    bot.create_post.assert_not_called()
+
+
 def test_fixed_statuses_and_terminal_lookup_use_their_owners():
     statuses = {
         "QUOTE_CHECK_STATUS_CHECKED": "checked",
@@ -127,6 +153,9 @@ def test_fixed_statuses_and_terminal_lookup_use_their_owners():
         "QUOTE_CHECK_STATUS_SKIPPED_CAP": "skipped_cap",
         "QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN": "skipped_cooldown",
         "QUOTE_CHECK_STATUS_DISABLED": "disabled",
+        "QUOTE_CHECK_STATUS_API_ERROR": "api_error",
+        "QUOTE_CHECK_STATUS_LOCAL_ERROR": "local_error",
+        "QUOTE_CHECK_STATUS_PAUSED": "paused",
     }
     for name, expected in statuses.items():
         value = getattr(interfaces, name)
@@ -605,7 +634,10 @@ def test_lookup_failure_continues_only_when_fetching_the_original(monkeypatch, b
     )
     patch_reply_owner_method(monkeypatch, generation_owner.ReplyGeneration, "evaluate", legacy_reply_evaluator(generate))
 
-    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+    assert bot.maybe_reply_to_quote_tweets(state) == (
+        bot.QUOTE_CHECK_STATUS_API_ERROR if boundary == "discovery" or api_failure
+        else bot.QUOTE_CHECK_STATUS_LOCAL_ERROR
+    )
     expected_originals = ["900", "901"] if boundary == "original" else []
     assert lookup.call_args_list == [call(target, state) for target in expected_originals]
     bot._reply_assembly().get_quote_tweets_for_posts.assert_called_once_with(["900", "901"], state)
@@ -663,7 +695,9 @@ def test_original_http_errors_skip_targets_or_stop_at_shared_cooldown(
     transport = Mock(side_effect=respond)
     monkeypatch.setattr(bot.requests, "request", transport)
     state = bot.default_state()
-    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+    assert bot.maybe_reply_to_quote_tweets(state) == (
+        bot.QUOTE_CHECK_STATUS_CHECKED if status == 404 else bot.QUOTE_CHECK_STATUS_API_ERROR
+    )
     assert transport.call_count == expected_calls
     assert bot.in_api_cooldown(state, scope="quote") is expected_cooldown
     persisted = json.loads(bot.STATE_FILE.read_text())
@@ -896,7 +930,7 @@ def test_pre_generation_failures_keep_their_own_exception_boundary(monkeypatch, 
     state = bot.default_state()
 
     if evidence_failure:
-        assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+        assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_LOCAL_ERROR
     else:
         with pytest.raises(ValueError) as caught:
             bot.maybe_reply_to_quote_tweets(state)

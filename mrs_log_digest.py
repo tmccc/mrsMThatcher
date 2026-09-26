@@ -2975,6 +2975,30 @@ def validate_output_destinations(
             raise SystemExit(f"Refusing to write digest: output paths must not alias digest lock files: {lock}")
 
 
+def distinct_digest_lock_paths(lock_paths: Iterable[Path]) -> List[Path]:
+    """Acquire each requested lock inode once, in deterministic pathname order.
+
+    Validate every requested path against data files before calling this helper.
+    Identity inspection is a preflight snapshot; the no-follow open and flock
+    remain the acquisition authorities if a path changes afterwards.
+    """
+    distinct: List[Path] = []
+    seen_inodes: set[Tuple[int, int]] = set()
+    for path in sorted(set(lock_paths), key=str):
+        try:
+            identity = path.lstat()
+        except FileNotFoundError:
+            distinct.append(path)
+            continue
+        if not stat.S_ISREG(identity.st_mode):
+            raise RuntimeError(f"Digest lock is not a regular file: {path}")
+        inode = identity.st_dev, identity.st_ino
+        if inode not in seen_inodes:
+            seen_inodes.add(inode)
+            distinct.append(path)
+    return distinct
+
+
 def resolve_digest_logs(args: argparse.Namespace, project_dir: Path) -> List[Path]:
     """Select CLI input paths without reading log contents or changing the filesystem."""
     logs = (
@@ -3208,8 +3232,9 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if not lock_paths:
         return run_digest(args, project_dir=project_dir, state_file=state_file, logs=logs)
+    acquisition_paths = distinct_digest_lock_paths(lock_paths)
     with ExitStack() as stack:
-        for lock_path in sorted(set(lock_paths), key=str):
+        for lock_path in acquisition_paths:
             stack.enter_context(digest_execution_lock(lock_path))
         return run_digest(args, project_dir=project_dir, state_file=state_file, logs=logs)
 
@@ -3268,8 +3293,8 @@ def select_digest_inputs(args: argparse.Namespace, project_dir: Path, state_file
         filter_resume_boundary_records=filter_resume_boundary_records,
         warn_timestamp_fallback=lambda: print(
             "WARNING: saved physical resume cursor was not found in retained logs; "
-            "falling back to the timestamp boundary, which can omit newly appended "
-            "records after a backward clock jump",
+            "falling back to conservative timestamp-based selection, which can replay retained "
+            "records or omit new records after a backward clock jump",
             file=sys.stderr,
         ),
     )
@@ -3566,18 +3591,38 @@ def render_and_deliver_digest(report: DigestReport, inputs: DigestInputSelection
 def commit_digest_cursor(report: DigestReport, inputs: DigestInputSelection, args: argparse.Namespace, state_file: Path) -> None:
     """Advance the physical cursor only after all report deliveries succeed."""
     if inputs.records and not args.no_state and not args.no_update_state:
-        last_ts = max(record.ts for record in inputs.physical_records)
+        # A time filter can leave holes or a suffix in physical order. Commit
+        # only the contiguous selected run beginning at its first record; a
+        # later analysed record may replay, but an unseen hole is not skipped.
+        cursor_start = next(
+            index for index, record in enumerate(inputs.physical_records)
+            if record is inputs.records[0]
+        )
+        committed_count = 0
+        for record in inputs.physical_records[cursor_start:]:
+            if (
+                committed_count == len(inputs.records)
+                or record is not inputs.records[committed_count]
+            ):
+                break
+            committed_count += 1
+        cursor_end = cursor_start + committed_count
+        cursor_records = inputs.physical_records[:cursor_end]
+        last_ts = cursor_records[-1].ts
         save_resume_time(
             state_file,
             last_ts,
-            inputs.records,
+            inputs.records[:committed_count],
             report,
             inputs.logs,
             preserve_existing_context=not args.reset_state,
-            merge_existing_boundary_occurrences=inputs.since_source == "saved resume state",
+            merge_existing_boundary_occurrences=(
+                inputs.since_source == "saved resume state"
+                and not inputs.selection.timestamp_fallback
+            ),
             cursor_fingerprint_tail=[
                 record_fingerprint(record)
-                for record in inputs.physical_records[-RESUME_FINGERPRINT_TAIL_LIMIT:]
+                for record in cursor_records[-RESUME_FINGERPRINT_TAIL_LIMIT:]
             ],
             complete_report=report,
         )

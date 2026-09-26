@@ -74,6 +74,7 @@ class ReplyDeliveryStop(Enum):
 
     TERMINAL = "terminal"
     RETRYABLE = "retryable"
+    PAUSED = "paused"
 
 
 @dataclass(frozen=True)
@@ -200,7 +201,7 @@ class ReplyCycleDelivery:
                 "Deferring %s reply delivery because remote operations are paused",
                 log_source,
             )
-            return ReplyDeliveryStop.RETRYABLE
+            return ReplyDeliveryStop.PAUSED
         except self.api_error as e:
             if error_scope == "write" and self.reply_not_allowed(e):
                 retire_terminal_target("reply_not_permitted")

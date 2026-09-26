@@ -40,11 +40,16 @@ QUOTE_CHECK_STATUS_SKIPPED_SPACING = "skipped_spacing"
 QUOTE_CHECK_STATUS_SKIPPED_CAP = "skipped_cap"
 QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN = "skipped_cooldown"
 QUOTE_CHECK_STATUS_DISABLED = "disabled"
+QUOTE_CHECK_STATUS_API_ERROR = "api_error"
+QUOTE_CHECK_STATUS_LOCAL_ERROR = "local_error"
+QUOTE_CHECK_STATUS_PAUSED = "paused"
 
 
 @dataclass(frozen=True)
 class SkipReplyCandidate:
     """Continue scanning after the current candidate or original-post batch."""
+
+    failure_status: str | None = None
 
 
 @dataclass(frozen=True)

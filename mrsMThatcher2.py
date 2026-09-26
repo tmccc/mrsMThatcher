@@ -548,6 +548,9 @@ QUOTE_CHECK_STATUS_SKIPPED_SPACING = _reply_cycle_interfaces.QUOTE_CHECK_STATUS_
 QUOTE_CHECK_STATUS_SKIPPED_CAP = _reply_cycle_interfaces.QUOTE_CHECK_STATUS_SKIPPED_CAP
 QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN = _reply_cycle_interfaces.QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN
 QUOTE_CHECK_STATUS_DISABLED = _reply_cycle_interfaces.QUOTE_CHECK_STATUS_DISABLED
+QUOTE_CHECK_STATUS_API_ERROR = _reply_cycle_interfaces.QUOTE_CHECK_STATUS_API_ERROR
+QUOTE_CHECK_STATUS_LOCAL_ERROR = _reply_cycle_interfaces.QUOTE_CHECK_STATUS_LOCAL_ERROR
+QUOTE_CHECK_STATUS_PAUSED = _reply_cycle_interfaces.QUOTE_CHECK_STATUS_PAUSED
 
 NORMAL_CHECK_STATUS_CHECKED = _reply_cycle_interfaces.NORMAL_CHECK_STATUS_CHECKED
 NORMAL_CHECK_STATUS_POSTED = _reply_cycle_interfaces.NORMAL_CHECK_STATUS_POSTED
@@ -6708,7 +6711,7 @@ def _runtime_coordinator(
         ),
         errors=_tick_coordination.RuntimeErrors(
             ambiguous_post=AmbiguousRemotePostOutcome,
-            unrecoverable_reply=UnrecoverableConfirmedReplyPersistenceError,
+            confirmed_reply=ConfirmedReplyLocalPersistenceError,
             unrecoverable_main_post=UnrecoverableConfirmedPostPersistenceError,
             confirmed_main_post=ConfirmedPostLocalPersistenceError,
             api_error=ApiError,
@@ -6886,12 +6889,33 @@ def main() -> None:
         startup_current,
     )
     if not controls.global_paused():
-        reconcile_confirmed_transactions_before_global_barrier(
-            lines_used,
-            images_used,
-            state,
-            startup_current,
-        )
+        confirmed_reply_recovery_failed = False
+        while True:
+            try:
+                reconcile_confirmed_transactions_before_global_barrier(
+                    lines_used,
+                    images_used,
+                    state,
+                    startup_current,
+                )
+            except ConfirmedReplyLocalPersistenceError:
+                confirmed_reply_recovery_failed = True
+                log.critical(
+                    "Confirmed-reply local recovery failed at startup; "
+                    "all remote lanes remain blocked until local recovery succeeds",
+                    exc_info=True,
+                )
+                report_bot_health_progress(
+                    "remote_write_blocked", remote_write_blocked=True,
+                )
+                sleep(60)
+                while controls.global_paused():
+                    sleep(60)
+            else:
+                if confirmed_reply_recovery_failed and ambiguous_remote_post_is_blocking():
+                    sleep(60)
+                    continue
+                break
 
 
     _tweet_lookup_cache_owner().seed_recent_own_posts(state)

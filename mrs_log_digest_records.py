@@ -470,6 +470,25 @@ def select_resume_window(
         )
     if saved_resume_tail:
         warn_timestamp_fallback()
+        # A missing tail gives no physical identity. When the retained input
+        # crosses a backward clock jump (or lies wholly before the saved time),
+        # a timestamp filter can silently lose new events. Replay the retained
+        # physical input instead, then commit its real end position.
+        if physical_records and since is not None and (
+            max(record.ts for record in physical_records) < since
+            or any(
+                later.ts < earlier.ts
+                for earlier, later in zip(physical_records, physical_records[1:])
+            )
+        ):
+            return ResumeWindowSelection(list(physical_records), "timestamp", 0, True)
+        # A stale occurrence count cannot identify which same-second copies
+        # survived retention. Keep them for analysis instead of skipping a new
+        # event with the same fingerprint as an evicted one.
+        return ResumeWindowSelection(
+            filter_records_by_time(physical_records, since, since_exclusive=False),
+            "timestamp", 0, True,
+        )
     records = filter_records_by_time(
         physical_records, since, since_exclusive=since_exclusive,
     )

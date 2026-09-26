@@ -22,8 +22,11 @@ from mrs_bot_daily_reply_accounting import daily_author_reply_counts
 from mrs_bot_reply_context import clean_text_for_reply_context
 from mrs_bot_reply_generation import _is_terminal_candidate_local_failure
 from mrs_bot_reply_cycle_interfaces import (
+    QUOTE_CHECK_STATUS_API_ERROR,
     QUOTE_CHECK_STATUS_CHECKED,
     QUOTE_CHECK_STATUS_DISABLED,
+    QUOTE_CHECK_STATUS_LOCAL_ERROR,
+    QUOTE_CHECK_STATUS_PAUSED,
     QUOTE_CHECK_STATUS_POSTED,
     QUOTE_CHECK_STATUS_SKIPPED_CAP,
     QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN,
@@ -364,18 +367,19 @@ class QuoteReplyCycle:
             self.log.exception("Failed to search quote tweets for watched posts")
             self.cooldowns.record_error(state, exc, "x", scope="quote")
             self.persistence.save(state)
-            return QUOTE_CHECK_STATUS_CHECKED
+            return QUOTE_CHECK_STATUS_API_ERROR
         except Exception:
             self.log.exception(
                 "Unexpected failure searching quote tweets for watched posts"
             )
             self.persistence.save(state)
-            return QUOTE_CHECK_STATUS_CHECKED
+            return QUOTE_CHECK_STATUS_API_ERROR
 
         # Only this counter spans originals; charge after context/media extraction,
         # even when evaluation makes no model call. Admission history stays fixed
         # except for newly discovered spam authors.
         processed_candidates = 0
+        scan_failure_status = None
 
         # Fetched work remains ours even after its original leaves the watched set.
         for original_post_id in dict.fromkeys(
@@ -393,6 +397,8 @@ class QuoteReplyCycle:
             if isinstance(lookup, FinishReplyCheck):
                 return lookup.status
             if isinstance(lookup, SkipReplyCandidate):
+                if lookup.failure_status is not None:
+                    scan_failure_status = lookup.failure_status
                 continue
             original_tweet, quote_tweets = lookup
 
@@ -470,7 +476,7 @@ class QuoteReplyCycle:
 
         self.persistence.save(state)
         self.log.info("Quote-tweet reply check finished with no reply generated/posted")
-        return QUOTE_CHECK_STATUS_CHECKED
+        return scan_failure_status or QUOTE_CHECK_STATUS_CHECKED
 
     def _lookup_quote_candidates(
         self, original_post_id: str, state: BotState, quote_tweets: list[dict[str, Any]]
@@ -492,14 +498,14 @@ class QuoteReplyCycle:
             self.cooldowns.record_error(state, e, "x", scope="quote")
             self.persistence.save(state)
             if self.cooldowns.active(state, scope="quote"):
-                return FinishReplyCheck(QUOTE_CHECK_STATUS_CHECKED)
-            return SkipReplyCandidate()
+                return FinishReplyCheck(QUOTE_CHECK_STATUS_API_ERROR)
+            return SkipReplyCandidate(QUOTE_CHECK_STATUS_API_ERROR)
         except Exception:
             self.log.exception(
                 "Unexpected failure fetching original own post %s", original_post_id
             )
             self.persistence.save(state)
-            return SkipReplyCandidate()
+            return SkipReplyCandidate(QUOTE_CHECK_STATUS_LOCAL_ERROR)
 
         if not original_tweet:
             self.log.info("Could not find/fetch original own post %s", original_post_id)
@@ -523,7 +529,7 @@ class QuoteReplyCycle:
                     if not self.api_error_is_permanent_target_failure(exc):
                         self.cooldowns.record_error(state, exc, "x", scope="quote")
                         self.persistence.save(state, durable=True)
-                        return FinishReplyCheck(QUOTE_CHECK_STATUS_CHECKED)
+                        return FinishReplyCheck(QUOTE_CHECK_STATUS_API_ERROR)
                     fresh = None
                 except Exception:
                     self.log.exception(
@@ -531,7 +537,7 @@ class QuoteReplyCycle:
                         quote_id,
                     )
                     self.persistence.save(state, durable=True)
-                    return FinishReplyCheck(QUOTE_CHECK_STATUS_CHECKED)
+                    return FinishReplyCheck(QUOTE_CHECK_STATUS_LOCAL_ERROR)
                 if fresh is not None and str(fresh.get("id", "")) != quote_id:
                     raise ValueError("Queued quote refresh returned a different target")
                 if (
@@ -794,7 +800,7 @@ class QuoteReplyCycle:
             )
             self.cooldowns.record_error(state, exc, "x", scope="quote")
             self.persistence.save(state)
-            return FinishReplyCheck(QUOTE_CHECK_STATUS_CHECKED)
+            return FinishReplyCheck(QUOTE_CHECK_STATUS_API_ERROR)
         if original_context_tweet is None:
             self.log.warning(
                 "Retiring quote tweet %s because its directly quoted "
@@ -861,7 +867,7 @@ class QuoteReplyCycle:
                 lane="quote_tweet",
                 target_id=quote_id,
             )
-            return FinishReplyCheck(QUOTE_CHECK_STATUS_CHECKED)
+            return FinishReplyCheck(QUOTE_CHECK_STATUS_LOCAL_ERROR)
 
         evaluation = self.persistence.recover(
             state,
@@ -893,17 +899,17 @@ class QuoteReplyCycle:
                 quote_id,
             )
             self.persistence.save(state, durable=True)
-            return FinishReplyCheck(QUOTE_CHECK_STATUS_CHECKED)
+            return FinishReplyCheck(QUOTE_CHECK_STATUS_PAUSED)
         except self.ApiError as exc:
             self.log.exception("OpenAI single-call quote-tweet reply failed")
             if exc.service == "openai":
                 self.cooldowns.record_error(state, exc, "openai")
             self.persistence.save(state)
-            return FinishReplyCheck(QUOTE_CHECK_STATUS_CHECKED)
+            return FinishReplyCheck(QUOTE_CHECK_STATUS_API_ERROR)
         except Exception:
             self.log.exception("Unexpected single-call quote-tweet reply failure")
             self.persistence.save(state)
-            return FinishReplyCheck(QUOTE_CHECK_STATUS_CHECKED)
+            return FinishReplyCheck(QUOTE_CHECK_STATUS_API_ERROR)
         return evaluation
 
     def _resolve_reply_evaluation(
@@ -940,7 +946,15 @@ class QuoteReplyCycle:
                     evaluation.reason or "unknown",
                 )
                 self.persistence.save(state, durable=True)
-                return FinishReplyCheck(QUOTE_CHECK_STATUS_CHECKED)
+                status = (
+                    QUOTE_CHECK_STATUS_API_ERROR
+                    if (
+                        str(evaluation.error_category or "").startswith("provider")
+                        or evaluation.reason in {"provider_request_failed", "openai_cooldown"}
+                    )
+                    else QUOTE_CHECK_STATUS_LOCAL_ERROR
+                )
+                return FinishReplyCheck(status)
             reason_code = str(
                 evaluation.reason_code or evaluation.reason or "model_selected_no_reply"
             )
@@ -965,7 +979,7 @@ class QuoteReplyCycle:
                 quote_id,
             )
             self.persistence.save(state, durable=True)
-            return FinishReplyCheck(QUOTE_CHECK_STATUS_CHECKED)
+            return FinishReplyCheck(QUOTE_CHECK_STATUS_LOCAL_ERROR)
         return None
 
     def _prepare_reply_receipt(
@@ -1006,7 +1020,7 @@ class QuoteReplyCycle:
             log_validation_failure=log_validation_failure,
             log_event=self.log_event,
         ):
-            return FinishReplyCheck(QUOTE_CHECK_STATUS_CHECKED)
+            return FinishReplyCheck(QUOTE_CHECK_STATUS_LOCAL_ERROR)
         receipt_template = build_sending_reply_receipt(
             {
                 "target_id": quote_id,
@@ -1099,6 +1113,10 @@ class QuoteReplyCycle:
             retire_terminal_target=retire_terminal_target,
         )
         if isinstance(outcome, ReplyDeliveryStop):
+            if outcome is ReplyDeliveryStop.PAUSED:
+                return FinishReplyCheck(QUOTE_CHECK_STATUS_PAUSED)
+            if outcome is ReplyDeliveryStop.RETRYABLE:
+                return FinishReplyCheck(QUOTE_CHECK_STATUS_API_ERROR)
             return FinishReplyCheck(QUOTE_CHECK_STATUS_CHECKED)
         return outcome
 

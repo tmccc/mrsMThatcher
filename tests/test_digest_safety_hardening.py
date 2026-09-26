@@ -1307,11 +1307,134 @@ def test_resume_tail_keeps_post_fallback_record_after_rotation(tmp_path: Path) -
     saved = json.loads(state.read_text(encoding="utf-8"))
     assert "after fallback" in second
     assert "before fallback" not in second
-    assert saved["last_log_entry_time"] == "2026-10-25 01:59:50"
+    assert saved["last_log_entry_time"] == "2026-10-25 01:00:10"
     assert saved["last_log_entry_fingerprint_tail"]
 
     assert digest.main(args) == 0
     assert "no matching records" in report.read_text(encoding="utf-8")
+
+
+def test_physical_cursor_timestamp_and_boundary_counts_survive_clock_rollback(tmp_path: Path) -> None:
+    project, _names = pool(tmp_path, 2)
+    current = project / "mrsMThatcher.log"
+    state = project / ".resume.json"
+    report = project / "report.md"
+    high = "2026-07-10 13:20:00 ERROR    worker:9 - older high timestamp\n"
+    low = "2026-07-10 12:25:00 ERROR    worker:9 - physical boundary\n"
+    repeated = "2026-07-10 12:25:00 ERROR    worker:9 - physical boundary\n"
+    later = "2026-07-10 12:30:00 ERROR    worker:9 - later physical event\n"
+    args = ["--project-dir", str(project), "--state-file", state.name,
+            "--output", str(report), str(current)]
+    current.write_text(high + low, encoding="utf-8")
+
+    assert digest.main(args) == 0
+    saved = json.loads(state.read_text())
+    fingerprint = digest.record_fingerprint(next(digest.iter_records(current)))
+    boundary_fingerprint = digest.record_fingerprint(list(digest.iter_records(current))[-1])
+    assert saved["last_log_entry_time"] == "2026-07-10 12:25:00"
+    assert saved["last_log_entry_fingerprint_tail"][-1] == boundary_fingerprint
+    assert saved["last_log_entry_fingerprint_counts"] == {boundary_fingerprint: 1}
+    assert fingerprint != boundary_fingerprint
+    assert digest.main(args) == 0
+    assert "no matching records" in report.read_text()
+
+    current.write_text(high + low + repeated, encoding="utf-8")
+    assert digest.main(args) == 0
+    saved = json.loads(state.read_text())
+    assert saved["last_log_entry_time"] == "2026-07-10 12:25:00"
+    assert saved["last_log_entry_fingerprint_counts"] == {boundary_fingerprint: 2}
+    assert "Records parsed: `1`" in report.read_text()
+    assert digest.main(args) == 0
+    assert "no matching records" in report.read_text()
+
+    current.write_text(high + low + repeated + later, encoding="utf-8")
+    assert digest.main(args) == 0
+    assert "later physical event" in report.read_text()
+    assert "older high timestamp" not in report.read_text()
+    assert json.loads(state.read_text())["last_log_entry_time"] == "2026-07-10 12:30:00"
+
+
+def test_missing_tail_after_retention_keeps_new_post_rollback_record(tmp_path: Path, capsys) -> None:
+    project, _names = pool(tmp_path, 2)
+    current = project / "mrsMThatcher.log"
+    rotation = project / "mrsMThatcher.log.1"
+    state = project / ".resume.json"
+    report = project / "report.md"
+    high = "2026-07-10 13:20:00 ERROR    worker:9 - older high timestamp\n"
+    low = "2026-07-10 12:25:00 ERROR    worker:9 - physical boundary\n"
+    later = "2026-07-10 12:30:00 ERROR    worker:9 - retained new event\n"
+    args = ["--project-dir", str(project), "--state-file", state.name,
+            "--output", str(report), str(current)]
+    current.write_text(high + low, encoding="utf-8")
+    assert digest.main(args) == 0
+    current.replace(rotation)
+    current.write_text(later, encoding="utf-8")
+    rotation.unlink()  # Retention has removed the saved physical tail.
+
+    assert digest.main(args) == 0
+    assert "saved physical resume cursor was not found" in capsys.readouterr().err
+    assert "retained new event" in report.read_text()
+    saved = json.loads(state.read_text())
+    assert saved["last_log_entry_time"] == "2026-07-10 12:30:00"
+    assert saved["last_log_entry_fingerprint_counts"] == {
+        digest.record_fingerprint(next(digest.iter_records(current))): 1,
+    }
+    assert digest.main(args) == 0
+    assert "no matching records" in report.read_text()
+
+
+def test_missing_tail_replays_uncertain_identical_boundary_instead_of_skipping_it(
+    tmp_path: Path, capsys,
+) -> None:
+    project, _names = pool(tmp_path, 2)
+    current = project / "mrsMThatcher.log"
+    state = project / ".resume.json"
+    report = project / "report.md"
+    high = "2026-07-10 13:20:00 ERROR    worker:9 - earlier\n"
+    boundary = "2026-07-10 12:25:00 ERROR    worker:9 - same second\n"
+    args = ["--project-dir", str(project), "--state-file", state.name,
+            "--output", str(report), str(current)]
+    current.write_text(high + boundary, encoding="utf-8")
+    assert digest.main(args) == 0
+    # The old physical tail has been removed; this identical line is new.
+    current.write_text(boundary, encoding="utf-8")
+    assert digest.main(args) == 0
+    assert "saved physical resume cursor was not found" in capsys.readouterr().err
+    assert "Records parsed: `1`" in report.read_text()
+    fingerprint = digest.record_fingerprint(next(digest.iter_records(current)))
+    assert json.loads(state.read_text())["last_log_entry_fingerprint_counts"] == {fingerprint: 1}
+    assert digest.main(args) == 0
+    assert "no matching records" in report.read_text()
+
+
+def test_manual_since_does_not_commit_a_filtered_physical_suffix(tmp_path: Path) -> None:
+    project, _names = pool(tmp_path, 2)
+    current = project / "mrsMThatcher.log"
+    state = project / ".resume.json"
+    report = project / "report.md"
+    high = "2026-07-10 13:20:00 ERROR    worker:9 - selected high\n"
+    low = "2026-07-10 12:25:00 ERROR    worker:9 - unselected suffix\n"
+    second_high = "2026-07-10 13:30:00 ERROR    worker:9 - selected after gap\n"
+    current.write_text(high + low + second_high, encoding="utf-8")
+    args = ["--project-dir", str(project), "--state-file", state.name,
+            "--output", str(report), str(current)]
+
+    assert digest.main([*args[:-1], "--since", "2026-07-10 13:00:00", args[-1]]) == 0
+    assert "selected high" in report.read_text()
+    assert "selected after gap" in report.read_text()
+    assert "unselected suffix" not in report.read_text()
+    saved = json.loads(state.read_text())
+    assert saved["last_log_entry_time"] == "2026-07-10 13:20:00"
+    assert saved["last_log_entry_fingerprint_tail"] == [
+        digest.record_fingerprint(next(digest.iter_records(current))),
+    ]
+
+    assert digest.main(args) == 0
+    assert "unselected suffix" in report.read_text()
+    assert "selected after gap" in report.read_text()
+    assert "selected high" not in report.read_text()
+    assert digest.main(args) == 0
+    assert "no matching records" in report.read_text()
 
 
 def test_resume_uses_old_rotation_tail_before_new_unrelated_and_repeated_events(tmp_path: Path) -> None:
