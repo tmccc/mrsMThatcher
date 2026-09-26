@@ -334,6 +334,16 @@ barrier before remote lanes. The receipt and journal remain the authority for
 reconciling a confirmed reply without another remote post. Retirement
 uncertainty keeps its process latch and requires controlled recovery.
 
+The earlier main-post startup replay contains invalid/conflicting receipt and
+recognised local persistence failures at its own boundary. After checking that
+its receipt, journal, retirement guard or incident latch still blocks remote
+writes, `main()` reloads committed state and histories and hands recovery to
+the runtime tick without ordinary startup saves. Invalid evidence remains for
+controlled repair; the runtime retries only confirmed local work permitted by
+the pre-barrier reconciler. A pause arising inside the later startup loop still
+runs the runtime barrier's durability check every 60 seconds while transaction
+reconciliation and retirement stay stopped.
+
 `TweetLookupCache` owns cache normalization, pruning, storage, verified fetches
 and the recent own-post index. Cached context preserves row identity on a hit;
 legacy text refresh saves canonical text while media-only refresh stays transient.

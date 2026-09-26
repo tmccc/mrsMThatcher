@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import multiprocessing
 import os
+import signal
+from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -18,6 +20,7 @@ from tests.helpers.bot_fixtures import (
     configure_simple_quote_post,
     install_receipt_bound_x_request_stub,
     valid_regular_receipt,
+    schema_current_main_attempt,
 )
 from tests.helpers.reply_fixtures import (
     unit_confirmed_reply_receipt,
@@ -27,6 +30,9 @@ from tests.helpers.reply_fixtures import (
 from tests.test_media_upload_transaction_integration import (
     HARD_EXIT_CODES,
     _run_driver as run_media_driver,
+)
+from tests.test_pending_receipt_directory_fsync import (
+    _establish_current_barrier_pair,
 )
 
 
@@ -51,6 +57,32 @@ def _patch_reply_lanes(monkeypatch, normal, quote):
                         lambda _assembly, state: normal(state))
     monkeypatch.setattr(bot._reply_assembly_module.ReplyAssembly, "run_quote",
                         lambda _assembly, state: quote(state))
+
+
+@pytest.mark.parametrize("status,consumes_interval", [
+    ("checked", True), ("api_error", True), ("local_error", True),
+    ("posted", True), ("paused", True), ("skipped_cooldown", True),
+    ("skipped_spacing", False),
+])
+def test_quote_status_reporting_preserves_scheduler_interval_rule(
+    monkeypatch: pytest.MonkeyPatch, status: str, consumes_interval: bool,
+) -> None:
+    state = bot.default_state()
+    state.update({"last_quote_tweet_check_epoch": 0, "next_reply_lane_priority": "quote"})
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", False)
+    monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "QUOTE_CHECK_EVERY_SECONDS", 600)
+    monkeypatch.setattr(bot, "QUOTE_CHECK_SPACING_RETRY_SECONDS", 60)
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+    _patch_reply_lanes(monkeypatch, lambda _state: pytest.fail("normal lane ran"),
+                       lambda _state: status)
+
+    _normal_epoch, quote_epoch = bot._runtime_coordinator().run_reply_lane_checks_for_tick(
+        state, 10_000,
+    )
+    expected = 10_000 if consumes_interval else 9_460
+    assert quote_epoch == state["last_quote_tweet_check_epoch"] == expected
 
 
 def _confirmed_reply_waiting_for_startup(monkeypatch):
@@ -121,6 +153,240 @@ def _configure_confirmed_reply_startup(tmp_path, monkeypatch, receipt):
     monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator, "run_continuously",
                         stop_at_scheduler)
     return state, order, StartupReachedScheduler
+
+
+def _run_blocked_main_post_startup(tmp_path, monkeypatch, *, initial_state=None):
+    """Enter main's early receipt call and one real blocked runtime tick."""
+    state = initial_state or bot.default_state()
+    _configure_confirmed_reply_startup(
+        tmp_path, monkeypatch, unit_sending_v4_reply_receipt(),
+    )
+    loaded = []
+    before_tick = []
+
+    def load_state():
+        fresh = deepcopy(state)
+        loaded.append(fresh)
+        return fresh
+
+    class RuntimeObserved(Exception):
+        pass
+
+    def run_tick(runtime, lines_used, images_used, current_state, *, sleep):
+        assert current_state is loaded[-1]
+        assert len(loaded) >= 2  # Failed replay never publishes its mutated dict.
+        before_tick.append(deepcopy(current_state))
+        assert runtime.run_once(lines_used, images_used, current_state) == 60
+        raise RuntimeObserved
+
+    monkeypatch.setattr(bot, "load_runtime_state", load_state)
+    monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator, "run_continuously", run_tick)
+    monkeypatch.setattr(bot, "sleep", lambda _seconds: pytest.fail(
+        "recognised early failure should reach the runtime barrier"
+    ))
+    for name in ("x_request", "create_post", "upload_media", "post_random_quote",
+                 "post_next_meme", "safely_process_due_historical_context_obligations"):
+        monkeypatch.setattr(bot, name, lambda *_args, **_kwargs: pytest.fail(
+            "blocked startup attempted a remote operation"
+        ))
+    monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator,
+                        "run_reply_lane_checks_for_tick", lambda *_args: pytest.fail(
+                            "blocked startup entered reply lanes"))
+    return loaded, before_tick, RuntimeObserved
+
+
+@pytest.mark.parametrize("evidence", ["invalid_regular", "invalid_meme", "both"])
+def test_early_main_post_invalid_evidence_hands_off_to_runtime_barrier(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, evidence: str,
+) -> None:
+    loaded, _before_tick, RuntimeObserved = _run_blocked_main_post_startup(tmp_path, monkeypatch)
+    regular = bot.REGULAR_POST_RECEIPT_FILE
+    meme = bot.MEME_POST_RECEIPT_FILE
+    if evidence in {"invalid_regular", "both"}:
+        if evidence == "both":
+            bot.atomic_write_json(regular, valid_regular_receipt())
+        else:
+            regular.write_bytes(b'{"invalid":true}')
+    if evidence in {"invalid_meme", "both"}:
+        if evidence == "both":
+            bot.atomic_write_json(meme, {
+                "schema_version": 1, "post_id": "970001",
+                "meme_basename": "001_meme.png", "meme_post_epoch": 1_800_000_000,
+                "next_meme_post_epoch": 1_800_086_400,
+            })
+        else:
+            meme.write_bytes(b'{"invalid":true}')
+    before = {path: path.read_bytes() for path in (regular, meme) if path.exists()}
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: pytest.fail(
+        "invalid/conflicting evidence caused a normal startup save"))
+
+    with pytest.raises(RuntimeObserved):
+        bot.main()
+
+    assert len(loaded) == 2
+    assert all(path.read_bytes() == data for path, data in before.items())
+    assert bot.ambiguous_remote_post_is_blocking()
+
+
+@pytest.mark.parametrize("lane", ["regular", "meme"])
+def test_early_main_post_state_save_failure_reloads_before_runtime_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, lane: str,
+) -> None:
+    loaded, before_tick, RuntimeObserved = _run_blocked_main_post_startup(tmp_path, monkeypatch)
+    if lane == "regular":
+        receipt_path = bot.REGULAR_POST_RECEIPT_FILE
+        receipt = valid_regular_receipt()
+        monkeypatch.setattr(bot._main_post_assembly_module, "save_regular_post_protected_state",
+                            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                                OSError("state persistence failed")))
+    else:
+        receipt_path = bot.MEME_POST_RECEIPT_FILE
+        receipt = {
+            "schema_version": 1, "post_id": "970001",
+            "meme_basename": "001_meme.png", "meme_post_epoch": 1_800_000_000,
+            "next_meme_post_epoch": 1_800_086_400,
+        }
+        monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: (
+            _ for _ in ()).throw(OSError("state persistence failed")))
+    bot.atomic_write_json(receipt_path, receipt)
+    before = receipt_path.read_bytes()
+
+    with pytest.raises(RuntimeObserved):
+        bot.main()
+
+    assert len(loaded) == 2
+    assert loaded[0] != before_tick[0]  # First replay changed memory; reload discarded it.
+    assert before_tick[0] == bot.default_state()
+    assert receipt_path.read_bytes() == before
+    assert bot.ambiguous_remote_post_is_blocking()
+
+
+def test_early_main_post_receipt_retirement_failure_keeps_commit_and_barrier(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loaded, _before_tick, RuntimeObserved = _run_blocked_main_post_startup(tmp_path, monkeypatch)
+    receipt_path = bot.REGULAR_POST_RECEIPT_FILE
+    bot.atomic_write_json(receipt_path, valid_regular_receipt())
+    before = receipt_path.read_bytes()
+    removals = []
+
+    def failed_retirement(_assembly, *_args, **_kwargs):
+        removals.append("attempt")
+        raise exact_retirement.ExactReceiptRetirementError("retirement failed")
+
+    monkeypatch.setattr(bot._main_post_assembly_module.MainPostAssembly,
+                        "remove_regular", failed_retirement)
+    with pytest.raises(RuntimeObserved):
+        bot.main()
+
+    assert len(loaded) == 2
+    assert removals == ["attempt", "attempt"]
+    assert receipt_path.read_bytes() == before
+    assert json.loads(bot.STATE_FILE.read_text())["last_main_post_id"] == "950001"
+    assert bot.ambiguous_remote_post_is_blocking()
+
+
+@pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
+@pytest.mark.parametrize("failure_kind", ["io", "conflict"])
+def test_early_pending_schedule_finalisation_failure_retains_exact_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, lane: str, failure_kind: str,
+) -> None:
+    _loaded, _before_tick, RuntimeObserved = _run_blocked_main_post_startup(
+        tmp_path, monkeypatch,
+    )
+    attempt = schema_current_main_attempt(lane)
+    attempt["lifecycle_state"] = "attempting"
+    pending = bot.build_confirmed_pending_schedule_receipt(
+        attempt,
+        post_id="950001" if lane == "quote_image" else "970001",
+        confirmation_epoch=1_800_000_100,
+    )
+    path = (
+        bot.REGULAR_POST_RECEIPT_FILE if lane == "quote_image"
+        else bot.MEME_POST_RECEIPT_FILE
+    )
+    bot.atomic_write_json(path, pending)
+    before = path.read_bytes()
+    method = "write_regular" if lane == "quote_image" else "write_meme"
+    error = (
+        OSError("pending receipt finalisation failed")
+        if failure_kind == "io"
+        else (bot.UnresolvedRegularPostReceipt if lane == "quote_image"
+              else bot.UnresolvedMemePostReceipt)("schedule conflicts with source")
+    )
+    monkeypatch.setattr(bot._main_post_receipt_storage.MainPostReceipts, method,
+                        lambda *_args: (_ for _ in ()).throw(error))
+
+    with pytest.raises(RuntimeObserved):
+        bot.main()
+
+    assert path.read_bytes() == before
+    assert bot.ambiguous_remote_post_is_blocking()
+
+
+def test_early_confirmed_meme_save_failure_recovers_on_runtime_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_confirmed_reply_startup(
+        tmp_path, monkeypatch, unit_sending_v4_reply_receipt(),
+    )
+    receipt = {
+        "schema_version": 1, "post_id": "970001",
+        "meme_basename": "001_meme.png", "meme_post_epoch": 1_800_000_000,
+        "next_meme_post_epoch": 1_800_086_400,
+    }
+    bot.atomic_write_json(bot.MEME_POST_RECEIPT_FILE, receipt)
+    original_save = bot.save_state
+    attempts = []
+
+    def save(state, *, durable=False):
+        if durable:
+            attempts.append("confirmed")
+            if len(attempts) == 1:
+                raise OSError("one-off confirmed state save failure")
+        return original_save(state, durable=durable)
+
+    class Recovered(Exception):
+        pass
+
+    def barrier_after_recovery(_runtime):
+        assert not bot.MEME_POST_RECEIPT_FILE.exists()
+        assert json.loads(bot.STATE_FILE.read_text())["posted_meme_filenames"] == ["001_meme.png"]
+        raise Recovered
+
+    def run_tick(runtime, lines_used, images_used, state, *, sleep):
+        runtime.run_once(lines_used, images_used, state)
+
+    monkeypatch.setattr(bot, "save_state", save)
+    monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator,
+                        "maintain_global_remote_write_barrier_tick", barrier_after_recovery)
+    monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator, "run_continuously", run_tick)
+    monkeypatch.setattr(bot, "sleep", lambda _seconds: pytest.fail("runtime should retry immediately"))
+    for name in ("x_request", "create_post", "upload_media", "post_random_quote", "post_next_meme"):
+        monkeypatch.setattr(bot, name, lambda *_args, **_kwargs: pytest.fail(
+            "recovery must not send another remote request"))
+
+    with pytest.raises(Recovered):
+        bot.main()
+    assert attempts == ["confirmed", "confirmed"]
+    assert not bot.MEME_POST_RECEIPT_FILE.exists()
+    assert json.loads(bot.STATE_FILE.read_text())["posted_meme_filenames"] == ["001_meme.png"]
+
+
+def test_unrelated_early_main_post_error_still_propagates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _state, order, _StartupReachedScheduler = _configure_confirmed_reply_startup(
+        tmp_path, monkeypatch, unit_sending_v4_reply_receipt(),
+    )
+    monkeypatch.setattr(bot, "reconcile_startup_main_post_receipts",
+                        lambda *_args: (_ for _ in ()).throw(
+                            RuntimeError("unrelated main-post startup error")))
+    monkeypatch.setattr(bot, "sleep", lambda _seconds: pytest.fail(
+        "unrelated error must not enter a recovery wait"))
+    with pytest.raises(RuntimeError, match="unrelated main-post startup error"):
+        bot.main()
+    assert order == []
 
 
 @pytest.mark.parametrize("pause_between_passes", [False, True])
@@ -212,6 +478,133 @@ def test_startup_resumes_guard_prepared_before_transient_journal_failure(
     assert json.loads(bot.STATE_FILE.read_text())["daily_reply_count"] == 1
     assert remote_calls == ["confirmed"]
     assert not bot.remote_write_safety_incident_is_latched()
+
+
+def test_pause_entering_failed_startup_recovery_keeps_barrier_proof_alive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _state, _order, _StartupReachedScheduler = _configure_confirmed_reply_startup(
+        tmp_path, monkeypatch, unit_sending_v4_reply_receipt(),
+    )
+    pause = [False]
+    source_calls = []
+    reconcile_calls = []
+    maintenance_calls = []
+    delivered = []
+    marker = bot.AMBIGUOUS_POST_OUTCOME_FILE
+    real_source = bot.resume_source_receipt_retirement_for_control_snapshot
+    real_maintenance = bot._tick_coordination.RuntimeCoordinator.maintain_global_remote_write_barrier_tick
+    real_fsync = bot.fsync_parent_dir
+    prior_handler = signal.getsignal(signal.SIGINT)
+    guard = bot.ConfirmedPostSigintDeferral()
+    guard.previous_handler = lambda signum, _frame: delivered.append(signum)
+    guard.pending = True
+
+    def source(*, maintenance_paused):
+        assert not pause[0] and not maintenance_paused
+        source_calls.append(True)
+        return real_source(maintenance_paused=maintenance_paused)
+
+    def reconcile(*_args):
+        assert not pause[0]
+        reconcile_calls.append(True)
+        if len(reconcile_calls) == 1:
+            raise bot.ConfirmedReplyLocalPersistenceError("one-off local recovery failure")
+        return {"regular": False, "meme": False, "conversational_reply": False}
+
+    def maintain(runtime):
+        maintenance_calls.append(pause[0])
+        return real_maintenance(runtime)
+
+    sleeps = []
+    fsync_attempts = []
+
+    def one_failed_fsync(path, *, strict=False):
+        fsync_attempts.append(Path(path))
+        if len(fsync_attempts) == 1:
+            raise OSError("marker parent durability pending")
+        return real_fsync(path, strict=strict)
+
+    class StartupStillLatched(Exception):
+        pass
+
+    def sleep(seconds):
+        assert seconds == 60
+        sleeps.append(seconds)
+        if len(sleeps) == 1:
+            pause[0] = True
+            marker.write_text("{}\n", encoding="utf-8")
+            _establish_current_barrier_pair()
+            monkeypatch.setattr(bot, "fsync_parent_dir", one_failed_fsync)
+            signal.signal(signal.SIGINT, guard.handle)
+            bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD = guard
+        elif len(sleeps) == 2:
+            assert maintenance_calls == [True]
+            assert delivered == []
+            assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is guard
+        elif len(sleeps) == 3:
+            assert maintenance_calls == [True, True]
+            assert delivered == [signal.SIGINT]
+            assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is None
+            pause[0] = False
+        elif len(sleeps) == 4:
+            assert maintenance_calls == [True, True, False]
+            assert bot.remote_write_safety_incident_is_latched()
+            raise StartupStillLatched
+        else:
+            pytest.fail("startup recovery did not hand off after unpause")
+
+    monkeypatch.setattr(bot, "_runtime_controls_owner", lambda: SimpleNamespace(
+        global_paused=lambda: pause[0]))
+    monkeypatch.setattr(bot, "resume_source_receipt_retirement_for_control_snapshot", source)
+    monkeypatch.setattr(bot, "reconcile_confirmed_transactions_before_global_barrier", reconcile)
+    monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator,
+                        "maintain_global_remote_write_barrier_tick", maintain)
+    monkeypatch.setattr(bot, "sleep", sleep)
+    try:
+        with pytest.raises(StartupStillLatched):
+            bot.main()
+    finally:
+        signal.signal(signal.SIGINT, prior_handler)
+    assert len(source_calls) == len(reconcile_calls) == 1
+    assert sleeps == [60, 60, 60, 60]
+    assert maintenance_calls == [True, True, False]
+    assert len(fsync_attempts) >= 2
+    assert bot.ambiguous_remote_post_is_blocking()
+
+
+def test_already_paused_startup_uses_runtime_barrier_owner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_confirmed_reply_startup(
+        tmp_path, monkeypatch, unit_sending_v4_reply_receipt(),
+    )
+    bot.AMBIGUOUS_POST_OUTCOME_FILE.write_text("{}\n", encoding="utf-8")
+    _establish_current_barrier_pair()
+    monkeypatch.setattr(bot, "_runtime_controls_owner", lambda: SimpleNamespace(
+        global_paused=lambda: True))
+    monkeypatch.setattr(bot, "reconcile_confirmed_transactions_before_global_barrier",
+                        lambda *_args: pytest.fail("paused startup reconciled a transaction"))
+    calls = []
+    real_maintenance = bot._tick_coordination.RuntimeCoordinator.maintain_global_remote_write_barrier_tick
+
+    def maintain(runtime):
+        calls.append("barrier")
+        return real_maintenance(runtime)
+
+    class PausedTick(Exception):
+        pass
+
+    def run_tick(runtime, lines_used, images_used, state, *, sleep):
+        assert runtime.run_once(lines_used, images_used, state) == 60
+        raise PausedTick
+
+    monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator,
+                        "maintain_global_remote_write_barrier_tick", maintain)
+    monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator, "run_continuously", run_tick)
+    with pytest.raises(PausedTick):
+        bot.main()
+    assert calls == ["barrier"]
 
 
 @pytest.mark.parametrize("fail_once", [False, True])

@@ -5544,6 +5544,22 @@ def reconcile_startup_main_post_receipts(
     )
 
 
+def main_post_startup_recovery_is_blocked() -> bool:
+    """Require surviving main-post authority before handing failed replay to runtime."""
+    return bool(
+        remote_write_safety_incident_is_latched()
+        or load_regular_post_receipt()[0] != "absent"
+        or load_meme_post_receipt()[0] != "absent"
+        or remote_receipt_retirement_is_blocking()
+        or transport_journal_is_blocking(
+            journal_path_for_receipt(REGULAR_POST_RECEIPT_FILE)
+        )
+        or transport_journal_is_blocking(
+            journal_path_for_receipt(MEME_POST_RECEIPT_FILE)
+        )
+    ) and ambiguous_remote_post_is_blocking()
+
+
 def reconcile_confirmed_transactions_before_global_barrier(
     lines_used: set,
     images_used: set,
@@ -6882,13 +6898,56 @@ def main() -> None:
         ),
     )
     startup_current = now_epoch()
-    reconcile_startup_main_post_receipts(
-        lines_used,
-        images_used,
-        state,
-        startup_current,
-    )
     runtime = _runtime_coordinator(controls=controls)
+    try:
+        reconcile_startup_main_post_receipts(
+            lines_used,
+            images_used,
+            state,
+            startup_current,
+        )
+    except (
+        InvalidRegularPostReceipt, InvalidMemePostReceipt,
+        UnresolvedRegularPostReceipt, UnresolvedMemePostReceipt,
+        _main_post_receipt_storage.PendingMainPostReceiptChangedError,
+        OSError, StateBackupWriteError, ExactReceiptRetirementError,
+        TransportJournalError,
+    ) as exc:
+        # Invalid/conflicting evidence needs controlled repair; confirmed local
+        # persistence may be retried by the runtime's pre-barrier owner. Both
+        # must retain their exact receipt, journal, retirement guard or latch.
+        if not main_post_startup_recovery_is_blocked():
+            raise
+        if isinstance(exc, (
+            InvalidRegularPostReceipt, InvalidMemePostReceipt,
+            UnresolvedRegularPostReceipt, UnresolvedMemePostReceipt,
+            _main_post_receipt_storage.PendingMainPostReceiptChangedError,
+            TransportJournalError,
+        )):
+            log.critical(
+                "Main-post startup evidence is invalid or conflicting; "
+                "controlled repair is required and every remote lane remains blocked",
+                exc_info=True,
+            )
+        else:
+            log.critical(
+                "Confirmed main-post local recovery failed at startup; the "
+                "runtime may retry exact local recovery behind its barrier",
+                exc_info=True,
+            )
+        report_bot_health_progress(
+            "remote_write_blocked", remote_write_blocked=True,
+        )
+        # A failed save may already have changed the caller's dictionaries or
+        # used histories. Reload committed generations before any runtime tick.
+        lines_used = load_quote_used_hashes(quote_lines_for_history)
+        images_used = load_image_used_basenames(current_image_paths())
+        state = load_runtime_state()
+        _tweet_lookup_cache_owner().seed_recent_own_posts(state)
+        report_bot_health_progress("main_loop")
+        runtime.maintenance_pause_logged = controls.global_paused()
+        runtime.run_continuously(lines_used, images_used, state, sleep=sleep)
+        return
     if not controls.global_paused():
         while True:
             # A failed journal retirement can leave an exact source-removal
@@ -6896,6 +6955,7 @@ def main() -> None:
             # confirmed-transaction reconciler, so resume it first on each
             # pass, as the runtime tick does.
             if controls.global_paused():
+                runtime.maintain_global_remote_write_barrier_tick()
                 sleep(60)
                 continue
             if remote_write_safety_incident_is_latched():
@@ -6919,6 +6979,7 @@ def main() -> None:
                 sleep(60)
                 continue
             if controls.global_paused() or remote_write_safety_incident_is_latched():
+                runtime.maintain_global_remote_write_barrier_tick()
                 sleep(60)
                 continue
             try:

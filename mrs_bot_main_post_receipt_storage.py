@@ -30,6 +30,10 @@ if TYPE_CHECKING:
     from mrsMThatcher2 import ApiError as ApiErrorValue
 
 
+class PendingMainPostReceiptChangedError(RuntimeError):
+    """A confirmed pending schedule changed before exact local finalisation."""
+
+
 @dataclass(frozen=True)
 class MainPostReceipts:
     """Store both main-post lanes with fresh bindings for nested operations."""
@@ -205,7 +209,9 @@ class MainPostReceipts:
     ) -> CurrentRegularPostReceipt | CurrentMemePostReceipt:
         """Atomically replace one pending schedule with its complete local receipt."""
         if not self.values().pending_is_valid(pending):
-            raise RuntimeError("Refusing to finalise an invalid pending receipt")
+            raise PendingMainPostReceiptChangedError(
+                "Refusing to finalise an invalid pending receipt"
+            )
         attempt = pending["source_attempt"]
         path = self.current().attempt_path(attempt)
         status, current = (
@@ -214,7 +220,7 @@ class MainPostReceipts:
             else self.current().load_meme()
         )
         if status != "pending_schedule" or current != pending:
-            raise RuntimeError(
+            raise PendingMainPostReceiptChangedError(
                 "Confirmed pending-schedule receipt changed before finalisation"
             )
         if attempt["lane"] == "quote_image":
