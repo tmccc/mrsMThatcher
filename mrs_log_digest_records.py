@@ -17,7 +17,10 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mrs_log_digest_contracts import InputFileSummary, SourceReference
 
 
 LOG_RE = re.compile(
@@ -49,11 +52,11 @@ def parse_prefixed_json_observation(
     *,
     marker: str,
     parse_error_counter: str,
-    stats: Counter,
+    stats: Counter[str],
     errors: List[Dict[str, Any]],
     parse_json_object: Callable[..., Dict[str, Any]],
     short_text: Callable[[Any, int], str],
-    source_ref: Callable[[], Dict[str, Any]],
+    source_ref: Callable[[], SourceReference],
 ) -> Tuple[bool, Dict[str, Any]]:
     """Parse a matched observation, recording only encoding/parser failures.
 
@@ -93,22 +96,24 @@ def record_source_ref(
     *,
     dt_text: Callable[[datetime], str],
     safe_source_logger: Callable[[Any], str],
-) -> Dict[str, Any]:
+) -> SourceReference:
     """Return bounded location metadata for one retained physical log record."""
 
-    reference: Dict[str, Any] = {}
     index = (input_file_indexes or {}).get(record.path)
     if type(index) is int and index >= 0:
-        reference["input_file_index"] = index
-    else:
-        reference["source_basename"] = Path(record.path).name
-    reference.update(
-        {
+        reference: SourceReference = {
+            "input_file_index": index,
             "record_number": record.ordinal,
             "timestamp": dt_text(record.ts),
             "logger": safe_source_logger(record.src),
         }
-    )
+    else:
+        reference = {
+            "source_basename": Path(record.path).name,
+            "record_number": record.ordinal,
+            "timestamp": dt_text(record.ts),
+            "logger": safe_source_logger(record.src),
+        }
     if record.line > 0:
         reference["logged_source_line_number"] = record.line
     return reference
@@ -453,9 +458,9 @@ def summarize_input_files(
     iter_records: Callable[[Path], Iterable[Record]],
     fromtimestamp: Callable[[float], datetime],
     dt_text: Callable[[datetime], str],
-) -> List[Dict[str, Any]]:
+) -> List[InputFileSummary]:
     """Summarise input files."""
-    summaries: List[Dict[str, Any]] = []
+    summaries: List[InputFileSummary] = []
     for _path, _record in _summarized_source_records(
         paths, since, until, summaries,
         since_exclusive=since_exclusive, warn_missing=False,
@@ -474,7 +479,7 @@ def read_records_and_summaries(
     iter_records: Callable[[Path], Iterable[Record]],
     fromtimestamp: Callable[[float], datetime],
     dt_text: Callable[[datetime], str],
-) -> Tuple[List[Record], List[Dict[str, Any]]]:
+) -> Tuple[List[Record], List[InputFileSummary]]:
     """Read physical resume records and raw input summaries in one parse.
 
     Records retain all observations through ``until``, including those before
@@ -482,7 +487,7 @@ def read_records_and_summaries(
     complete raw source and its requested timestamp window, before deduplication
     or resume selection. Metadata is observed immediately before each file read.
     """
-    summaries: List[Dict[str, Any]] = []
+    summaries: List[InputFileSummary] = []
     source_records = _summarized_source_records(
         paths, since, until, summaries,
         since_exclusive=since_exclusive, warn_missing=True,
@@ -499,7 +504,7 @@ def _summarized_source_records(
     paths: List[Path],
     since: Optional[datetime],
     until: Optional[datetime],
-    summaries: List[Dict[str, Any]],
+    summaries: List[InputFileSummary],
     *,
     since_exclusive: bool,
     warn_missing: bool,
@@ -510,7 +515,7 @@ def _summarized_source_records(
     """Observe complete raw sources while yielding records for optional analysis."""
 
     for path in paths:
-        summary: Dict[str, Any] = {
+        summary: InputFileSummary = {
             "path": str(path),
             "exists": path.exists(),
             "size": None,
@@ -557,7 +562,7 @@ def _summarized_source_records(
 
 
 def input_retention_coverage(
-    input_files: List[Dict[str, Any]],
+    input_files: List[InputFileSummary],
     since: Optional[datetime],
     *,
     parse_dt: Callable[[str], Optional[datetime]],

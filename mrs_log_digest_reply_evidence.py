@@ -18,7 +18,10 @@ import hashlib
 import json
 from datetime import datetime, timezone, tzinfo
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from mrs_log_digest_contracts import SourceReference
 
 from mrs_log_digest_values import (
     SHA256_LOWER_RE,
@@ -41,7 +44,7 @@ def prepare_structured_reply_confirmation(
     time_text: Callable[[], str],
     event_insertion_index: Callable[[], int],
     source_sequence: int,
-    make_source_ref: Callable[[], Dict[str, Any]],
+    make_source_ref: Callable[[], SourceReference],
 ) -> Optional[Dict[str, Any]]:
     """Retain strict production confirmation fields for later identity validation."""
     authority_event = (
@@ -75,7 +78,7 @@ def prepare_structured_historical_publication_evidence(
     time_text: Callable[[], str],
     event_insertion_index: Callable[[], int],
     source_sequence: int,
-    make_source_ref: Callable[[], Dict[str, Any]],
+    make_source_ref: Callable[[], SourceReference],
 ) -> Dict[str, Any]:
     """Project one historical log confirmation, retaining text only with authority.
 
@@ -157,7 +160,7 @@ def valid_structured_historical_completion_anchor(
         and isinstance(strict_anchor.get("quote_id"), str)
         and sha256_fullmatch(strict_anchor["quote_id"]) is not None
         and type(strict_anchor.get("character_count")) is int
-        and 0 <= strict_anchor.get("character_count") <= 25_000
+        and 0 <= strict_anchor["character_count"] <= 25_000
         and (
             "reply_preview" not in strict_anchor
             or valid_bounded_utf8_text(
@@ -461,6 +464,8 @@ def _confirmed_conversational_receipt_evidence(
         reply_text=reply_text,
     ):
         return None
+    # The supplied draft validator has accepted its dictionary schema.
+    draft = cast(Dict[str, Any], draft)
     original_post_id = receipt.get("original_post_id")
     if lane == "quote_tweet":
         quoted_post = context.get("quoted_post")
@@ -478,6 +483,7 @@ def _confirmed_conversational_receipt_evidence(
         original_post_id = ""
     if "mention_pagination" in receipt:
         pagination = receipt.get("mention_pagination")
+        next_token = pagination.get("next_token") if isinstance(pagination, dict) else None
         if (
             schema_version not in {3, 4}
             or lane != "mention"
@@ -490,13 +496,12 @@ def _confirmed_conversational_receipt_evidence(
                     pagination.get("base_since_id")
                 )
             )
-            or type(pagination.get("next_token")) is not str
-            or not pagination.get("next_token")
-            or pagination.get("next_token")
-            != pagination.get("next_token").strip()
+            or type(next_token) is not str
+            or not next_token
+            or next_token != next_token.strip()
             or any(
                 character.isspace()
-                for character in pagination.get("next_token")
+                for character in next_token
             )
         ):
             return None
@@ -804,6 +809,7 @@ def _valid_historical_completed_item(
         or not valid_string_public_post_id(reply_post_value)
         or not isinstance(quote_id, str)
         or not SHA256_LOWER_RE.fullmatch(quote_id)
+        or not isinstance(reply_text, str)
         or not valid_bounded_utf8_text(reply_text)
         or not reply_text.strip()
         or type(receipt.get("reply_epoch")) is not int

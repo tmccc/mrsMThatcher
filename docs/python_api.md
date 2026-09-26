@@ -312,6 +312,18 @@ refreshes directly. The standalone saved-context API refreshes the supplied repo
 in place and returns `None`. Historical context stays diagnostic while current
 state and receipt evidence determine current health.
 
+`mrs_log_digest_contracts` defines the checked physical input and source
+reference shapes, distinct current state/config snapshot tags, restored and
+reported resume context, stable report sections and the stable-reader callback.
+The tags wrap dictionaries accepted by the snapshot readers without copying
+them; the state tag does not assert a complete bot-state schema. `DigestReport`
+identifies the mutable report accepted by the run helpers while its older and
+optional sections stay dynamic. `DigestAnalysisState` is valid immediately
+after construction; publication correlation belongs to `DigestAnalysis`, and
+the optional API preparation is checked before assembly. The separate
+`mypy-digest.ini` and `tools/check_digest_typing_examples.py` check these
+boundaries without imposing strict typing on all historical helpers.
+
 ## Requests, Receipts And Operational Health
 
 `mrs_log_digest_transactions` observes X request starts, remote-write

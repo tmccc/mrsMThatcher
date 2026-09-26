@@ -20,6 +20,7 @@ from mrs_log_digest_values import (
     valid_string_public_post_id,
 )
 from single_call_reply_validation import (
+    RejectedReplyTextFields,
     SCHEMA_VALIDATION_ERROR_CODES,
     normalise_validation_error_codes,
     rejected_reply_text_fields,
@@ -43,6 +44,7 @@ def _validation_error_fields(
     event: Mapping[str, Any], *, projected: bool = False,
 ) -> Dict[str, Any]:
     """Project rule codes without retaining untrusted prose or claimed statuses."""
+    codes: tuple[str, ...]
     if "validation_error_codes" not in event:
         codes, omitted, status = (), 0, "missing"
     elif type(event["validation_error_codes"]) is not list:
@@ -69,7 +71,7 @@ def _validation_error_fields(
     }
 
 
-def _rejected_reply_fields(event: Mapping[str, Any]) -> Dict[str, Any]:
+def _rejected_reply_fields(event: Mapping[str, Any]) -> RejectedReplyTextFields:
     """Keep unpublished text only for a recorded reply validation failure."""
     if (
         event.get("pipeline_status") != "operational_failure"
@@ -462,7 +464,7 @@ def record_single_call_reply_decision(
 ) -> None:
     """Project single-call decision fields and emit through the coordinator."""
     temperature = event_obj.get("temperature")
-    if type(temperature) not in {int, float} or not math.isfinite(
+    if (type(temperature) is not int and type(temperature) is not float) or not math.isfinite(
         float(temperature)
     ):
         temperature = None

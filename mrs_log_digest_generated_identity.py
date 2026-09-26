@@ -9,7 +9,10 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mrs_log_digest_contracts import SourceReference
 
 from mrs_log_digest_records import parse_prefixed_json_observation
 from mrs_log_digest_values import most_common_with_cutoff_ties
@@ -25,7 +28,7 @@ def record_generated_identity_shadow(
     errors: List[Dict[str, Any]],
     parse_json_object: Callable[..., Dict[str, Any]],
     short_text: Callable[[Any, int], str],
-    source_ref: Callable[[], Dict[str, Any]],
+    source_ref: Callable[[], SourceReference],
 ) -> None:
     """Record one matched GENERATED_IDENTITY_POLICY_SHADOW_RESULT observation.
 
@@ -57,7 +60,7 @@ def record_generated_identity_policy(
     errors: List[Dict[str, Any]],
     parse_json_object: Callable[..., Dict[str, Any]],
     short_text: Callable[[Any, int], str],
-    source_ref: Callable[[], Dict[str, Any]],
+    source_ref: Callable[[], SourceReference],
 ) -> None:
     """Record one matched GENERATED_IDENTITY_POLICY_APPLIED observation.
 

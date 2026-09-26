@@ -12,7 +12,10 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 import re
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mrs_log_digest_contracts import SourceReference
 
 from mrs_log_digest_records import Record
 
@@ -51,7 +54,7 @@ def handle_cooldown_message(
     r: Record,
     msg: str,
     *,
-    stats: Counter,
+    stats: Counter[str],
     cooldown_active: List[Dict[str, Any]],
     add_event: Callable[..., Dict[str, Any]],
 ) -> bool:
@@ -82,12 +85,12 @@ def handle_x_api_error(
     is_handled_reply_restriction: bool,
     api_errors: List[Dict[str, Any]],
     handled_api_restrictions: List[Dict[str, Any]],
-    stats: Counter,
+    stats: Counter[str],
     input_file_indexes: Optional[Dict[str, int]],
     parse_dt: Callable[[str], Optional[datetime]],
     seconds_between: Callable[[datetime, datetime], float],
     short: Callable[..., str],
-    record_source_ref: Callable[..., Dict[str, Any]],
+    record_source_ref: Callable[..., SourceReference],
     is_deleted_or_inaccessible_tweet_403: Callable[[str], bool],
 ) -> bool:
     """Observe an X error, handling only the deleted/inaccessible 403 exit."""
@@ -166,7 +169,7 @@ def enrich_latest_api_error(
     msg: str,
     *,
     api_errors: List[Dict[str, Any]],
-    stats: Counter,
+    stats: Counter[str],
 ) -> None:
     """Enrich the latest shared API error and count tracebacks at dispatch."""
     if api_errors:
@@ -224,8 +227,8 @@ def prepare_api_health(
     historical_reply_text_evidence: List[Dict[str, Any]],
     transient_provider_timeouts: int,
     handled_restriction_times: List[datetime],
-    event_counter: Callable[..., Counter],
-    bounded_event_text: Callable[..., str],
+    event_counter: Callable[..., Counter[str]],
+    bounded_event_text: Callable[..., Optional[str]],
     SHA256_LOWER_RE: re.Pattern[str],
     valid_string_public_post_id: Callable[[Any], bool],
     _normalised_structured_reply_confirmation: Callable[..., Optional[Dict[str, Any]]],
@@ -386,7 +389,7 @@ def prepare_api_health(
         and valid_string_public_post_id(item.get("reply_post_id"))
         and isinstance(item.get("reply_text"), str)
     )
-    api_counter_semantics = {
+    api_counter_semantics: Dict[str, Dict[str, Any]] = {
         "posting_attempt_count": {
             "retained_compatibility_field": True,
             "scope": (

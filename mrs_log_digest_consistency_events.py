@@ -17,7 +17,7 @@ def record_reply_evidence_unavailable(
     stats: Counter,
     *,
     add_event: Callable[..., Dict[str, Any]],
-    bounded_event_text: Callable[..., str],
+    bounded_event_text: Callable[..., Optional[str]],
     valid_string_public_post_id: Callable[[Any], bool],
 ) -> None:
     """Project reply evidence unavailable fields and update supplied counts."""
@@ -48,7 +48,7 @@ def record_runtime_control_pause(
     *,
     add_event: Callable[..., Dict[str, Any]],
     bounded_event_string_list: Callable[..., List[str]],
-    bounded_event_text: Callable[..., str],
+    bounded_event_text: Callable[..., Optional[str]],
     bounded_event_nonnegative_integer: Callable[..., Optional[int]],
 ) -> None:
     """Project runtime control pause fields and update supplied counts."""
@@ -79,7 +79,7 @@ def record_runtime_control_clear(
     *,
     add_event: Callable[..., Dict[str, Any]],
     bounded_event_string_list: Callable[..., List[str]],
-    bounded_event_text: Callable[..., str],
+    bounded_event_text: Callable[..., Optional[str]],
 ) -> None:
     """Project runtime control clear fields and update supplied counts."""
     control_lanes = bounded_event_string_list(
@@ -106,7 +106,7 @@ def record_clarification_reply_cap_override(
     *,
     add_event: Callable[..., Dict[str, Any]],
     valid_string_public_post_id: Callable[[Any], bool],
-    bounded_event_text: Callable[..., str],
+    bounded_event_text: Callable[..., Optional[str]],
 ) -> None:
     """Project clarification reply cap override fields and update supplied counts."""
     add_event(
@@ -149,7 +149,7 @@ def record_clarification_reply_used(
     *,
     add_event: Callable[..., Dict[str, Any]],
     valid_string_public_post_id: Callable[[Any], bool],
-    bounded_event_text: Callable[..., str],
+    bounded_event_text: Callable[..., Optional[str]],
 ) -> None:
     """Project clarification reply used fields and update supplied counts."""
     add_event(
@@ -194,7 +194,7 @@ def record_posting_transaction_state(
     stats: Counter,
     *,
     add_event: Callable[..., Dict[str, Any]],
-    bounded_event_text: Callable[..., str],
+    bounded_event_text: Callable[..., Optional[str]],
     valid_string_public_post_id: Callable[[Any], bool],
     bounded_event_boolean: Callable[[Any], Optional[bool]],
 ) -> None:
@@ -238,7 +238,7 @@ def record_daily_meme_failure(
     stats: Counter,
     *,
     add_event: Callable[..., Dict[str, Any]],
-    bounded_event_text: Callable[..., str],
+    bounded_event_text: Callable[..., Optional[str]],
     valid_string_public_post_id: Callable[[Any], bool],
 ) -> None:
     """Project daily meme failure fields and update supplied counts."""

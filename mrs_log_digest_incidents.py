@@ -21,6 +21,9 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple
 
 if TYPE_CHECKING:
+    from mrs_log_digest_contracts import SourceReference
+
+if TYPE_CHECKING:
     from mrs_log_digest_records import Record
 
 from mrs_log_digest_snapshot_incidents import reconcile_current_snapshot_incidents
@@ -310,7 +313,7 @@ def observe_error_warning(
     is_deleted_or_inaccessible_tweet_403: Callable[[str], bool],
     add_or_merge_local_rejection: Callable[..., Dict[str, Any]],
     short: Callable[[str, int], str],
-    record_source_ref: Callable[[Record, Optional[Dict[str, int]]], Dict[str, Any]],
+    record_source_ref: Callable[[Record, Optional[Dict[str, int]]], SourceReference],
     record_fingerprint: Callable[[Record], str],
     classify_operational_error: Callable[[str], str],
 ) -> Tuple[bool, bool]:
@@ -1339,7 +1342,7 @@ def _prepare_remote_ambiguity_evidence(
     List[datetime], List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]],
 ]:
     """Prepare ambiguity times and causal reply, transport and media evidence."""
-    ambiguity_times = [
+    candidate_ambiguity_times = [
         get_event_time(item)
         for item in serious
         if classify_operational_error(
@@ -1347,7 +1350,9 @@ def _prepare_remote_ambiguity_evidence(
         )
         == "remote_write_ambiguity_barrier"
     ]
-    ambiguity_times = [item for item in ambiguity_times if item is not None]
+    ambiguity_times = [
+        item for item in candidate_ambiguity_times if isinstance(item, datetime)
+    ]
     transport_attempts: List[Dict[str, Any]] = []
     for transaction in remote_write_transactions:
         if (
@@ -1642,14 +1647,14 @@ def _group_operational_incidents(
         ):
             item["_remote_write_subordinate_category"] = category
             if category == "conversational_reply_receipt_barrier":
-                identity = re.search(
+                identity_match = re.search(
                     r"\blane=([^\s]+) target_id=([^\s]+)",
                     raw,
                 )
-                if identity is not None:
+                if identity_match is not None:
                     item["_remote_write_subordinate_reply_identity"] = {
-                        "lane": _normalise_lane(identity.group(1)),
-                        "target_id": identity.group(2),
+                        "lane": _normalise_lane(identity_match.group(1)),
+                        "target_id": identity_match.group(2),
                         "source_time": str(item.get("time") or ""),
                     }
             category = "remote_write_ambiguity_barrier"
@@ -1680,13 +1685,16 @@ def _group_operational_incidents(
                     + str(remote_identity["target_id"])
                 )
                 if category == "conversational_reply_receipt_barrier":
+                    assert item_time is not None
                     signature += ":" + dt_text(item_time)
             else:
+                remote_identity_time = remote_identity.get("time")
+                assert isinstance(remote_identity_time, datetime)
                 signature = (
                     "media:"
                     + str(remote_identity.get("image") or "unavailable")
                     + ":"
-                    + dt_text(remote_identity.get("time"))
+                    + dt_text(remote_identity_time)
                 )
         elif category == "remote_write_ambiguity_barrier" and item_time is not None:
             signature = f"{category}:{dt_text(item_time)}"
@@ -1910,14 +1918,16 @@ def summarise_operational_error_health(
             selected_window_end,
             current_snapshot_authoritative=current_snapshot_authoritative,
         )
+    raw_active_remote_components = safety.get("active_transaction_identities")
     active_remote_components = (
-        safety.get("active_transaction_identities")
-        if isinstance(safety.get("active_transaction_identities"), list)
+        raw_active_remote_components
+        if isinstance(raw_active_remote_components, list)
         else []
     )
+    raw_snapshot_incident_evidence = safety.get("snapshot_incident_evidence")
     snapshot_incident_evidence = (
-        safety.get("snapshot_incident_evidence")
-        if isinstance(safety.get("snapshot_incident_evidence"), list)
+        raw_snapshot_incident_evidence
+        if isinstance(raw_snapshot_incident_evidence, list)
         else []
     )
     identity_snapshot_available = bool(
@@ -2135,11 +2145,11 @@ def summarise_operational_error_health(
             resolution_time = min(later_successes) if resolved else None
             resolution_reason = (
                 f"later {success_kind.replace('_', ' ')} observed after local source-image preflight failure"
-                if resolved else ""
+                if resolved and success_kind is not None else ""
             )
             status = "historical_resolved" if resolved else "current_unresolved"
         elif category == "x_api_rate_limit":
-            cooldown_deadlines: List[datetime] = []
+            cooldown_deadlines: List[Optional[datetime]] = []
             for item in ordered:
                 raw = str(
                     item.get("_raw_message") or item.get("message") or ""
@@ -2154,7 +2164,8 @@ def summarise_operational_error_health(
                         cooldown_deadlines.append(parse_dt(match.group(1)))
                     except ValueError:
                         pass
-            cooldown_deadline = max(cooldown_deadlines, default=None)
+            # Keep the legacy comparison/error behavior for an injected parser.
+            cooldown_deadline = max(cooldown_deadlines, default=None)  # type: ignore[type-var]
             later_x_successes = [
                 ts
                 for ts in event_times.get("x_activity_succeeded", [])
@@ -2415,7 +2426,7 @@ def summarise_operational_error_health(
     )
     incidents.sort(key=lambda item: (item["first_seen"], item["category"], item["signature"]))
     current = [item for item in incidents if item["status"] == "current_unresolved"]
-    resolved = [item for item in incidents if item["status"] == "historical_resolved"]
+    resolved_incidents = [item for item in incidents if item["status"] == "historical_resolved"]
     resolution_unavailable = [
         item for item in incidents if item["status"] == "resolution_unavailable"
     ]
@@ -2431,7 +2442,7 @@ def summarise_operational_error_health(
     ]
     return {
         "current_independent_incident_count": len(current),
-        "historical_resolved_incident_count": len(resolved),
+        "historical_resolved_incident_count": len(resolved_incidents),
         "resolution_unavailable_incident_count": len(resolution_unavailable),
         "raw_serious_error_record_count": len(serious),
         "raw_traceback_count": sum(item.get("traceback_count", 0) for item in incidents),
@@ -2444,7 +2455,7 @@ def summarise_operational_error_health(
             item.get("record_count", 0) for item in transient_provider_observations
         ),
         "current_incidents": current,
-        "historical_resolved_incidents": resolved,
+        "historical_resolved_incidents": resolved_incidents,
         "resolution_unavailable_incidents": resolution_unavailable,
         "transient_provider_observations": transient_provider_observations,
         "selected_window_end": (

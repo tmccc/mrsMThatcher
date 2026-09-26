@@ -12,7 +12,10 @@ from __future__ import annotations
 from collections import Counter
 from datetime import datetime
 import statistics
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mrs_log_digest_contracts import SourceReference
 
 from mrs_log_digest_records import parse_prefixed_json_observation
 from mrs_log_digest_values import most_common_with_cutoff_ties
@@ -29,7 +32,7 @@ def record_original_editorial_selection(
     errors: List[Dict[str, Any]],
     parse_json_object: Callable[..., Dict[str, Any]],
     short_text: Callable[[Any, int], str],
-    source_ref: Callable[[], Dict[str, Any]],
+    source_ref: Callable[[], SourceReference],
 ) -> None:
     """Record one matched ORIGINAL_EDITORIAL_SELECTION_RESULT observation.
 
@@ -66,7 +69,7 @@ def record_original_editorial_shadow(
     errors: List[Dict[str, Any]],
     parse_json_object: Callable[..., Dict[str, Any]],
     short_text: Callable[[Any, int], str],
-    source_ref: Callable[[], Dict[str, Any]],
+    source_ref: Callable[[], SourceReference],
 ) -> None:
     """Record one matched ORIGINAL_EDITORIAL_SHADOW_RESULT observation.
 

@@ -18,6 +18,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import AbstractSet, Any, Callable, Dict, List, Optional, Tuple
 
+from mrs_log_digest_contracts import (
+    ParseNativeObject, ReadStableSnapshot, RuntimeConfigSnapshot,
+    RuntimeStateSnapshot,
+)
 from mrs_log_digest_values import bounded_exception_status, dt_text
 from runtime_control_contract import (
     CONTROL_ALLOWED_KEYS as REMOTE_WRITE_CONTROL_ALLOWED_KEYS,
@@ -72,11 +76,11 @@ CURRENT_CONFIG_REPORT_KEYS = {
 def load_current_runtime_state(
     project_dir: Path,
     *,
-    read_snapshot: Callable[..., Tuple[bytes, os.stat_result]],
-    parse_json_object: Callable[..., Dict[str, Any]],
+    read_snapshot: ReadStableSnapshot,
+    parse_json_object: ParseNativeObject,
     fromtimestamp: Callable[[float], datetime],
     maximum: int = CURRENT_RUNTIME_STATE_MAX_BYTES,
-) -> Tuple[Optional[Dict[str, Any]], Path, Optional[datetime], str]:
+) -> Tuple[Optional[RuntimeStateSnapshot], Path, Optional[datetime], str]:
     """Read current state and return content bound to its observed file metadata.
 
     The supplied reader enforces stable bounded no-follow reads; the parser
@@ -108,7 +112,7 @@ def load_current_runtime_state(
             ):
                 raise ValueError(f"{key} is not a non-negative integer")
         mtime = fromtimestamp(metadata.st_mtime)
-        return data, path, mtime, "available"
+        return RuntimeStateSnapshot(data), path, mtime, "available"
     except FileNotFoundError:
         return None, path, None, "absent"
     except RuntimeError as exc:
@@ -121,12 +125,12 @@ def load_current_runtime_state(
 def load_current_runtime_config(
     project_dir: Path,
     *,
-    read_snapshot: Callable[..., Tuple[bytes, os.stat_result]],
-    parse_json_object: Callable[..., Dict[str, Any]],
+    read_snapshot: ReadStableSnapshot,
+    parse_json_object: ParseNativeObject,
     fromtimestamp: Callable[[float], datetime],
     maximum: int = CURRENT_RUNTIME_CONFIG_MAX_BYTES,
     report_keys: AbstractSet[str] = CURRENT_CONFIG_REPORT_KEYS,
-) -> Tuple[Optional[Dict[str, Any]], Path, Optional[datetime], str]:
+) -> Tuple[Optional[RuntimeConfigSnapshot], Path, Optional[datetime], str]:
     """Read and validate allow-listed overrides through the supplied stable reader.
 
     The native JSON parser validates the complete document before filtering.
@@ -160,7 +164,7 @@ def load_current_runtime_config(
         config["_config_source_time"] = dt_text(
             fromtimestamp(metadata.st_mtime)
         )
-        return config, path, fromtimestamp(metadata.st_mtime), "available"
+        return RuntimeConfigSnapshot(config), path, fromtimestamp(metadata.st_mtime), "available"
     except FileNotFoundError:
         return None, path, None, "absent"
     except RuntimeError as exc:

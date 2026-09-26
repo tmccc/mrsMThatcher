@@ -45,13 +45,20 @@ from contextlib import ExitStack, contextmanager
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple, TypeGuard, Union
 from zoneinfo import ZoneInfo
 
 # Explicit imports preserve the existing digest helper import surface.
 from mrs_log_digest_analysis import (
     AnalysisSourceContext as _AnalysisSourceContext,
     DigestAnalysisState, DigestInputSelection, DigestCurrentSnapshots,
+)
+from mrs_log_digest_contracts import (
+    ConfirmedReplyRecoverySection, DigestReport, InputFileSummary, MainPostRecoverySection,
+    MentionBacklogSection, ProviderRequestCoverage, RestoredResumeContext,
+    ResumeContext, RuntimeConfigSnapshot, RuntimeConfigStatus,
+    RuntimeStateSnapshot, RuntimeStateStatus, SingleCallCostTotal,
+    SourceReference, SummarySection,
 )
 from mrs_log_digest_context import (
     INTERNAL_CONTEXT_KEYS,
@@ -138,6 +145,7 @@ from mrs_log_digest_legacy_posts import (
     response_post_id_is_canonical_string as _response_post_id_is_canonical_string,
 )
 from mrs_log_digest_api_health import (
+    ApiHealthPreparation,
     is_reply_target_eligibility_restriction,
     is_deleted_or_inaccessible_tweet_403,
     handle_cooldown_message,
@@ -236,6 +244,7 @@ from mrs_log_digest_runtime import (
     shadow_lifecycle_snapshot,
 )
 from mrs_log_digest_state_reporting import (
+    _HeadlineComponents,
     AUTHOR_NO_REPLY_PROGRESS_MAX_AUTHORS,
     AUTHOR_NO_REPLY_PROGRESS_MAX_THRESHOLD,
     AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
@@ -795,7 +804,7 @@ def resolve_explicit_logs(paths: Iterable[Path], project_dir: Path) -> List[Path
 
 
 @contextmanager
-def digest_execution_lock(path: Path):
+def digest_execution_lock(path: Path) -> Iterator[None]:
     """Hold a separate, nonblocking lock for one stateful/output digest run."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
@@ -880,7 +889,7 @@ def safe_source_logger(value: Any) -> str:
 def record_source_ref(
     record: Record,
     input_file_indexes: Optional[Dict[str, int]] = None,
-) -> Dict[str, Any]:
+) -> SourceReference:
     """Return bounded location metadata for one retained physical log record."""
     return _record_source_ref(
         record, input_file_indexes, dt_text=dt_text, safe_source_logger=safe_source_logger,
@@ -941,7 +950,7 @@ def summarize_input_files(
     until: Optional[datetime],
     *,
     since_exclusive: bool = False,
-) -> List[Dict[str, Any]]:
+) -> List[InputFileSummary]:
     """Summarise input files."""
     return _summarize_input_files(
         paths, since, until, since_exclusive=since_exclusive,
@@ -955,7 +964,7 @@ def read_records_and_summaries(
     until: Optional[datetime],
     *,
     since_exclusive: bool = False,
-) -> Tuple[List[Record], List[Dict[str, Any]]]:
+) -> Tuple[List[Record], List[InputFileSummary]]:
     """Read physical resume records and raw input summaries in one parse."""
     return _read_records_and_summaries(
         paths, since, until, since_exclusive=since_exclusive,
@@ -964,7 +973,7 @@ def read_records_and_summaries(
 
 
 def input_retention_coverage(
-    input_files: List[Dict[str, Any]],
+    input_files: List[InputFileSummary],
     since: Optional[datetime],
 ) -> Dict[str, Any]:
     """Describe whether retained records cover the requested lower boundary."""
@@ -973,7 +982,7 @@ def input_retention_coverage(
     )
 
 
-def lit(value: str) -> str:
+def lit(value: str) -> Any:
     """Parse a Python repr string when possible, otherwise return raw."""
     value = value.strip()
     try:
@@ -982,7 +991,7 @@ def lit(value: str) -> str:
         return value.strip("'\"")
 
 
-def valid_account_root_publication_identity(event: Any) -> bool:
+def valid_account_root_publication_identity(event: Any) -> TypeGuard[Dict[str, Any]]:
     """Return whether an account-root event has the producer's core contract."""
 
     return _valid_account_root_publication_identity(
@@ -1047,7 +1056,7 @@ def load_authoritative_state_for_logs(logs: List[Path]) -> Tuple[Optional[Dict[s
 
 def load_current_runtime_state(
     project_dir: Path,
-) -> Tuple[Optional[Dict[str, Any]], Path, Optional[datetime], str]:
+) -> Tuple[Optional[RuntimeStateSnapshot], Path, Optional[datetime], str]:
     """Read current state with the digest's stable reader and file-time conversion."""
     return _load_current_runtime_state(
         project_dir,
@@ -1060,7 +1069,7 @@ def load_current_runtime_state(
 
 def load_current_runtime_config(
     project_dir: Path,
-) -> Tuple[Optional[Dict[str, Any]], Path, Optional[datetime], str]:
+) -> Tuple[Optional[RuntimeConfigSnapshot], Path, Optional[datetime], str]:
     """Read allow-listed overrides with the digest's reader and time conversion."""
     return _load_current_runtime_config(
         project_dir,
@@ -1654,6 +1663,32 @@ class DigestAnalysis(DigestAnalysisState):
             self.production_context.pending_qt.setdefault("_reply_post_id_production", True)
         self.source_context = self.production_context
         self.historical_reply_text_evidence = list(historical_history_evidence or [])
+        # These fields exist throughout the coordinator lifetime. A missing
+        # preparation object is the honest pre-reconciliation state.
+        self.latest_state_summary: Dict[str, Any] = {}
+        self.handled_restriction_times: List[datetime] = []
+        self.error_health: Dict[str, Any] = {}
+        self.durably_reconciled_reply_receipts: List[Dict[str, Any]] = []
+        self.status_unavailable_reply_receipts: List[Dict[str, Any]] = []
+        self.active_snapshot_reply_receipts: List[Dict[str, Any]] = []
+        self.headline_components: _HeadlineComponents = {
+            "activity": [], "reply_quality": [], "current_health": "",
+            "observations": [], "cooldown": [],
+        }
+        self.transient_provider_timeouts = 0
+        self.handled_media_fallbacks: List[Dict[str, Any]] = []
+        self.reconciled_media_uploads: List[Dict[str, Any]] = []
+        self.unrecovered_media: List[Dict[str, Any]] = []
+        self.derived: Dict[str, Any] = {}
+        self.api_health_preparation: Optional[ApiHealthPreparation] = None
+        self.context_quality: Dict[str, Any] = {}
+        self.single_call_quality: Dict[str, Any] = {}
+        self.legacy_multi_stage: Dict[str, int] = {}
+        self.headline: List[str] = []
+        self.headline_without_current_cooldown: List[str] = []
+        self.mention_control_events: List[Dict[str, Any]] = []
+        self.mention_control_counts: Counter[str] = Counter()
+        self.pipeline_evaluations_skipped = 0
         self.quote_publications = QuotePublicationCorrelation(
             source_is_selftest=lambda: (
                 self.current_source_record is not None
@@ -1669,7 +1704,7 @@ class DigestAnalysis(DigestAnalysisState):
         """Insert a bounded event with source provenance and statistics."""
         # Keep parser-bounded values intact for status counts, identity joins and
         # diagnostic classification. Display limits are applied after analysis.
-        ev = {"time": ts.strftime("%Y-%m-%d %H:%M:%S"), "kind": kind}
+        ev: Dict[str, Any] = {"time": ts.strftime("%Y-%m-%d %H:%M:%S"), "kind": kind}
         for key, value in kwargs.items():
             # Structured handlers have tighter field-specific limits; this
             # guard also bounds free-form captures from older plain-text logs.
@@ -2425,7 +2460,7 @@ class DigestAnalysis(DigestAnalysisState):
             self.events, self.production_event_object_ids,
         )
 
-        self.latest_state_summary: Dict[str, Any] = {}
+        self.latest_state_summary = {}
         if self.latest_state is not None:
             self.latest_state_summary = summarize_latest_state(self.latest_state, self.latest_state_ts)
 
@@ -2545,8 +2580,8 @@ class DigestAnalysis(DigestAnalysisState):
 
     def build_report(self) -> None:
         """Assemble the stable JSON report sections from prepared observations."""
-        self.report = {
-            "summary": {
+        assert self.api_health_preparation is not None
+        summary: SummarySection = {
                 "record_count": len(self.records),
                 "time_start": self.records[0].ts.strftime("%Y-%m-%d %H:%M:%S") if self.records else None,
                 "time_end": self.records[-1].ts.strftime("%Y-%m-%d %H:%M:%S") if self.records else None,
@@ -2557,34 +2592,66 @@ class DigestAnalysis(DigestAnalysisState):
                 "_headline_components": self.headline_components,
                 "stats": dict(self.stats),
                 "routine_skip_counts": dict(self.routine_skip_counts),
-            },
+        }
+        mention_backlog: MentionBacklogSection = {
+            "events": self.mention_control_events,
+            "event_counts": dict(sorted(self.mention_control_counts.items())),
+            "pipeline_evaluations_skipped": self.pipeline_evaluations_skipped,
+        }
+        main_post_recovery: MainPostRecoverySection = {
+            "receipt_events": self.receipt_events,
+            "confirmed_post_recovery": self.confirmed_post_recovery,
+        }
+        confirmed_reply_recovery: ConfirmedReplyRecoverySection = {
+            "receipt_events": self.confirmed_reply_receipts,
+            "warnings": self.confirmed_reply_recovery,
+            "durably_reconciled_ambiguity_receipts": self.durably_reconciled_reply_receipts,
+            "status_unavailable_receipts": self.status_unavailable_reply_receipts,
+            "active_snapshot_receipts": self.active_snapshot_reply_receipts,
+        }
+        resume_context: ResumeContext = {
+            "active_xai_context": self.source_context.active_xai_context,
+            "active_xai_call_attempt": (
+                dict(self.xai_call_attempts[self.source_context.active_xai_call_attempt_index])
+                if self.source_context.active_xai_call_attempt_index is not None
+                and self.xai_call_attempts[self.source_context.active_xai_call_attempt_index].get(
+                    "usage_observed"
+                ) is not True
+                else None
+            ),
+            "pending_mention": (
+                {
+                    key: value
+                    for key, value in self.source_context.pending_mention.items()
+                    if not key.startswith("_")
+                }
+                if self.source_context.pending_mention
+                else None
+            ),
+            "pending_qt": (
+                {
+                    key: value
+                    for key, value in self.source_context.pending_qt.items()
+                    if not key.startswith("_")
+                }
+                if self.source_context.pending_qt
+                else None
+            ),
+        }
+        self.report = DigestReport({
+            "summary": summary,
             "latest_config": self.configs,
             "latest_state": self.latest_state_summary,
             "derived": self.derived,
-            "mention_backlog_and_quarantine": {
-                "events": self.mention_control_events,
-                "event_counts": dict(sorted(self.mention_control_counts.items())),
-                "pipeline_evaluations_skipped": self.pipeline_evaluations_skipped,
-            },
+            "mention_backlog_and_quarantine": mention_backlog,
             "api_health": api_health_report(
                 self.api_health_preparation, api_errors=self.api_errors,
                 handled_api_restrictions=self.handled_api_restrictions,
                 cooldown_active=self.cooldown_active, x_requests=self.x_requests,
             ),
-            "main_post_recovery": {
-                "receipt_events": self.receipt_events,
-                "confirmed_post_recovery": self.confirmed_post_recovery,
-            },
+            "main_post_recovery": main_post_recovery,
             "remote_write_transactions": self.remote_write_transactions,
-            "confirmed_reply_recovery": {
-                "receipt_events": self.confirmed_reply_receipts,
-                "warnings": self.confirmed_reply_recovery,
-                "durably_reconciled_ambiguity_receipts": (
-                    self.durably_reconciled_reply_receipts
-                ),
-                "status_unavailable_receipts": self.status_unavailable_reply_receipts,
-                "active_snapshot_receipts": self.active_snapshot_reply_receipts,
-            },
+            "confirmed_reply_recovery": confirmed_reply_recovery,
             "quote_publication": {
                 "correlation_warnings": self.quote_publications.warnings,
                 "correlation_warning_omitted_count": (
@@ -2643,36 +2710,7 @@ class DigestAnalysis(DigestAnalysisState):
                 "latest": self.latest_generated_image_spacing,
                 "events": self.generated_image_spacing_events,
             },
-            "resume_context": {
-                "active_xai_context": self.source_context.active_xai_context,
-                "active_xai_call_attempt": (
-                    dict(self.xai_call_attempts[self.source_context.active_xai_call_attempt_index])
-                    if self.source_context.active_xai_call_attempt_index is not None
-                    and self.xai_call_attempts[self.source_context.active_xai_call_attempt_index].get(
-                        "usage_observed"
-                    )
-                    is not True
-                    else None
-                ),
-                "pending_mention": (
-                    {
-                        key: value
-                        for key, value in self.source_context.pending_mention.items()
-                        if not key.startswith("_")
-                    }
-                    if self.source_context.pending_mention
-                    else None
-                ),
-                "pending_qt": (
-                    {
-                        key: value
-                        for key, value in self.source_context.pending_qt.items()
-                        if not key.startswith("_")
-                    }
-                    if self.source_context.pending_qt
-                    else None
-                ),
-            },
+            "resume_context": resume_context,
             "lifecycle": self.lifecycle[-12:],
             "events": self.events,
             "self_test_errors": self.self_test_errors[-40:],
@@ -2685,9 +2723,9 @@ class DigestAnalysis(DigestAnalysisState):
                 }
                 for item in self.errors[-40:]
             ],
-        }
+        })
 
-    def complete_report(self) -> Dict[str, Any]:
+    def complete_report(self) -> DigestReport:
         """Enrich exact reply text, bound display prose and attach lifecycle summaries."""
         enrich_published_reply_text(
             self.report,
@@ -2717,7 +2755,7 @@ class DigestAnalysis(DigestAnalysisState):
         self.report["confirmed_reply_recovery"]["receipt_lifecycle"] = reply_lifecycle
         return self.report
 
-    def finalize(self) -> Dict[str, Any]:
+    def finalize(self) -> DigestReport:
         """Reconcile the complete record stream and build its report."""
         self.reconcile_observations()
         self.prepare_report_sections()
@@ -2741,7 +2779,7 @@ def analyse(
     confirmed_receipt_evidence: Optional[List[Dict[str, Any]]] = None,
     historical_history_evidence: Optional[List[Dict[str, Any]]] = None,
     durable_reply_evidence_status: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+) -> DigestReport:
     """Aggregate parsed production records into digest metrics."""
     analysis = DigestAnalysis(
         records, max_text,
@@ -2893,7 +2931,7 @@ def provider_request_export(
     *,
     window_start: datetime | None,
     window_end: datetime | None,
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], ProviderRequestCoverage]:
     """Resolve complete request captures for calls and unmatched files in a window."""
 
     rows = [dict(item) for item in correlations]
@@ -3000,15 +3038,15 @@ def provider_request_export(
 
     for index, item in enumerate(rows):
         if item.get("kind") == "provider_request_attempt_started":
-            call_id = item.get("call_id")
+            observed_call_id = item.get("call_id")
             attempt_number = item.get("attempt_number")
             attempt_identity = (
                 ("attempt_number", attempt_number)
                 if type(attempt_number) is int and attempt_number >= 1
                 else ("source", source_identity(item, index))
             )
-            if isinstance(call_id, str) and call_id:
-                starts_by_call.setdefault(call_id, set()).add(attempt_identity)
+            if isinstance(observed_call_id, str) and observed_call_id:
+                starts_by_call.setdefault(observed_call_id, set()).add(attempt_identity)
             else:
                 anonymous_starts.add(("source", source_identity(item, index)))
         elif (
@@ -3036,7 +3074,7 @@ def provider_request_export(
         if type(item.get("provider_request_attempt_count")) is int
         and item["provider_request_attempt_count"] >= 0
     )
-    coverage = {
+    coverage: ProviderRequestCoverage = {
         "logical_call_denominator": len(referenced_ids) + len(historical),
         "physical_attempt_denominator": physical_attempt_count,
         "category_counts": dict(sorted(category_counts.items())),
@@ -3231,7 +3269,7 @@ def collect_current_snapshots(project_dir: Path, generation_time: datetime) -> D
     )
 
 
-def resume_analysis_context(inputs: DigestInputSelection) -> tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+def resume_analysis_context(inputs: DigestInputSelection) -> RestoredResumeContext:
     """Restore only the pending production context from a saved cursor."""
     initial_active_xai_context = None
     initial_active_xai_call_attempt = None
@@ -3250,11 +3288,13 @@ def resume_analysis_context(inputs: DigestInputSelection) -> tuple[Optional[Dict
         if isinstance(inputs.resume_data.get("last_pending_qt"), dict):
             initial_pending_qt = dict(inputs.resume_data.get("last_pending_qt") or {})
             initial_pending_qt["considered_seq"] = -1
-    return (initial_active_xai_context, initial_active_xai_call_attempt,
-            initial_pending_mention, initial_pending_qt)
+    return RestoredResumeContext(
+        initial_active_xai_context, initial_active_xai_call_attempt,
+        initial_pending_mention, initial_pending_qt,
+    )
 
 
-def annotate_input_report(report: Dict[str, Any], inputs: DigestInputSelection, snapshots: DigestCurrentSnapshots, args: argparse.Namespace, project_dir: Path, state_file: Path, generation_time: datetime) -> None:
+def annotate_input_report(report: DigestReport, inputs: DigestInputSelection, snapshots: DigestCurrentSnapshots, args: argparse.Namespace, project_dir: Path, state_file: Path, generation_time: datetime) -> None:
     """Attach generation, coverage and resume-selection metadata."""
     report["generation_time"] = dt_text(generation_time)
     report["generation_epoch"] = int(generation_time.timestamp())
@@ -3300,7 +3340,7 @@ def annotate_input_report(report: Dict[str, Any], inputs: DigestInputSelection, 
     report["state_updated"] = False
 
 
-def add_historical_and_optional_evidence(report: Dict[str, Any], project_dir: Path) -> None:
+def add_historical_and_optional_evidence(report: DigestReport, project_dir: Path) -> None:
     """Attach retired feature, historical corpus and optional analytics sections."""
     # Preserve the section names for readers of older reports, but do not scan
     # archived assets or calculate live capacity for a retired runtime feature.
@@ -3331,13 +3371,14 @@ def add_historical_and_optional_evidence(report: Dict[str, Any], project_dir: Pa
     report["shadow_feature_lifecycle"] = shadow_lifecycle_snapshot(project_dir)
 
 
-def overlay_current_runtime(report: Dict[str, Any], inputs: DigestInputSelection, snapshots: DigestCurrentSnapshots, args: argparse.Namespace, project_dir: Path, state_file: Path, generation_time: datetime) -> None:
+def overlay_current_runtime(report: DigestReport, inputs: DigestInputSelection, snapshots: DigestCurrentSnapshots, args: argparse.Namespace, project_dir: Path, state_file: Path, generation_time: datetime) -> None:
     """Overlay explicitly current state/config and then saved historical context."""
-    report["runtime_state_status"] = {
+    state_status: RuntimeStateStatus = {
         "status": snapshots.runtime_state_status,
         "path": str(snapshots.runtime_state_path),
         "observed_at": dt_text(snapshots.runtime_state_observed_at),
     }
+    report["runtime_state_status"] = state_status
     report["latest_state"] = (
         summarize_latest_state(
             snapshots.runtime_state,
@@ -3349,11 +3390,12 @@ def overlay_current_runtime(report: Dict[str, Any], inputs: DigestInputSelection
         else {}
     )
 
-    report["runtime_config_status"] = {
+    config_status: RuntimeConfigStatus = {
         "status": snapshots.runtime_config_status,
         "path": str(snapshots.runtime_config_path),
         "time": dt_text(snapshots.runtime_config_ts) if snapshots.runtime_config_ts else None,
     }
+    report["runtime_config_status"] = config_status
     report["latest_config"] = snapshots.runtime_config or {}
     report["meme_queue_health"] = meme_queue_health_snapshot(
         project_dir,
@@ -3399,7 +3441,7 @@ def overlay_current_runtime(report: Dict[str, Any], inputs: DigestInputSelection
         report["saved_last_log_entry_time"] = dt_text(inputs.since) if inputs.since else None
 
 
-def add_provider_and_cost_evidence(report: Dict[str, Any], inputs: DigestInputSelection, args: argparse.Namespace, project_dir: Path, generation_time: datetime) -> None:
+def add_provider_and_cost_evidence(report: DigestReport, inputs: DigestInputSelection, args: argparse.Namespace, project_dir: Path, generation_time: datetime) -> None:
     """Export optional provider captures and selected-window costs."""
     report["verbose_replies"] = bool(args.verbose_replies)
     report["detailed_appendix"] = bool(getattr(args, "detailed_appendix", False))
@@ -3434,15 +3476,16 @@ def add_provider_and_cost_evidence(report: Dict[str, Any], inputs: DigestInputSe
     single_call_cost = (report.get("openai_published_cost") or {}).get(
         "selected_window"
     ) or {}
-    report.setdefault("single_call_reply", {})["cost_total"] = {
+    cost_total: SingleCallCostTotal = {
         "status": str(single_call_cost.get("status") or "unavailable"),
         "amount": single_call_cost.get("amount"),
         "scope": (report.get("openai_published_cost") or {}).get("scope"),
         "method": single_call_cost.get("method"),
     }
+    report.setdefault("single_call_reply", {})["cost_total"] = cost_total
 
 
-def render_and_deliver_digest(report: Dict[str, Any], inputs: DigestInputSelection, args: argparse.Namespace) -> None:
+def render_and_deliver_digest(report: DigestReport, inputs: DigestInputSelection, args: argparse.Namespace) -> None:
     """Render and deliver every requested destination before cursor persistence."""
     json_rendered: Optional[str] = None
     if args.json or args.json_output is not None:
@@ -3471,7 +3514,7 @@ def render_and_deliver_digest(report: Dict[str, Any], inputs: DigestInputSelecti
         deliver_report(json_rendered, args.json_output)
 
 
-def commit_digest_cursor(report: Dict[str, Any], inputs: DigestInputSelection, args: argparse.Namespace, state_file: Path) -> None:
+def commit_digest_cursor(report: DigestReport, inputs: DigestInputSelection, args: argparse.Namespace, state_file: Path) -> None:
     """Advance the physical cursor only after all report deliveries succeed."""
     if inputs.records and not args.no_state and not args.no_update_state:
         last_ts = max(record.ts for record in inputs.physical_records)
@@ -3495,20 +3538,17 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     generation_time = datetime.now()
     inputs = select_digest_inputs(args, project_dir, state_file)
     snapshots = collect_current_snapshots(project_dir, generation_time)
-    (
-        initial_active_xai_context, initial_active_xai_call_attempt,
-        initial_pending_mention, initial_pending_qt,
-    ) = resume_analysis_context(inputs)
+    resumed = resume_analysis_context(inputs)
     report_window_end = inputs.until or max(
         (record.ts for record in inputs.records), default=None,
     )
     report = analyse(
         inputs.records,
         max_text=args.max_text,
-        initial_active_xai_context=initial_active_xai_context,
-        initial_active_xai_call_attempt=initial_active_xai_call_attempt,
-        initial_pending_mention=initial_pending_mention,
-        initial_pending_qt=initial_pending_qt,
+        initial_active_xai_context=resumed.active_xai_context,
+        initial_active_xai_call_attempt=resumed.active_xai_call_attempt,
+        initial_pending_mention=resumed.pending_mention,
+        initial_pending_qt=resumed.pending_qt,
         current_remote_write_safety=snapshots.remote_write_safety,
         generation_time=generation_time,
         selected_window_end=report_window_end,

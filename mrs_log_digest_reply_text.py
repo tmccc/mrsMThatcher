@@ -12,7 +12,7 @@ pipeline reconciliation and report assembly remain with their existing owners.
 from __future__ import annotations
 
 import hashlib
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
 from mrs_log_digest_values import (
     SHA256_LOWER_RE,
@@ -390,12 +390,12 @@ def _enrich_selected_historical_reply_text(
         Tuple[str, str], List[Dict[str, Any]]
     ] = {}
     historical_evidence_by_reply: Dict[str, List[Dict[str, Any]]] = {}
-    for evidence in historical_reply_text_evidence:
-        if evidence.get("authoritative") is not True:
+    for historical_item in historical_reply_text_evidence:
+        if historical_item.get("authoritative") is not True:
             continue
-        parent_id = evidence.get("parent_post_id")
-        quote_id = evidence.get("quote_id")
-        reply_post_id = evidence.get("reply_post_id")
+        parent_id = historical_item.get("parent_post_id")
+        quote_id = historical_item.get("quote_id")
+        reply_post_id = historical_item.get("reply_post_id")
         if (
             not valid_string_public_post_id(parent_id)
             or not valid_string_public_post_id(reply_post_id)
@@ -403,11 +403,11 @@ def _enrich_selected_historical_reply_text(
             or SHA256_LOWER_RE.fullmatch(quote_id) is None
         ):
             continue
-        evidence_by_identity.setdefault((parent_id, quote_id), []).append(
-            evidence
+        evidence_by_identity.setdefault((cast(str, parent_id), quote_id), []).append(
+            historical_item
         )
-        historical_evidence_by_reply.setdefault(reply_post_id, []).append(
-            evidence
+        historical_evidence_by_reply.setdefault(cast(str, reply_post_id), []).append(
+            historical_item
         )
     for event in events:
         if (
@@ -424,8 +424,8 @@ def _enrich_selected_historical_reply_text(
             and isinstance(quote_value, str)
             and SHA256_LOWER_RE.fullmatch(quote_value) is not None
         )
-        parent_id = parent_value if selected_identity_valid else ""
-        quote_id = quote_value if selected_identity_valid else ""
+        parent_id = cast(str, parent_value) if selected_identity_valid else ""
+        quote_id = cast(str, quote_value) if selected_identity_valid else ""
         evidence = (
             evidence_by_identity.get((parent_id, quote_id), [])
             if selected_identity_valid
@@ -596,7 +596,7 @@ def enrich_published_reply_text(
 
     enriched_records: set[int] = set()
     for reply_post_id, confirmations in confirmations_by_reply.items():
-        identities = {
+        identities: set[tuple[str, str, str]] = {
             (
                 str(item.get("lane")),
                 str(item.get("target_id")),
@@ -849,15 +849,15 @@ def enrich_published_reply_text(
             evidence
         )
     for reply_post_id, evidence_items in remaining_historical_by_reply.items():
-        identities = {
+        historical_identities: set[tuple[str, str]] = {
             (
                 str(item.get("parent_post_id") or ""),
                 str(item.get("quote_id") or ""),
             )
             for item in evidence_items
         }
-        identity_conflict = len(identities) != 1
-        parent_id, quote_id = sorted(identities)[0]
+        identity_conflict = len(historical_identities) != 1
+        parent_id, quote_id = sorted(historical_identities)[0]
         text_result = resolve_text(
             [
                 {

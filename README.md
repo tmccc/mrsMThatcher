@@ -138,6 +138,36 @@ Static shapes describe an in-memory guarantee at one boundary. File rereads,
 remote success, source identity and durable retirement still require the
 existing runtime validation and transaction proofs.
 
+## Typed digest core
+
+The digest has a separate Python 3.10 check using the development-only mypy
+dependency in `requirements-dev.txt`:
+
+```bash
+python3 -m mypy --config-file mypy-digest.ini
+python3 tools/check_digest_typing_examples.py
+```
+
+`mypy-digest.ini` checks the digest coordinator, its input/record, context,
+runtime, transaction, reporting, reply and incident modules, and
+`mrs_log_digest_contracts.py`. All listed modules require annotated functions
+and generic arguments, and mypy checks calls into the selected core. The
+contracts and inert analysis-state module add stricter export and extra checks.
+This does not make every digest helper strict.
+
+Raw log lines, JSON and saved cursor contents remain dynamic at their readers.
+After parsing or the relevant field checks, records, physical input summaries,
+source references, current state/config snapshots, restored resume fields and
+core report sections have checked shapes. The current state and config tags
+preserve their reader-accepted dictionaries without copying them; they do not
+claim a complete bot-state schema. `DigestAnalysisState`
+starts with complete observation collections and source contexts; the
+coordinator owns publication correlation and its optional API preparation is
+required before report assembly. `run_digest()` carries one selected input and
+one report through overlay and delivery to the later cursor commit. Historic
+event payloads, optional analytics and compatibility report sections remain
+dynamic because their fields vary across old records and report versions.
+
 When running the broad suite through an agent, use a detached session: the suite
 can outlast the command session's time limit. Capture output in a log and save
 the final exit status, then monitor it until completion. Preserve the test

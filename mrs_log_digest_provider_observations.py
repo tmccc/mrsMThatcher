@@ -12,7 +12,10 @@ from __future__ import annotations
 import ast
 from collections import Counter
 import re
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mrs_log_digest_contracts import SourceReference
 
 from mrs_log_digest_records import Record
 
@@ -243,7 +246,7 @@ def observe_provider_message(
     xai_call_attempts: List[Dict[str, Any]],
     xai_usage_events: List[Dict[str, Any]],
     xai_usage_parse_errors: List[Dict[str, Any]],
-    stats: Counter,
+    stats: Counter[str],
     xai_usage_context_from_pending: Callable[..., Dict[str, Any]],
     parse_xai_call_start: Callable[[str], Optional[Dict[str, str]]],
     unknown_xai_usage_context: Callable[[], Dict[str, Any]],
@@ -343,10 +346,10 @@ def observe_provider_error(
     *,
     active_xai_context: Optional[Dict[str, Any]],
     api_errors: List[Dict[str, Any]],
-    stats: Counter,
+    stats: Counter[str],
     input_file_indexes: Optional[Dict[str, int]],
     short: Callable[..., str],
-    record_source_ref: Callable[..., Dict[str, Any]],
+    record_source_ref: Callable[..., SourceReference],
 ) -> Optional[Dict[str, Any]]:
     """Observe provider errors/completion and return the current context."""
     if r.src in {"ask_grok_for_reply", "xai_request"} and msg.startswith("xAI error"):

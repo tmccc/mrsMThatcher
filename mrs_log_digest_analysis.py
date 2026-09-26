@@ -13,7 +13,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from mrs_log_digest_records import Record, ResumeWindowSelection
-from mrs_log_digest_quote_publication import QuotePublicationCorrelation
+from mrs_log_digest_contracts import (
+    DigestReport, InputFileSummary, RuntimeConfigSnapshot, RuntimeStateSnapshot,
+)
 
 
 @dataclass(frozen=True)
@@ -28,7 +30,7 @@ class DigestInputSelection:
     resume_boundary_counts: Counter[str]
     resume_data: Dict[str, Any]
     physical_records: List[Record]
-    input_files: List[Dict[str, Any]]
+    input_files: List[InputFileSummary]
     selection: ResumeWindowSelection
 
     @property
@@ -41,12 +43,12 @@ class DigestInputSelection:
 class DigestCurrentSnapshots:
     """Keep current observations distinct from historical log-window evidence."""
 
-    runtime_state: Optional[Dict[str, Any]]
+    runtime_state: Optional[RuntimeStateSnapshot]
     runtime_state_path: Path
     runtime_state_ts: Optional[datetime]
     runtime_state_status: str
     runtime_state_observed_at: datetime
-    runtime_config: Optional[Dict[str, Any]]
+    runtime_config: Optional[RuntimeConfigSnapshot]
     runtime_config_path: Path
     runtime_config_ts: Optional[datetime]
     runtime_config_status: str
@@ -120,8 +122,7 @@ class DigestAnalysisState:
     is_handled_reply_restriction: bool = False
     production_event_object_ids: set[int] = field(default_factory=set)
     local_rejections_by_identity: Dict[Tuple[str, str], Dict[str, Any]] = field(default_factory=dict)
-    quote_publications: QuotePublicationCorrelation = field(init=False)
-    report: Dict[str, Any] = field(default_factory=dict)
+    report: DigestReport = field(default_factory=lambda: DigestReport({}))
 
     def __post_init__(self) -> None:
         """Select production as the default context between record observations."""

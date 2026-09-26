@@ -13,14 +13,17 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING, TypeGuard
+
+if TYPE_CHECKING:
+    from mrs_log_digest_contracts import SourceReference
 
 
 def valid_account_root_publication_identity(
     event: Any,
     *,
     valid_string_public_post_id: Callable[[Any], bool],
-) -> bool:
+) -> TypeGuard[Dict[str, Any]]:
     """Return whether an account-root event has the producer's core contract."""
 
     if not isinstance(event, dict):
@@ -409,7 +412,7 @@ def record_main_post_publication(
     SHA256_LOWER_RE: re.Pattern[str],
     retain_quote_post_evidence: Callable[..., None],
     note_invalid_quote_post_evidence: Callable[..., None],
-    make_source_ref: Callable[[], Dict[str, Any]],
+    make_source_ref: Callable[[], SourceReference],
 ) -> None:
     """Prepare and retain main-post evidence; the caller updates pending meme state."""
     authority_event_obj = (
@@ -429,7 +432,7 @@ def record_main_post_publication(
         and authority_event_obj.get("lane")
         in {"quote_image", "daily_meme"}
     )
-    if main_core_valid:
+    if main_core_valid and authority_event_obj is not None:
         raw_post_id = authority_event_obj.get("post_id")
         post_id = raw_post_id
         payload: Dict[str, Any] = {
@@ -487,12 +490,12 @@ def record_account_root_publication(
     strict_structured_event_obj: Optional[Dict[str, Any]],
     ts: datetime,
     *,
-    valid_account_root_publication_identity: Callable[[Any], bool],
+    valid_account_root_publication_identity: Callable[[Any], TypeGuard[Dict[str, Any]]],
     SHA256_LOWER_RE: re.Pattern[str],
     valid_bounded_utf8_text: Callable[..., bool],
     retain_quote_post_evidence: Callable[..., None],
     note_invalid_quote_post_evidence: Callable[..., None],
-    make_source_ref: Callable[[], Dict[str, Any]],
+    make_source_ref: Callable[[], SourceReference],
 ) -> None:
     """Prepare account-root text and identity without replacing invalid evidence."""
     authority_event_obj = (

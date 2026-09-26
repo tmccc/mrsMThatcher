@@ -14,7 +14,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 import re
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mrs_log_digest_contracts import SourceReference
 from urllib.parse import urlsplit
 
 from mrs_log_digest_records import Record
@@ -228,8 +231,8 @@ def summarise_main_post_receipt_lifecycle(
         "daily_meme": [],
     }
     unresolved: List[Dict[str, Any]] = []
-    completed_by_lane: Counter = Counter()
-    boundary_by_lane: Counter = Counter()
+    completed_by_lane: Counter[str] = Counter()
+    boundary_by_lane: Counter[str] = Counter()
 
     def normal_lane(item: Dict[str, Any]) -> str:
         lane = str(item.get("lane") or "")
@@ -398,7 +401,7 @@ def correlate_media_upload_incidents(
     *,
     short: Callable[[Any, int], str],
     seconds_between: Callable[[datetime, datetime], float],
-    record_source_ref: Callable[..., Dict[str, Any]],
+    record_source_ref: Callable[..., SourceReference],
     record_fingerprint: Callable[[Record], str],
     bounded_source_refs: Callable[..., Tuple[List[Dict[str, Any]], int]],
     is_media_fallback_warning: Callable[[Record], bool],
@@ -482,14 +485,14 @@ def add_receipt_event(
     kwargs: Dict[str, Any],
     *,
     input_file_indexes: Optional[Dict[str, int]],
-    stats: Counter,
+    stats: Counter[str],
     short: Callable[[Any, int], str],
     is_selftest_log_path: Callable[[Path | str], bool],
-    record_source_ref: Callable[..., Dict[str, Any]],
+    record_source_ref: Callable[..., SourceReference],
     receipt_events: List[Dict[str, Any]],
 ) -> None:
     """Append a receipt observation using current formatting and source callbacks."""
-    item = {
+    item: Dict[str, Any] = {
         "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
         "kind": kind,
         "level": r.level,
@@ -510,10 +513,10 @@ def add_confirmed_reply_receipt_event(
     kwargs: Dict[str, Any],
     *,
     input_file_indexes: Optional[Dict[str, int]],
-    stats: Counter,
+    stats: Counter[str],
     short: Callable[[Any, int], str],
     is_selftest_log_path: Callable[[Path | str], bool],
-    record_source_ref: Callable[..., Dict[str, Any]],
+    record_source_ref: Callable[..., SourceReference],
     confirmed_reply_receipts: List[Dict[str, Any]],
     pending_confirmed_reply_receipt: Dict[str, Any],
 ) -> Dict[str, Any]:
@@ -521,7 +524,7 @@ def add_confirmed_reply_receipt_event(
     if kind == "removed" and pending_confirmed_reply_receipt:
         for key in ("lane", "target_id", "reply_post_id"):
             kwargs.setdefault(key, pending_confirmed_reply_receipt.get(key, ""))
-    item = {
+    item: Dict[str, Any] = {
         "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
         "kind": kind,
         "level": r.level,
@@ -550,7 +553,7 @@ def add_reply_media_context_event(
     kwargs: Dict[str, Any],
     *,
     reply_media_context: List[Dict[str, Any]],
-    stats: Counter,
+    stats: Counter[str],
     short: Callable[[Any, int], str],
 ) -> None:
     """Append a legacy reply-media observation without publication authority."""
@@ -571,8 +574,8 @@ def record_x_request_start(
     input_file_indexes: Optional[Dict[str, int]],
     x_requests: List[Dict[str, Any]],
     latest_x_request_by_source: Dict[str, Dict[str, Any]],
-    stats: Counter,
-    record_source_ref: Callable[..., Dict[str, Any]],
+    stats: Counter[str],
+    record_source_ref: Callable[..., SourceReference],
 ) -> None:
     """Project a selected parsed request, sharing its event with the source index."""
     request_event: Dict[str, Any] = {
@@ -592,8 +595,8 @@ def record_remote_write_transaction(
     *,
     input_file_indexes: Optional[Dict[str, int]],
     remote_write_transactions: List[Dict[str, Any]],
-    stats: Counter,
-    record_source_ref: Callable[..., Dict[str, Any]],
+    stats: Counter[str],
+    record_source_ref: Callable[..., SourceReference],
     add_receipt_event: Callable[..., None],
 ) -> None:
     """Retain the parser's event and project only its existing receipt fields."""
@@ -1254,12 +1257,12 @@ def append_unresolved_reply_receipt_errors(
                     "source_refs": list(source.get("source_refs") or []),
                 }
             )
-    for identity, source in lifecycle.pending_reconciliations:
+    for reconciliation_identity, source in lifecycle.pending_reconciliations:
         raw_message = (
             "Unresolved confirmed reply receipt reconciliation remains at the "
             "end of the observed window "
-            f"lane={identity[0]} target_id={identity[1]} "
-            f"reply_post_id={identity[2]}"
+            f"lane={reconciliation_identity[0]} target_id={reconciliation_identity[1]} "
+            f"reply_post_id={reconciliation_identity[2]}"
         )
         errors.append(
             {
@@ -1300,7 +1303,8 @@ def prepare_reply_receipt_recovery_reporting(
                 source_at = parse_dt(source_time)
             except ValueError:
                 continue
-            if source_at > resolved_at:
+            # Retain the historical TypeError if an injected parser returns None.
+            if source_at > resolved_at:  # type: ignore[operator]
                 continue
             durably_reconciled_reply_receipts.append(
                 {

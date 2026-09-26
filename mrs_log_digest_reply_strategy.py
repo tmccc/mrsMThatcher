@@ -792,7 +792,7 @@ def add_or_merge_local_rejection(
     local_rejections_by_identity: Dict[Tuple[str, str], Dict[str, Any]],
     valid_string_public_post_id: Callable[[Any], bool],
     _normalise_lane: Callable[[Any], str],
-    bounded_event_text: Callable[..., str],
+    bounded_event_text: Callable[..., Optional[str]],
     bounded_event_string_list: Callable[..., List[str]],
     add_event: Callable[..., Dict[str, Any]],
 ) -> Dict[str, Any]:

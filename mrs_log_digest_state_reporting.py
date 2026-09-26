@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections import Counter
 from datetime import datetime, tzinfo
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypedDict
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, TypedDict
 
 from mrs_log_digest_records import Record
 
@@ -56,7 +56,7 @@ class _HeadlineComponents(TypedDict):
 
 
 def _headline_claims(
-    components: _HeadlineComponents,
+    components: Mapping[str, Any],
     *,
     health_claim: Optional[str] = None,
     cooldown_claims: Optional[List[str]] = None,
@@ -306,13 +306,18 @@ def current_author_no_reply_strike_progress(
             + str(runtime_config_status or "unknown")[:320]
         )[:512]
         return result
-    config_values = [runtime_config.get(key) for key in config_keys]
-    if any(type(value) is not int or value <= 0 for value in config_values):
+    threshold = runtime_config.get(config_keys[0])
+    window_seconds = runtime_config.get(config_keys[1])
+    quarantine_seconds = runtime_config.get(config_keys[2])
+    if (
+        type(threshold) is not int or threshold <= 0
+        or type(window_seconds) is not int or window_seconds <= 0
+        or type(quarantine_seconds) is not int or quarantine_seconds <= 0
+    ):
         result["reason"] = (
             "current quarantine configuration is missing or malformed"
         )
         return result
-    threshold, window_seconds, quarantine_seconds = config_values
     result.update(
         {
             "threshold": threshold,
@@ -463,6 +468,8 @@ def current_author_no_reply_strike_progress(
                 f"malformed author quarantine record at position {position}"
             )
             return result
+        assert isinstance(timestamps, list)
+        assert type(until) is int and type(updated) is int
         if is_legacy_policy:
             if not timestamps and not until:
                 discarded_legacy_author_count += 1
@@ -488,6 +495,7 @@ def current_author_no_reply_strike_progress(
                     f"malformed author quarantine record at position {position}"
                 )
                 return result
+            assert type(explicit_epoch) is int
             if is_seeded_policy or is_previous_policy or is_single_sol_v1_policy:
                 migrated_prior_policy_author_count += 1
             if is_single_sol_v1_policy:
@@ -620,7 +628,7 @@ def _reply_budget_values(
 
 def prepare_headline_and_derived(
     *,
-    stats: Counter,
+    stats: Counter[str],
     error_health: Dict[str, Any],
     current_remote_write_safety: Optional[Dict[str, Any]],
     handled_api_restrictions: List[Dict[str, Any]],
@@ -973,14 +981,15 @@ def refresh_current_health_headline(
         components, health_claim=health_claim, cooldown_claims=claims,
     )
     meme_queue = report.get("meme_queue_health") or {}
-    meme_claim = {
+    meme_claims: Dict[object, str] = {
         "exhausted": "current meme queue exhausted: automatic recycling disabled",
         "recycling_available": "current meme cycle exhausted; automatic recycling available",
         "empty": "current meme queue empty",
         "missing": "current meme directory missing",
         "unknown": "current meme availability unknown",
         "disabled": "daily meme posting disabled in current configuration",
-    }.get(meme_queue.get("status"))
+    }
+    meme_claim = meme_claims.get(meme_queue.get("status"))
     if meme_queue.get("posting_enabled") is False:
         meme_claim = "daily meme posting disabled in current configuration"
     if meme_claim:

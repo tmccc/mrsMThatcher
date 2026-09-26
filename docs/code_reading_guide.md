@@ -428,6 +428,12 @@ Receipt lifecycle summaries are prepared during finalisation and shared by JSON
 and Markdown. Current runtime overlays precede saved-context application and its
 final derived refresh.
 
+For static contracts, read [mrs_log_digest_contracts.py](../mrs_log_digest_contracts.py)
+alongside the analysis state. `mypy-digest.ini` checks the selected digest core;
+raw JSON and old event/report payloads remain dynamic until a relevant field is
+validated. Current state and config are distinct snapshot types, while the
+saved resume keys have a checked internal section without changing cursor JSON.
+
 ## Boundaries and older material
 
 Bot controls live in [mrs_bot_runtime_control.py](../mrs_bot_runtime_control.py);

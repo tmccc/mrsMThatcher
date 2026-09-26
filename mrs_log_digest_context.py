@@ -78,7 +78,7 @@ def save_resume_time(
     parse_dt: Callable[[Optional[str]], Optional[datetime]],
     resume_boundary_fingerprint_counts: Callable[[Dict[str, Any]], Counter[str]],
     resume_fingerprint_tail: Callable[[Dict[str, Any]], List[str]],
-    dt_text: Callable[[Optional[datetime]], Optional[str]],
+    dt_text: Callable[[datetime], str],
     Counter: Callable[..., Counter[str]],
     clock_now: Callable[[], datetime],
     RESUME_FINGERPRINT_TAIL_LIMIT: int,
@@ -272,7 +272,7 @@ def merge_context_from_log_backscan(
     backscan_ts: Optional[datetime] = None,
     strip_internal_context_markers: Callable[[Any], Any],
     INTERNAL_CONTEXT_KEYS: AbstractSet[str],
-    dt_text: Callable[[Optional[datetime]], Optional[str]],
+    dt_text: Callable[[datetime], str],
 ) -> Dict[str, Any]:
     """Fill missing config fields from earlier records in the same log files.
 
