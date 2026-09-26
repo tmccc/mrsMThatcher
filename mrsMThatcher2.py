@@ -6888,6 +6888,7 @@ def main() -> None:
         state,
         startup_current,
     )
+    runtime = _runtime_coordinator(controls=controls)
     if not controls.global_paused():
         confirmed_reply_recovery_failed = False
         while True:
@@ -6895,7 +6896,15 @@ def main() -> None:
             # guard. That guard disables the protocol-active check used by the
             # confirmed-transaction reconciler, so resume it first on each
             # pass, as the runtime tick does.
-            if controls.global_paused() or remote_write_safety_incident_is_latched():
+            if controls.global_paused():
+                sleep(60)
+                continue
+            if remote_write_safety_incident_is_latched():
+                # The barrier owner may complete a pending marker fsync and
+                # release a deferred SIGINT under its existing proof checks.
+                # Keep source retirement and reconciliation stopped while the
+                # incident latch remains active.
+                runtime.maintain_global_remote_write_barrier_tick()
                 sleep(60)
                 continue
             try:
@@ -6973,10 +6982,7 @@ def main() -> None:
     log.info("Bot started successfully")
     report_bot_health_progress("main_loop")
 
-    runtime = _runtime_coordinator(
-        controls=controls,
-        maintenance_pause_logged=controls.global_paused(),
-    )
+    runtime.maintenance_pause_logged = controls.global_paused()
     runtime.run_continuously(lines_used, images_used, state, sleep=sleep)
 
 

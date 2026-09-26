@@ -321,7 +321,9 @@ and signal-deferral policies around those owned operations.
 both reply lanes and pre-barrier recovery. A failing tick stops later lanes and
 waits 60 seconds before retrying local recovery; startup also waits and retries
 before continuing ordinary state mutation. Each startup retry checks pause and
-incident state, resumes any interrupted exact source retirement (including its
+incident state. A latched incident rechecks the existing durable barrier proof
+at the 60-second cadence; other local recovery remains stopped. An unlatched
+pass resumes any interrupted exact source retirement (including its
 confirmed journal), then attempts confirmed-transaction reconciliation. A
 prepared retirement guard makes the protocol-active check fail until that
 retirement stage runs. The receipt and journal remain the authority for whether

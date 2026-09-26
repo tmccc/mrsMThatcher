@@ -111,9 +111,11 @@ def _configure_confirmed_reply_startup(tmp_path, monkeypatch, receipt):
 
     monkeypatch.setattr(bot._tweet_lookup_cache.TweetLookupCache, "seed_recent_own_posts",
                         lambda _owner, _state: order.append("seed"))
-    monkeypatch.setattr(bot, "_runtime_coordinator", lambda **_kwargs: SimpleNamespace(
-        run_continuously=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            StartupReachedScheduler)))
+    def stop_at_scheduler(_runtime, *_args, **_kwargs):
+        raise StartupReachedScheduler
+
+    monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator, "run_continuously",
+                        stop_at_scheduler)
     return state, order, StartupReachedScheduler
 
 
