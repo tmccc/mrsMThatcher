@@ -326,8 +326,12 @@ at the 60-second cadence; other local recovery remains stopped. An unlatched
 pass resumes any interrupted exact source retirement (including its
 confirmed journal), then attempts confirmed-transaction reconciliation. A
 prepared retirement guard makes the protocol-active check fail until that
-retirement stage runs. The receipt and journal remain the authority for whether
-a confirmed reply can be reconciled without another remote post. Retirement
+retirement stage runs. Startup waits again for recognised local-retirement or
+confirmed-reply persistence failures; a normal reconciler return can also mean
+nothing was eligible. Startup then hands remaining blockers to the runtime tick,
+which repeats media and source retirement maintenance and checks the global
+barrier before remote lanes. The receipt and journal remain the authority for
+reconciling a confirmed reply without another remote post. Retirement
 uncertainty keeps its process latch and requires controlled recovery.
 
 `TweetLookupCache` owns cache normalization, pruning, storage, verified fetches

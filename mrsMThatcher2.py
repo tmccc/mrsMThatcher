@@ -6890,7 +6890,6 @@ def main() -> None:
     )
     runtime = _runtime_coordinator(controls=controls)
     if not controls.global_paused():
-        confirmed_reply_recovery_failed = False
         while True:
             # A failed journal retirement can leave an exact source-removal
             # guard. That guard disables the protocol-active check used by the
@@ -6912,7 +6911,6 @@ def main() -> None:
                     maintenance_paused=False,
                 )
             except (OSError, ExactReceiptRetirementError, TransportJournalError):
-                confirmed_reply_recovery_failed = True
                 log.critical(
                     "Interrupted source-receipt retirement failed at startup; "
                     "all remote lanes remain blocked",
@@ -6931,7 +6929,6 @@ def main() -> None:
                     startup_current,
                 )
             except ConfirmedReplyLocalPersistenceError:
-                confirmed_reply_recovery_failed = True
                 log.critical(
                     "Confirmed-reply local recovery failed at startup; "
                     "all remote lanes remain blocked until local recovery succeeds",
@@ -6942,9 +6939,8 @@ def main() -> None:
                 )
                 sleep(60)
             else:
-                if confirmed_reply_recovery_failed and ambiguous_remote_post_is_blocking():
-                    sleep(60)
-                    continue
+                # A normal return may mean no transaction was eligible. The
+                # runtime tick owns any remaining blocker and its maintenance.
                 break
 
 

@@ -24,6 +24,10 @@ from tests.helpers.reply_fixtures import (
     unit_sending_reply_receipt,
     unit_sending_v4_reply_receipt,
 )
+from tests.test_media_upload_transaction_integration import (
+    HARD_EXIT_CODES,
+    _run_driver as run_media_driver,
+)
 
 
 pytestmark = pytest.mark.allow_loopback_network
@@ -208,6 +212,179 @@ def test_startup_resumes_guard_prepared_before_transient_journal_failure(
     assert json.loads(bot.STATE_FILE.read_text())["daily_reply_count"] == 1
     assert remote_calls == ["confirmed"]
     assert not bot.remote_write_safety_incident_is_latched()
+
+
+@pytest.mark.parametrize("fail_once", [False, True])
+def test_startup_hands_unrelated_blocker_to_runtime_after_reply_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fail_once: bool,
+) -> None:
+    real_media_recovery = bot.resume_interrupted_confirmed_media_retirement_if_present
+    receipt, journal, remote_calls = _confirmed_reply_waiting_for_startup(monkeypatch)
+    state, order, _StartupReachedScheduler = _configure_confirmed_reply_startup(
+        tmp_path, monkeypatch, receipt,
+    )
+    source = bot.CONFIRMED_REPLY_RECEIPT_FILE
+    activation = bot.REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE
+    real_retire = bot.retire_confirmed_transport_transaction
+    real_source_recovery = bot.resume_source_receipt_retirement_for_control_snapshot
+    real_reconcile = bot.reconcile_confirmed_transactions_before_global_barrier
+    real_accounting = DailyReplyAccounting.record_confirmed
+    failures = []
+    caught = []
+    applications = []
+    activation_removed = []
+
+    def retire(**kwargs):
+        prepared = exact_retirement.inspect_interrupted_receipt_retirement(source)
+        assert prepared is not None and prepared.valid
+        if fail_once and not failures:
+            failures.append("journal")
+            raise OSError("confirmed reply journal retirement failed once")
+        return real_retire(**kwargs)
+
+    def source_recovery(*, maintenance_paused):
+        order.append("source")
+        result = real_source_recovery(maintenance_paused=maintenance_paused)
+        if fail_once and failures and not activation_removed:
+            assert not source.exists() and not journal.exists()
+            activation.unlink()  # Independent protocol loss after exact reply cleanup.
+            activation_removed.append(True)
+        return result
+
+    def reconcile(*args):
+        order.append("reconcile")
+        try:
+            result = real_reconcile(*args)
+        except bot.ConfirmedReplyLocalPersistenceError as exc:
+            caught.append(exc)
+            raise
+        if not fail_once and not activation_removed:
+            assert not source.exists() and not journal.exists()
+            activation.unlink()  # Independent protocol loss after exact reply cleanup.
+            activation_removed.append(True)
+        return result
+
+    def record_accounting(owner, *args, **kwargs):
+        applications.append(kwargs.get("candidate_source"))
+        return real_accounting(owner, *args, **kwargs)
+
+    def media_recovery():
+        order.append("media")
+        return real_media_recovery()
+
+    def sleep(seconds):
+        assert seconds == 60
+        order.append("sleep")
+        assert order.count("sleep") == 1 and fail_once, "startup failed to hand off"
+
+    class RuntimeBlocked(Exception):
+        pass
+
+    def run_one_runtime_tick(runtime, lines_used, images_used, current_state, *, sleep):
+        order.append("runtime")
+        assert runtime.run_once(lines_used, images_used, current_state) == 60
+        raise RuntimeBlocked
+
+    def remote_action(*_args, **_kwargs):
+        pytest.fail("unrelated blocker must prevent every remote lane")
+
+    monkeypatch.setattr(bot, "retire_confirmed_transport_transaction", retire)
+    monkeypatch.setattr(bot, "resume_source_receipt_retirement_for_control_snapshot",
+                        source_recovery)
+    monkeypatch.setattr(bot, "reconcile_confirmed_transactions_before_global_barrier", reconcile)
+    monkeypatch.setattr(DailyReplyAccounting, "record_confirmed", record_accounting)
+    monkeypatch.setattr(bot, "resume_interrupted_confirmed_media_retirement_if_present",
+                        media_recovery)
+    monkeypatch.setattr(bot, "sleep", sleep)
+    monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator, "run_continuously",
+                        run_one_runtime_tick)
+    for name in ("upload_media", "post_random_quote", "post_next_meme",
+                 "safely_process_due_historical_context_obligations"):
+        monkeypatch.setattr(bot, name, remote_action)
+    monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator,
+                        "run_reply_lane_checks_for_tick", remote_action)
+
+    with pytest.raises(RuntimeBlocked):
+        bot.main()
+
+    assert len(caught) == len(failures) == int(fail_once)
+    assert activation_removed == [True]
+    assert not activation.exists()
+    assert not source.exists() and not journal.exists()
+    assert order.count("sleep") == int(fail_once)
+    assert order.count("media") == 2  # Startup prelude, then the runtime tick.
+    assert order.index("runtime") > order.index("seed")
+    assert order[order.index("runtime") + 1] == "media"
+    assert bot.ambiguous_remote_post_is_blocking()
+    assert applications == ["mention"]
+    assert state["daily_reply_count"] == 1
+    assert state["own_auto_reply_ids"].count("999") == 1
+    assert json.loads(bot.STATE_FILE.read_text())["daily_reply_count"] == 1
+    assert remote_calls == ["confirmed"]
+
+
+def test_startup_handoff_runs_real_pending_media_retirement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prepared = run_media_driver(
+        "during_media_retirement", lane="quote_image", state_directory=tmp_path,
+    )
+    assert prepared.returncode == HARD_EXIT_CODES["during_media_retirement"], (
+        prepared.stdout, prepared.stderr,
+    )
+    media_path = tmp_path / bot.MEDIA_UPLOAD_RECEIPT_FILE.name
+    monkeypatch.setattr(bot, "MEDIA_UPLOAD_RECEIPT_FILE", media_path)
+    media_fence = bot.media_fence_path_for_receipt(media_path)
+    main_receipt = bot.REGULAR_POST_RECEIPT_FILE
+    main_journal = bot.journal_path_for_receipt(main_receipt)
+    assert media_fence.exists() and main_receipt.exists() and main_journal.exists()
+    assert bot.inspect_transport_state(main_journal).classification == "prepared_pair"
+
+    real_media_recovery = bot.resume_interrupted_confirmed_media_retirement_if_present
+    _state, order, _StartupReachedScheduler = _configure_confirmed_reply_startup(
+        tmp_path, monkeypatch, unit_sending_v4_reply_receipt(),
+    )
+    calls = []
+
+    def media_recovery():
+        calls.append("media")
+        if len(calls) == 1:
+            raise OSError("one-off startup media-retirement failure")
+        assert media_fence.exists()
+        return real_media_recovery()
+
+    class RuntimeBlocked(Exception):
+        pass
+
+    def run_one_runtime_tick(runtime, lines_used, images_used, state, *, sleep):
+        order.append("runtime")
+        assert runtime.run_once(lines_used, images_used, state) == 60
+        raise RuntimeBlocked
+
+    def remote_action(*_args, **_kwargs):
+        pytest.fail("prepared main transaction must block every remote lane")
+
+    monkeypatch.setattr(bot, "resume_interrupted_confirmed_media_retirement_if_present",
+                        media_recovery)
+    monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator, "run_continuously",
+                        run_one_runtime_tick)
+    monkeypatch.setattr(bot, "sleep", lambda _seconds: pytest.fail(
+        "startup must hand media retirement to runtime"))
+    for name in ("x_request", "create_post", "upload_media", "post_random_quote",
+                 "post_next_meme", "safely_process_due_historical_context_obligations"):
+        monkeypatch.setattr(bot, name, remote_action)
+    monkeypatch.setattr(bot._tick_coordination.RuntimeCoordinator,
+                        "run_reply_lane_checks_for_tick", remote_action)
+
+    with pytest.raises(RuntimeBlocked):
+        bot.main()
+
+    assert calls == ["media", "media"]
+    assert order.index("runtime") > order.index("seed")
+    assert not media_fence.exists()
+    assert main_receipt.exists() and main_journal.exists()
+    assert bot.inspect_transport_state(main_journal).classification == "prepared_pair"
+    assert bot.ambiguous_remote_post_is_blocking()
 
 
 def test_startup_persistent_guarded_journal_failure_waits_with_incident_latch(
