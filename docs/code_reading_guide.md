@@ -320,8 +320,13 @@ and signal-deferral policies around those owned operations.
 `RuntimeCoordinator` contains confirmed-reply local persistence failures at
 both reply lanes and pre-barrier recovery. A failing tick stops later lanes and
 waits 60 seconds before retrying local recovery; startup also waits and retries
-before continuing state mutation. The receipt and journal remain the authority
-for whether a confirmed reply can be reconciled without another remote post.
+before continuing ordinary state mutation. Each startup retry checks pause and
+incident state, resumes any interrupted exact source retirement (including its
+confirmed journal), then attempts confirmed-transaction reconciliation. A
+prepared retirement guard makes the protocol-active check fail until that
+retirement stage runs. The receipt and journal remain the authority for whether
+a confirmed reply can be reconciled without another remote post. Retirement
+uncertainty keeps its process latch and requires controlled recovery.
 
 `TweetLookupCache` owns cache normalization, pruning, storage, verified fetches
 and the recent own-post index. Cached context preserves row identity on a hit;

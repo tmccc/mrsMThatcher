@@ -3657,11 +3657,11 @@ def require_historical_context_retirement_outbox_authority() -> None:
 
 
 def resume_interrupted_source_receipt_retirement_if_present() -> bool:
-    """Finish one journal-free source retirement under the process lock.
+    """Finish one exact source retirement under the process lock.
 
-    A matching transport journal must retain the source receipt until its own
-    retirement has completed.  Multiple lane auxiliaries are never selected
-    automatically, and every namespace inspection includes broken symlinks.
+    A matching confirmed transport journal is retired before its source receipt.
+    Multiple lane auxiliaries are never selected automatically, and every
+    namespace inspection includes broken symlinks.
     """
     return _receipt_retirement.resume_interrupted_source_receipt_retirement_if_present(
         CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
@@ -6891,6 +6891,29 @@ def main() -> None:
     if not controls.global_paused():
         confirmed_reply_recovery_failed = False
         while True:
+            # A failed journal retirement can leave an exact source-removal
+            # guard. That guard disables the protocol-active check used by the
+            # confirmed-transaction reconciler, so resume it first on each
+            # pass, as the runtime tick does.
+            if controls.global_paused() or remote_write_safety_incident_is_latched():
+                sleep(60)
+                continue
+            try:
+                resume_source_receipt_retirement_for_control_snapshot(
+                    maintenance_paused=False,
+                )
+            except (OSError, ExactReceiptRetirementError, TransportJournalError):
+                confirmed_reply_recovery_failed = True
+                log.critical(
+                    "Interrupted source-receipt retirement failed at startup; "
+                    "all remote lanes remain blocked",
+                    exc_info=True,
+                )
+                sleep(60)
+                continue
+            if controls.global_paused() or remote_write_safety_incident_is_latched():
+                sleep(60)
+                continue
             try:
                 reconcile_confirmed_transactions_before_global_barrier(
                     lines_used,
@@ -6909,8 +6932,6 @@ def main() -> None:
                     "remote_write_blocked", remote_write_blocked=True,
                 )
                 sleep(60)
-                while controls.global_paused():
-                    sleep(60)
             else:
                 if confirmed_reply_recovery_failed and ambiguous_remote_post_is_blocking():
                     sleep(60)

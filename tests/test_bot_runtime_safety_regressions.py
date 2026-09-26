@@ -10,13 +10,20 @@ from types import SimpleNamespace
 
 import pytest
 
+import exact_receipt_retirement as exact_retirement
+from mrs_bot_daily_reply_accounting import DailyReplyAccounting
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,
     configure_simple_quote_post,
+    install_receipt_bound_x_request_stub,
     valid_regular_receipt,
 )
-from tests.helpers.reply_fixtures import unit_confirmed_reply_receipt, unit_sending_reply_receipt
+from tests.helpers.reply_fixtures import (
+    unit_confirmed_reply_receipt,
+    unit_sending_reply_receipt,
+    unit_sending_v4_reply_receipt,
+)
 
 
 pytestmark = pytest.mark.allow_loopback_network
@@ -40,6 +47,307 @@ def _patch_reply_lanes(monkeypatch, normal, quote):
                         lambda _assembly, state: normal(state))
     monkeypatch.setattr(bot._reply_assembly_module.ReplyAssembly, "run_quote",
                         lambda _assembly, state: quote(state))
+
+
+def _confirmed_reply_waiting_for_startup(monkeypatch):
+    """Leave a real confirmed receipt and owning journal after one fake send."""
+    sending = unit_sending_v4_reply_receipt()
+    remote_calls = []
+    guard = object()
+
+    def confirmed_remote(*_args, **_kwargs):
+        remote_calls.append("confirmed")
+        return {"data": {"id": "999"}}
+
+    def stop_after_confirmation(actual_guard):
+        assert actual_guard is guard
+        raise KeyboardInterrupt("restart before local completion")
+
+    install_receipt_bound_x_request_stub(monkeypatch, confirmed_remote)
+    monkeypatch.setattr(bot, "begin_confirmed_post_sigint_deferral", lambda: guard)
+    monkeypatch.setattr(bot, "end_confirmed_post_sigint_deferral", stop_after_confirmation)
+    with pytest.raises(KeyboardInterrupt, match="restart before local completion"):
+        bot._reply_assembly().post_with_current_owners(
+            state=bot.default_state(), receipt_template=sending,
+            reply_text=str(sending["reply_text"]), reply_to_id=str(sending["target_id"]),
+            made_with_ai=False, lane="mention",
+        )
+    status, receipt = bot.load_confirmed_reply_receipt()
+    assert status == "valid" and receipt is not None
+    journal = bot.journal_path_for_receipt(bot.CONFIRMED_REPLY_RECEIPT_FILE)
+    assert bot.inspect_transport_state(journal).classification == "confirmed_pair"
+    assert remote_calls == ["confirmed"]
+    monkeypatch.setattr(bot, "x_request", lambda *_args, **_kwargs: pytest.fail(
+        "startup recovery must not issue another remote request"))
+    monkeypatch.setattr(bot, "create_post", lambda *_args, **_kwargs: pytest.fail(
+        "startup recovery must not post again"))
+    monkeypatch.setattr(bot._reply_generation.ReplyGeneration, "evaluate",
+                        lambda *_args, **_kwargs: pytest.fail("startup must not reevaluate reply"))
+    return receipt, journal, remote_calls
+
+
+def _configure_confirmed_reply_startup(tmp_path, monkeypatch, receipt):
+    """Keep main's real local-recovery flow and stop at runtime scheduling."""
+    lines_file = tmp_path / "quotes.txt"
+    lines_file.write_text("A quote.\n", encoding="utf-8")
+    state = bot.default_state()
+    state["daily_reply_date"] = receipt["daily_reply_date"]
+    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
+    monkeypatch.setattr(bot, "require_established_installation_after_ledger_recovery", lambda: None)
+    monkeypatch.setattr(bot, "resume_interrupted_confirmed_media_retirement_if_present", lambda: False)
+    monkeypatch.setattr(bot, "reconcile_runtime_historical_context_state", lambda: None)
+    monkeypatch.setattr(bot, "_log_startup_configuration", lambda: None)
+    monkeypatch.setattr(bot, "current_image_paths", lambda: [])
+    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", False)
+    monkeypatch.setattr(bot, "validate_original_editorial_shadow_startup", lambda: None)
+    monkeypatch.setattr(bot, "load_quote_used_hashes", lambda _lines: set())
+    monkeypatch.setattr(bot, "load_image_used_basenames", lambda _paths: set())
+    monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
+    monkeypatch.setattr(bot, "now_epoch", lambda: 2_000_000_000)
+    order = []
+
+    class StartupReachedScheduler(Exception):
+        pass
+
+    monkeypatch.setattr(bot._tweet_lookup_cache.TweetLookupCache, "seed_recent_own_posts",
+                        lambda _owner, _state: order.append("seed"))
+    monkeypatch.setattr(bot, "_runtime_coordinator", lambda **_kwargs: SimpleNamespace(
+        run_continuously=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            StartupReachedScheduler)))
+    return state, order, StartupReachedScheduler
+
+
+@pytest.mark.parametrize("pause_between_passes", [False, True])
+def test_startup_resumes_guard_prepared_before_transient_journal_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pause_between_passes: bool,
+) -> None:
+    receipt, journal, remote_calls = _confirmed_reply_waiting_for_startup(monkeypatch)
+    state, order, StartupReachedScheduler = _configure_confirmed_reply_startup(
+        tmp_path, monkeypatch, receipt,
+    )
+    source = bot.CONFIRMED_REPLY_RECEIPT_FILE
+    original_retire = bot.retire_confirmed_transport_transaction
+    original_source_recovery = bot.resume_source_receipt_retirement_for_control_snapshot
+    original_reconcile = bot.reconcile_confirmed_transactions_before_global_barrier
+    original_accounting = DailyReplyAccounting.record_confirmed
+    applications = []
+    injected = []
+    pause = [False]
+    guarded_snapshot = []
+
+    def record_accounting(owner, *args, **kwargs):
+        applications.append(kwargs.get("candidate_source"))
+        return original_accounting(owner, *args, **kwargs)
+
+    def retire_after_guard(**kwargs):
+        prepared = exact_retirement.inspect_interrupted_receipt_retirement(source)
+        assert prepared is not None and prepared.valid
+        if not injected:
+            injected.append("after_guard")
+            raise OSError("one-off confirmed journal retirement failure")
+        return original_retire(**kwargs)
+
+    def source_recovery(*, maintenance_paused):
+        order.append("source")
+        if guarded_snapshot:
+            assert not maintenance_paused
+            assert any(os.path.lexists(path) for path in exact_retirement.retirement_auxiliary_paths(source))
+        return original_source_recovery(maintenance_paused=maintenance_paused)
+
+    def reconcile(*args):
+        order.append("reconcile")
+        return original_reconcile(*args)
+
+    def sleep(seconds):
+        assert seconds == 60
+        order.append("sleep")
+        if len(guarded_snapshot) == 0:
+            guarded_snapshot.append(tuple(
+                (path, path.read_bytes())
+                for path in exact_retirement.retirement_barrier_paths(source)
+                if os.path.lexists(path)
+            ))
+            assert bot.remote_receipt_retirement_is_blocking()
+            assert bot.ambiguous_remote_post_is_blocking()
+            assert not bot.remote_write_safety_protocol_is_active()
+            assert not bot.remote_write_safety_incident_is_latched()
+            pause[0] = pause_between_passes
+        elif pause[0]:
+            assert tuple(
+                (path, path.read_bytes())
+                for path in exact_retirement.retirement_barrier_paths(source)
+                if os.path.lexists(path)
+            ) == guarded_snapshot[0]
+            assert order.count("source") == order.count("reconcile") == 1
+            pause[0] = False
+        else:
+            pytest.fail("transient journal failure did not recover at the next pass")
+
+    monkeypatch.setattr(DailyReplyAccounting, "record_confirmed", record_accounting)
+    monkeypatch.setattr(bot, "retire_confirmed_transport_transaction", retire_after_guard)
+    monkeypatch.setattr(bot, "resume_source_receipt_retirement_for_control_snapshot", source_recovery)
+    monkeypatch.setattr(bot, "reconcile_confirmed_transactions_before_global_barrier", reconcile)
+    monkeypatch.setattr(bot, "_runtime_controls_owner", lambda: SimpleNamespace(
+        global_paused=lambda: pause[0]))
+    monkeypatch.setattr(bot, "sleep", sleep)
+
+    with pytest.raises(StartupReachedScheduler):
+        bot.main()
+
+    assert injected == ["after_guard"]
+    assert order == (["source", "reconcile", "sleep"]
+                     + (["sleep"] if pause_between_passes else [])
+                     + ["source", "reconcile", "seed"])
+    assert not any(os.path.lexists(path) for path in exact_retirement.retirement_barrier_paths(source))
+    assert not os.path.lexists(journal)
+    assert applications == ["mention"]
+    assert state["daily_reply_count"] == 1
+    assert state["own_auto_reply_ids"].count("999") == 1
+    assert json.loads(bot.STATE_FILE.read_text())["daily_reply_count"] == 1
+    assert remote_calls == ["confirmed"]
+    assert not bot.remote_write_safety_incident_is_latched()
+
+
+def test_startup_persistent_guarded_journal_failure_waits_with_incident_latch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt, journal, remote_calls = _confirmed_reply_waiting_for_startup(monkeypatch)
+    state, order, _StartupReachedScheduler = _configure_confirmed_reply_startup(
+        tmp_path, monkeypatch, receipt,
+    )
+    source = bot.CONFIRMED_REPLY_RECEIPT_FILE
+    original_source_recovery = bot.resume_source_receipt_retirement_for_control_snapshot
+    original_reconcile = bot.reconcile_confirmed_transactions_before_global_barrier
+    retire_attempts = []
+
+    def fail_after_guard(**_kwargs):
+        prepared = exact_retirement.inspect_interrupted_receipt_retirement(source)
+        assert prepared is not None and prepared.valid
+        retire_attempts.append("journal")
+        raise OSError("persistent confirmed journal retirement failure")
+
+    def source_recovery(*, maintenance_paused):
+        order.append("source")
+        return original_source_recovery(maintenance_paused=maintenance_paused)
+
+    def reconcile(*args):
+        order.append("reconcile")
+        return original_reconcile(*args)
+
+    class StillBlocked(Exception):
+        pass
+
+    def sleep(seconds):
+        assert seconds == 60
+        order.append("sleep")
+        assert source.exists() and journal.exists()
+        if order.count("sleep") == 1:
+            assert not bot.remote_write_safety_incident_is_latched()
+        else:
+            assert bot.remote_write_safety_incident_is_latched()
+        if order.count("sleep") == 3:
+            raise StillBlocked
+
+    monkeypatch.setattr(bot, "retire_confirmed_transport_transaction", fail_after_guard)
+    monkeypatch.setattr(bot, "resume_source_receipt_retirement_for_control_snapshot", source_recovery)
+    monkeypatch.setattr(bot, "reconcile_confirmed_transactions_before_global_barrier", reconcile)
+    monkeypatch.setattr(bot, "sleep", sleep)
+    with pytest.raises(StillBlocked):
+        bot.main()
+
+    assert order == ["source", "reconcile", "sleep", "source", "sleep", "sleep"]
+    assert retire_attempts == ["journal", "journal"]
+    assert any(os.path.lexists(path) for path in exact_retirement.retirement_auxiliary_paths(source))
+    assert bot.ambiguous_remote_post_is_blocking()
+    assert state["daily_reply_count"] == 1
+    assert remote_calls == ["confirmed"]
+
+
+def test_startup_existing_incident_latch_does_not_start_local_retirement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt, journal, remote_calls = _confirmed_reply_waiting_for_startup(monkeypatch)
+    _state, order, _StartupReachedScheduler = _configure_confirmed_reply_startup(
+        tmp_path, monkeypatch, receipt,
+    )
+    receipt_bytes = bot.CONFIRMED_REPLY_RECEIPT_FILE.read_bytes()
+    journal_bytes = journal.read_bytes()
+    monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", True)
+    monkeypatch.setattr(bot, "resume_source_receipt_retirement_for_control_snapshot",
+                        lambda **_kwargs: pytest.fail("incident latch must precede local retirement"))
+    monkeypatch.setattr(bot, "reconcile_confirmed_transactions_before_global_barrier",
+                        lambda *_args: pytest.fail("incident latch must precede reconciliation"))
+
+    class IncidentStillBlocked(Exception):
+        pass
+
+    def sleep(seconds):
+        assert seconds == 60
+        order.append("sleep")
+        raise IncidentStillBlocked
+
+    monkeypatch.setattr(bot, "sleep", sleep)
+    with pytest.raises(IncidentStillBlocked):
+        bot.main()
+    assert order == ["sleep"]
+    assert bot.remote_write_safety_incident_is_latched()
+    assert bot.CONFIRMED_REPLY_RECEIPT_FILE.read_bytes() == receipt_bytes
+    assert journal.read_bytes() == journal_bytes
+    assert remote_calls == ["confirmed"]
+
+
+def test_startup_sending_reply_without_confirmed_lineage_remains_ambiguous(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sending = unit_sending_v4_reply_receipt()
+    bot._reply_assembly().reply_receipts().write(sending, confirmed=False)
+    _state, order, StartupReachedScheduler = _configure_confirmed_reply_startup(
+        tmp_path, monkeypatch, sending,
+    )
+    receipt_bytes = bot.CONFIRMED_REPLY_RECEIPT_FILE.read_bytes()
+    original_reconcile = bot.reconcile_confirmed_transactions_before_global_barrier
+    outcomes = []
+
+    def reconcile(*args):
+        outcome = original_reconcile(*args)
+        outcomes.append(outcome)
+        return outcome
+
+    monkeypatch.setattr(bot, "reconcile_confirmed_transactions_before_global_barrier",
+                        reconcile)
+    monkeypatch.setattr(bot, "x_request", lambda *_args, **_kwargs: pytest.fail(
+        "ambiguous sending receipt must not make a remote request"))
+    monkeypatch.setattr(bot, "create_post", lambda *_args, **_kwargs: pytest.fail(
+        "ambiguous sending receipt must not be resent"))
+    monkeypatch.setattr(bot._reply_generation.ReplyGeneration, "evaluate",
+                        lambda *_args, **_kwargs: pytest.fail("ambiguous reply must not be reevaluated"))
+    with pytest.raises(StartupReachedScheduler):
+        bot.main()
+    assert outcomes and outcomes[0]["conversational_reply"] is False
+    assert bot.CONFIRMED_REPLY_RECEIPT_FILE.read_bytes() == receipt_bytes
+    assert bot.ambiguous_remote_post_is_blocking()
+    assert order == ["seed"]
+
+
+def test_unrelated_startup_recovery_error_propagates_without_scheduling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt, journal, remote_calls = _confirmed_reply_waiting_for_startup(monkeypatch)
+    _state, order, _StartupReachedScheduler = _configure_confirmed_reply_startup(
+        tmp_path, monkeypatch, receipt,
+    )
+    original_bytes = bot.CONFIRMED_REPLY_RECEIPT_FILE.read_bytes()
+    monkeypatch.setattr(bot, "resume_source_receipt_retirement_for_control_snapshot",
+                        lambda **_kwargs: (_ for _ in ()).throw(
+                            RuntimeError("unrelated startup recovery failure")))
+    monkeypatch.setattr(bot, "sleep", lambda _seconds: pytest.fail(
+        "unrelated recovery exception must propagate"))
+    with pytest.raises(RuntimeError, match="unrelated startup recovery failure"):
+        bot.main()
+    assert order == []
+    assert bot.CONFIRMED_REPLY_RECEIPT_FILE.read_bytes() == original_bytes
+    assert journal.exists()
+    assert remote_calls == ["confirmed"]
 
 
 @pytest.mark.parametrize("recovers", [False, True])

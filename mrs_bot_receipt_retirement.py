@@ -247,11 +247,11 @@ def resume_interrupted_source_receipt_retirement_if_present(
     state_commit_mutation_authority: Any,
     transport_journal_is_blocking: Any,
 ) -> bool:
-    """Finish one journal-free source retirement under the process lock.
+    """Finish one exact source retirement under the process lock.
 
-    A matching transport journal must retain the source receipt until its own
-    retirement has completed.  Multiple lane auxiliaries are never selected
-    automatically, and every namespace inspection includes broken symlinks.
+    A matching confirmed transport journal is retired before its source receipt.
+    Multiple lane auxiliaries are never selected automatically, and every
+    namespace inspection includes broken symlinks.
     """
 
     receipt_paths = (
