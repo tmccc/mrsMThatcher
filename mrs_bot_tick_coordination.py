@@ -9,8 +9,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
+from mrs_bot_local_recovery import (
+    BarrierState, LocalRecovery, ReconcileConfirmed, RecoveryErrors, RecoveryOutcome,
+    RecoveryStage, RecoveryStatus,
+)
 from mrs_bot_reply_cycle_interfaces import (
     NORMAL_CHECK_STATUS_POSTED,
     NORMAL_CHECK_STATUS_SKIPPED_SPACING,
@@ -128,11 +132,14 @@ class RuntimeCoordinator:
         report_health: ReportHealth,
         resume_media_retirement: Callable[[], bool],
         resume_source_retirement: ResumeSourceRetirement,
-        reconcile_confirmed_transactions: Callable[[set[str], set[str], BotState], dict[str, bool]],
+        reconcile_confirmed_transactions: ReconcileConfirmed,
         ambiguous_remote_post_is_blocking: Callable[[], bool],
         durable_remote_write_safety_barrier_exists: Callable[[], bool],
         remote_write_safety_protocol_is_active: Callable[[], bool],
         process_historical_context: ProcessHistoricalContext,
+        incident_latched: Callable[[], bool],
+        recovery_errors: RecoveryErrors,
+        reload_committed_recovery_inputs: Callable[[], tuple[set[str], set[str], BotState]],
         maintenance_pause_logged: bool = False,
     ) -> None:
         """Bind boundaries without retaining any operation's assembly or runner."""
@@ -157,6 +164,9 @@ class RuntimeCoordinator:
         self.durable_remote_write_safety_barrier_exists = durable_remote_write_safety_barrier_exists
         self.remote_write_safety_protocol_is_active = remote_write_safety_protocol_is_active
         self.process_historical_context = process_historical_context
+        self.incident_latched = incident_latched
+        self.recovery_errors = recovery_errors
+        self.reload_committed_recovery_inputs = reload_committed_recovery_inputs
         self.maintenance_pause_logged = maintenance_pause_logged
         self.ambiguity_pause_logged = False
         self.reply_recovery_blocked = False
@@ -178,53 +188,55 @@ class RuntimeCoordinator:
         log = self.log
         health = self.report_health
         health("main_loop", loop_started=True)
-        maintenance_paused = self.controls.global_paused()
-        if not maintenance_paused:
-            try:
-                self.resume_media_retirement()
-            except Exception:
-                log.critical(
-                    "Interrupted confirmed-media retirement could not be "
-                    "resumed; every remote lane remains blocked",
-                    exc_info=True,
-                )
-        try:
-            self.resume_source_retirement(maintenance_paused=maintenance_paused)
-        except Exception:
-            log.critical(
-                "Interrupted source-receipt retirement could not be resumed; "
-                "all remote lanes remain blocked",
-                exc_info=True,
+        outcome = self.recover_local_once(lines_used, images_used, state)
+        if outcome.reload_committed_state:
+            committed_lines, committed_images, committed_state = (
+                self.reload_committed_recovery_inputs()
             )
-        confirmed_reply_recovery_failed = False
-        if not maintenance_paused:
-            try:
-                reconciled = self.reconcile_confirmed_transactions(
-                    lines_used, images_used, state,
+            committed_lines = set(committed_lines)
+            committed_images = set(committed_images)
+            committed_state_values = dict(committed_state)
+            lines_used.clear()
+            lines_used.update(committed_lines)
+            images_used.clear()
+            images_used.update(committed_images)
+            mutable_state = cast(dict[str, object], state)
+            mutable_state.clear()
+            mutable_state.update(committed_state_values)
+        if outcome.failure is not None:
+            if outcome.failure_stage is RecoveryStage.MEDIA:
+                message = (
+                    "Interrupted confirmed-media retirement could not be "
+                    "resumed; every remote lane remains blocked"
                 )
-            except self.errors.confirmed_reply:
-                confirmed_reply_recovery_failed = True
-                log.critical(
+            elif outcome.failure_stage is RecoveryStage.SOURCE:
+                message = (
+                    "Interrupted source-receipt retirement could not be resumed; "
+                    "all remote lanes remain blocked"
+                )
+            elif isinstance(outcome.failure, self.errors.confirmed_reply):
+                message = (
                     "Confirmed-reply local recovery failed before the global "
-                    "barrier; all remote lanes remain blocked until the next tick",
-                    exc_info=True,
-                )
-            except Exception:
-                log.critical(
-                    "A locally confirmed remote transaction could not be "
-                    "reconciled before the global barrier; all remote lanes "
-                    "remain blocked",
-                    exc_info=True,
+                    "barrier; all remote lanes remain blocked until the next tick"
                 )
             else:
-                if any(reconciled.values()):
-                    log.warning(
-                        "Completed local confirmed-transaction recovery before "
-                        "remote scheduling: %s",
-                        {key: value for key, value in reconciled.items() if value},
-                    )
+                message = (
+                    "A locally confirmed remote transaction could not be "
+                    "reconciled before the global barrier; all remote lanes "
+                    "remain blocked"
+                )
+            log.critical(message, exc_info=(
+                type(outcome.failure), outcome.failure, outcome.failure.__traceback__,
+            ))
+        if outcome.reconciled_lanes:
+            log.warning(
+                "Completed local confirmed-transaction recovery before "
+                "remote scheduling: %s",
+                {lane: True for lane in outcome.reconciled_lanes},
+            )
 
-        ambiguity_blocked = self.maintain_global_remote_write_barrier_tick()
+        ambiguity_blocked = outcome.barrier is BarrierState.BLOCKED
+        maintenance_paused = self.controls.global_paused()
         if maintenance_paused:
             if not self.maintenance_pause_logged:
                 log.warning(
@@ -242,7 +254,7 @@ class RuntimeCoordinator:
         self.maintenance_pause_logged = False
         health("main_loop", paused=False)
 
-        if ambiguity_blocked or confirmed_reply_recovery_failed:
+        if outcome.status not in {RecoveryStatus.CLEAR, RecoveryStatus.RECOVERED}:
             health(
                 "remote_write_blocked", remote_write_blocked=True,
                 loop_completed=True,
@@ -278,6 +290,21 @@ class RuntimeCoordinator:
         log.debug("Sleeping for 60 seconds")
         health("sleep", loop_completed=True)
         return 60
+
+    def recover_local_once(
+        self, lines_used: set[str], images_used: set[str], state: BotState,
+        *, current: int | None = None,
+    ) -> RecoveryOutcome:
+        """Use the same finite local decision as startup before any lanes."""
+        return LocalRecovery(
+            global_paused=self.controls.global_paused,
+            incident_latched=self.incident_latched,
+            resume_media_retirement=self.resume_media_retirement,
+            resume_source_retirement=self.resume_source_retirement,
+            reconcile_confirmed_transactions=self.reconcile_confirmed_transactions,
+            maintain_barrier=self.maintain_global_remote_write_barrier_tick,
+            errors=self.recovery_errors,
+        ).run_once(lines_used, images_used, state, current=current)
 
     def _stage_blocked(self) -> bool:
         """Report a newly observed barrier before the next stage."""

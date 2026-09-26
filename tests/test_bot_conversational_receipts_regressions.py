@@ -2226,6 +2226,9 @@ def test_confirmed_reply_local_recovery_retries_without_remote_or_duplicate_coun
     fixed_epoch = 2_000_000_000
     monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    lines_file = tmp_path / "quotes.txt"
+    lines_file.write_text("A quote.\n", encoding="utf-8")
+    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
     monkeypatch.setattr(bot, "MY_USER_ID", "12345")
     monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
@@ -2239,6 +2242,7 @@ def test_confirmed_reply_local_recovery_retries_without_remote_or_duplicate_coun
         state["daily_quote_reply_date"] = receipt["daily_quote_reply_date"]
     state["next_quote_post_epoch"] = fixed_epoch + 3600
     state["next_meme_post_epoch"] = fixed_epoch + 3600
+    bot.save_state(state)  # The retry must reload a real committed generation.
     bot._reply_assembly().reply_receipts().write(receipt, confirmed=True)
     monkeypatch.setattr(bot, "x_request", lambda *_args, **_kwargs: pytest.fail(
         "confirmed reply recovery must not make a remote request"))
@@ -2269,9 +2273,12 @@ def test_confirmed_reply_local_recovery_retries_without_remote_or_duplicate_coun
     assert runtime.run_once(set(), set(), state) == 60
     assert runtime.run_once(set(), set(), state) == 60
     assert bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
-    assert state["daily_reply_count"] == 1
-    assert state["daily_quote_reply_count"] == (1 if lane == "quote_tweet" else 0)
-    assert state["own_auto_reply_ids"].count("900000") == 1
+    committed_count = 0 if failure_stage == "state" else 1
+    assert state["daily_reply_count"] == committed_count
+    assert state["daily_quote_reply_count"] == (
+        committed_count if lane == "quote_tweet" else 0
+    )
+    assert state["own_auto_reply_ids"].count("900000") == committed_count
 
     failing[0] = False
     assert runtime.run_once(set(), set(), state) == 60

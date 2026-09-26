@@ -10,6 +10,7 @@ from unittest.mock import Mock
 import pytest
 
 from mrs_bot_tick_coordination import RuntimeCoordinator, RuntimeErrors, RuntimeSettings
+from mrs_bot_local_recovery import RecoveryErrors
 
 
 def test_runtime_import_has_no_root_or_runtime_access():
@@ -130,6 +131,11 @@ def _runtime(*, paused=False, blocked=False, settings=None, initial_pause=False)
         remote_write_safety_protocol_is_active=lambda: events.append("protocol") or True,
         process_historical_context=historical,
         maintenance_pause_logged=initial_pause,
+        incident_latched=lambda: False,
+        recovery_errors=RecoveryErrors(
+            media=(OSError,), source=(OSError,), reconcile=(UnrecoverableReply,),
+        ),
+        reload_committed_recovery_inputs=lambda: (set(), set(), _state()),
     )
     return SimpleNamespace(runtime=runtime, events=events, control=control,
                            cooldown=cooldown, quote_schedule=quote_schedule,
@@ -150,11 +156,13 @@ def test_complete_iteration_uses_original_objects_and_stage_order():
     tick = _runtime()
     state, lines, images = _state(), {"line"}, {"image"}
     assert tick.runtime.run_once(lines, images, state) == 60
-    assert [event for event in tick.events if isinstance(event, str) and event != "save"] == [
-        "pause", "media_recovery", "recover", "barrier", "clock", "historical",
+    assert [event for event in tick.events if isinstance(event, str)
+            and event not in {"save", "pause"}] == [
+        "media_recovery", "recover", "barrier", "clock", "historical",
         "barrier", "normal", "barrier", "quote_reply", "barrier", "barrier",
         "quote_post", "barrier", "meme_post",
     ]
+    assert tick.events.count("pause") >= 4  # Fresh control at each recovery stage.
     assert tick.events.index("historical") < tick.events.index("normal") < tick.events.index("quote_post") < tick.events.index("meme_post")
     assert tick.post_quote.call_args.args == (lines, images, state)
     assert all(actual is original for actual, original in zip(tick.post_quote.call_args.args, (lines, images, state)))
@@ -167,9 +175,10 @@ def test_paused_iterations_keep_allowed_recovery_and_initial_log_state():
     state = _state()
     for _ in range(2):
         assert tick.runtime.run_once(set(), set(), state) == 60
-    assert tick.events.count("pause") == 2
+    assert tick.events.count("pause") >= 2
     assert tick.events.count("media_recovery") == tick.events.count("recover") == 0
-    assert tick.events.count(("source_recovery", {"maintenance_paused": True})) == 2
+    assert not any(isinstance(event, tuple) and event[0] == "source_recovery"
+                   for event in tick.events)
     assert tick.events.count("durable") == 0
     assert tick.events.count("clock") == 0
     tick.log.warning.assert_not_called()
@@ -283,7 +292,11 @@ def test_recovery_failures_stay_bounded_but_stage_failures_propagate():
     tick.runtime.resume_source_retirement = Mock(side_effect=OSError("source"))
     tick.runtime.reconcile_confirmed_transactions = Mock(side_effect=OSError("recovery"))
     assert tick.runtime.run_once(set(), set(), state) == 60
-    assert tick.log.critical.call_count == 3
+    assert tick.log.critical.call_count == 1
+    tick.runtime.reconcile_confirmed_transactions.assert_not_called()
+    tick.runtime.resume_media_retirement = Mock(return_value=False)
+    tick.runtime.resume_source_retirement = Mock(return_value=False)
+    tick.runtime.reconcile_confirmed_transactions = Mock(return_value={})
     tick.runtime.process_historical_context = Mock(side_effect=RuntimeError("historical"))
     with pytest.raises(RuntimeError, match="historical"):
         tick.runtime.run_once(set(), set(), state)
@@ -292,6 +305,32 @@ def test_recovery_failures_stay_bounded_but_stage_failures_propagate():
     tick.normal.side_effect = RuntimeError("reply")
     with pytest.raises(RuntimeError, match="reply"):
         tick.runtime.run_once(set(), set(), state)
+
+
+def test_runtime_discards_partial_caller_state_after_failed_local_replay():
+    """The next tick cannot save an uncommitted reconciliation projection."""
+    tick = _runtime()
+    state, lines, images = _state(), {"committed"}, {"image"}
+    committed_state = dict(state)
+    reloads = []
+
+    def partial_replay(actual_lines, actual_images, actual_state):
+        actual_lines.add("uncommitted")
+        actual_images.add("uncommitted")
+        actual_state["daily_reply_count"] = 1
+        raise UnrecoverableReply("state save failed")
+
+    def reload():
+        reloads.append("committed")
+        return {"committed"}, {"image"}, dict(committed_state)
+
+    tick.runtime.reconcile_confirmed_transactions = partial_replay
+    tick.runtime.reload_committed_recovery_inputs = reload
+    assert tick.runtime.run_once(lines, images, state) == 60
+    assert reloads == ["committed"]
+    assert (lines, images, state) == ({"committed"}, {"image"}, committed_state)
+    assert "historical" not in tick.events
+    tick.normal.assert_not_called()
 
 
 @pytest.mark.parametrize("lane", ["normal", "quote"])
@@ -392,5 +431,5 @@ def test_continuous_driver_skips_sleep_after_new_barrier_then_waits_when_blocked
     with pytest.raises(DriverStopped):
         tick.runtime.run_continuously(lines, images, state, sleep=sleeper)
     assert waits == [60]
-    assert tick.events.count("pause") == 2
+    assert tick.events.count("pause") >= 2
     tick.normal.assert_not_called()

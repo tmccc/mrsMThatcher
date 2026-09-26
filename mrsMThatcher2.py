@@ -294,6 +294,7 @@ import mrs_bot_x_pagination as _x_pagination
 import mrs_bot_request_route_values as _request_route_values
 import mrs_bot_x_response_diagnostics as _x_response_diagnostics
 import mrs_bot_tick_coordination as _tick_coordination
+import mrs_bot_local_recovery as _local_recovery
 import mrs_bot_durable_json_io as _durable_json_io
 import mrs_bot_state_value_normalisation as _state_value_normalisation
 import mrs_bot_state_persistence as _state_persistence
@@ -6706,6 +6707,17 @@ def schedule_next_quote_post(state: BotState, from_epoch: int | None = None, *, 
     return _quote_schedule_owner().schedule(state, from_epoch, save=save)
 
 
+def _load_committed_runtime_recovery_inputs() -> tuple[set[str], set[str], BotState]:
+    """Reload authoritative used histories and state after a failed tick replay."""
+    with open(LINES_FILE, encoding="utf-8") as quotes_file:
+        quote_lines = quotes_file.readlines()
+    return (
+        load_quote_used_hashes(quote_lines),
+        load_image_used_basenames(current_image_paths()),
+        load_runtime_state(),
+    )
+
+
 def _runtime_coordinator(
     *,
     controls: _runtime_control.RuntimeControls | None = None,
@@ -6752,6 +6764,21 @@ def _runtime_coordinator(
         remote_write_safety_protocol_is_active=remote_write_safety_protocol_is_active,
         process_historical_context=safely_process_due_historical_context_obligations,
         maintenance_pause_logged=maintenance_pause_logged,
+        incident_latched=remote_write_safety_incident_is_latched,
+        recovery_errors=_local_recovery.RecoveryErrors(
+            media=(OSError, MediaUploadReceiptError, ExactReceiptRetirementError,
+                   TransportJournalError),
+            source=(OSError, ExactReceiptRetirementError, TransportJournalError),
+            reconcile=(
+                ConfirmedReplyLocalPersistenceError,
+                InvalidRegularPostReceipt, InvalidMemePostReceipt,
+                UnresolvedRegularPostReceipt, UnresolvedMemePostReceipt,
+                _main_post_receipt_storage.PendingMainPostReceiptChangedError,
+                OSError, StateBackupWriteError, ExactReceiptRetirementError,
+                TransportJournalError,
+            ),
+        ),
+        reload_committed_recovery_inputs=_load_committed_runtime_recovery_inputs,
     )
 
 
@@ -6847,16 +6874,10 @@ def main() -> None:
     # interval in which a cooperating maintenance process can change the very
     # files whose presence authorises startup.
     require_established_installation_after_ledger_recovery()
-    if not controls.global_paused():
-        try:
-            resume_interrupted_confirmed_media_retirement_if_present()
-        except Exception:
-            log.critical(
-                "Interrupted confirmed-media retirement could not be resumed "
-                "at startup; every remote lane remains blocked",
-                exc_info=True,
-            )
-    reconcile_runtime_historical_context_state()
+    # Startup-only context repair must respect the same incident stop as the
+    # finite recovery pass. Its own pause handling remains inside that owner.
+    if not remote_write_safety_incident_is_latched():
+        reconcile_runtime_historical_context_state()
 
     _log_startup_configuration()
 
@@ -6899,13 +6920,24 @@ def main() -> None:
     )
     startup_current = now_epoch()
     runtime = _runtime_coordinator(controls=controls)
+
+    def reload_committed_recovery_inputs() -> None:
+        """Discard caller dictionaries changed by an uncommitted replay."""
+        nonlocal lines_used, images_used, state
+        lines_used = load_quote_used_hashes(quote_lines_for_history)
+        images_used = load_image_used_basenames(current_image_paths())
+        state = load_runtime_state()
+
     try:
-        reconcile_startup_main_post_receipts(
-            lines_used,
-            images_used,
-            state,
-            startup_current,
-        )
+        # The early replay has an auxiliary context continuation, so it stays
+        # outside the local-only pass. An incident still forbids its mutation.
+        if not remote_write_safety_incident_is_latched():
+            reconcile_startup_main_post_receipts(
+                lines_used,
+                images_used,
+                state,
+                startup_current,
+            )
     except (
         InvalidRegularPostReceipt, InvalidMemePostReceipt,
         UnresolvedRegularPostReceipt, UnresolvedMemePostReceipt,
@@ -6940,69 +6972,76 @@ def main() -> None:
         )
         # A failed save may already have changed the caller's dictionaries or
         # used histories. Reload committed generations before any runtime tick.
-        lines_used = load_quote_used_hashes(quote_lines_for_history)
-        images_used = load_image_used_basenames(current_image_paths())
-        state = load_runtime_state()
+        reload_committed_recovery_inputs()
         _tweet_lookup_cache_owner().seed_recent_own_posts(state)
         report_bot_health_progress("main_loop")
         runtime.maintenance_pause_logged = controls.global_paused()
         runtime.run_continuously(lines_used, images_used, state, sleep=sleep)
         return
-    if not controls.global_paused():
-        while True:
-            # A failed journal retirement can leave an exact source-removal
-            # guard. That guard disables the protocol-active check used by the
-            # confirmed-transaction reconciler, so resume it first on each
-            # pass, as the runtime tick does.
-            if controls.global_paused():
-                runtime.maintain_global_remote_write_barrier_tick()
-                sleep(60)
-                continue
-            if remote_write_safety_incident_is_latched():
-                # The barrier owner may complete a pending marker fsync and
-                # release a deferred SIGINT under its existing proof checks.
-                # Keep source retirement and reconciliation stopped while the
-                # incident latch remains active.
-                runtime.maintain_global_remote_write_barrier_tick()
-                sleep(60)
-                continue
-            try:
-                resume_source_receipt_retirement_for_control_snapshot(
-                    maintenance_paused=False,
+    startup_recovery_was_unpaused = not controls.global_paused()
+    while True:
+        outcome = runtime.recover_local_once(
+            lines_used, images_used, state, current=startup_current,
+        )
+        if outcome.failure is not None:
+            if outcome.failure_stage is _local_recovery.RecoveryStage.MEDIA:
+                message = (
+                    "Interrupted confirmed-media retirement could not be resumed "
+                    "at startup; every remote lane remains blocked"
                 )
-            except (OSError, ExactReceiptRetirementError, TransportJournalError):
-                log.critical(
+            elif outcome.failure_stage is _local_recovery.RecoveryStage.SOURCE:
+                message = (
                     "Interrupted source-receipt retirement failed at startup; "
-                    "all remote lanes remain blocked",
-                    exc_info=True,
+                    "all remote lanes remain blocked"
                 )
-                sleep(60)
-                continue
-            if controls.global_paused() or remote_write_safety_incident_is_latched():
-                runtime.maintain_global_remote_write_barrier_tick()
-                sleep(60)
-                continue
-            try:
-                reconcile_confirmed_transactions_before_global_barrier(
-                    lines_used,
-                    images_used,
-                    state,
-                    startup_current,
-                )
-            except ConfirmedReplyLocalPersistenceError:
-                log.critical(
+            elif isinstance(outcome.failure, ConfirmedReplyLocalPersistenceError):
+                message = (
                     "Confirmed-reply local recovery failed at startup; "
-                    "all remote lanes remain blocked until local recovery succeeds",
-                    exc_info=True,
+                    "all remote lanes remain blocked until local recovery succeeds"
                 )
-                report_bot_health_progress(
-                    "remote_write_blocked", remote_write_blocked=True,
-                )
-                sleep(60)
             else:
-                # A normal return may mean no transaction was eligible. The
-                # runtime tick owns any remaining blocker and its maintenance.
-                break
+                message = (
+                    "Local recovery failed at startup; every remote lane "
+                    "remains blocked until its evidence is reconciled"
+                )
+            log.critical(message, exc_info=(
+                type(outcome.failure), outcome.failure,
+                outcome.failure.__traceback__,
+            ))
+            report_bot_health_progress(
+                "remote_write_blocked", remote_write_blocked=True,
+            )
+        if outcome.reload_committed_state:
+            reload_committed_recovery_inputs()
+        if (
+            not startup_recovery_was_unpaused
+            and outcome.status in {
+                _local_recovery.RecoveryStatus.INCIDENT,
+                _local_recovery.RecoveryStatus.PAUSED,
+            }
+        ):
+            break
+        if (
+            outcome.status in {
+                _local_recovery.RecoveryStatus.INCIDENT,
+                _local_recovery.RecoveryStatus.PAUSED,
+            }
+            or outcome.failure_stage is _local_recovery.RecoveryStage.SOURCE
+            or isinstance(outcome.failure, ConfirmedReplyLocalPersistenceError)
+        ):
+            sleep(60)
+            continue
+        if outcome.failure is not None:
+            # Main-post and media failures retain their evidence. The
+            # runtime tick owns their next local attempt and barrier.
+            _tweet_lookup_cache_owner().seed_recent_own_posts(state)
+            report_bot_health_progress("main_loop")
+            runtime.maintenance_pause_logged = controls.global_paused()
+            runtime.run_continuously(lines_used, images_used, state, sleep=sleep)
+            return
+        # A normal return can mean no transaction was eligible. Even
+        # after progress, a different blocker belongs to the runtime.
+        break
 
 
     _tweet_lookup_cache_owner().seed_recent_own_posts(state)

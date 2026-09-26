@@ -6,6 +6,7 @@ from unittest.mock import Mock
 import pytest
 
 from mrs_bot_tick_coordination import RuntimeCoordinator, RuntimeErrors, RuntimeSettings
+from mrs_bot_local_recovery import RecoveryErrors
 from tests.helpers.bot_runtime import bot
 
 
@@ -71,6 +72,14 @@ def tick():
         durable_remote_write_safety_barrier_exists=lambda: True,
         remote_write_safety_protocol_is_active=lambda: True,
         process_historical_context=lambda **kwargs: None,
+        incident_latched=lambda: False,
+        recovery_errors=RecoveryErrors(
+            media=(OSError,), source=(OSError,),
+            reconcile=(bot.ConfirmedReplyLocalPersistenceError,),
+        ),
+        reload_committed_recovery_inputs=lambda: (
+            set(), set(), bot.default_state(),
+        ),
     )
     return context
 

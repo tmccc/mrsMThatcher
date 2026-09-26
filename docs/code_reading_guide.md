@@ -22,14 +22,29 @@ Start in [mrsMThatcher2.py](../mrsMThatcher2.py):
 2. `production_bootstrap()` applies deployment configuration and initialises
    runtime services. Importing the bot alone does not enter this path.
 3. `main()` acquires the instance lock, validates the installation, loads state
-   and reconciles recovery evidence. `_log_startup_configuration()` contains the
-   startup configuration messages; recovery decisions remain in `main()`.
+   and performs its startup-only historical-context and early main-post replay.
+   It reloads committed state and histories after a failed replay. The later
+   recurring recovery pass is shared with the runtime; `_log_startup_configuration()`
+   contains the startup configuration messages.
 4. After startup, `main()` gives its original state and used-history objects to
    `RuntimeCoordinator.run_continuously()` in
    [mrs_bot_tick_coordination.py](../mrs_bot_tick_coordination.py).
-   `run_once()` performs one finite iteration: recovery and safety gates,
+   `run_once()` performs one finite iteration: shared recovery, safety gates,
    historical context, reply arbitration, quotation and meme posting. Its
    return value requests a wait in seconds or an immediate next iteration.
+
+`LocalRecovery.run_once()` in
+[mrs_bot_local_recovery.py](../mrs_bot_local_recovery.py) is the common finite
+decision reached through `RuntimeCoordinator.recover_local_once()` by startup
+and the runtime tick. It checks current pause and incident controls between
+local stages, resumes authorised media and exact source retirement, calls the
+pre-barrier confirmed-transaction reconciler, then maintains and reassesses the
+global barrier. It performs no provider or scheduling work. Its typed outcome
+distinguishes clear, completed, blocked, progressed-but-blocked, paused,
+incident and recognised failure states; it also reports the final barrier
+observation, completed lanes and whether failed reconciliation requires a
+committed-state reload. Unrelated exceptions propagate. A clear outcome is a
+current observation, never permission to bypass lane or send-time preflights.
 
 ## Three live paths to read first
 
@@ -318,31 +333,31 @@ journal retirement and receipt removal using the same commit proof. Fresh replie
 restart reconciliation and emergency state fallback keep their distinct exception
 and signal-deferral policies around those owned operations.
 `RuntimeCoordinator` contains confirmed-reply local persistence failures at
-both reply lanes and pre-barrier recovery. A failing tick stops later lanes and
-waits 60 seconds before retrying local recovery; startup also waits and retries
-before continuing ordinary state mutation. Each startup retry checks pause and
-incident state. A latched incident rechecks the existing durable barrier proof
-at the 60-second cadence; other local recovery remains stopped. An unlatched
-pass resumes any interrupted exact source retirement (including its
-confirmed journal), then attempts confirmed-transaction reconciliation. A
-prepared retirement guard makes the protocol-active check fail until that
-retirement stage runs. Startup waits again for recognised local-retirement or
-confirmed-reply persistence failures; a normal reconciler return can also mean
-nothing was eligible. Startup then hands remaining blockers to the runtime tick,
-which repeats media and source retirement maintenance and checks the global
-barrier before remote lanes. The receipt and journal remain the authority for
-reconciling a confirmed reply without another remote post. Retirement
-uncertainty keeps its process latch and requires controlled recovery.
+both reply lanes and calls the common local pass before scheduling. A failed
+runtime replay reloads committed state and used histories before another tick
+can save them; the tick waits 60 seconds. Startup retains its own 60-second
+retry and committed-state reload boundary, and hands a remaining blocker to
+the runtime once local recovery succeeds or nothing is eligible. Exact journal,
+source-retirement and state-commit proofs remain in
+[mrs_bot_transaction_recovery.py](../mrs_bot_transaction_recovery.py),
+[mrs_bot_receipt_retirement.py](../mrs_bot_receipt_retirement.py), the main-post
+and reply reconciliation owners, and
+[mrs_bot_remote_write_barriers.py](../mrs_bot_remote_write_barriers.py).
+Retirement uncertainty retains its process latch and requires controlled recovery.
 
-The earlier main-post startup replay contains invalid/conflicting receipt and
-recognised local persistence failures at its own boundary. After checking that
-its receipt, journal, retirement guard or incident latch still blocks remote
-writes, `main()` reloads committed state and histories and hands recovery to
-the runtime tick without ordinary startup saves. Invalid evidence remains for
-controlled repair; the runtime retries only confirmed local work permitted by
-the pre-barrier reconciler. A pause arising inside the later startup loop still
-runs the runtime barrier's durability check every 60 seconds while transaction
-reconciliation and retirement stay stopped.
+The earlier main-post startup replay remains a startup lifecycle difference:
+it may continue an auxiliary historical-context obligation after local main-post
+completion, whereas the common pre-barrier pass performs only local work. Its
+invalid/conflicting receipt and recognised persistence failures retain their
+existing hand-off: `main()` checks surviving barriers, reloads committed state
+and histories, and enters the runtime without ordinary startup saves. A pause
+arising inside the later startup retry still runs barrier-durability maintenance
+every 60 seconds while transaction reconciliation and retirement stay stopped.
+The startup-only context and early main-post replay now stop when an incident
+latch is already active; the former path could otherwise mutate locally before
+the recurring recovery gate. The common pass also stops after a recognised
+media or source-retirement failure and propagates unrelated exceptions rather
+than allowing a later local stage to reinterpret an uncertain earlier result.
 
 `TweetLookupCache` owns cache normalization, pruning, storage, verified fetches
 and the recent own-post index. Cached context preserves row identity on a hit;
