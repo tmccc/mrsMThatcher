@@ -1957,6 +1957,12 @@ class DigestAnalysis(DigestAnalysisState):
                     self.stats["reply_visual_description_malformed_events"] += 1
                 else:
                     self.stats["reply_visual_description_events"] += 1
+            elif event_obj is None:
+                self.note_malformed_structured_event(r, "strict_parse")
+                return True
+            elif not isinstance(event_obj.get("event"), str) or not event_obj.get("event"):
+                self.note_malformed_structured_event(r, "event_name")
+                return True
             elif event_obj and event_obj.get("event") == "main_post_posted":
                 record_main_post_publication(
                     event_obj, self.strict_structured_event_obj, r.ts,
@@ -2222,10 +2228,6 @@ class DigestAnalysis(DigestAnalysisState):
                 )
             elif event_obj and event_obj.get("event") in INTENTIONALLY_IGNORED_EVENT_NAMES:
                 pass  # Retired producer vocabulary is recognised but intentionally omitted.
-            elif event_obj is None:
-                self.note_malformed_structured_event(r, "strict_parse")
-            elif not isinstance(event_obj.get("event"), str) or not event_obj.get("event"):
-                self.note_malformed_structured_event(r, "event_name")
             else:
                 self.note_unknown_structured_event(r, event_obj["event"])
             return True

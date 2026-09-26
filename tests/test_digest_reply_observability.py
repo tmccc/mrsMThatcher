@@ -732,6 +732,88 @@ def test_structured_event_diagnostics_keep_known_unknown_and_malformed_separate(
     assert "Created X post successfully" not in rendered
 
 
+@pytest.mark.parametrize("payload", [
+    {},
+    {"event": None},
+    {"event": ""},
+    {"event": True},
+    {"event": False},
+    {"event": 7},
+    {"event": 1.5},
+    {"event": []},
+    {"event": ["mention_backlog_started"]},
+    {"event": {}},
+    {"event": {"name": "mention_backlog_started"}},
+])
+def test_malformed_structured_event_names_do_not_interrupt_analysis(payload):
+    rows = [
+        structured_record(0, {"event": "candidate_skipped", "id": "111"}),
+        structured_record(1, {**payload, "private_payload": "private-marker"}),
+        structured_record(2, {"event": "candidate_skipped", "id": "222"}),
+    ]
+    report = digest.analyse(rows)
+    diagnostics = report["structured_event_diagnostics"]
+
+    assert [item["target_id"] for item in report["events"]] == ["111", "222"]
+    assert diagnostics["malformed_count"] == 1
+    assert diagnostics["malformed_reasons"] == {"event_name": 1}
+    assert diagnostics["unknown_count"] == 0
+    assert [ref["record_number"] for ref in diagnostics["malformed_examples"]] == [
+        rows[1].ordinal
+    ]
+    assert "private-marker" not in json.dumps(diagnostics)
+
+
+def test_multiple_unhashable_event_names_keep_counts_and_examples_bounded():
+    rows = [structured_record(0, {"event": "candidate_skipped", "id": "111"})]
+    rows.extend(structured_record(index, {"event": [] if index % 2 else {}})
+                for index in range(1, 13))
+    rows.append(structured_record(13, {"event": "candidate_skipped", "id": "222"}))
+
+    report = digest.analyse(rows)
+    diagnostics = report["structured_event_diagnostics"]
+    assert [item["target_id"] for item in report["events"]] == ["111", "222"]
+    assert diagnostics["malformed_count"] == 12
+    assert diagnostics["malformed_reasons"] == {"event_name": 12}
+    assert diagnostics["unknown_count"] == 0
+    assert [ref["record_number"] for ref in diagnostics["malformed_examples"]] == list(range(2, 10))
+
+
+def test_unhashable_event_name_with_legacy_post_text_has_no_publication_evidence():
+    row = structured_record(0, {
+        "event": [],
+        "message": "Created X post successfully. response={'data': {'id': '999'}}",
+        "receipt": {"stage": "confirmed", "post_id": "999"},
+    })
+    report = digest.analyse([row])
+
+    assert report["structured_event_diagnostics"]["malformed_reasons"] == {"event_name": 1}
+    assert report["events"] == []
+    assert report["summary"]["stats"].get("created_x_posts", 0) == 0
+    assert report["main_post_recovery"].get("receipt_events", []) == []
+    assert report["main_post_recovery"]["receipt_lifecycle"] == {}
+
+
+def test_cli_delivers_digest_with_unhashable_event_name(tmp_path):
+    log = tmp_path / "mrsMThatcher.log"
+    output = tmp_path / "digest.json"
+    log.write_text(
+        '2026-09-04 12:00:00 INFO log_event:1 - EVENT {"event":"candidate_skipped","id":"111"}\n'
+        '2026-09-04 12:00:01 INFO log_event:2 - EVENT {"event":[],"private_payload":"private-marker"}\n'
+        '2026-09-04 12:00:02 INFO log_event:3 - EVENT {"event":"candidate_skipped","id":"222"}\n',
+        encoding="utf-8",
+    )
+
+    assert digest.main([
+        "--project-dir", str(tmp_path), "--no-state", "--json",
+        "--output", str(output), str(log),
+    ]) == 0
+    report = json.loads(output.read_text(encoding="utf-8"))
+    assert [item["target_id"] for item in report["events"]] == ["111", "222"]
+    assert report["structured_event_diagnostics"]["malformed_reasons"] == {"event_name": 1}
+    assert "private-marker" not in output.read_text(encoding="utf-8")
+
+
 def test_structured_event_diagnostic_details_are_bounded():
     rows = [structured_record(index, {"event": f"future_{index}"}) for index in range(100)]
     rows.extend(structured_record(100 + index, {"event": "x" * 4000}) for index in range(20))
