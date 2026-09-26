@@ -149,8 +149,8 @@ python3 tools/check_digest_typing_examples.py
 ```
 
 `mypy-digest.ini` checks the digest coordinator, its input/record, context,
-runtime, transaction, reporting, reply and incident modules, and
-`mrs_log_digest_contracts.py`. All listed modules require annotated functions
+runtime, transaction, reporting, reply, cost, Markdown and incident modules,
+and `mrs_log_digest_contracts.py`. All listed modules require annotated functions
 and generic arguments, and mypy checks calls into the selected core. The
 contracts and inert analysis-state module add stricter export and extra checks.
 This does not make every digest helper strict.
@@ -163,7 +163,9 @@ preserve their reader-accepted dictionaries without copying them; they do not
 claim a complete bot-state schema. `DigestCurrentSnapshots` keeps the tags
 distinct, and only the state tag enters the current-state parameters of
 `analyse()` and `DigestAnalysis`. `report_section()` reads
-the current dictionary for a known section of an analysis-built report. Its
+the current dictionary for a known section of an analysis-built report. Typed
+construction in `DigestAnalysis.build_analysis_sections()` and checked
+publication by later overlays establish the corresponding producer boundary. Its
 checked keys cover summary, resume context, mention/recovery sections, current
 state/config provenance, provider coverage and the known single-call cost field.
 Final enrichment and cursor persistence use those typed reads and writes.

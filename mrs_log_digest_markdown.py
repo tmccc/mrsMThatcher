@@ -15,6 +15,7 @@ from collections import Counter
 from decimal import Decimal
 from typing import Any, Dict, List, Mapping, Optional
 
+from mrs_log_digest_contracts import DigestReport, report_section
 from mrs_log_digest_consistency_events import prepare_context_transaction_outcomes
 from mrs_log_digest_values import (
     GENERATED_POLICIES,
@@ -124,7 +125,7 @@ def _source_bits_for_state_config(st: Dict[str, Any], cfg: Dict[str, Any]) -> Li
 
 
 def _carried_state_presentation(
-    st: Dict[str, Any], summary: Dict[str, Any]
+    st: Dict[str, Any], summary: Mapping[str, Any]
 ) -> Dict[str, Any]:
     """Describe carried state freshness without changing persisted context."""
     carried = bool(st.get("_carried_forward"))
@@ -164,8 +165,9 @@ def _compact_counts(values: Dict[str, Any]) -> str:
     return ", ".join(f"{name}={count}" for name, count in visible) or "none observed"
 
 
-def _render_overview(report: Dict[str, Any], out: List[str]) -> None:
-    s = report["summary"]
+def _render_overview(report: Dict[str, Any], out: List[str],
+                     complete_report: Optional[DigestReport] = None) -> None:
+    s = report_section(complete_report, "summary") if complete_report is not None else report["summary"]
     out.append("# MrsMThatcher log digest")
     out.append("")
     out.append(
@@ -192,7 +194,10 @@ def _render_overview(report: Dict[str, Any], out: List[str]) -> None:
     input_warning = report.get("input_warning")
     if input_warning:
         out.append(f"Input warning: **{input_warning}**")
-    structured = report.get("structured_event_diagnostics") or {}
+    structured = (
+        report_section(complete_report, "structured_event_diagnostics")
+        if complete_report is not None else report.get("structured_event_diagnostics") or {}
+    )
     unknown_count = structured.get("unknown_count", 0)
     malformed_count = structured.get("malformed_count", 0)
     if unknown_count or malformed_count:
@@ -250,8 +255,9 @@ def _render_overview(report: Dict[str, Any], out: List[str]) -> None:
     out.append("")
 
 
-def _render_latest_state(report: Dict[str, Any], out: List[str]) -> None:
-    s = report["summary"]
+def _render_latest_state(report: Dict[str, Any], out: List[str],
+                         complete_report: Optional[DigestReport] = None) -> None:
+    s = report_section(complete_report, "summary") if complete_report is not None else report["summary"]
     st = report.get("latest_state") or {}
     state_presentation = _carried_state_presentation(st, s)
     stale_state_snapshot = state_presentation["stale"] is True
@@ -353,7 +359,7 @@ def _render_latest_state(report: Dict[str, Any], out: List[str]) -> None:
                 f"{state_label_prefix}mention_backlog_age      = "
                 + (
                     _human_snapshot_age(float(backlog_age))
-                    if type(backlog_age) in {int, float}
+                    if type(backlog_age) in {int, float} and isinstance(backlog_age, (int, float))
                     else "unavailable"
                 )
             )
@@ -397,7 +403,11 @@ def _render_latest_state(report: Dict[str, Any], out: List[str]) -> None:
         out.append("")
 
     if not st:
-        runtime_state_status = report.get("runtime_state_status") or {}
+        runtime_state_status = (
+            report_section(complete_report, "runtime_state_status")
+            if complete_report is not None and "runtime_state_status" in complete_report
+            else report.get("runtime_state_status") or {}
+        )
         out.append("## Latest state")
         out.append(
             "Current bot runtime state: **unavailable** "
@@ -410,9 +420,13 @@ def _render_latest_state(report: Dict[str, Any], out: List[str]) -> None:
         out.append("")
 
 
-def _render_mention_backlog(report: Dict[str, Any], out: List[str]) -> None:
+def _render_mention_backlog(report: Dict[str, Any], out: List[str],
+                            complete_report: Optional[DigestReport] = None) -> None:
     st = report.get("latest_state") or {}
-    mention_control = report.get("mention_backlog_and_quarantine") or {}
+    mention_control = (
+        report_section(complete_report, "mention_backlog_and_quarantine")
+        if complete_report is not None else report.get("mention_backlog_and_quarantine") or {}
+    )
     mention_control_counts = mention_control.get("event_counts") or {}
     out.append("## Mention backlog and author evaluation quarantine")
     if st:
@@ -768,9 +782,11 @@ def _render_media_upload(report: Dict[str, Any], out: List[str]) -> None:
         out.append("")
 
 
-def _render_meme_schedule(report: Dict[str, Any], out: List[str]) -> None:
+def _render_meme_schedule(report: Dict[str, Any], out: List[str],
+                          complete_report: Optional[DigestReport] = None) -> None:
     st = report.get("latest_state") or {}
-    state_presentation = _carried_state_presentation(st, report["summary"])
+    summary = report_section(complete_report, "summary") if complete_report is not None else report["summary"]
+    state_presentation = _carried_state_presentation(st, summary)
     stale_state_snapshot = state_presentation["stale"] is True
     state_snapshot_only = state_presentation["snapshot_only"] is True
     state_label_prefix = "snapshot_" if state_snapshot_only else ""
@@ -855,9 +871,11 @@ def _render_meme_schedule(report: Dict[str, Any], out: List[str]) -> None:
             out.append("")
 
 
-def _render_reply_budget_and_priority(report: Dict[str, Any], out: List[str]) -> None:
+def _render_reply_budget_and_priority(report: Dict[str, Any], out: List[str],
+                                      complete_report: Optional[DigestReport] = None) -> None:
     st = report.get("latest_state") or {}
-    state_presentation = _carried_state_presentation(st, report["summary"])
+    summary = report_section(complete_report, "summary") if complete_report is not None else report["summary"]
+    state_presentation = _carried_state_presentation(st, summary)
     stale_state_snapshot = state_presentation["stale"] is True
     state_snapshot_only = state_presentation["snapshot_only"] is True
     state_label_prefix = "snapshot_" if state_snapshot_only else ""
@@ -2015,7 +2033,8 @@ def _render_reply_validation_failures(single_reply: Dict[str, Any], out: List[st
     out.append("")
 
 
-def _render_single_call_replies(report: Dict[str, Any], out: List[str]) -> None:
+def _render_single_call_replies(report: Dict[str, Any], out: List[str],
+                                complete_report: Optional[DigestReport] = None) -> None:
     single_reply = report.get("single_call_reply") or {}
     out.append("## Single-call conversational replies")
     out.append(
@@ -2105,7 +2124,10 @@ def _render_single_call_replies(report: Dict[str, Any], out: List[str]) -> None:
     )
     average_latency = single_reply.get("provider_latency_average_ms")
     maximum_latency = single_reply.get("provider_latency_maximum_ms")
-    cost_total = single_reply.get("cost_total") or {}
+    cost_total = (
+        report_section(complete_report, "single_call_reply").get("cost_total") or {}
+        if complete_report is not None else single_reply.get("cost_total") or {}
+    )
     out.append(
         "Provider latency average/max: **"
         f"{round(float(average_latency), 2) if average_latency is not None else 'unavailable'} / "
@@ -2115,7 +2137,10 @@ def _render_single_call_replies(report: Dict[str, Any], out: List[str]) -> None:
         f"({cost_total.get('status', 'unavailable')})**."
     )
     if "provider_request_coverage" in report:
-        request_coverage = report.get("provider_request_coverage") or {}
+        request_coverage = (
+            report_section(complete_report, "provider_request_coverage")
+            if complete_report is not None else report.get("provider_request_coverage") or {}
+        )
         out.append(
             "Exact provider-request coverage: **"
             + _compact_counts(request_coverage.get("category_counts") or {})
@@ -2178,9 +2203,11 @@ def _render_pagination_warnings(report: Dict[str, Any], out: List[str]) -> None:
         out.append("")
 
 
-def _render_counts(report: Dict[str, Any], out: List[str]) -> None:
-    stats = report["summary"].get("stats", {})
-    routine = report["summary"].get("routine_skip_counts", {})
+def _render_counts(report: Dict[str, Any], out: List[str],
+                   complete_report: Optional[DigestReport] = None) -> None:
+    summary = report_section(complete_report, "summary") if complete_report is not None else report["summary"]
+    stats = summary.get("stats", {})
+    routine = summary.get("routine_skip_counts", {})
     out.append("## Counts")
     out.append("```json")
     out.append(json.dumps({"stats": stats, "routine_skip_counts": routine}, indent=2, ensure_ascii=False))
@@ -2536,8 +2563,12 @@ def _render_event_details(report: Dict[str, Any], out: List[str]) -> None:
     section("used_history_normalized", "Used-history normalizations", ["time", "json_file"])
 
 
-def _render_main_post_recovery(report: Dict[str, Any], out: List[str], lifecycle_summary: Mapping[str, Any]) -> None:
-    recovery = report.get("main_post_recovery") or {}
+def _render_main_post_recovery(report: Dict[str, Any], out: List[str], lifecycle_summary: Mapping[str, Any],
+                               complete_report: Optional[DigestReport] = None) -> None:
+    recovery = (
+        report_section(complete_report, "main_post_recovery")
+        if complete_report is not None else report.get("main_post_recovery") or {}
+    )
     receipt_events = recovery.get("receipt_events") or []
     confirmed_post_recovery = recovery.get("confirmed_post_recovery") or []
     if receipt_events or confirmed_post_recovery:
@@ -2593,8 +2624,12 @@ def _render_main_post_recovery(report: Dict[str, Any], out: List[str], lifecycle
 
 def _render_reply_recovery(
     report: Dict[str, Any], out: List[str], lifecycle_summary: Mapping[str, Any],
+    complete_report: Optional[DigestReport] = None,
 ) -> None:
-    reply_recovery = report.get("confirmed_reply_recovery") or {}
+    reply_recovery = (
+        report_section(complete_report, "confirmed_reply_recovery")
+        if complete_report is not None else report.get("confirmed_reply_recovery") or {}
+    )
     reply_receipt_events = reply_recovery.get("receipt_events") or []
     reply_recovery_warnings = reply_recovery.get("warnings") or []
     active_snapshot_receipts = reply_recovery.get("active_snapshot_receipts") or []
@@ -3071,7 +3106,8 @@ def _render_lifecycle(report: Dict[str, Any], out: List[str]) -> None:
         out.append("")
 
 
-def _render_config(report: Dict[str, Any], out: List[str]) -> None:
+def _render_config(report: Dict[str, Any], out: List[str],
+                   complete_report: Optional[DigestReport] = None) -> None:
     cfg = report.get("latest_config") or {}
     if cfg:
         out.append("## On-disk local configuration overrides")
@@ -3123,7 +3159,11 @@ def _render_config(report: Dict[str, Any], out: List[str]) -> None:
         out.append("```")
         out.append("")
     else:
-        runtime_config_status = report.get("runtime_config_status") or {}
+        runtime_config_status = (
+            report_section(complete_report, "runtime_config_status")
+            if complete_report is not None and "runtime_config_status" in complete_report
+            else report.get("runtime_config_status") or {}
+        )
         out.append("## On-disk local configuration overrides")
         out.append(
             "On-disk local overrides: **unavailable** "
@@ -3142,6 +3182,7 @@ def render_markdown(
     *,
     main_post_receipt_lifecycle: Mapping[str, Any],
     reply_receipt_lifecycle: Mapping[str, Any],
+    complete_report: Optional[DigestReport] = None,
 ) -> str:
     """Render a prepared report and its main-post and reply lifecycle summaries.
 
@@ -3149,15 +3190,15 @@ def render_markdown(
     Neither the report nor the lifecycle summaries are modified.
     """
     out: List[str] = []
-    _render_overview(report, out)
-    _render_latest_state(report, out)
-    _render_mention_backlog(report, out)
+    _render_overview(report, out, complete_report)
+    _render_latest_state(report, out, complete_report)
+    _render_mention_backlog(report, out, complete_report)
     _render_retained_snapshots(report, out)
     _render_remote_write_safety(report, out)
     _render_remote_transactions(report, out)
     _render_media_upload(report, out)
-    _render_meme_schedule(report, out)
-    _render_reply_budget_and_priority(report, out)
+    _render_meme_schedule(report, out, complete_report)
+    _render_reply_budget_and_priority(report, out, complete_report)
     _render_openai_cost(report, out)
     _render_generated_images(report, out)
     _render_regular_image_usage(report, out)
@@ -3168,17 +3209,17 @@ def render_markdown(
     _render_historical_corpus(report, out)
     _render_historical_engagement(report, out)
     _render_shadow_lifecycle(report, out)
-    _render_single_call_replies(report, out)
+    _render_single_call_replies(report, out, complete_report)
     _render_pagination_warnings(report, out)
-    _render_counts(report, out)
+    _render_counts(report, out, complete_report)
     _render_event_details(report, out)
-    _render_main_post_recovery(report, out, main_post_receipt_lifecycle)
-    _render_reply_recovery(report, out, reply_receipt_lifecycle)
+    _render_main_post_recovery(report, out, main_post_receipt_lifecycle, complete_report)
+    _render_reply_recovery(report, out, reply_receipt_lifecycle, complete_report)
     _render_asset_health(report, out)
     _render_api_health(report, out)
     _render_self_test_errors(report, out)
     _render_operational_errors(report, out)
     _render_warnings(report, out)
     _render_lifecycle(report, out)
-    _render_config(report, out)
+    _render_config(report, out, complete_report)
     return "\n".join(out)

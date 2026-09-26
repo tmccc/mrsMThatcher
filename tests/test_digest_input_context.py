@@ -597,10 +597,11 @@ def test_cli_refreshes_once_after_live_overlay_in_all_output_modes(
     refreshed = []
     refresh = digest.refresh_derived
 
-    def observe_refresh(report):
+    def observe_refresh(report, *, complete_report=None):
         assert report["latest_state"]["daily_reply_count"] == 3
         assert report["latest_config"]["MAX_AUTO_REPLIES_PER_DAY"] == 10
-        refresh(report)
+        assert complete_report is report
+        refresh(report, complete_report=complete_report)
         refreshed.append(report)
 
     monkeypatch.setattr(digest, "refresh_derived", observe_refresh)

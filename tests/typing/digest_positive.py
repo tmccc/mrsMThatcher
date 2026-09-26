@@ -8,20 +8,41 @@ from datetime import datetime
 from pathlib import Path
 
 from mrs_log_digest import (
-    analyse, commit_digest_cursor, render_and_deliver_digest,
+    DigestAnalysis, analyse, commit_digest_cursor, render_and_deliver_digest,
     load_current_runtime_config, load_current_runtime_state,
     read_stable_regular_snapshot,
 )
 from mrs_log_digest_analysis import DigestCurrentSnapshots, DigestInputSelection
 from mrs_log_digest_contracts import (
-    InputFileSummary, ReadStableSnapshot, RestoredResumeContext,
-    SourceReference, report_section,
+    AnalysisReportSections, DigestReport, InputFileSummary, ReadStableSnapshot,
+    RestoredResumeContext, RuntimeStateStatus, SourceReference,
+    SingleCallCostTotal, publish_report_section, report_section,
 )
 from mrs_log_digest_records import Record, ResumeWindowSelection
 
 
 reader: ReadStableSnapshot = read_stable_regular_snapshot
 source: SourceReference = {"record_number": 1, "timestamp": "2026-09-25 12:00:00", "logger": "bot"}
+
+
+def checked_selected_sections(analysis: DigestAnalysis, report: DigestReport) -> None:
+    """Use the actual producer's named result and an overlay publication."""
+    sections: AnalysisReportSections = analysis.build_analysis_sections()
+    sections["summary"]["record_count"] += 1
+    sections["structured_event_diagnostics"]["unknown_count"] += 1
+    progress = sections["mention_backlog_and_quarantine"].get(
+        "current_author_no_reply_strike_progress"
+    )
+    if progress is not None:
+        progress["available"] = True
+    state_status: RuntimeStateStatus = {
+        "status": "available", "path": "bot_state.json", "observed_at": "2026-09-26 12:00:00",
+    }
+    publish_report_section(report, "runtime_state_status", state_status)
+    cost = report_section(report, "single_call_reply").get("cost_total")
+    if cost is not None:
+        status: str = cost["status"]
+        assert status
 
 
 def valid_transaction(args: argparse.Namespace, path: Path) -> None:
@@ -54,8 +75,9 @@ def valid_transaction(args: argparse.Namespace, path: Path) -> None:
     report_section(report, "mention_backlog_and_quarantine")[
         "current_author_no_reply_strike_progress"
     ] = {"available": False}
-    report_section(report, "single_call_reply")["cost_total"] = {
+    cost_total: SingleCallCostTotal = {
         "status": "unavailable", "amount": None, "scope": None, "method": None,
     }
+    report_section(report, "single_call_reply")["cost_total"] = cost_total
     render_and_deliver_digest(report, inputs, args)
     commit_digest_cursor(report, inputs, args, path)

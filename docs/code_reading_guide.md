@@ -524,10 +524,32 @@ and Markdown. Current runtime overlays precede saved-context application and its
 final derived refresh.
 
 For static contracts, read [mrs_log_digest_contracts.py](../mrs_log_digest_contracts.py)
-alongside the analysis state. `mypy-digest.ini` checks the selected digest core;
-raw JSON and old event/report payloads remain dynamic until a relevant field is
-validated. Current state and config are distinct snapshot types, while the
-saved resume keys have a checked internal section without changing cursor JSON.
+alongside the analysis state. `DigestAnalysis.build_analysis_sections()` builds
+the sections present at analysis time under `AnalysisReportSections`; the
+current and provider overlays publish their later sections through
+`publish_report_section()`. The principal named boundaries are:
+
+| Section | Contract | Producer or overlay | Principal consumer |
+|---|---|---|---|
+| `summary`, `resume_context` | `SummarySection`, `ResumeContext` | `DigestAnalysis.build_analysis_sections()` | headline refresh, Markdown, cursor save |
+| `mention_backlog_and_quarantine` | `MentionBacklogSection` | analysis sections; current strike overlay in `overlay_current_runtime()` | Markdown |
+| `main_post_recovery`, `confirmed_reply_recovery` | `MainPostRecoverySection`, `ConfirmedReplyRecoverySection` | analysis sections; receipt lifecycle in `complete_report()` | lifecycle preparation, Markdown |
+| `structured_event_diagnostics` | `StructuredEventDiagnosticsSection` | analysis sections from bounded EVENT observations | Markdown |
+| `runtime_state_status`, `runtime_config_status` | `RuntimeStateStatus`, `RuntimeConfigStatus` | `overlay_current_runtime()` after current snapshot reads | headline refresh, Markdown, cursor save |
+| `provider_request_coverage` | `ProviderRequestCoverage` | `provider_request_export()`; `add_provider_and_cost_evidence()` publishes it | Markdown |
+| `single_call_reply.cost_total` | `SingleCallAnalysisCostTotal`, then `SingleCallCostTotal` | `single_call_reply_summary()` placeholder; provider-cost overlay replaces it | Markdown |
+
+The runtime status and provider coverage sections are absent before their
+overlays. The single-call section remains a historical, partly dynamic report;
+only its cost portion is checked, with the two existing construction phases
+kept distinct. `mypy-digest.ini` exposes diagnostics for these producers and
+the Markdown renderer. Raw log JSON, saved cursor JSON and other old report
+sections remain dynamic until their existing readers establish needed fields.
+`report_section()` bridges a report built by analysis to checked internal reads
+without copying it; its cast does not validate an arbitrary or partial report.
+Public renderers retain their established missing-field fallbacks for such
+reports. Current state and config are distinct snapshot types, and the saved
+resume keys retain their checked internal section without changing cursor JSON.
 
 ## Boundaries and older material
 

@@ -178,6 +178,13 @@ class ProviderRequestCoverage(TypedDict):
     historical_not_recorded_calls: list[dict[str, Any]]
 
 
+class SingleCallAnalysisCostTotal(TypedDict):
+    """Cost placeholder produced during log analysis, before cost evidence."""
+
+    status: str
+    amount: object
+
+
 class SingleCallCostTotal(TypedDict):
     """Published-cost overlay on the otherwise legacy single-call section."""
 
@@ -190,7 +197,18 @@ class SingleCallCostTotal(TypedDict):
 class SingleCallReplyCostSection(TypedDict, total=False):
     """Known cost field in the otherwise historical single-call section."""
 
-    cost_total: SingleCallCostTotal
+    cost_total: Union[SingleCallAnalysisCostTotal, SingleCallCostTotal]
+
+
+class AnalysisReportSections(TypedDict):
+    """Named sections present when analysis first publishes its report."""
+
+    summary: SummarySection
+    structured_event_diagnostics: StructuredEventDiagnosticsSection
+    mention_backlog_and_quarantine: MentionBacklogSection
+    main_post_recovery: MainPostRecoverySection
+    confirmed_reply_recovery: ConfirmedReplyRecoverySection
+    resume_context: ResumeContext
 
 
 # NewType is an identity operation at runtime: the report remains the exact
@@ -273,3 +291,29 @@ def report_section(report: DigestReport, name: str) -> ReportSection:
     There is deliberately no overload for unknown extension section names.
     """
     return cast(ReportSection, report[name])
+
+
+@overload
+def publish_report_section(report: DigestReport, name: Literal["runtime_state_status"],
+                           section: RuntimeStateStatus) -> None:
+    """Publish current state provenance after the runtime overlay."""
+    ...
+
+
+@overload
+def publish_report_section(report: DigestReport, name: Literal["runtime_config_status"],
+                           section: RuntimeConfigStatus) -> None:
+    """Publish current config provenance after the runtime overlay."""
+    ...
+
+
+@overload
+def publish_report_section(report: DigestReport, name: Literal["provider_request_coverage"],
+                           section: ProviderRequestCoverage) -> None:
+    """Publish provider capture coverage after the optional evidence overlay."""
+    ...
+
+
+def publish_report_section(report: DigestReport, name: str, section: ReportSection) -> None:
+    """Attach an overlay-only section under its checked production name."""
+    report[name] = section

@@ -16,7 +16,7 @@ from datetime import datetime, tzinfo
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, TypedDict, cast
 
-from mrs_log_digest_contracts import RuntimeConfigSnapshot, RuntimeStateSnapshot
+from mrs_log_digest_contracts import DigestReport, RuntimeConfigSnapshot, RuntimeStateSnapshot, report_section
 from mrs_log_digest_records import Record
 
 
@@ -937,6 +937,7 @@ def prepare_reply_quality_headline(
 def refresh_current_health_headline(
     report: Dict[str, Any],
     *,
+    complete_report: Optional[DigestReport] = None,
     int_or_none: Callable[[Any], Optional[int]],
     plural_count: Callable[..., str],
     cooldown_state_text: Callable[[Any, int], str],
@@ -949,13 +950,17 @@ def refresh_current_health_headline(
     """
     if "runtime_state_status" not in report:
         return
-    summary = _summary_for_refresh(report, null_is_empty=True)
+    summary = (
+        report_section(complete_report, "summary")
+        if complete_report is not None else _summary_for_refresh(report, null_is_empty=True)
+    )
     components = summary.get("_headline_components")
     if not isinstance(components, dict):
         return
-    runtime_status = str(
-        (report.get("runtime_state_status") or {}).get("status") or ""
-    )
+    runtime_status = str((
+        report_section(complete_report, "runtime_state_status").get("status")
+        if complete_report is not None else (report.get("runtime_state_status") or {}).get("status")
+    ) or "")
     generated = int_or_none(report.get("generation_epoch"))
     state = report.get("latest_state") or {}
     current_incidents = int(
@@ -1019,6 +1024,7 @@ def refresh_current_health_headline(
 def refresh_derived(
     report: Dict[str, Any],
     *,
+    complete_report: Optional[DigestReport] = None,
     int_or_none: Callable[[Any], Optional[int]],
     epoch_to_human: Callable[[Any], Optional[str]],
     refresh_current_health_headline: Callable[[Dict[str, Any]], None],
@@ -1026,7 +1032,11 @@ def refresh_derived(
     """Recalculate derived sections after any carried-forward context is applied."""
     configs = report.get("latest_config") or {}
     st = report.get("latest_state") or {}
-    stats = _summary_for_refresh(report, null_is_empty=False).get("stats", {}) or {}
+    summary = (
+        report_section(complete_report, "summary")
+        if complete_report is not None else _summary_for_refresh(report, null_is_empty=False)
+    )
+    stats = summary.get("stats", {}) or {}
 
     # Cooldown human timestamps are derived from the epoch. Recompute after
     # saved-context merging so a cleared epoch=0 cannot keep an old date/reason.

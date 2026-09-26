@@ -54,11 +54,12 @@ from mrs_log_digest_analysis import (
     DigestAnalysisState, DigestInputSelection, DigestCurrentSnapshots,
 )
 from mrs_log_digest_contracts import (
-    ConfirmedReplyRecoverySection, DigestReport, InputFileSummary, MainPostRecoverySection,
+    AnalysisReportSections, ConfirmedReplyRecoverySection, DigestReport, InputFileSummary, MainPostRecoverySection,
     MentionBacklogSection, ProviderRequestCoverage, RestoredResumeContext,
     ResumeContext, RuntimeConfigSnapshot, RuntimeConfigStatus,
     RuntimeStateSnapshot, RuntimeStateStatus, SingleCallCostTotal,
-    SourceReference, SummarySection, report_section,
+    SourceReference, StructuredEventDiagnosticsSection, SummarySection,
+    publish_report_section, report_section,
 )
 from mrs_log_digest_context import (
     INTERNAL_CONTEXT_KEYS,
@@ -2631,9 +2632,8 @@ class DigestAnalysis(DigestAnalysisState):
             self.pipeline_evaluations_skipped,
         ) = prepare_mention_control_observations(self.events, event_counter=Counter)
 
-    def build_report(self) -> None:
-        """Assemble the stable JSON report sections from prepared observations."""
-        assert self.api_health_preparation is not None
+    def build_analysis_sections(self) -> AnalysisReportSections:
+        """Construct the named sections available at the analysis phase."""
         summary: SummarySection = {
                 "record_count": len(self.records),
                 "time_start": self.records[0].ts.strftime("%Y-%m-%d %H:%M:%S") if self.records else None,
@@ -2691,32 +2691,46 @@ class DigestAnalysis(DigestAnalysisState):
                 else None
             ),
         }
-        self.report = DigestReport({
+        diagnostics: StructuredEventDiagnosticsSection = {
+            "unknown_count": self.stats.get("structured_unknown_events", 0),
+            "malformed_count": sum(self.structured_malformed_reasons.values()),
+            "unknown_names": [
+                {"name": name, "count": count}
+                for name, count in sorted(self.structured_unknown_names.items())
+            ],
+            "unlisted_unknown_count": self.structured_unlisted_unknown_count,
+            "malformed_reasons": dict(sorted(self.structured_malformed_reasons.items())),
+            "unknown_examples": self.structured_unknown_examples,
+            "malformed_examples": self.structured_malformed_examples,
+        }
+        return {
             "summary": summary,
-            "structured_event_diagnostics": {
-                "unknown_count": self.stats.get("structured_unknown_events", 0),
-                "malformed_count": sum(self.structured_malformed_reasons.values()),
-                "unknown_names": [
-                    {"name": name, "count": count}
-                    for name, count in sorted(self.structured_unknown_names.items())
-                ],
-                "unlisted_unknown_count": self.structured_unlisted_unknown_count,
-                "malformed_reasons": dict(sorted(self.structured_malformed_reasons.items())),
-                "unknown_examples": self.structured_unknown_examples,
-                "malformed_examples": self.structured_malformed_examples,
-            },
+            "structured_event_diagnostics": diagnostics,
+            "mention_backlog_and_quarantine": mention_backlog,
+            "main_post_recovery": main_post_recovery,
+            "confirmed_reply_recovery": confirmed_reply_recovery,
+            "resume_context": resume_context,
+        }
+
+    def build_report(self) -> None:
+        """Assemble the stable JSON report sections from prepared observations."""
+        assert self.api_health_preparation is not None
+        sections = self.build_analysis_sections()
+        self.report = DigestReport({
+            "summary": sections["summary"],
+            "structured_event_diagnostics": sections["structured_event_diagnostics"],
             "latest_config": self.configs,
             "latest_state": self.latest_state_summary,
             "derived": self.derived,
-            "mention_backlog_and_quarantine": mention_backlog,
+            "mention_backlog_and_quarantine": sections["mention_backlog_and_quarantine"],
             "api_health": api_health_report(
                 self.api_health_preparation, api_errors=self.api_errors,
                 handled_api_restrictions=self.handled_api_restrictions,
                 cooldown_active=self.cooldown_active, x_requests=self.x_requests,
             ),
-            "main_post_recovery": main_post_recovery,
+            "main_post_recovery": sections["main_post_recovery"],
             "remote_write_transactions": self.remote_write_transactions,
-            "confirmed_reply_recovery": confirmed_reply_recovery,
+            "confirmed_reply_recovery": sections["confirmed_reply_recovery"],
             "quote_publication": {
                 "correlation_warnings": self.quote_publications.warnings,
                 "correlation_warning_omitted_count": (
@@ -2775,7 +2789,7 @@ class DigestAnalysis(DigestAnalysisState):
                 "latest": self.latest_generated_image_spacing,
                 "events": self.generated_image_spacing_events,
             },
-            "resume_context": resume_context,
+            "resume_context": sections["resume_context"],
             "lifecycle": self.lifecycle[-12:],
             "events": self.events,
             "self_test_errors": self.self_test_errors[-40:],
@@ -2868,10 +2882,12 @@ def analyse(
     return analysis.finalize()
 
 
-def refresh_current_health_headline(report: Dict[str, Any]) -> None:
+def refresh_current_health_headline(report: Dict[str, Any], *,
+                                    complete_report: Optional[DigestReport] = None) -> None:
     """Rebuild current-health and cooldown claims after runtime overlay."""
     _refresh_current_health_headline(
         report,
+        complete_report=complete_report,
         int_or_none=int_or_none,
         plural_count=plural_count,
         cooldown_state_text=cooldown_state_text,
@@ -2879,27 +2895,40 @@ def refresh_current_health_headline(report: Dict[str, Any]) -> None:
     )
 
 
-def refresh_derived(report: Dict[str, Any]) -> None:
+def refresh_derived(report: Dict[str, Any], *, complete_report: Optional[DigestReport] = None) -> None:
     """Recalculate derived sections after any carried-forward context is applied."""
+    def refresh_headline(current: Dict[str, Any]) -> None:
+        """Keep the complete-report boundary through the final headline update."""
+        refresh_current_health_headline(current, complete_report=complete_report)
+
     _refresh_derived(
         report,
+        complete_report=complete_report,
         int_or_none=int_or_none,
         epoch_to_human=epoch_to_human,
-        refresh_current_health_headline=refresh_current_health_headline,
+        refresh_current_health_headline=(
+            refresh_current_health_headline if complete_report is None else refresh_headline
+        ),
     )
 
 
 def apply_saved_context(
     report: Dict[str, Any],
     state_file: Path,
+    *,
+    complete_report: Optional[DigestReport] = None,
 ) -> None:
     """Load digest-cursor history without presenting it as current bot state."""
+    def refresh_checked(current: Dict[str, Any]) -> None:
+        """Refresh after saved context with the analysis report's typed sections."""
+        refresh_derived(current, complete_report=complete_report)
+
     _apply_saved_context(
         report,
         state_file,
         read_resume_data=read_resume_data,
         strip_internal_context_markers=strip_internal_context_markers,
-        refresh_derived=refresh_derived,
+        refresh_derived=refresh_derived if complete_report is None else refresh_checked,
     )
 
 
@@ -2939,13 +2968,16 @@ def _receipt_lifecycle_summaries(
     return main_post_lifecycle, reply_lifecycle
 
 
-def render_markdown(report: Dict[str, Any]) -> str:
+def render_markdown(report: Dict[str, Any], *, complete_report: Optional[DigestReport] = None) -> str:
     """Render a prepared digest, also accepting older reports without summaries."""
-    main_post_lifecycle, reply_lifecycle = _receipt_lifecycle_summaries(report)
+    main_post_lifecycle, reply_lifecycle = _receipt_lifecycle_summaries(
+        report, complete_report=complete_report,
+    )
     return _render_digest_markdown(
         report,
         main_post_receipt_lifecycle=main_post_lifecycle,
         reply_receipt_lifecycle=reply_lifecycle,
+        complete_report=complete_report,
     )
 
 
@@ -3512,7 +3544,7 @@ def overlay_current_runtime(report: DigestReport, inputs: DigestInputSelection, 
         "path": str(snapshots.runtime_state_path),
         "observed_at": dt_text(snapshots.runtime_state_observed_at),
     }
-    report["runtime_state_status"] = state_status
+    publish_report_section(report, "runtime_state_status", state_status)
     report["latest_state"] = (
         summarize_latest_state(
             snapshots.runtime_state,
@@ -3529,7 +3561,7 @@ def overlay_current_runtime(report: DigestReport, inputs: DigestInputSelection, 
         "path": str(snapshots.runtime_config_path),
         "time": dt_text(snapshots.runtime_config_ts) if snapshots.runtime_config_ts else None,
     }
-    report["runtime_config_status"] = config_status
+    publish_report_section(report, "runtime_config_status", config_status)
     report["latest_config"] = snapshots.runtime_config or {}
     report["meme_queue_health"] = meme_queue_health_snapshot(
         project_dir,
@@ -3567,9 +3599,9 @@ def overlay_current_runtime(report: DigestReport, inputs: DigestInputSelection, 
     # Saved history does not replace live state/configuration. Apply it after
     # the runtime overlay so its complete-result refresh is the only refresh.
     if not args.no_state and not args.reset_state:
-        apply_saved_context(report, state_file)
+        apply_saved_context(report, state_file, complete_report=report)
     else:
-        refresh_derived(report)
+        refresh_derived(report, complete_report=report)
 
     if not inputs.records:
         report["saved_last_log_entry_time"] = dt_text(inputs.since) if inputs.since else None
@@ -3599,7 +3631,7 @@ def add_provider_and_cost_evidence(report: DigestReport, inputs: DigestInputSele
         window_end=selected_window_end,
     )
     report["provider_requests"] = provider_requests
-    report["provider_request_coverage"] = provider_request_coverage
+    publish_report_section(report, "provider_request_coverage", provider_request_coverage)
     report["openai_published_cost"] = openai_published_cost_report(
         cache_path=OPENAI_COST_CACHE_PATH,
         window_start_local=selected_window_start,
@@ -3636,13 +3668,13 @@ def render_and_deliver_digest(report: DigestReport, inputs: DigestInputSelection
         assert json_rendered is not None
         rendered = json_rendered
     else:
-        rendered = render_markdown(report) + "\n"
+        rendered = render_markdown(report, complete_report=report) + "\n"
         if not inputs.records:
             rendered += "\n<!-- no matching records; resume state not advanced -->\n"
 
     deliver_report(rendered, args.output)
     if args.markdown_output is not None:
-        deliver_report(render_markdown(report) + "\n", args.markdown_output)
+        deliver_report(render_markdown(report, complete_report=report) + "\n", args.markdown_output)
     if args.json_output is not None:
         assert json_rendered is not None
         deliver_report(json_rendered, args.json_output)

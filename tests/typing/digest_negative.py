@@ -11,8 +11,9 @@ from pathlib import Path
 from mrs_log_digest import DigestAnalysis, analyse, commit_digest_cursor, render_and_deliver_digest, save_resume_time
 from mrs_log_digest_analysis import AnalysisSourceContext, DigestCurrentSnapshots, DigestInputSelection
 from mrs_log_digest_contracts import (
-    ReadStableSnapshot, RestoredResumeContext, ResumeContext,
-    RuntimeConfigSnapshot, SourceReference, SummarySection, report_section,
+    DigestReport, ReadStableSnapshot, RestoredResumeContext, ResumeContext,
+    RuntimeConfigSnapshot, RuntimeConfigStatus, SingleCallAnalysisCostTotal,
+    SourceReference, SummarySection, publish_report_section, report_section,
 )
 from mrs_log_digest_records import ResumeWindowSelection
 
@@ -36,6 +37,28 @@ bad_summary: SummarySection = {
     "headline": "", "_headline_without_current_cooldown": [],
     "_headline_components": {}, "stats": {}, "routine_skip_counts": {},
 }
+
+
+def missing_summary_field() -> SummarySection:
+    """A selected-section producer cannot omit a required headline field."""
+    return {  # expect: typeddict-item
+        "record_count": 0, "time_start": None, "time_end": None,
+        "_headline_without_current_cooldown": [], "_headline_components": {},
+        "stats": {}, "routine_skip_counts": {},
+    }
+
+
+def invalid_actual_producer_consumer(analysis: DigestAnalysis, report: DigestReport) -> None:
+    """The real analysis builder and overlay publisher expose field mistakes."""
+    sections = analysis.build_analysis_sections()
+    sections["summary"]["record_cout"] = 1  # expect: typeddict-unknown-key
+    config_status: RuntimeConfigStatus = {
+        "status": "available", "path": "config.json", "time": None,
+    }
+    publish_report_section(report, "runtime_state_status", config_status)  # expect: call-overload
+    required_cost: SingleCallAnalysisCostTotal = report_section(report, "single_call_reply").get("cost_total")  # expect: assignment
+    assert required_cost
+
 bad_context = AnalysisSourceContext(active_xai_call_attempt_index="first")  # expect: arg-type
 
 

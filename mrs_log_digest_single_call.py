@@ -12,6 +12,7 @@ from collections import Counter
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
+from mrs_log_digest_contracts import SingleCallAnalysisCostTotal
 from mrs_log_digest_values import (
     bounded_event_nonnegative_integer,
     bounded_event_nonnegative_integer_observation,
@@ -402,6 +403,10 @@ def single_call_reply_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         and item.get("error_category") != "schema_validation"
         for item in decisions
     )
+    analysis_cost: SingleCallAnalysisCostTotal = {
+        "status": "unavailable_during_log_analysis",
+        "amount": None,
+    }
     return {
         "candidate_evaluation_count": len(decisions),
         "reply_decision_count": sum(
@@ -449,10 +454,7 @@ def single_call_reply_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         "provider_request_attempt_counts": count_values(
             usage, "request_attempt_count"
         ),
-        "cost_total": {
-            "status": "unavailable_during_log_analysis",
-            "amount": None,
-        },
+        "cost_total": analysis_cost,
     }
 
 

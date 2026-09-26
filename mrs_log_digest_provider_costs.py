@@ -265,7 +265,7 @@ def xai_reply_cost_summary(
     failures: Dict[Tuple[str, str], Dict[str, Any]] = {}
     local_rejections: Dict[Tuple[str, str], Dict[str, Any]] = {}
     local_rejections_by_target: Dict[str, Dict[str, Any]] = {}
-    execution_event_counts: Counter = Counter()
+    execution_event_counts: Counter[Tuple[str, str]] = Counter()
     for item in reply_events:
         target_id = str(item.get("target_id") or "")
         if not target_id:
