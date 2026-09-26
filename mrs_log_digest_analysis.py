@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from mrs_log_digest_records import Record, ResumeWindowSelection
 from mrs_log_digest_contracts import (
     DigestReport, InputFileSummary, RuntimeConfigSnapshot, RuntimeStateSnapshot,
+    SourceReference,
 )
 
 
@@ -117,6 +118,11 @@ class DigestAnalysisState:
     msg: str = ""
     production_record: bool = False
     strict_structured_event_obj: Optional[Dict[str, Any]] = None
+    structured_unknown_names: Dict[str, int] = field(default_factory=dict)
+    structured_unknown_examples: List[SourceReference] = field(default_factory=list)
+    structured_malformed_examples: List[SourceReference] = field(default_factory=list)
+    structured_malformed_reasons: Counter[str] = field(default_factory=Counter)
+    structured_unlisted_unknown_count: int = 0
     is_reply_visual_description_event: bool = False
     is_asset_metadata_warning: bool = False
     is_handled_reply_restriction: bool = False

@@ -491,6 +491,14 @@ error/provider observers before structured EVENT routing, legacy evidence,
 legacy posting and remaining skips. Each handled route stops that record's
 later routing. `DigestAnalysisState` owns the collections and independent
 production/self-test pending contexts; resumed context belongs to production.
+
+Unknown EVENT names and rejected strict envelopes remain outside legacy parsing.
+The additive `structured_event_diagnostics` JSON section counts each and keeps
+bounded names and source references; Markdown shows a compact summary only
+when observations exist. These are interpretation diagnostics, not posting or
+API failure evidence. Retired engagement-question producer names remain
+recognised and intentionally omitted.
+
 `reconcile_observations()`, `prepare_report_sections()`, `build_report()` and
 `complete_report()` separate post-loop work. Event-family modules still consume
 supplied observations and callbacks. Current snapshots remain current evidence,

@@ -1360,11 +1360,12 @@ def test_missing_tail_after_retention_keeps_new_post_rollback_record(tmp_path: P
     rotation = project / "mrsMThatcher.log.1"
     state = project / ".resume.json"
     report = project / "report.md"
+    json_report = project / "report.json"
     high = "2026-07-10 13:20:00 ERROR    worker:9 - older high timestamp\n"
     low = "2026-07-10 12:25:00 ERROR    worker:9 - physical boundary\n"
     later = "2026-07-10 12:30:00 ERROR    worker:9 - retained new event\n"
     args = ["--project-dir", str(project), "--state-file", state.name,
-            "--output", str(report), str(current)]
+            "--output", str(report), "--json-output", str(json_report), str(current)]
     current.write_text(high + low, encoding="utf-8")
     assert digest.main(args) == 0
     current.replace(rotation)
@@ -1372,7 +1373,12 @@ def test_missing_tail_after_retention_keeps_new_post_rollback_record(tmp_path: P
     rotation.unlink()  # Retention has removed the saved physical tail.
 
     assert digest.main(args) == 0
-    assert "saved physical resume cursor was not found" in capsys.readouterr().err
+    stderr = capsys.readouterr().err
+    warning = json.loads(json_report.read_text())["input_warning"]
+    assert "replay retained records or omit new records" in stderr
+    assert "replay retained records or omit new records" in warning
+    assert warning in report.read_text()
+    assert "coverage of the preceding interval cannot be verified" in warning
     assert "retained new event" in report.read_text()
     saved = json.loads(state.read_text())
     assert saved["last_log_entry_time"] == "2026-07-10 12:30:00"

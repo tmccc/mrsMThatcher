@@ -697,7 +697,82 @@ def test_malformed_visual_event_detection_cannot_supply_structured_authority(
     assert report["summary"]["stats"].get("reply_visual_description_events", 0) == 0
     assert report["events"] == []
     assert report["published_reply_text_health"]["confirmed_record_count"] == 0
+    assert report["structured_event_diagnostics"]["unknown_count"] == 0
+    assert report["structured_event_diagnostics"]["malformed_count"] == (
+        0 if malformed_count else 1
+    )
     json.dumps(report, ensure_ascii=False, allow_nan=False).encode("utf-8")
+
+
+def test_structured_event_diagnostics_keep_known_unknown_and_malformed_separate():
+    rows = [
+        structured_record(0, {"event": "candidate_skipped", "lane": "mention", "id": "123"}),
+        structured_record(1, {"event": "future_event", "message": "Created X post successfully. response={'data': {'id': '999'}}"}),
+        structured_record(2, {}),
+        replace(structured_record(3, {}), msg='EVENT {"event":"broken",'),
+        replace(structured_record(4, {}), msg='EVENT {"event":"future_event","event":"other"}'),
+        replace(structured_record(5, {}), msg='EVENT {"event":"future_event","value":NaN}'),
+    ]
+    report = digest.analyse(rows)
+    diagnostics = report["structured_event_diagnostics"]
+
+    assert diagnostics["unknown_count"] == 1
+    assert diagnostics["unknown_names"] == [{"name": "future_event", "count": 1}]
+    assert diagnostics["malformed_count"] == 4
+    assert diagnostics["malformed_reasons"] == {"event_name": 1, "strict_parse": 3}
+    assert diagnostics["unknown_examples"][0]["record_number"] == rows[1].ordinal
+    assert [ref["record_number"] for ref in diagnostics["malformed_examples"]] == [
+        row.ordinal for row in rows[2:]
+    ]
+    assert [item["kind"] for item in report["events"]] == ["candidate_skipped"]
+    assert report["summary"]["stats"].get("created_x_posts", 0) == 0
+    rendered = digest.render_markdown(report)
+    assert "Structured EVENT coverage:" in rendered
+    assert "`future_event` (1)" in rendered
+    assert "Created X post successfully" not in rendered
+
+
+def test_structured_event_diagnostic_details_are_bounded():
+    rows = [structured_record(index, {"event": f"future_{index}"}) for index in range(100)]
+    rows.extend(structured_record(100 + index, {"event": "x" * 4000}) for index in range(20))
+    rows.append(replace(structured_record(121, {}), msg=(
+        'EVENT {"event":"future","payload":"Created X post successfully. '
+        "response={'data': {'id': '999'}}\""
+    )))
+    report = digest.analyse(rows)
+    diagnostics = report["structured_event_diagnostics"]
+
+    assert diagnostics["unknown_count"] == 120
+    assert diagnostics["malformed_count"] == 1
+    assert len(diagnostics["unknown_names"]) <= 16
+    assert diagnostics["unlisted_unknown_count"] == 104
+    assert len(diagnostics["unknown_examples"]) == 8
+    assert len(diagnostics["malformed_examples"]) == 1
+    assert max(len(item["name"]) for item in diagnostics["unknown_names"]) <= 80
+    assert "x" * 100 not in json.dumps(diagnostics)
+    assert report["summary"]["stats"].get("created_x_posts", 0) == 0
+
+
+def test_string_event_name_outside_display_alphabet_is_unknown_not_invalid():
+    report = digest.analyse([
+        structured_record(0, {"event": "future|event`secret"}),
+        structured_record(1, {"event": 7}),
+        structured_record(2, {"event": ""}),
+    ])
+    diagnostics = report["structured_event_diagnostics"]
+    assert diagnostics["unknown_count"] == 1
+    assert diagnostics["malformed_count"] == 2
+    assert diagnostics["unknown_names"] == [
+        {"name": "(name omitted for safe display)", "count": 1}
+    ]
+    assert "future|event`secret" not in digest.render_markdown(report)
+
+
+def test_clean_known_structured_event_has_empty_diagnostics_and_no_markdown_summary():
+    report = digest.analyse([structured_record(0, {"event": "candidate_skipped", "lane": "mention"})])
+    assert report["structured_event_diagnostics"]["unknown_count"] == 0
+    assert report["structured_event_diagnostics"]["malformed_count"] == 0
+    assert "Structured EVENT coverage:" not in digest.render_markdown(report)
 
 
 def test_reply_visual_description_contract_rejects_unsafe_shapes() -> None:

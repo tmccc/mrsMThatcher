@@ -207,6 +207,20 @@ class _QuoteCandidate:
     text: str
 
 
+def _compose_quote_scan_status(earlier_failure: str | None, outcome: str) -> str:
+    """Keep scan failures on no-post completion; API outranks local failure."""
+    if outcome in {QUOTE_CHECK_STATUS_API_ERROR, QUOTE_CHECK_STATUS_LOCAL_ERROR}:
+        if earlier_failure == QUOTE_CHECK_STATUS_API_ERROR:
+            return earlier_failure
+        if outcome == QUOTE_CHECK_STATUS_API_ERROR:
+            return outcome
+        return earlier_failure or outcome
+    if outcome == QUOTE_CHECK_STATUS_CHECKED:
+        return earlier_failure or outcome
+    # A post and explicit control outcomes retain their own meaning.
+    return outcome
+
+
 class QuoteReplyCycle:
     """Run one reply-lane pass with construction-time collaborators."""
 
@@ -395,10 +409,12 @@ class QuoteReplyCycle:
                 original_post_id, state, quote_tweets
             )
             if isinstance(lookup, FinishReplyCheck):
-                return lookup.status
+                return _compose_quote_scan_status(scan_failure_status, lookup.status)
             if isinstance(lookup, SkipReplyCandidate):
                 if lookup.failure_status is not None:
-                    scan_failure_status = lookup.failure_status
+                    scan_failure_status = _compose_quote_scan_status(
+                        scan_failure_status, lookup.failure_status,
+                    )
                 continue
             original_tweet, quote_tweets = lookup
 
@@ -438,7 +454,7 @@ class QuoteReplyCycle:
                     candidate, original_post_id, state
                 )
                 if isinstance(prepared, FinishReplyCheck):
-                    return prepared.status
+                    return _compose_quote_scan_status(scan_failure_status, prepared.status)
                 if isinstance(prepared, SkipReplyCandidate):
                     continue
                 reply_context = prepared.context
@@ -446,12 +462,12 @@ class QuoteReplyCycle:
                 processed_candidates += 1
                 evaluation = self._evaluate_reply(candidate, prepared, state)
                 if isinstance(evaluation, FinishReplyCheck):
-                    return evaluation.status
+                    return _compose_quote_scan_status(scan_failure_status, evaluation.status)
                 decision = self._resolve_reply_evaluation(
                     candidate.quote_id, evaluation, state
                 )
                 if isinstance(decision, FinishReplyCheck):
-                    return decision.status
+                    return _compose_quote_scan_status(scan_failure_status, decision.status)
                 if isinstance(decision, SkipReplyCandidate):
                     continue
 
@@ -464,19 +480,19 @@ class QuoteReplyCycle:
                     candidate, original_post_id, reply_text, reply_context, state
                 )
                 if isinstance(receipt_template, FinishReplyCheck):
-                    return receipt_template.status
+                    return _compose_quote_scan_status(scan_failure_status, receipt_template.status)
                 receipt = self._deliver_reply(
                     candidate.quote_id, reply_text, receipt_template, state
                 )
                 if isinstance(receipt, FinishReplyCheck):
-                    return receipt.status
+                    return _compose_quote_scan_status(scan_failure_status, receipt.status)
                 return self._finalise_confirmed_reply(
                     candidate, original_post_id, receipt, state
                 )
 
         self.persistence.save(state)
         self.log.info("Quote-tweet reply check finished with no reply generated/posted")
-        return scan_failure_status or QUOTE_CHECK_STATUS_CHECKED
+        return _compose_quote_scan_status(scan_failure_status, QUOTE_CHECK_STATUS_CHECKED)
 
     def _lookup_quote_candidates(
         self, original_post_id: str, state: BotState, quote_tweets: list[dict[str, Any]]

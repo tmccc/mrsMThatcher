@@ -111,6 +111,25 @@ class MentionBacklogSection(_MentionCurrentProgress):
     pipeline_evaluations_skipped: int
 
 
+class StructuredUnknownName(TypedDict):
+    """One safely displayed EVENT name and its retained-record count."""
+
+    name: str
+    count: int
+
+
+class StructuredEventDiagnosticsSection(TypedDict):
+    """Bounded coverage observations for EVENT envelopes and future names."""
+
+    unknown_count: int
+    malformed_count: int
+    unknown_names: list[StructuredUnknownName]
+    unlisted_unknown_count: int
+    malformed_reasons: dict[str, int]
+    unknown_examples: list[SourceReference]
+    malformed_examples: list[SourceReference]
+
+
 class _RecoveryLifecycle(TypedDict, total=False):
     """Lifecycle summary added after receipt reconciliation."""
 
@@ -180,7 +199,7 @@ class SingleCallReplyCostSection(TypedDict, total=False):
 DigestReport = NewType("DigestReport", dict[str, Any])
 
 ReportSection = Union[
-    SummarySection, ResumeContext, MentionBacklogSection, MainPostRecoverySection,
+    SummarySection, ResumeContext, MentionBacklogSection, StructuredEventDiagnosticsSection, MainPostRecoverySection,
     ConfirmedReplyRecoverySection, RuntimeStateStatus, RuntimeConfigStatus,
     ProviderRequestCoverage, SingleCallReplyCostSection,
 ]
@@ -201,6 +220,12 @@ def report_section(report: DigestReport, name: Literal["resume_context"]) -> Res
 @overload
 def report_section(report: DigestReport, name: Literal["mention_backlog_and_quarantine"]) -> MentionBacklogSection:
     """Read the mention section of an analysis-built report."""
+    ...
+
+
+@overload
+def report_section(report: DigestReport, name: Literal["structured_event_diagnostics"]) -> StructuredEventDiagnosticsSection:
+    """Read bounded structured-envelope coverage diagnostics."""
     ...
 
 

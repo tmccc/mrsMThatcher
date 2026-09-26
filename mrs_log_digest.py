@@ -455,6 +455,18 @@ from mrs_log_digest_markdown import (
 DIGEST_JSON_SCHEMA_VERSION = 4
 DIGEST_JSON_OUTPUT_KIND = "mrs_log_digest"
 DIGEST_SOURCE_MAX_BYTES = 4 * 1024 * 1024
+TIMESTAMP_FALLBACK_WARNING = (
+    "saved physical resume cursor was not found in retained logs; conservative "
+    "timestamp fallback can replay retained records or omit new records after "
+    "a backward clock jump"
+)
+STRUCTURED_DIAGNOSTIC_EXAMPLE_LIMIT = 8
+STRUCTURED_DIAGNOSTIC_NAME_LIMIT = 16
+STRUCTURED_DIAGNOSTIC_NAME_LENGTH = 80
+INTENTIONALLY_IGNORED_EVENT_NAMES = frozenset({
+    "engagement_question_experimental_member_confirmed",
+    "engagement_question_experimental_member_deferred",
+})
 LONDON = ZoneInfo("Europe/London")
 PROVENANCE_EVENT_KINDS = frozenset(
     {
@@ -2208,8 +2220,45 @@ class DigestAnalysis(DigestAnalysisState):
                     target_id=(event_obj.get("id") if valid_string_public_post_id(event_obj.get("id")) else ""),
                     reason=bounded_event_text(event_obj.get("reason"), default="other", max_characters=500),
                 )
+            elif event_obj and event_obj.get("event") in INTENTIONALLY_IGNORED_EVENT_NAMES:
+                pass  # Retired producer vocabulary is recognised but intentionally omitted.
+            elif event_obj is None:
+                self.note_malformed_structured_event(r, "strict_parse")
+            elif not isinstance(event_obj.get("event"), str) or not event_obj.get("event"):
+                self.note_malformed_structured_event(r, "event_name")
+            else:
+                self.note_unknown_structured_event(r, event_obj["event"])
             return True
         return False
+
+    def note_malformed_structured_event(self, r: Record, reason: str) -> None:
+        """Count a rejected envelope without retaining its raw contents."""
+        self.stats["structured_malformed_events"] += 1
+        self.structured_malformed_reasons[reason] += 1
+        if len(self.structured_malformed_examples) < STRUCTURED_DIAGNOSTIC_EXAMPLE_LIMIT:
+            self.structured_malformed_examples.append(
+                record_source_ref(r, self.input_file_indexes)
+            )
+
+    def note_unknown_structured_event(self, r: Record, name: str) -> None:
+        """Count future names while bounding retained identity and provenance."""
+        self.stats["structured_unknown_events"] += 1
+        display_name = (
+            name if len(name) <= STRUCTURED_DIAGNOSTIC_NAME_LENGTH
+            and re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", name)
+            else "(name omitted for safe display)"
+        )
+        names = self.structured_unknown_names
+        if display_name in names:
+            names[display_name] += 1
+        elif len(names) < STRUCTURED_DIAGNOSTIC_NAME_LIMIT:
+            names[display_name] = 1
+        else:
+            self.structured_unlisted_unknown_count += 1
+        if len(self.structured_unknown_examples) < STRUCTURED_DIAGNOSTIC_EXAMPLE_LIMIT:
+            self.structured_unknown_examples.append(
+                record_source_ref(r, self.input_file_indexes)
+            )
 
     def observe_legacy_evidence(self, r: Record) -> bool:
         """Observe receipt, media, cooldown and API evidence in original order."""
@@ -2642,6 +2691,18 @@ class DigestAnalysis(DigestAnalysisState):
         }
         self.report = DigestReport({
             "summary": summary,
+            "structured_event_diagnostics": {
+                "unknown_count": self.stats.get("structured_unknown_events", 0),
+                "malformed_count": sum(self.structured_malformed_reasons.values()),
+                "unknown_names": [
+                    {"name": name, "count": count}
+                    for name, count in sorted(self.structured_unknown_names.items())
+                ],
+                "unlisted_unknown_count": self.structured_unlisted_unknown_count,
+                "malformed_reasons": dict(sorted(self.structured_malformed_reasons.items())),
+                "unknown_examples": self.structured_unknown_examples,
+                "malformed_examples": self.structured_malformed_examples,
+            },
             "latest_config": self.configs,
             "latest_state": self.latest_state_summary,
             "derived": self.derived,
@@ -3292,9 +3353,7 @@ def select_digest_inputs(args: argparse.Namespace, project_dir: Path, state_file
         filter_records_by_time=filter_records_by_time,
         filter_resume_boundary_records=filter_resume_boundary_records,
         warn_timestamp_fallback=lambda: print(
-            "WARNING: saved physical resume cursor was not found in retained logs; "
-            "falling back to conservative timestamp-based selection, which can replay retained "
-            "records or omit new records after a backward clock jump",
+            "WARNING: " + TIMESTAMP_FALLBACK_WARNING,
             file=sys.stderr,
         ),
     )
@@ -3389,8 +3448,7 @@ def annotate_input_report(report: DigestReport, inputs: DigestInputSelection, sn
     if inputs.selection.timestamp_fallback:
         report["input_warning"] = combine_input_warnings(
             report["input_warning"],
-            "saved physical resume cursor was not found; timestamp fallback can "
-            "omit newly appended records after a backward clock jump",
+            TIMESTAMP_FALLBACK_WARNING,
         )
     report["input_retention_coverage"] = input_retention_coverage(inputs.input_files, inputs.since)
     report["input_warning"] = combine_input_warnings(

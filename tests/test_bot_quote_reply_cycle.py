@@ -647,6 +647,81 @@ def test_lookup_failure_continues_only_when_fetching_the_original(monkeypatch, b
     assert not state["skipped_quote_post_ids"]
 
 
+@pytest.mark.parametrize("earlier_status", [
+    interfaces.QUOTE_CHECK_STATUS_API_ERROR,
+    interfaces.QUOTE_CHECK_STATUS_LOCAL_ERROR,
+])
+@pytest.mark.parametrize("later_status", [
+    interfaces.QUOTE_CHECK_STATUS_CHECKED,
+    interfaces.QUOTE_CHECK_STATUS_POSTED,
+])
+def test_quote_scan_preserves_failure_only_on_later_no_post_completion(
+    monkeypatch, earlier_status, later_status,
+):
+    _configure_cycle(monkeypatch)
+    state = bot.default_state()
+    parents = ["900", "901"]
+    discovery = Mock(return_value={
+        "900": [{"id": "910", "author_id": "111"}],
+        "901": [{"id": "911", "author_id": "112"}],
+    })
+    patch_reply_owner_method(
+        monkeypatch, quote_discovery.QuoteWatchPosts, "lookup", Mock(return_value=parents),
+    )
+    monkeypatch.setattr(assembly.ReplyAssembly, "get_quote_tweets_for_posts", discovery)
+    failure = (
+        bot.ApiError("original lookup failed", service="x", status_code=503)
+        if earlier_status == interfaces.QUOTE_CHECK_STATUS_API_ERROR
+        else ValueError("original lookup failed")
+    )
+    lookups = Mock(side_effect=[failure, {"id": "901"}])
+    patch_tweet_lookup_method(monkeypatch, "get_cached", lookups)
+    patch_reply_owner_method(monkeypatch, api_cooldowns.ApiCooldowns, "record_error", Mock())
+    monkeypatch.setattr(cycle.QuoteReplyCycle, "_candidate_is_eligible", lambda *_args: True)
+    monkeypatch.setattr(cycle.QuoteReplyCycle, "_author_allows_evaluation", lambda *_args: True)
+    model = Mock(side_effect=AssertionError("no model call is needed by this fixed outcome"))
+    patch_reply_owner_method(monkeypatch, generation_owner.ReplyGeneration, "evaluate", model)
+    monkeypatch.setattr(cycle.QuoteReplyCycle, "_prepare_reply_context",
+                        lambda *_args: interfaces.PreparedReplyContext({}, None))
+    monkeypatch.setattr(cycle.QuoteReplyCycle, "_evaluate_reply", lambda *_args: bot.PipelineResult(
+        status="reply", reason="ready", reply="reply", model_call_count=0,
+    ))
+    monkeypatch.setattr(cycle.QuoteReplyCycle, "_resolve_reply_evaluation", lambda *_args: None)
+    monkeypatch.setattr(cycle.QuoteReplyCycle, "_prepare_reply_receipt", lambda *_args: {})
+    monkeypatch.setattr(cycle.QuoteReplyCycle, "_deliver_reply", lambda *_args: (
+        interfaces.FinishReplyCheck(interfaces.QUOTE_CHECK_STATUS_CHECKED)
+        if later_status == interfaces.QUOTE_CHECK_STATUS_CHECKED
+        else {"post_id": "999"}
+    ))
+    monkeypatch.setattr(cycle.QuoteReplyCycle, "_finalise_confirmed_reply",
+                        lambda *_args: interfaces.QUOTE_CHECK_STATUS_POSTED)
+
+    assert bot.maybe_reply_to_quote_tweets(state) == (
+        earlier_status if later_status == interfaces.QUOTE_CHECK_STATUS_CHECKED else later_status
+    )
+    assert lookups.call_args_list == [call(parent, state) for parent in parents]
+    discovery.assert_called_once_with(parents, state)
+    model.assert_not_called()
+
+
+def test_quote_scan_status_composition_keeps_explicit_controls_and_failure_priority():
+    compose = cycle._compose_quote_scan_status
+    api = interfaces.QUOTE_CHECK_STATUS_API_ERROR
+    local = interfaces.QUOTE_CHECK_STATUS_LOCAL_ERROR
+    assert compose(local, api) == api
+    assert compose(api, local) == api
+    assert compose(local, interfaces.QUOTE_CHECK_STATUS_CHECKED) == local
+    for status in (
+        interfaces.QUOTE_CHECK_STATUS_POSTED,
+        interfaces.QUOTE_CHECK_STATUS_PAUSED,
+        interfaces.QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN,
+        interfaces.QUOTE_CHECK_STATUS_SKIPPED_SPACING,
+        interfaces.QUOTE_CHECK_STATUS_DISABLED,
+    ):
+        assert compose(api, status) == status
+    assert compose(None, interfaces.QUOTE_CHECK_STATUS_CHECKED) == "checked"
+
+
 @pytest.mark.parametrize("status,expected_calls,expected_cooldown", [
     (404, 4, False), (429, 1, True), (503, 3, True),
 ])

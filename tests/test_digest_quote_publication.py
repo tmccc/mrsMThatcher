@@ -72,6 +72,8 @@ def test_analyse_handlers_keep_current_validators_and_lazy_source_references(mon
     }
     assert len(publication_report["correlation_warnings"]) == 1
     assert "engagement_question_trial" not in report
+    assert report["structured_event_diagnostics"]["unknown_count"] == 0
+    assert report["structured_event_diagnostics"]["malformed_count"] == 0
 
 
 def test_analyse_warning_omissions_keep_current_limit_and_duplicate_accounting(monkeypatch):

@@ -919,6 +919,11 @@ from its live YAML, validate the configuration, and reload Home Assistant.
 Digest JSON schema version 4 removes trial state, outcomes and correlations.
 Generic quote publication warnings now appear under `quote_publication`;
 confirmed historical public text remains available.
+Unknown structured EVENT names and malformed EVENT envelopes are counted under
+`structured_event_diagnostics` with bounded names and source references; they
+do not enter legacy posting analysis. When a saved physical cursor has vanished,
+both stderr and report warnings explain that timestamp fallback may replay
+retained records or omit new records after a backward clock jump.
 
 `--max-text` limits display previews. It does not truncate identifiers, status
 codes or other values used to count and correlate events. Analysis uses validated,

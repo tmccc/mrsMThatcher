@@ -192,6 +192,24 @@ def _render_overview(report: Dict[str, Any], out: List[str]) -> None:
     input_warning = report.get("input_warning")
     if input_warning:
         out.append(f"Input warning: **{input_warning}**")
+    structured = report.get("structured_event_diagnostics") or {}
+    unknown_count = structured.get("unknown_count", 0)
+    malformed_count = structured.get("malformed_count", 0)
+    if unknown_count or malformed_count:
+        out.append(
+            "Structured EVENT coverage: "
+            f"**{unknown_count} unrecognised name(s), "
+            f"{malformed_count} malformed envelope(s)**."
+        )
+        names = structured.get("unknown_names") or []
+        if names:
+            out.append(
+                "Unrecognised names: "
+                + ", ".join(
+                    f"`{item['name']}` ({item['count']})" for item in names
+                )
+                + f"; unlisted records: {structured.get('unlisted_unknown_count', 0)}."
+            )
     retention = report.get("input_retention_coverage") or {}
     if retention.get("requested_since"):
         coverage = retention.get("requested_start_covered")
