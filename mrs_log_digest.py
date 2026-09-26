@@ -2942,18 +2942,51 @@ def validate_output_destinations(
     output_paths: Iterable[Path],
     logs: Iterable[Path],
     state_file: Path,
+    *,
+    lock_paths: Iterable[Path] = (),
 ) -> None:
-    """Reject destinations that would destroy digest inputs or resume state."""
-    resolved_logs = {path.expanduser().resolve() for path in logs}
+    """Reject output and lock aliases before any digest lock is opened."""
+    def aliases(first: Path, second: Path) -> bool:
+        if first.resolve() == second.resolve():
+            return True
+        try:
+            return first.samefile(second)
+        except FileNotFoundError:
+            return False
+
+    resolved_outputs = [path.expanduser().resolve() for path in output_paths]
+    resolved_logs = [path.expanduser().resolve() for path in logs]
     resolved_state = state_file.expanduser().resolve()
-    for output in output_paths:
-        resolved_output = output.expanduser().resolve()
-        if resolved_output in resolved_logs:
-            raise SystemExit(f"Refusing to write digest: output path aliases an input log: {resolved_output}")
-        if resolved_output == resolved_state:
+    for index, output in enumerate(resolved_outputs):
+        if any(aliases(output, other) for other in resolved_outputs[:index]):
+            raise SystemExit(f"Refusing to write digest: output destinations alias each other: {output}")
+        if any(aliases(output, log) for log in resolved_logs):
+            raise SystemExit(f"Refusing to write digest: output path aliases an input log: {output}")
+        if aliases(output, resolved_state):
             raise SystemExit(
-                f"Refusing to write digest: output path aliases the resume-state file: {resolved_output}"
+                f"Refusing to write digest: output path aliases the resume-state file: {output}"
             )
+    for lock in lock_paths:
+        if aliases(lock, resolved_state):
+            raise SystemExit(f"Refusing to write digest: lock path aliases the resume-state file: {lock}")
+        if any(aliases(lock, log) for log in resolved_logs):
+            raise SystemExit(f"Refusing to write digest: lock path aliases an input log: {lock}")
+        if any(aliases(lock, output) for output in resolved_outputs):
+            raise SystemExit(f"Refusing to write digest: output paths must not alias digest lock files: {lock}")
+
+
+def resolve_digest_logs(args: argparse.Namespace, project_dir: Path) -> List[Path]:
+    """Select CLI input paths without reading log contents or changing the filesystem."""
+    logs = (
+        resolve_explicit_logs(args.logs, project_dir)
+        if args.logs else discover_logs(project_dir, args.glob)
+    )
+    if not logs:
+        raise SystemExit(
+            f"No log files found. Run this in the log directory or pass files explicitly. "
+            f"Auto-discovery pattern was: {args.glob!r}"
+        )
+    return logs
 
 
 def provider_request_export(
@@ -3165,40 +3198,24 @@ def main(argv: Optional[List[str]] = None) -> int:
     state_file = args.state_file.expanduser()
     if not state_file.is_absolute():
         state_file = project_dir / state_file
+    logs = resolve_digest_logs(args, project_dir)
     lock_paths: List[Path] = []
     if not args.no_state:
         lock_paths.append(state_file.with_suffix(state_file.suffix + ".lock"))
     for output in output_paths:
         lock_paths.append(output.with_suffix(output.suffix + ".lock"))
-    if set(output_paths) & {path.resolve() for path in lock_paths}:
-        ap.error("output paths must not alias digest lock files")
+    validate_output_destinations(output_paths, logs, state_file, lock_paths=lock_paths)
 
     if not lock_paths:
-        return run_digest(args, project_dir=project_dir, state_file=state_file)
+        return run_digest(args, project_dir=project_dir, state_file=state_file, logs=logs)
     with ExitStack() as stack:
         for lock_path in sorted(set(lock_paths), key=str):
             stack.enter_context(digest_execution_lock(lock_path))
-        return run_digest(args, project_dir=project_dir, state_file=state_file)
+        return run_digest(args, project_dir=project_dir, state_file=state_file, logs=logs)
 
 
-def select_digest_inputs(args: argparse.Namespace, project_dir: Path, state_file: Path) -> DigestInputSelection:
-    """Resolve logs, resume boundaries and physical record selection."""
-    if args.logs:
-        logs = resolve_explicit_logs(args.logs, project_dir)
-    else:
-        logs = discover_logs(project_dir, args.glob)
-
-    if not logs:
-        raise SystemExit(
-            f"No log files found. Run this in the log directory or pass files explicitly. "
-            f"Auto-discovery pattern was: {args.glob!r}"
-        )
-
-    validate_output_destinations(
-        (path for path in (args.output, args.markdown_output, args.json_output) if path is not None),
-        logs,
-        state_file,
-    )
+def select_digest_inputs(args: argparse.Namespace, project_dir: Path, state_file: Path, logs: List[Path]) -> DigestInputSelection:
+    """Read validated logs and select the resume window under digest locks."""
 
     since_source = None
     since_exclusive = False
@@ -3566,10 +3583,10 @@ def commit_digest_cursor(report: DigestReport, inputs: DigestInputSelection, arg
         )
 
 
-def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path) -> int:
+def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path, logs: List[Path]) -> int:
     """Run input selection, current observation, analysis, output and cursor commit."""
     generation_time = datetime.now()
-    inputs = select_digest_inputs(args, project_dir, state_file)
+    inputs = select_digest_inputs(args, project_dir, state_file, logs)
     snapshots = collect_current_snapshots(project_dir, generation_time)
     resumed = resume_analysis_context(inputs)
     report_window_end = inputs.until or max(

@@ -853,20 +853,142 @@ def test_cli_refuses_colliding_output_paths(tmp_path):
     assert "output paths must be distinct" in result.stderr
 
 
+def assert_preflight_rejects_without_writes(tmp_path, monkeypatch, args, message):
+    """Check a path error before locks or report work, including file contents."""
+    def snapshot():
+        return {
+            str(path.relative_to(tmp_path)): path.read_bytes() if path.is_file() else None
+            for path in tmp_path.rglob("*")
+        }
+
+    before = snapshot()
+    lock_calls = []
+
+    def forbidden_lock(path):
+        lock_calls.append(path)
+        pytest.fail("digest lock acquisition reached before path validation")
+
+    monkeypatch.setattr(digest, "digest_execution_lock", forbidden_lock)
+    monkeypatch.setattr(digest, "run_digest", lambda *_a, **_k: pytest.fail("digest execution reached"))
+    with pytest.raises(SystemExit, match=message):
+        digest.main(args)
+    assert lock_calls == []
+    assert snapshot() == before
+
+
 @pytest.mark.parametrize("arguments", [
     ["--state-file", "resume.json", "--output", "resume.json.lock"],
     ["--no-state", "--output", "report.md", "--markdown-output", "report.md.lock"],
 ])
-def test_cli_refuses_outputs_that_replace_digest_lock_files(tmp_path, arguments, capsys):
+def test_cli_refuses_outputs_that_replace_digest_lock_files(tmp_path, monkeypatch, arguments):
+    log = tmp_path / "bot.log"
+    log.write_text("2026-07-15 12:00:00 INFO worker:9 - existing log\n")
     resolved = [str(tmp_path / value) if value.endswith((".md", ".lock")) else value
                 for value in arguments]
+    assert_preflight_rejects_without_writes(
+        tmp_path, monkeypatch, ["--project-dir", str(tmp_path), *resolved, str(log)],
+        "output paths must not alias digest lock files",
+    )
 
-    with pytest.raises(SystemExit) as caught:
-        digest.main(["--project-dir", str(tmp_path), *resolved])
 
-    assert caught.value.code == 2
-    assert "output paths must not alias digest lock files" in capsys.readouterr().err
-    assert list(tmp_path.iterdir()) == []
+@pytest.mark.parametrize("state_option", [[], ["--no-update-state"], ["--no-state"]])
+def test_output_lock_cannot_truncate_relative_cursor_before_preflight(
+    tmp_path, monkeypatch, state_option,
+):
+    project = tmp_path / "project"
+    cwd = tmp_path / "cwd"
+    project.mkdir()
+    cwd.mkdir()
+    log = project / "bot.log"
+    log.write_text("2026-07-15 12:00:00 INFO worker:9 - existing log\n")
+    cursor = cwd / "report.md.lock"
+    cursor.write_text('{"last_log_entry_time":"2026-07-14 12:00:00"}\n')
+    monkeypatch.chdir(cwd)
+
+    assert_preflight_rejects_without_writes(
+        tmp_path, monkeypatch,
+        ["--project-dir", str(project), "--state-file", "../cwd/report.md.lock",
+         "--output", "report.md", *state_option, "bot.log"],
+        "lock path aliases the resume-state file",
+    )
+
+
+@pytest.mark.parametrize("source", ["output", "cursor", "expanded_rotation", "discovered"])
+def test_selected_input_log_cannot_be_truncated_by_derived_lock(
+    tmp_path, monkeypatch, source,
+):
+    project = tmp_path / "project"
+    project.mkdir()
+    state = project / "resume.json"
+    output = project / "report.md"
+    arguments = ["--project-dir", str(project), "--state-file", state.name]
+    line = "2026-07-15 12:00:00 INFO worker:9 - protected input\n"
+    if source == "output":
+        log = project / "report.md.lock"
+        log.write_text(line)
+        arguments += ["--output", str(output), log.name]
+    elif source == "cursor":
+        log = project / "resume.json.lock"
+        log.write_text(line)
+        arguments += [log.name]
+    elif source == "expanded_rotation":
+        current = project / "mrsMThatcher.log"
+        current.write_text(line)
+        rotation = project / "mrsMThatcher.log.1"
+        rotation.write_text(line)
+        (project / "report.md.lock").hardlink_to(rotation)
+        arguments += ["--output", str(output), current.name]
+    else:
+        log = project / "mrsMThatcher.log.lock"
+        log.write_text(line)
+        arguments += ["--output", str(project / "mrsMThatcher.log")]
+
+    assert_preflight_rejects_without_writes(
+        tmp_path, monkeypatch, arguments, "lock path aliases an input log",
+    )
+
+
+def test_hard_linked_cursor_and_output_lock_are_rejected_before_truncation(tmp_path, monkeypatch):
+    log = tmp_path / "bot.log"
+    log.write_text("2026-07-15 12:00:00 INFO worker:9 - existing log\n")
+    state = tmp_path / "resume.json"
+    state.write_text('{"last_log_entry_time":"2026-07-14 12:00:00"}\n')
+    (tmp_path / "report.md.lock").hardlink_to(state)
+
+    assert_preflight_rejects_without_writes(
+        tmp_path, monkeypatch,
+        ["--project-dir", str(tmp_path), "--state-file", state.name,
+         "--output", str(tmp_path / "report.md"), log.name],
+        "lock path aliases the resume-state file",
+    )
+
+
+@pytest.mark.parametrize("protected", ["input", "state", "output"])
+def test_hard_linked_outputs_keep_existing_collision_protections(
+    tmp_path, monkeypatch, protected,
+):
+    log = tmp_path / "bot.log"
+    log.write_text("2026-07-15 12:00:00 INFO worker:9 - existing log\n")
+    state = tmp_path / "resume.json"
+    state.write_text('{"last_log_entry_time":"2026-07-14 12:00:00"}\n')
+    first = tmp_path / "first.md"
+    if protected == "input":
+        first.hardlink_to(log)
+        message = "output path aliases an input log"
+    elif protected == "state":
+        first.hardlink_to(state)
+        message = "output path aliases the resume-state file"
+    else:
+        first.write_text("existing report\n")
+        message = "output destinations alias each other"
+    arguments = ["--project-dir", str(tmp_path), "--state-file", state.name,
+                 "--output", str(first), log.name]
+    if protected == "output":
+        second = tmp_path / "second.md"
+        second.hardlink_to(first)
+        arguments[6:6] = ["--markdown-output", str(second)]
+
+    assert_preflight_rejects_without_writes(tmp_path, monkeypatch, arguments, message)
 
 
 def test_secondary_output_is_locked_when_state_is_disabled(tmp_path, monkeypatch):
@@ -889,9 +1011,11 @@ def test_secondary_output_is_locked_when_state_is_disabled(tmp_path, monkeypatch
 @pytest.mark.parametrize("other_state", [None, "second-state.json"])
 def test_shared_output_serializes_different_state_modes(tmp_path, monkeypatch, other_state):
     output = tmp_path / "shared.md"
+    log = tmp_path / "bot.log"
+    log.write_text("2026-07-15 12:00:00 INFO worker:9 - existing log\n")
     outer = ["--project-dir", str(tmp_path), "--state-file", "first-state.json",
-             "--output", str(output)]
-    inner = ["--project-dir", str(tmp_path), "--output", str(output)]
+             "--output", str(output), str(log)]
+    inner = ["--project-dir", str(tmp_path), "--output", str(output), str(log)]
     inner += ["--no-state"] if other_state is None else ["--state-file", other_state]
     entries = []
 
@@ -910,6 +1034,8 @@ def test_shared_output_serializes_different_state_modes(tmp_path, monkeypatch, o
 
 def test_stateful_output_lock_blocks_no_state_in_another_process(tmp_path, monkeypatch):
     output = tmp_path / "shared.md"
+    log = tmp_path / "bot.log"
+    log.write_text("2026-07-15 12:00:00 INFO worker:9 - existing log\n")
     script = """
 import sys
 import mrs_log_digest as digest
@@ -925,7 +1051,7 @@ sys.exit(7)
 
     def while_locked(*_args, **_kwargs):
         result = subprocess.run(
-            [sys.executable, "-c", script, "--no-state", "--output", str(output)],
+            [sys.executable, "-c", script, "--no-state", "--output", str(output), str(log)],
             capture_output=True, text=True, check=False,
         )
         assert result.returncode == 0, result.stderr
@@ -933,14 +1059,16 @@ sys.exit(7)
 
     monkeypatch.setattr(digest, "run_digest", while_locked)
     assert digest.main(["--project-dir", str(tmp_path), "--state-file", "first-state.json",
-                        "--output", str(output)]) == 0
+                        "--output", str(output), str(log)]) == 0
 
 
 def test_unrelated_output_and_state_locks_can_run_together(tmp_path, monkeypatch):
+    log = tmp_path / "bot.log"
+    log.write_text("2026-07-15 12:00:00 INFO worker:9 - existing log\n")
     outer = ["--project-dir", str(tmp_path), "--state-file", "first-state.json",
-             "--output", str(tmp_path / "first.md")]
+             "--output", str(tmp_path / "first.md"), str(log)]
     inner = ["--project-dir", str(tmp_path), "--state-file", "second-state.json",
-             "--output", str(tmp_path / "second.md")]
+             "--output", str(tmp_path / "second.md"), str(log)]
     calls = []
 
     def fake_run(*_args, **_kwargs):
@@ -955,6 +1083,8 @@ def test_unrelated_output_and_state_locks_can_run_together(tmp_path, monkeypatch
 
 
 def test_multiple_outputs_and_state_locks_acquire_in_deterministic_order(tmp_path, monkeypatch):
+    log = tmp_path / "bot.log"
+    log.write_text("2026-07-15 12:00:00 INFO worker:9 - existing log\n")
     primary = tmp_path / "z.md"
     markdown = tmp_path / "b.md"
     json_output = tmp_path / "m.json"
@@ -975,7 +1105,7 @@ def test_multiple_outputs_and_state_locks_acquire_in_deterministic_order(tmp_pat
     assert digest.main([
         "--project-dir", str(tmp_path), "--state-file", str(state),
         "--output", str(primary), "--markdown-output", str(markdown),
-        "--json-output", str(json_output),
+        "--json-output", str(json_output), str(log),
     ]) == 0
     expected = sorted({path.with_suffix(path.suffix + ".lock") for path in
                        (state, primary, markdown, json_output)}, key=str)
