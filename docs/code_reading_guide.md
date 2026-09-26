@@ -163,6 +163,13 @@ gate and all image-cycle recovery passes. The public metadata, history,
 editorial, quote-selection, image-selection and pair-selection adapters remain
 available, but are outside this internal path.
 
+When an eligible-image cycle resets, `ImageSelection` excludes the previous
+regular image throughout that `choose_pair` call, including retries with other
+quotations. `QuotePostRunner._select_pair` also keeps it excluded during forced
+image-cycle recovery. Only its explicit final fallback permits that image when
+no other viable pair was found. The exclusion belongs to one pairing call; it
+does not carry into a later posting operation.
+
 `AssetMetadata.image_paths` combines the existing original-image glob with
 case-insensitive PNG files in its configured directory, deduplicates paths and
 excludes legacy `tg_<64-hex-quote-hash>` assets. A discovered file must match
@@ -394,12 +401,25 @@ live in `tests/test_bot_reply_history.py`.
 ## Digest input, analysis and reporting
 
 Start with `main()` in [mrs_log_digest.py](../mrs_log_digest.py) for arguments,
-output paths and locking. `run_digest()` then calls `select_digest_inputs()`
-for the physical resume window, `collect_current_snapshots()` for current
-read-only evidence, and `analyse()` for historical record analysis. It attaches
-input coverage, historical and optional evidence, overlays current state and
-saved context, renders and delivers every output, then commits the resume cursor.
-The delivery call precedes the cursor commit call in `run_digest()`.
+input and output paths, validation and locking. It resolves explicit logs
+(including applicable numeric rotations) or discovers logs automatically, then
+checks output, input, resume-state and derived lock paths before opening any
+lock. Collision checks use resolved paths and, for existing files, same-file
+identity to catch hard links. Relative input and state paths use the project
+directory; relative outputs use the current working directory. A stateful run
+holds its cursor lock and every explicit output lock; a `--no-state` run holds
+its output locks. Locks are deduplicated and acquired in deterministic order.
+
+Under those locks, `run_digest()` calls `select_digest_inputs()` for the
+physical resume window, `collect_current_snapshots()` for current read-only
+evidence, and `analyse()` for historical record analysis. It attaches input
+coverage, historical and optional evidence, overlays current state and saved
+context, then renders and delivers every requested output. File delivery
+fsyncs the temporary report, atomically replaces the destination and fsyncs
+its directory; newly created output directories have their parent entries
+synced as well. Only after all delivery succeeds does `run_digest()` call
+`commit_digest_cursor()`. That call advances the cursor only when records were
+selected and neither `--no-state` nor `--no-update-state` was given.
 
 | Question | Implementation to read next |
 |---|---|
@@ -412,6 +432,14 @@ The delivery call precedes the cursor commit call in `run_digest()`.
 | How are request/receipt evidence and current barriers reconciled into health? | [mrs_log_digest_transactions.py](../mrs_log_digest_transactions.py), [mrs_log_digest_incidents.py](../mrs_log_digest_incidents.py), [mrs_log_digest_remote_write.py](../mrs_log_digest_remote_write.py) |
 | Where are Markdown, JSON and output delivery handled? | [mrs_log_digest_markdown.py](../mrs_log_digest_markdown.py) renders Markdown; `render_and_deliver_digest()` builds JSON and calls `deliver_report()` in [mrs_log_digest.py](../mrs_log_digest.py) |
 | Where are saved context and cursor persistence handled? | [mrs_log_digest_context.py](../mrs_log_digest_context.py) |
+
+`mrs_log_digest_records.py` retains physical occurrences even when their
+timestamp and content match. It removes copies only for a contiguous
+suffix/prefix overlap between adjacent numbered rotations that spans distinct
+timestamps, preserving the older physical position. Uncertain duplicates stay
+in the input, keeping an older saved-tail occurrence ahead of a later identical
+event when both are retained. Resume selection uses physical order and prefers
+the saved tail, with a timestamp boundary fallback when that tail is unavailable.
 
 `analyse()` creates a `DigestAnalysis`, observes records, then finalises the
 report. Its `observe()` loop names the ordered transport, logged-runtime and
