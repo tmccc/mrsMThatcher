@@ -160,7 +160,20 @@ After parsing or the relevant field checks, records, physical input summaries,
 source references, current state/config snapshots, restored resume fields and
 core report sections have checked shapes. The current state and config tags
 preserve their reader-accepted dictionaries without copying them; they do not
-claim a complete bot-state schema. `DigestAnalysisState`
+claim a complete bot-state schema. `DigestCurrentSnapshots` keeps the tags
+distinct, and only the state tag enters the current-state parameters of
+`analyse()` and `DigestAnalysis`. `report_section()` reads
+the current dictionary for a known section of an analysis-built report. Its
+checked keys cover summary, resume context, mention/recovery sections, current
+state/config provenance, provider coverage and the known single-call cost field.
+Final enrichment and cursor persistence use those typed reads and writes.
+Raw indexing of the report's historical extensions remains dynamic, and the
+accessor does not validate arbitrary dictionaries. Public rendering, refresh and
+cursor helpers still accept partial older reports with their existing missing
+and `None` behavior; their limited partial fields do not imply a complete
+analysis-built report. The typing examples check mutations after insertion,
+known-key spelling and state/config miswiring at both analysis entries; they
+do not prove arbitrary raw indexing safe. `DigestAnalysisState`
 starts with complete observation collections and source contexts; the
 coordinator owns publication correlation and its optional API preparation is
 required before report assembly. `run_digest()` carries one selected input and

@@ -23,6 +23,37 @@ import mrs_log_digest_records as record_owner
 from tests.helpers.digest_records import BASE, record
 
 
+def test_complete_cursor_reads_current_sections_and_partial_inputs_keep_absence(tmp_path, monkeypatch):
+    row = record(0, "INFO", "worker", "boundary")
+    report = digest.analyse([row])
+    summary = dict(report["summary"])
+    summary["record_count"] = 17
+    report["summary"] = summary
+    resume = dict(report["resume_context"])
+    resume["pending_mention"] = {"considered_seq": 4}
+    report["resume_context"] = resume
+    path = tmp_path / "resume.json"
+
+    def replace_sections(_row):
+        report["summary"] = {**summary, "record_count": 19}
+        report["resume_context"] = {**resume, "pending_mention": {"considered_seq": 5}}
+        return "fingerprint"
+
+    monkeypatch.setattr(digest, "record_fingerprint", replace_sections)
+
+    digest.save_resume_time(path, row.ts, [row], report, [], complete_report=report)
+    saved = json.loads(path.read_text())
+    assert saved["last_run_record_count"] == 19
+    assert saved["last_pending_mention"] == {"considered_seq": 5}
+
+    digest.save_resume_time(path, row.ts, [], {}, [], preserve_existing_context=False)
+    partial = json.loads(path.read_text())
+    assert partial["last_run_record_count"] is None
+    assert partial["last_pending_mention"] is None
+    with pytest.raises(AttributeError):
+        digest.save_resume_time(path, row.ts, [], {"summary": None}, [], preserve_existing_context=False)
+
+
 def test_context_stripping_keeps_current_recursive_helper_and_key_set(monkeypatch):
     import mrs_log_digest_context as context_owner
 

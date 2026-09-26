@@ -15,7 +15,7 @@ from mrs_log_digest import (
 from mrs_log_digest_analysis import DigestCurrentSnapshots, DigestInputSelection
 from mrs_log_digest_contracts import (
     InputFileSummary, ReadStableSnapshot, RestoredResumeContext,
-    SourceReference,
+    SourceReference, report_section,
 )
 from mrs_log_digest_records import Record, ResumeWindowSelection
 
@@ -46,5 +46,16 @@ def valid_transaction(args: argparse.Namespace, path: Path) -> None:
     resumed = RestoredResumeContext(pending_mention={"considered_seq": -1})
     report = analyse(inputs.records, initial_pending_mention=resumed.pending_mention,
                      current_runtime_state=snapshots.runtime_state)
+    summary = report_section(report, "summary")
+    summary["record_count"] += 1
+    resume = report_section(report, "resume_context")
+    resume["pending_mention"] = resumed.pending_mention
+    report_section(report, "main_post_recovery")["receipt_events"].append({})
+    report_section(report, "mention_backlog_and_quarantine")[
+        "current_author_no_reply_strike_progress"
+    ] = {"available": False}
+    report_section(report, "single_call_reply")["cost_total"] = {
+        "status": "unavailable", "amount": None, "scope": None, "method": None,
+    }
     render_and_deliver_digest(report, inputs, args)
     commit_digest_cursor(report, inputs, args, path)

@@ -5,13 +5,14 @@ from __future__ import annotations
 import argparse
 import os
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 
-from mrs_log_digest import render_and_deliver_digest
+from mrs_log_digest import DigestAnalysis, analyse, commit_digest_cursor, render_and_deliver_digest, save_resume_time
 from mrs_log_digest_analysis import AnalysisSourceContext, DigestCurrentSnapshots, DigestInputSelection
 from mrs_log_digest_contracts import (
     ReadStableSnapshot, RestoredResumeContext, ResumeContext,
-    RuntimeConfigSnapshot, SourceReference, SummarySection,
+    RuntimeConfigSnapshot, SourceReference, SummarySection, report_section,
 )
 from mrs_log_digest_records import ResumeWindowSelection
 
@@ -36,6 +37,32 @@ bad_summary: SummarySection = {
     "_headline_components": {}, "stats": {}, "routine_skip_counts": {},
 }
 bad_context = AnalysisSourceContext(active_xai_call_attempt_index="first")  # expect: arg-type
+
+
+def mutated_report_sections(config: RuntimeConfigSnapshot, inputs: DigestInputSelection,
+                            args: argparse.Namespace, path: Path) -> None:
+    """Reject bad writes after actual analysis inserted the known sections."""
+    report = analyse([])
+    summary = report_section(report, "summary")
+    summary["record_count"] = "not an integer"  # expect: typeddict-item
+    resume = report_section(report, "resume_context")
+    resume["pending_mention"] = False  # expect: typeddict-item
+    report_section(report, "summmary")  # expect: call-overload
+    summary["record_cout"] = 1  # expect: typeddict-unknown-key
+    report_section(report, "main_post_recovery")["receipt_events"] = "bad"  # expect: typeddict-item
+    report["runtime_state_status"] = {"status": "available", "path": "x", "observed_at": "now"}
+    report_section(report, "runtime_state_status")["observed_at"] = 1  # expect: typeddict-item
+    report["provider_request_coverage"] = {"logical_call_denominator": 1}
+    report_section(report, "provider_request_coverage")["logical_call_denominator"] = "one"  # expect: typeddict-item
+    report_section(report, "mention_backlog_and_quarantine")["current_author_no_reply_strike_progress"] = False  # expect: typeddict-item
+    report_section(report, "single_call_reply")["cost_total"] = "bad"  # expect: typeddict-item
+    analyse([], current_runtime_state=config)  # expect: arg-type
+    DigestAnalysis([], current_runtime_state=config)  # expect: arg-type
+    commit_digest_cursor({"summary": {"record_count": "wrong"}}, inputs, args, path)  # expect: arg-type
+    save_resume_time(
+        path, datetime(2026, 9, 25), [], {}, [],
+        complete_report={"summary": bad_summary, "resume_context": bad_persisted_resume},  # expect: arg-type
+    )
 
 
 def unrelated_mapping(inputs: DigestInputSelection, args: argparse.Namespace) -> None:

@@ -58,7 +58,7 @@ from mrs_log_digest_contracts import (
     MentionBacklogSection, ProviderRequestCoverage, RestoredResumeContext,
     ResumeContext, RuntimeConfigSnapshot, RuntimeConfigStatus,
     RuntimeStateSnapshot, RuntimeStateStatus, SingleCallCostTotal,
-    SourceReference, SummarySection,
+    SourceReference, SummarySection, report_section,
 )
 from mrs_log_digest_context import (
     INTERNAL_CONTEXT_KEYS,
@@ -719,6 +719,7 @@ def save_resume_time(
     preserve_existing_context: bool = True,
     merge_existing_boundary_occurrences: bool = False,
     cursor_fingerprint_tail: Optional[List[str]] = None,
+    complete_report: Optional[DigestReport] = None,
 ) -> None:
     """Save resume time."""
     _save_resume_time(
@@ -730,6 +731,7 @@ def save_resume_time(
         preserve_existing_context=preserve_existing_context,
         merge_existing_boundary_occurrences=merge_existing_boundary_occurrences,
         cursor_fingerprint_tail=cursor_fingerprint_tail,
+        complete_report=complete_report,
         read_resume_data=read_resume_data,
         strip_internal_context_markers=strip_internal_context_markers,
         record_fingerprint=record_fingerprint,
@@ -1091,9 +1093,9 @@ def epoch_to_london_text(value: int) -> Optional[str]:
 
 
 def current_author_no_reply_strike_progress(
-    runtime_state: Any,
+    runtime_state: Optional[RuntimeStateSnapshot],
     runtime_state_status: str,
-    runtime_config: Any,
+    runtime_config: Optional[RuntimeConfigSnapshot],
     runtime_config_status: str,
     generation_time: datetime,
     *,
@@ -1542,7 +1544,7 @@ def _public_reply_text_result(
 
 
 def _durable_public_reply_text_candidates(
-    runtime_state: Any,
+    runtime_state: Optional[RuntimeStateSnapshot],
     *,
     lane: str,
     target_id: str,
@@ -1566,7 +1568,7 @@ def _durable_public_reply_text_candidates(
 def enrich_published_reply_text(
     report: Dict[str, Any],
     *,
-    runtime_state: Any,
+    runtime_state: Optional[RuntimeStateSnapshot],
     structured_reply_confirmations: List[Dict[str, Any]],
     historical_reply_text_evidence: List[Dict[str, Any]],
     confirmed_receipt_evidence: Optional[List[Dict[str, Any]]] = None,
@@ -1617,7 +1619,7 @@ class DigestAnalysis(DigestAnalysisState):
         generation_time: Optional[datetime] = None,
         selected_window_end: Optional[datetime] = None,
         current_snapshot_authoritative: bool = False,
-        current_runtime_state: Optional[Dict[str, Any]] = None,
+        current_runtime_state: Optional[RuntimeStateSnapshot] = None,
         input_file_indexes: Optional[Dict[str, int]] = None,
         confirmed_receipt_evidence: Optional[List[Dict[str, Any]]] = None,
         historical_history_evidence: Optional[List[Dict[str, Any]]] = None,
@@ -2750,9 +2752,11 @@ class DigestAnalysis(DigestAnalysisState):
                     continue
                 if isinstance(value, str):
                     event[field] = short(value, self.max_text)
-        main_post_lifecycle, reply_lifecycle = _receipt_lifecycle_summaries(self.report)
-        self.report["main_post_recovery"]["receipt_lifecycle"] = main_post_lifecycle
-        self.report["confirmed_reply_recovery"]["receipt_lifecycle"] = reply_lifecycle
+        main_post_lifecycle, reply_lifecycle = _receipt_lifecycle_summaries(
+            self.report, complete_report=self.report,
+        )
+        report_section(self.report, "main_post_recovery")["receipt_lifecycle"] = main_post_lifecycle
+        report_section(self.report, "confirmed_reply_recovery")["receipt_lifecycle"] = reply_lifecycle
         return self.report
 
     def finalize(self) -> DigestReport:
@@ -2774,7 +2778,7 @@ def analyse(
     generation_time: Optional[datetime] = None,
     selected_window_end: Optional[datetime] = None,
     current_snapshot_authoritative: bool = False,
-    current_runtime_state: Optional[Dict[str, Any]] = None,
+    current_runtime_state: Optional[RuntimeStateSnapshot] = None,
     input_file_indexes: Optional[Dict[str, int]] = None,
     confirmed_receipt_evidence: Optional[List[Dict[str, Any]]] = None,
     historical_history_evidence: Optional[List[Dict[str, Any]]] = None,
@@ -2838,9 +2842,14 @@ def apply_saved_context(
 
 def _receipt_lifecycle_summaries(
     report: Dict[str, Any],
+    *,
+    complete_report: Optional[DigestReport] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Reuse prepared summaries or derive them for older, unprepared reports."""
-    main_recovery = report.get("main_post_recovery") or {}
+    main_recovery = (
+        report_section(complete_report, "main_post_recovery")
+        if complete_report is not None else report.get("main_post_recovery") or {}
+    )
     main_post_lifecycle = main_recovery.get("receipt_lifecycle")
     if main_post_lifecycle is None:
         receipt_events = main_recovery.get("receipt_events") or []
@@ -2848,7 +2857,10 @@ def _receipt_lifecycle_summaries(
             summarise_main_post_receipt_lifecycle(receipt_events)
             if receipt_events else {}
         )
-    reply_recovery = report.get("confirmed_reply_recovery") or {}
+    reply_recovery = (
+        report_section(complete_report, "confirmed_reply_recovery")
+        if complete_report is not None else report.get("confirmed_reply_recovery") or {}
+    )
     reply_lifecycle = reply_recovery.get("receipt_lifecycle")
     if reply_lifecycle is None:
         reply_lifecycle = summarise_reply_receipt_lifecycle(
@@ -3415,7 +3427,7 @@ def overlay_current_runtime(report: DigestReport, inputs: DigestInputSelection, 
         generation_time,
         state_observed_at=snapshots.runtime_state_observed_at,
     )
-    report.setdefault("mention_backlog_and_quarantine", {})[
+    report_section(report, "mention_backlog_and_quarantine")[
         "current_author_no_reply_strike_progress"
     ] = strike_progress
     if (
@@ -3482,7 +3494,7 @@ def add_provider_and_cost_evidence(report: DigestReport, inputs: DigestInputSele
         "scope": (report.get("openai_published_cost") or {}).get("scope"),
         "method": single_call_cost.get("method"),
     }
-    report.setdefault("single_call_reply", {})["cost_total"] = cost_total
+    report_section(report, "single_call_reply")["cost_total"] = cost_total
 
 
 def render_and_deliver_digest(report: DigestReport, inputs: DigestInputSelection, args: argparse.Namespace) -> None:
@@ -3530,6 +3542,7 @@ def commit_digest_cursor(report: DigestReport, inputs: DigestInputSelection, arg
                 record_fingerprint(record)
                 for record in inputs.physical_records[-RESUME_FINGERPRINT_TAIL_LIMIT:]
             ],
+            complete_report=report,
         )
 
 

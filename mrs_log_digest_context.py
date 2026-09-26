@@ -20,6 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import AbstractSet, Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
+from mrs_log_digest_contracts import DigestReport, report_section
 from mrs_log_digest_records import Record
 
 
@@ -72,6 +73,7 @@ def save_resume_time(
     preserve_existing_context: bool = True,
     merge_existing_boundary_occurrences: bool = False,
     cursor_fingerprint_tail: Optional[List[str]] = None,
+    complete_report: Optional[DigestReport] = None,
     read_resume_data: Callable[[Path], Dict[str, Any]],
     strip_internal_context_markers: Callable[[Any], Any],
     record_fingerprint: Callable[[Record], str],
@@ -89,10 +91,18 @@ def save_resume_time(
     latest_state = dict(report.get("latest_state") or {})
     latest_config = dict(report.get("latest_config") or {})
     runtime_state_status = str(
-        (report.get("runtime_state_status") or {}).get("status") or ""
+        (
+            report_section(complete_report, "runtime_state_status")["status"]
+            if complete_report is not None and "runtime_state_status" in complete_report
+            else (report.get("runtime_state_status") or {}).get("status")
+        ) or ""
     )
     runtime_config_status = str(
-        (report.get("runtime_config_status") or {}).get("status") or ""
+        (
+            report_section(complete_report, "runtime_config_status")["status"]
+            if complete_report is not None and "runtime_config_status" in complete_report
+            else (report.get("runtime_config_status") or {}).get("status")
+        ) or ""
     )
     if (
         preserve_existing_context
@@ -151,19 +161,38 @@ def save_resume_time(
         "last_log_entry_fingerprints": sorted(boundary_fingerprint_counts),
         "last_log_entry_fingerprint_counts": dict(sorted(boundary_fingerprint_counts.items())),
         "last_log_entry_fingerprint_tail": cursor_fingerprint_tail,
-        "last_run_record_count": report.get("summary", {}).get("record_count"),
-        "last_run_time_start": report.get("summary", {}).get("time_start"),
-        "last_run_time_end": report.get("summary", {}).get("time_end"),
+        "last_run_record_count": (
+            report_section(complete_report, "summary")["record_count"]
+            if complete_report is not None else report.get("summary", {}).get("record_count")
+        ),
+        "last_run_time_start": (
+            report_section(complete_report, "summary")["time_start"]
+            if complete_report is not None else report.get("summary", {}).get("time_start")
+        ),
+        "last_run_time_end": (
+            report_section(complete_report, "summary")["time_end"]
+            if complete_report is not None else report.get("summary", {}).get("time_end")
+        ),
         "last_run_logs": [str(p) for p in logs],
         "last_known_latest_state": latest_state_clean,
         "last_known_latest_config": latest_config_clean,
         "last_known_generated_image_spacing": latest_generated_image_spacing,
-        "last_active_xai_context": report.get("resume_context", {}).get("active_xai_context"),
-        "last_active_xai_call_attempt": report.get("resume_context", {}).get(
-            "active_xai_call_attempt"
+        "last_active_xai_context": (
+            report_section(complete_report, "resume_context")["active_xai_context"]
+            if complete_report is not None else report.get("resume_context", {}).get("active_xai_context")
         ),
-        "last_pending_mention": report.get("resume_context", {}).get("pending_mention"),
-        "last_pending_qt": report.get("resume_context", {}).get("pending_qt"),
+        "last_active_xai_call_attempt": (
+            report_section(complete_report, "resume_context")["active_xai_call_attempt"]
+            if complete_report is not None else report.get("resume_context", {}).get("active_xai_call_attempt")
+        ),
+        "last_pending_mention": (
+            report_section(complete_report, "resume_context")["pending_mention"]
+            if complete_report is not None else report.get("resume_context", {}).get("pending_mention")
+        ),
+        "last_pending_qt": (
+            report_section(complete_report, "resume_context")["pending_qt"]
+            if complete_report is not None else report.get("resume_context", {}).get("pending_qt")
+        ),
         "updated_at": clock_now().strftime("%Y-%m-%d %H:%M:%S"),
     }
     fd, name = tempfile.mkstemp(prefix=f".{state_file.name}.", suffix=".tmp", dir=state_file.parent)

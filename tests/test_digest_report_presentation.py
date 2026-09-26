@@ -10,8 +10,27 @@ import pytest
 
 import mrs_log_digest as digest
 import mrs_log_digest_state_reporting as state_reporting_owner
+from mrs_log_digest_contracts import report_section
 
 from tests.helpers.digest_records import BASE, _normal_main_post_record, record
+
+
+def test_known_report_section_access_tracks_original_dictionary_and_replacement():
+    report = digest.analyse([])
+    summary = report_section(report, "summary")
+    resume = report_section(report, "resume_context")
+    assert summary is report["summary"]
+    assert resume is report["resume_context"]
+    summary["record_count"] = 7
+    resume["pending_mention"] = {"considered_seq": 3}
+    assert report["summary"]["record_count"] == 7
+    assert report["resume_context"]["pending_mention"]["considered_seq"] == 3
+
+    replacement = dict(summary)
+    report["summary"] = replacement
+    assert report_section(report, "summary") is replacement
+    assert summary is not replacement
+
 
 
 def _initial_state_presentation(*, state=None, configs=None, current=0, unavailable=0, safety=None):

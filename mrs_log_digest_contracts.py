@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, NewType, Optional, Protocol, TypedDict
+from typing import Any, Literal, Mapping, NewType, Optional, Protocol, TypedDict, Union, cast, overload
 
 
 # NewType preserves the exact reader-accepted dictionary and its identity.
@@ -97,7 +97,13 @@ class SummarySection(TypedDict):
     routine_skip_counts: dict[str, int]
 
 
-class MentionBacklogSection(TypedDict):
+class _MentionCurrentProgress(TypedDict, total=False):
+    """Current strike projection appended after the runtime overlay."""
+
+    current_author_no_reply_strike_progress: dict[str, Any]
+
+
+class MentionBacklogSection(_MentionCurrentProgress):
     """Mention-control observations prepared from the selected records."""
 
     events: list[dict[str, Any]]
@@ -105,14 +111,20 @@ class MentionBacklogSection(TypedDict):
     pipeline_evaluations_skipped: int
 
 
-class MainPostRecoverySection(TypedDict):
+class _RecoveryLifecycle(TypedDict, total=False):
+    """Lifecycle summary added after receipt reconciliation."""
+
+    receipt_lifecycle: dict[str, Any]
+
+
+class MainPostRecoverySection(_RecoveryLifecycle):
     """Main-post receipt observations before lifecycle enrichment."""
 
     receipt_events: list[dict[str, Any]]
     confirmed_post_recovery: list[dict[str, Any]]
 
 
-class ConfirmedReplyRecoverySection(TypedDict):
+class ConfirmedReplyRecoverySection(_RecoveryLifecycle):
     """Reply receipt reconciliation prepared from historical/current evidence."""
 
     receipt_events: list[dict[str, Any]]
@@ -156,7 +168,83 @@ class SingleCallCostTotal(TypedDict):
     method: object
 
 
+class SingleCallReplyCostSection(TypedDict, total=False):
+    """Known cost field in the otherwise historical single-call section."""
+
+    cost_total: SingleCallCostTotal
+
+
 # NewType is an identity operation at runtime: the report remains the exact
 # dictionary assembled by analysis. The nominal static boundary rejects
 # unrelated mappings at run helpers; legacy sections remain dynamic.
 DigestReport = NewType("DigestReport", dict[str, Any])
+
+ReportSection = Union[
+    SummarySection, ResumeContext, MentionBacklogSection, MainPostRecoverySection,
+    ConfirmedReplyRecoverySection, RuntimeStateStatus, RuntimeConfigStatus,
+    ProviderRequestCoverage, SingleCallReplyCostSection,
+]
+
+
+@overload
+def report_section(report: DigestReport, name: Literal["summary"]) -> SummarySection:
+    """Read the summary of an analysis-built report."""
+    ...
+
+
+@overload
+def report_section(report: DigestReport, name: Literal["resume_context"]) -> ResumeContext:
+    """Read the resume context of an analysis-built report."""
+    ...
+
+
+@overload
+def report_section(report: DigestReport, name: Literal["mention_backlog_and_quarantine"]) -> MentionBacklogSection:
+    """Read the mention section of an analysis-built report."""
+    ...
+
+
+@overload
+def report_section(report: DigestReport, name: Literal["main_post_recovery"]) -> MainPostRecoverySection:
+    """Read main-post recovery of an analysis-built report."""
+    ...
+
+
+@overload
+def report_section(report: DigestReport, name: Literal["confirmed_reply_recovery"]) -> ConfirmedReplyRecoverySection:
+    """Read reply recovery of an analysis-built report."""
+    ...
+
+
+@overload
+def report_section(report: DigestReport, name: Literal["runtime_state_status"]) -> RuntimeStateStatus:
+    """Read current state provenance after its overlay."""
+    ...
+
+
+@overload
+def report_section(report: DigestReport, name: Literal["runtime_config_status"]) -> RuntimeConfigStatus:
+    """Read current configuration provenance after its overlay."""
+    ...
+
+
+@overload
+def report_section(report: DigestReport, name: Literal["provider_request_coverage"]) -> ProviderRequestCoverage:
+    """Read provider coverage after its overlay."""
+    ...
+
+
+@overload
+def report_section(report: DigestReport, name: Literal["single_call_reply"]) -> SingleCallReplyCostSection:
+    """Read the known cost field of the historical single-call section."""
+    ...
+
+
+def report_section(report: DigestReport, name: str) -> ReportSection:
+    """Return the current known section of an analysis-built report, without copying.
+
+    The sole cast connects the established build/overlay shape to typed reads.
+    This is not validation of arbitrary dictionaries or a partial-report API.
+    There is deliberately no overload for unknown extension section names.
+    """
+    return cast(ReportSection, report[name])

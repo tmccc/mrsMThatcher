@@ -14,8 +14,9 @@ from __future__ import annotations
 from collections import Counter
 from datetime import datetime, tzinfo
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, TypedDict
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, TypedDict, cast
 
+from mrs_log_digest_contracts import RuntimeConfigSnapshot, RuntimeStateSnapshot
 from mrs_log_digest_records import Record
 
 
@@ -53,6 +54,24 @@ class _HeadlineComponents(TypedDict):
     current_health: str
     observations: List[str]
     cooldown: List[str]
+
+
+class _PartialSummaryFields(TypedDict, total=False):
+    """Fields read or written while refreshing older partial report dictionaries."""
+
+    headline: str
+    _headline_components: Mapping[str, Any]
+    stats: dict[str, int]
+
+
+def _summary_for_refresh(
+    report: Dict[str, Any], *, null_is_empty: bool,
+) -> _PartialSummaryFields:
+    """Keep each refresh helper's historical missing/None semantics intact."""
+    # Partial public helpers may receive reports without the complete analysis
+    # shape. The cast is limited to the three fields these helpers actually use.
+    value = report.get("summary") or {} if null_is_empty else report.get("summary", {})
+    return cast(_PartialSummaryFields, value)
 
 
 def _headline_claims(
@@ -234,9 +253,9 @@ def summarize_latest_state(
 
 
 def current_author_no_reply_strike_progress(
-    runtime_state: Any,
+    runtime_state: Optional[RuntimeStateSnapshot],
     runtime_state_status: str,
-    runtime_config: Any,
+    runtime_config: Optional[RuntimeConfigSnapshot],
     runtime_config_status: str,
     generation_time: datetime,
     *,
@@ -930,7 +949,7 @@ def refresh_current_health_headline(
     """
     if "runtime_state_status" not in report:
         return
-    summary = report.get("summary") or {}
+    summary = _summary_for_refresh(report, null_is_empty=True)
     components = summary.get("_headline_components")
     if not isinstance(components, dict):
         return
@@ -1007,7 +1026,7 @@ def refresh_derived(
     """Recalculate derived sections after any carried-forward context is applied."""
     configs = report.get("latest_config") or {}
     st = report.get("latest_state") or {}
-    stats = report.get("summary", {}).get("stats", {}) or {}
+    stats = _summary_for_refresh(report, null_is_empty=False).get("stats", {}) or {}
 
     # Cooldown human timestamps are derived from the epoch. Recompute after
     # saved-context merging so a cleared epoch=0 cannot keep an old date/reason.

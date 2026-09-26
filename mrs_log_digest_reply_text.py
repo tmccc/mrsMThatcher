@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
+from mrs_log_digest_contracts import RuntimeStateSnapshot
 from mrs_log_digest_values import (
     SHA256_LOWER_RE,
     valid_bounded_utf8_text,
@@ -147,7 +148,7 @@ def _public_reply_text_result(
 
 
 def _durable_public_reply_text_candidates(
-    runtime_state: Any,
+    runtime_state: Optional[RuntimeStateSnapshot],
     *,
     lane: str,
     target_id: str,
@@ -507,7 +508,7 @@ def _enrich_selected_historical_reply_text(
 def enrich_published_reply_text(
     report: Dict[str, Any],
     *,
-    runtime_state: Any,
+    runtime_state: Optional[RuntimeStateSnapshot],
     structured_reply_confirmations: List[Dict[str, Any]],
     historical_reply_text_evidence: List[Dict[str, Any]],
     confirmed_receipt_evidence: Optional[List[Dict[str, Any]]] = None,

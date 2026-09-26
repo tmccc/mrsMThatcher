@@ -177,9 +177,9 @@ def load_current_runtime_config(
 def meme_queue_health_snapshot(
     project_dir: Path,
     *,
-    runtime_state: Optional[Dict[str, Any]],
+    runtime_state: Optional[RuntimeStateSnapshot],
     runtime_state_status: str,
-    runtime_config: Optional[Dict[str, Any]],
+    runtime_config: Optional[RuntimeConfigSnapshot],
     runtime_config_status: str,
     observed_at: datetime,
     state_observed_at: datetime,
@@ -212,7 +212,7 @@ def meme_queue_health_snapshot(
     try:
         if runtime_config_status not in {"available", "absent"}:
             raise ValueError(f"current configuration unavailable: {runtime_config_status}")
-        config = runtime_config or {}
+        config: Dict[str, Any] = runtime_config or {}
         keys = {"ENABLE_DAILY_MEME_POSTS", "RESET_MEME_CYCLE_WHEN_ALL_POSTED"}
         missing_defaults = keys - config.keys()
         values = {}

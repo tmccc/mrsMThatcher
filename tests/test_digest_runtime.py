@@ -12,8 +12,26 @@ import sys
 import pytest
 
 import mrs_log_digest as digest
+import mrs_log_digest_runtime as runtime
+from mrs_log_digest_contracts import RuntimeConfigSnapshot, RuntimeStateSnapshot
 
 from tests.helpers.digest_records import BASE, record
+
+
+def test_current_snapshot_tags_keep_dictionary_identity(tmp_path):
+    source = {"daily_reply_count": 1}
+    path = tmp_path / "bot_state.json"
+    path.write_bytes(b"{}")
+    state, _, _, status = runtime.load_current_runtime_state(
+        tmp_path,
+        read_snapshot=lambda path, *, maximum: (b"{}", path.stat()),
+        parse_json_object=lambda data, *, label: source,
+        fromtimestamp=datetime.fromtimestamp,
+    )
+    assert status == "available" and state is source
+    assert RuntimeStateSnapshot(source) is source
+    config = {"MAX_AUTO_REPLIES_PER_DAY": 12}
+    assert RuntimeConfigSnapshot(config) is config
 
 
 def test_state_epoch_wrappers_keep_current_conversion_and_timezone(monkeypatch):
