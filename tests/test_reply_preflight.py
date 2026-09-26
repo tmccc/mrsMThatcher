@@ -108,8 +108,7 @@ def test_reply_preflight_and_create_keep_separate_outcomes(monkeypatch, lane, ou
         with pytest.raises(bot.AmbiguousRemotePostOutcome):
             run(state)
     else:
-        expected = (bot.NORMAL_CHECK_STATUS_API_ERROR
-                    if lane == "mention" and not permanent else "checked")
+        expected = "checked" if permanent else "api_error"
         assert run(state) == expected
 
     assert [call.args[0] for call in transport.call_args_list] == (["GET", "POST"] if post_failure else ["GET"])

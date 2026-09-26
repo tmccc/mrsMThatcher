@@ -232,7 +232,7 @@ def test_terminal_save_error_preserves_the_original_delivery_exception_boundary(
         assert scenario.snapshots == []
     else:
         # Pre-send retirement stays inside the existing transport try block.
-        assert scenario.run().status == ("checked" if lane == "quote_tweet" else "api_error")
+        assert scenario.run().status == "api_error"
         scenario.trace.api_error.assert_called_once_with(scenario.state, failure, "x", scope="write")
         assert scenario.trace.save.call_args_list == [
             call(scenario.state, durable=True), call(scenario.state),
@@ -298,7 +298,7 @@ def test_retryable_delivery_failure_records_matching_cooldown_and_keeps_the_pend
     failure.status_code = 429
     getattr(scenario.trace, stage).side_effect = failure
 
-    assert scenario.run().status == ("checked" if lane == "quote_tweet" else "api_error")
+    assert scenario.run().status == "api_error"
     scope = "write" if stage == "post" else ("quote" if lane == "quote_tweet" else "api")
     scenario.trace.api_error.assert_called_once_with(scenario.state, failure, "x", scope=scope)
     scenario.trace.save.assert_called_once_with(scenario.state)
@@ -335,7 +335,7 @@ def test_runtime_pause_defers_without_api_error_or_posting_failure(lane, stage):
     getattr(scenario.trace, stage).side_effect = pause
 
     assert scenario.run().status == (
-        "checked" if lane == "quote_tweet" else "api_error"
+        "paused" if lane == "quote_tweet" else "checked"
     )
     assert scenario.state == before
     scenario.trace.api_error.assert_not_called()

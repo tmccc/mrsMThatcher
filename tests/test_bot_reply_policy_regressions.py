@@ -425,7 +425,7 @@ def test_strategy_persistence_failure_blocks_quote_tweet_x_write(
         state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
         state["daily_quote_reply_date"] = state["daily_reply_date"]
 
-        assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+        assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_LOCAL_ERROR
         assert state["daily_reply_count"] == 0
         assert "910" not in state["seen_quote_post_ids"]
     finally:
